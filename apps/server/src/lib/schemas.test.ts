@@ -5,6 +5,7 @@ import {
   artistSummarySchema,
   createProjectBodySchema,
   createTrackAssetBodySchema,
+  finalizeTrackUploadBodySchema,
   friendSummarySchema,
   onboardingArtistBodySchema,
   onboardingFanBodySchema,
@@ -213,6 +214,41 @@ describe("artist dashboard release schemas", () => {
     });
 
     expect(result.success).toBe(true);
+  });
+
+  it("accepts one atomic upload finalization payload", () => {
+    const result = finalizeTrackUploadBodySchema.safeParse({
+      assets: [
+        {
+          assetKind: "master",
+          mimeType: "audio/wav",
+          objectKey: "tracks/user-1/track-1/source/master.wav",
+          sizeBytes: 27_500_000,
+          status: "uploaded",
+          storageProvider: "r2",
+        },
+      ],
+      settlement: {
+        isPublic: true,
+        productionStatus: "complete",
+        releaseStrategy: "publish_when_ready",
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects finalization without any uploaded assets", () => {
+    const result = finalizeTrackUploadBodySchema.safeParse({
+      assets: [],
+      settlement: {
+        isPublic: false,
+        productionStatus: "demo",
+        releaseStrategy: "private",
+      },
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it("models friends and collaborators shown in messaging", () => {

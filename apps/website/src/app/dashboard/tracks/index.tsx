@@ -17,6 +17,10 @@ import { useState } from "react";
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { StatsGrid } from "@/components/dashboard/stats-grid";
 import {
+  TrackCardQuickActionDialogs,
+  TrackCardQuickMenuItems,
+} from "@/components/dashboard/track-quick-actions";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -39,6 +43,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import { downloadFileFromApi } from "@/lib/api";
+import { privatePreviewQueue } from "@/lib/player-queue";
 import {
   useDeleteTrackMutation,
   useMeQuery,
@@ -79,6 +84,10 @@ function TracksPage() {
       title: string;
     } | null>(null),
     [deleteConfirmation, setDeleteConfirmation] = useState(""),
+    [quickAction, setQuickAction] = useState<{
+      action: "cover" | "credits" | "swap";
+      trackId: string;
+    } | null>(null),
     completedCount = tracks.filter(
       (track) => track.productionStatus === "complete"
     ).length,
@@ -128,11 +137,11 @@ function TracksPage() {
         return;
       }
 
-      setQueue(playableTracks);
+      setQueue(privatePreviewQueue(track));
       setCurrentTrack(track);
     },
     downloadTrackMaster = async (track: (typeof tracks)[number]) => {
-      if (!track.downloadUrl) {
+      if (!track.masterDownloadUrl) {
         toast({
           description:
             "No guarded master download is available for this track.",
@@ -145,7 +154,7 @@ function TracksPage() {
       try {
         await downloadFileFromApi({
           fallbackFileName: `${track.title}.download`,
-          url: track.downloadUrl,
+          url: track.masterDownloadUrl,
         });
         toast({
           description: `Downloading ${track.title}...`,
@@ -280,6 +289,12 @@ function TracksPage() {
                         Edit Track
                       </Link>
                     </DropdownMenuItem>
+                    <TrackCardQuickMenuItems
+                      onOpenAction={(action) =>
+                        setQuickAction({ action, trackId: track.id })
+                      }
+                      track={{ id: track.id, isForSale: track.isForSale }}
+                    />
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
@@ -301,23 +316,40 @@ function TracksPage() {
 
               <div className="mb-3 space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Status</span>
-                  <Badge
-                    className={
-                      track.assetStatus === "processing"
-                        ? "border-amber-500/20 bg-amber-500/10 text-amber-500"
-                        : undefined
+                  <span className="text-muted-foreground">Media</span>
+                  {(() => {
+                    const mediaStatus = track.mediaStatus ?? "not_started";
+                    if (mediaStatus === "running") {
+                      return (
+                        <Badge
+                          className="animate-pulse border-amber-500/20 bg-amber-500/10 text-amber-500"
+                          variant="outline"
+                        >
+                          Processing…
+                        </Badge>
+                      );
                     }
-                    variant={
-                      track.productionStatus === "complete"
-                        ? "default"
-                        : "secondary"
+                    if (mediaStatus === "failed") {
+                      return (
+                        <Badge variant="destructive">Processing failed</Badge>
+                      );
                     }
-                  >
-                    {track.assetStatus === "processing"
-                      ? "processing"
-                      : track.productionStatus}
-                  </Badge>
+                    if (mediaStatus === "partial") {
+                      return (
+                        <Badge className="border-amber-500/20 bg-amber-500/10 text-amber-500">
+                          Partially ready
+                        </Badge>
+                      );
+                    }
+                    if (mediaStatus === "ready") {
+                      return <Badge>Ready</Badge>;
+                    }
+                    return (
+                      <Badge variant="secondary">
+                        {track.productionStatus}
+                      </Badge>
+                    );
+                  })()}
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
@@ -346,6 +378,14 @@ function TracksPage() {
           </Card>
         ))}
       </div>
+
+      {quickAction ? (
+        <TrackCardQuickActionDialogs
+          action={quickAction.action}
+          onClose={() => setQuickAction(null)}
+          trackId={quickAction.trackId}
+        />
+      ) : null}
 
       <AlertDialog
         onOpenChange={(open) => {

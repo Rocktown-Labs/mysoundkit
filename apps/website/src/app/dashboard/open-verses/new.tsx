@@ -53,7 +53,6 @@ import {
   useCreateTrackMutation,
   useGenresQuery,
   usePeopleSearchQuery,
-  useSettleTrackMutation,
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
@@ -148,7 +147,6 @@ function NewOpenVersePage() {
   const router = useRouter(),
     genresQuery = useGenresQuery(),
     createTrackMutation = useCreateTrackMutation(),
-    settleTrackMutation = useSettleTrackMutation(),
     [activeStep, setActiveStep] = useState<StepId>("details"),
     [completedSteps, setCompletedSteps] = useState<Set<StepId>>(new Set()),
     [title, setTitle] = useState(""),
@@ -325,15 +323,13 @@ function NewOpenVersePage() {
           }),
           trackId = track.id;
 
-        setPublishStage("Uploading Master and Open Verse Clip");
-        const uploadResult = await uploadTrackFiles([master, clip]),
-          uploaded = uploadResult.files,
-          uploadedMaster = uploaded.find(
+        setPublishStage("Uploading immutable base master");
+        const uploadResult = await uploadTrackFiles([master]),
+          uploadedMaster = uploadResult.files.find(
             (entry) => entry.raw.name === master.name
-          ),
-          uploadedClip = uploaded.find((entry) => entry.raw.name === clip.name);
-        if (!uploadedMaster?.objectInfo.key || !uploadedClip?.objectInfo.key) {
-          throw new Error("The audio upload did not return both media files.");
+          );
+        if (!uploadedMaster?.objectInfo.key) {
+          throw new Error("The base master upload did not complete.");
         }
 
         let coverObjectKey: string | undefined, coverUrl: string | undefined;
@@ -355,32 +351,11 @@ function NewOpenVersePage() {
               metadata: {
                 durationMs,
                 originalFileName: master.name,
-                url: `${MEDIA_BASE_URL}/${uploadedMaster.objectInfo.key}`,
               },
               mimeType: master.type || "audio/wav",
               objectKey: uploadedMaster.objectInfo.key,
               sizeBytes: master.size,
-              status: "ready",
-              storageProvider: "r2",
-            },
-            param: { trackId },
-          })
-        );
-        const clipAsset = await rpcJson(
-          await apiClient.v1.tracks[":trackId"].assets.$post({
-            json: {
-              assetKind: "open_verse_clip",
-              durationMs: Math.round((slotEnd - slotStart) * 1000),
-              metadata: {
-                endSeconds: slotEnd,
-                originalFileName: clip.name,
-                startSeconds: slotStart,
-                url: `${MEDIA_BASE_URL}/${uploadedClip.objectInfo.key}`,
-              },
-              mimeType: "audio/wav",
-              objectKey: uploadedClip.objectInfo.key,
-              sizeBytes: clip.size,
-              status: "ready",
+              status: "uploaded",
               storageProvider: "r2",
             },
             param: { trackId },
@@ -403,26 +378,13 @@ function NewOpenVersePage() {
           );
         }
 
-        setPublishStage("Publishing underlying Track");
-        await settleTrackMutation.mutateAsync({
-          body: {
-            isPublic: true,
-            productionStatus: "demo",
-            releaseStrategy: "publish_when_ready",
-            requireCoverArt: false,
-          },
-          trackId,
-        });
-        setPublishStage("Publishing Open Verse listing");
+        setPublishStage("Starting durable Open Verse processing");
         const listing = await rpcJson(
           await apiClient.v1["open-verses"].index.$post({
             json: {
               accessMode,
               description: description.trim() || undefined,
               maxSubmissions: 50,
-              previewAssetId: clipAsset.assets.find(
-                (asset) => asset.objectKey === uploadedClip.objectInfo.key
-              )?.id,
               slotEndsAtMs: Math.round(slotEnd * 1000),
               slotStartsAtMs: Math.round(slotStart * 1000),
               title: listingTitle,
@@ -431,8 +393,8 @@ function NewOpenVersePage() {
           })
         );
         toast({
-          description: `${listingTitle} is now discoverable.`,
-          title: "Open Verse published",
+          description: `${listingTitle} is discoverable while SoundKit prepares its listening snippet.`,
+          title: "Open Verse processing started",
         });
         await router.navigate({
           params: { genre: listing.genreSlug, id: listing.id },

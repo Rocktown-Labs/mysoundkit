@@ -1,8 +1,10 @@
+/* oxlint-disable node/no-top-level-await, one-var, sort-keys, sort-vars */
 import alchemy from "alchemy";
 import {
   AccountId,
   AccountApiToken,
   AnalyticsEngineDataset,
+  Container,
   DurableObjectNamespace,
   Hyperdrive,
   Queue,
@@ -38,6 +40,9 @@ if (!(app.local || isProduction || isPullRequestPreview)) {
   );
 }
 
+// Production serves media through the dedicated media host attached to the
+// server Worker. Local and pr-<number> preview stages have no adopted media
+// domain, so they route through the guarded /media API route instead.
 const SITE_HOST = isProduction
     ? "mysoundkit.com"
     : `web-${app.stage}.mysoundkit.com`,
@@ -49,7 +54,7 @@ const SITE_HOST = isProduction
     : `media-${app.stage}.mysoundkit.com`,
   SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`,
   API_URL = app.local ? "http://localhost:3000" : `https://${API_HOST}`,
-  MEDIA_URL = app.local ? API_URL : `https://${MEDIA_HOST}`,
+  MEDIA_URL = isProduction ? `https://${MEDIA_HOST}` : `${API_URL}/media`,
   SENTRY_WEB_DSN =
     process.env.VITE_SENTRY_DSN ||
     "https://87f5517c906a37ab831c171fc686145d@o4510278858309632.ingest.us.sentry.io/4511447930568704",
@@ -108,6 +113,12 @@ const SITE_HOST = isProduction
     return jurisdiction as "eu" | "fedramp";
   },
   r2Jurisdiction = getR2Jurisdiction(),
+  // Every stage (production and pr-<number> previews alike) shares the single
+  // production media bucket, mirroring how stages share one application
+  // database. Previews must never delete or empty it, so `delete` is only
+  // enabled for production and the CORS rule is a stable wildcard so stage
+  // deploys never fight over bucket configuration.
+  MEDIA_BUCKET_NAME = "soundkit-media",
   media = await R2Bucket("media", {
     adopt: shouldAdoptRemoteResources,
     cors: [
@@ -115,7 +126,12 @@ const SITE_HOST = isProduction
         allowed: {
           headers: ["*"],
           methods: ["GET", "HEAD", "PUT", "POST"],
-          origins: [SITE_URL, API_URL],
+          origins: [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "https://*.mysoundkit.com",
+            "https://mysoundkit.com",
+          ],
         },
         // @better-upload multipart uploads read the ETag response header from
         // the part PUT to build the CompleteMultipartUpload request, so it must
@@ -123,11 +139,9 @@ const SITE_HOST = isProduction
         exposeHeaders: ["ETag"],
       },
     ],
-    domains: app.local
-      ? undefined
-      : [{ adopt: shouldAdoptRemoteResources, domain: MEDIA_HOST }],
+    delete: isProduction,
     jurisdiction: r2Jurisdiction,
-    name: resourceName("soundkit-media"),
+    name: MEDIA_BUCKET_NAME,
   }),
   mediaUploadToken = await AccountApiToken("media-upload-token", {
     name: resourceName("soundkit-media-upload-token"),
@@ -171,9 +185,44 @@ const SITE_HOST = isProduction
     className: "LiveRecordingWorkflow",
     workflowName: resourceName("soundkit-live-recording"),
   }),
-  trackProcessingWorkflow = Workflow("track-processing", {
-    className: "TrackProcessingWorkflow",
-    workflowName: resourceName("soundkit-track-processing"),
+  trackEnrichmentWorkflow = Workflow("track-enrichment", {
+    className: "TrackEnrichmentWorkflow",
+    workflowName: resourceName("soundkit-track-enrichment"),
+  }),
+  mediaProcessingWorkflow = Workflow("media-processing", {
+    className: "MediaProcessingWorkflow",
+    workflowName: resourceName("soundkit-media-processing"),
+  }),
+  projectExportWorkflow = Workflow("project-export", {
+    className: "ProjectExportWorkflow",
+    workflowName: resourceName("soundkit-project-export"),
+  }),
+  mediaRetentionWorkflow = Workflow("media-retention", {
+    className: "MediaRetentionWorkflow",
+    workflowName: resourceName("soundkit-media-retention"),
+  }),
+  purchaseFulfillmentWorkflow = Workflow("purchase-fulfillment", {
+    className: "PurchaseFulfillmentWorkflow",
+    workflowName: resourceName("soundkit-purchase-fulfillment"),
+  }),
+  payoutRunWorkflow = Workflow("payout-run", {
+    className: "PayoutRunWorkflow",
+    workflowName: resourceName("soundkit-payout-run"),
+  }),
+  mediaProcessor = await Container("media-processor", {
+    adopt: shouldAdoptRemoteResources,
+    build: {
+      context: "../../apps/media-processor",
+      dockerfile: "Dockerfile",
+      platform: "linux/amd64",
+    },
+    className: "MediaProcessorContainer",
+    instanceType: isProduction ? "standard-1" : "basic",
+    maxInstances: isProduction ? 25 : 20,
+    name: resourceName("soundkit-media-processor"),
+    observability: {
+      logs: { enabled: true },
+    },
   }),
   emailDeliveryDeadLetterQueue = await Queue("email-delivery-dlq", {
     adopt: shouldAdoptRemoteResources,
@@ -349,8 +398,14 @@ export const server = await Worker("server", {
     LIVE_RECORDING_WORKFLOW: liveRecordingWorkflow,
     LIVE_ROOMS: liveRooms,
     PRESENCE: presence,
+    PROJECT_EXPORT_WORKFLOW: projectExportWorkflow,
     MEDIA_BUCKET: media,
-    MEDIA_CANONICAL_URL: "https://media.mysoundkit.com",
+    MEDIA_CANONICAL_URL: MEDIA_URL,
+    MEDIA_PROCESSING_WORKFLOW: mediaProcessingWorkflow,
+    MEDIA_PROCESSOR: mediaProcessor,
+    MEDIA_RETENTION_WORKFLOW: mediaRetentionWorkflow,
+    PURCHASE_FULFILLMENT_WORKFLOW: purchaseFulfillmentWorkflow,
+    PAYOUT_RUN_WORKFLOW: payoutRunWorkflow,
     MEDIA_PUBLIC_URL: MEDIA_URL,
     RECORDINGS_ACCESS_KEY_ID: recordingsUploadToken.accessKeyId,
     RECORDINGS_BUCKET: recordings,
@@ -400,7 +455,7 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("STRIPE_BETTER_AUTH_WEBHOOK_SECRET"),
     ...optionalEnvBinding("STRIPE_COMMERCE_WEBHOOK_SECRET"),
     ...optionalEnvBinding("STRIPE_CONNECT_WEBHOOK_SECRET"),
-    TRACK_PROCESSING_WORKFLOW: trackProcessingWorkflow,
+    TRACK_ENRICHMENT_WORKFLOW: trackEnrichmentWorkflow,
     TRACK_DURATION_BACKFILL_QUEUE: trackDurationBackfillQueue,
     UPLOAD_BUCKET_NAME: media.name,
     ...optionalEnvBinding("ADMIN_EMAILS"),
@@ -421,7 +476,10 @@ export const server = await Worker("server", {
   },
   domains: app.local
     ? undefined
-    : [{ adopt: isProduction, domainName: API_HOST }],
+    : [
+        { adopt: isProduction, domainName: API_HOST },
+        { adopt: isProduction, domainName: MEDIA_HOST },
+      ],
   entrypoint: "src/index.ts",
   eventSources: [
     {

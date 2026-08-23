@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+/* oxlint-disable complexity, one-var, sort-vars */
 import { createDb } from "@soundkit/db";
 import {
   genres,
@@ -19,12 +20,14 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import {
   formatDuration,
+  guardedTrackPlaybackUrl,
   objectUrlFromMetadata,
   publicAssetUrl,
   publicProjectAssetUrl,
 } from "@/lib/asset-urls";
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import { regionSlugFromUser } from "@/lib/public-explore";
+import { resolveTrackAssetFromRows } from "@/lib/track-asset-resolver";
 
 const mapAssetForDashboard = (
     asset:
@@ -42,6 +45,9 @@ const mapAssetForDashboard = (
     metadata: "metadata" in asset ? asset.metadata : null,
     mimeType: asset.mimeType,
     objectKey: asset.objectKey,
+    processingVersion:
+      "processingVersion" in asset ? asset.processingVersion : null,
+    purpose: "purpose" in asset ? asset.purpose : null,
     sizeBytes: asset.sizeBytes,
     status: asset.status,
     storageProvider: asset.storageProvider,
@@ -85,7 +91,25 @@ const mapAssetForDashboard = (
       (asset) =>
         asset.assetKind === "vocal_stem" || asset.assetKind === "verse_vocal"
     ).length,
-  });
+  }),
+  mediaStatusFromAssets = ({
+    assets,
+    mediaReady,
+  }: {
+    assets: InferSelectModel<typeof trackAssets>[];
+    mediaReady: boolean;
+  }): "failed" | "not_started" | "ready" | "running" => {
+    if (mediaReady) {
+      return "ready";
+    }
+    if (assets.some((asset) => asset.status === "failed")) {
+      return "failed";
+    }
+    if (assets.some((asset) => asset.status === "processing")) {
+      return "running";
+    }
+    return "not_started";
+  };
 
 export const mapTrackSummary = ({
   artistName,
@@ -107,17 +131,23 @@ export const mapTrackSummary = ({
   row: InferSelectModel<typeof tracks>;
 }) => {
   const coverAsset = assets.find((asset) => asset.assetKind === "cover_art"),
-    primaryAudioAsset =
-      assets.find((asset) => asset.assetKind === "master") ??
-      assets.find(
-        (asset) => typeof asset.durationMs === "number" && asset.durationMs > 0
-      ) ??
-      assets.find(
-        (asset) =>
-          asset.assetKind === "untagged_wav" ||
-          asset.assetKind === "tagged_mp3" ||
-          asset.assetKind === "instrumental"
-      ),
+    masterAsset = resolveTrackAssetFromRows({
+      assets,
+      purpose: "master",
+      trackId: row.id,
+    }),
+    primaryAudioAsset = resolveTrackAssetFromRows({
+      allowLegacyFallback: true,
+      assets,
+      purpose: "streaming",
+      trackId: row.id,
+    }),
+    downloadAsset = resolveTrackAssetFromRows({
+      allowLegacyFallback: true,
+      assets,
+      purpose: "consumer_download",
+      trackId: row.id,
+    }),
     resolvedDurationMs =
       primaryAudioAsset?.durationMs ??
       assets.find(
@@ -131,7 +161,15 @@ export const mapTrackSummary = ({
         "variant" in asset.metadata &&
         asset.metadata.variant === "preview_30s"
     ),
-    assetStatus = assets.some((asset) => asset.status === "processing")
+    currentLineageAssets = assets.filter(
+      (asset) =>
+        asset.isCurrent &&
+        (asset.id === masterAsset?.id ||
+          asset.sourceAssetId === masterAsset?.id)
+    ),
+    assetStatus = currentLineageAssets.some(
+      (asset) => asset.status === "processing"
+    )
       ? "processing"
       : (primaryAudioAsset?.status ?? null);
 
@@ -143,8 +181,8 @@ export const mapTrackSummary = ({
     catalogItemType: row.catalogItemType,
     collaboratorCount,
     coverArtUrl: objectUrlFromMetadata(coverAsset?.metadata) ?? null,
-    downloadUrl: primaryAudioAsset
-      ? `/v1/tracks/${row.id}/assets/${primaryAudioAsset.id}/download`
+    downloadUrl: downloadAsset
+      ? `/v1/tracks/${row.id}/assets/${downloadAsset.id}/download`
       : null,
     downloadsAllowed: row.downloadsAllowed,
     downloadsRequireFirstPlay: row.downloadsRequireFirstPlay,
@@ -159,6 +197,14 @@ export const mapTrackSummary = ({
     isrc: row.isrc,
     listeningAccess: row.listeningAccess,
     lyricsStatus: row.lyricsStatus,
+    masterDownloadUrl: masterAsset
+      ? `/v1/tracks/${row.id}/assets/${masterAsset.id}/download`
+      : null,
+    mediaReady: Boolean(primaryAudioAsset),
+    mediaStatus: mediaStatusFromAssets({
+      assets: currentLineageAssets,
+      mediaReady: Boolean(primaryAudioAsset),
+    }),
     musicalKey: row.musicalKey,
     organizationId: row.organizationId,
     playbackUrl:
@@ -166,7 +212,9 @@ export const mapTrackSummary = ({
       row.listeningAccess === "premium_or_purchased" &&
       (!row.exclusiveUntil || row.exclusiveUntil > new Date())
         ? null
-        : publicAssetUrl(primaryAudioAsset),
+        : primaryAudioAsset
+          ? guardedTrackPlaybackUrl(row.id)
+          : null,
     plays: plays ?? 0,
     previewUrl: publicAssetUrl(previewAsset),
     price: row.price ? Number(row.price) : null,
@@ -263,7 +311,9 @@ export const buildTrackDetail = async (
           id: trackCollaborators.id,
           name: userProfiles.displayName,
           role: trackCollaborators.collaboratorRole,
+          splitBps: trackCollaborators.creditSplitBps,
           status: trackCollaborators.invitationStatus,
+          userId: trackCollaborators.collaboratorUserId,
         })
         .from(trackCollaborators)
         .leftJoin(
@@ -288,11 +338,18 @@ export const buildTrackDetail = async (
           sql`${trackLyrics.createdAt} desc`
         )
         .limit(1),
-    ]);
+    ]),
+    ownerMaster = resolveTrackAssetFromRows({
+      assets: assetRows,
+      purpose: "master",
+      trackId: row.id,
+    });
 
   return {
     ...summary,
-    assets: assetRows.map(mapAssetForDashboard),
+    assets: assetRows
+      .filter((asset) => asset.isCurrent)
+      .map(mapAssetForDashboard),
     collaborators: collaboratorRows,
     createdAt: row.createdAt.toISOString(),
     description: row.description,
@@ -307,6 +364,9 @@ export const buildTrackDetail = async (
           timedLines: lyricsRows[0].timedLines ?? null,
         }
       : null,
+    playbackUrl:
+      summary.playbackUrl ??
+      (ownerMaster ? guardedTrackPlaybackUrl(row.id) : null),
   };
 };
 
@@ -400,6 +460,7 @@ export const buildProjectSummary = async (
     duration: durationMs > 0 ? formatDuration(durationMs) : "0:00",
     durationMs,
     exclusiveUntil: row.exclusiveUntil?.toISOString() ?? null,
+    exportVersion: row.exportVersion,
     genre: primaryGenre ? canonicalGenreName(primaryGenre) : null,
     id: row.id,
     isForSale: row.isForSale,

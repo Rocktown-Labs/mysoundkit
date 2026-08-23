@@ -1049,6 +1049,10 @@ app.openapi(
         user,
       });
 
+    // Track enrichment is a paid, opt-in feature: it is never launched
+    // automatically (no backfills). It runs only when a new upload enables
+    // the lyrics toggle or the artist triggers "Generate lyrics" manually.
+
     return c.json(entitlements, HttpStatusCodes.OK);
   }
 );

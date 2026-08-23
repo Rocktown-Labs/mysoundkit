@@ -267,6 +267,41 @@
       "when": 1787278990943,
       "tag": "0037_notification_dispatcher",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1787279123247,
+      "tag": "0038_soundkit_media_pipeline_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1787284292550,
+      "tag": "0039_project_export_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1787285323757,
+      "tag": "0040_track_media_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1787350830414,
+      "tag": "0041_track_credit_splits",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1787361959246,
+      "tag": "0042_checkout_idempotency",
+      "breakpoints": true
     }
   ]
 }

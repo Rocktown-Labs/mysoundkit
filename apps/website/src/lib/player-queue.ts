@@ -8,6 +8,10 @@ export interface CompletedQueueState {
   restartCurrent: boolean;
 }
 
+export const privatePreviewQueue = (track: PlayerTrack): PlayerTrack[] => [
+  track,
+];
+
 export const completeQueuedTrack = ({
   currentTrack,
   queue,

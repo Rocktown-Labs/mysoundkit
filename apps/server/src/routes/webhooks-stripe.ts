@@ -2,12 +2,12 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
-  orderItems,
   orders,
-  purchases,
   sellerAccounts,
   userNotifications,
 } from "@soundkit/db/schema/app";
+import { logWarn } from "@/middleware/structured-logging";
+import { ensurePurchaseFulfillmentWorkflow } from "@/workflows/purchase-fulfillment";
 import {
   communityMembers,
   communitySubscriptions,
@@ -27,7 +27,6 @@ import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import {
   notifyBillingIssueEmail,
   notifyPayoutFailedEmail,
-  notifyPurchaseEmails,
 } from "@/lib/email-events";
 import {
   retrieveStripeCharge,
@@ -228,9 +227,11 @@ const processConnectAccountEvent = async ({
   processStripeEvent = async ({
     emailQueue,
     event,
+    purchaseFulfillmentWorkflow,
   }: {
     emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
     event: StripeEvent;
+    purchaseFulfillmentWorkflow?: Workflow<{ orderId: string }> | null;
   }) => {
     const eventType = event.type ?? "unknown",
       object = event.data?.object ?? {},
@@ -261,59 +262,21 @@ const processConnectAccountEvent = async ({
           })
           .where(eq(orders.transactionId, transactionId));
 
-        if (order?.buyerUserId) {
-          const { buyerUserId } = order,
-            purchasedItems = await db
-              .select()
-              .from(orderItems)
-              .where(eq(orderItems.orderId, order.id)),
-            purchaseRows = purchasedItems.map((item) => ({
-              buyerUserId,
-              id: crypto.randomUUID(),
-              orderItemId: item.id,
-              projectId: item.projectId,
-              trackId: item.trackId,
-              videoId: item.videoId,
-            }));
+        // Purchases, delivery emails, and notifications run in the durable
+        // fulfillment workflow so a failure retries without depending on
+        // Stripe re-delivering this webhook.
+        if (order) {
+          const fulfillmentOutcome =
+            await ensurePurchaseFulfillmentWorkflow({
+              orderId: order.id,
+              workflow: purchaseFulfillmentWorkflow,
+            });
 
-          if (purchaseRows.length > 0) {
-            await db
-              .insert(purchases)
-              .values(purchaseRows)
-              .onConflictDoNothing();
-          }
-
-          await notifyPurchaseEmails({
-            orderId: order.id,
-            queue: emailQueue,
-          });
-
-          await db
-            .insert(userNotifications)
-            .values({
-              id: `purchase_ready:${order.id}:${buyerUserId}`,
-              link: purchaseRows[0]?.id
-                ? `/library/purchased/${purchaseRows[0].id}`
-                : "/library/purchased",
-              message: "Your purchase is ready in your SoundKit library.",
-              title: "Purchase Ready",
-              type: "purchase_ready",
-              userId: buyerUserId,
-            })
-            .onConflictDoNothing();
-
-          if (order.sellerUserId) {
-            await db
-              .insert(userNotifications)
-              .values({
-                id: `sale_notification:${order.id}:${order.sellerUserId}`,
-                link: "/dashboard/sales",
-                message: "You made a new sale on SoundKit.",
-                title: "New Sale",
-                type: "sale_notification",
-                userId: order.sellerUserId,
-              })
-              .onConflictDoNothing();
+          if (!fulfillmentOutcome.launched) {
+            logWarn({
+              event: "purchase_fulfillment_launch_failed",
+              orderId: order.id,
+            });
           }
         }
       }
@@ -515,6 +478,7 @@ app.openapi(
     await processStripeEvent({
       emailQueue: c.env.EMAIL_DELIVERY_QUEUE,
       event,
+      purchaseFulfillmentWorkflow: c.env.PURCHASE_FULFILLMENT_WORKFLOW ?? null,
     });
     await db
       .update(stripeWebhookEvents)

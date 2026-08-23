@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars */
 import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { sentry } from "@sentry/hono/cloudflare";
@@ -9,7 +10,14 @@ import { cors } from "hono/cors";
 import notFound from "stoker/middlewares/not-found";
 import defaultHook from "stoker/openapi/default-hook";
 
+import {
+  isDigestSendDay,
+  runArtistDigest,
+  runFanDigest,
+} from "@/lib/artist-digest";
 import { runBattleServiceSweep } from "@/lib/battle-service";
+import { runCheckoutReconciliation } from "@/lib/checkout-reconciliation";
+import { runCreatorRewardsSettlement } from "@/lib/creator-rewards-settlement";
 import {
   handleEmailDeliveryQueue,
   retryDueEmailDeliveries,
@@ -22,6 +30,7 @@ import {
   LIVE_NOTIFICATION_QUEUE_NAME,
 } from "@/lib/live-notifications";
 import type { LiveNotificationQueueMessage } from "@/lib/live-notifications";
+import { enqueueLegacyMediaBackfill } from "@/lib/media-backfill";
 import { handleTrackDurationBackfillQueue } from "@/lib/media-metadata";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
 import { isTrackDurationBackfillQueueName } from "@/lib/media-queue";
@@ -31,6 +40,8 @@ import {
 } from "@/lib/notifications";
 import type { NotificationQueueMessage } from "@/lib/notifications";
 import { sendDueOnboardingReminders } from "@/lib/onboarding-reminders";
+import { runOpenVerseSweep } from "@/lib/open-verse-sweep";
+import { runOrphanedUploadSweep } from "@/lib/orphan-sweep";
 import { publishDueTrackReleases } from "@/lib/release-notifications";
 import { withRetry } from "@/lib/retry";
 import type { AppEnv } from "@/lib/types";
@@ -56,6 +67,7 @@ import libraryRoutes from "@/routes/library";
 import listeningPartiesRoutes from "@/routes/listening-parties";
 import liveRoutes from "@/routes/live";
 import meRoutes from "@/routes/me";
+import mediaRoutes from "@/routes/media";
 import messagesRoutes from "@/routes/messages";
 import networkRoutes from "@/routes/network";
 import notificationsRoutes from "@/routes/notifications";
@@ -73,23 +85,31 @@ import uploadsRoutes from "@/routes/uploads";
 import videosRoutes from "@/routes/videos";
 import webhookRoutes from "@/routes/webhooks";
 import stripeWebhookRoutes from "@/routes/webhooks-stripe";
+import { scheduleDuePayoutRuns } from "@/workflows/payout-run";
 
+export { ContainerProxy } from "@cloudflare/containers";
+export { MediaProcessorContainer } from "@/containers/media-processor";
 export { LiveRecordingWorkflow } from "@/workflows/live-recording";
-export { TrackProcessingWorkflow } from "@/workflows/track-processing";
+export { MediaProcessingWorkflow } from "@/workflows/media-processing";
+export { MediaRetentionWorkflow } from "@/workflows/media-retention";
+export { PayoutRunWorkflow } from "@/workflows/payout-run";
+export { PurchaseFulfillmentWorkflow } from "@/workflows/purchase-fulfillment";
+export { ProjectExportWorkflow } from "@/workflows/project-export";
+export { TrackEnrichmentWorkflow } from "@/workflows/track-enrichment";
 export { LiveRoomDurableObject } from "@/durable-objects/live-room";
 export { PresenceDurableObject } from "@/durable-objects/presence";
 
 const app = new OpenAPIHono<AppEnv>({
     defaultHook,
   }),
+  allowedCorsOriginPatterns = [
+    /^https:\/\/(?<sub>[a-z0-9-]+\.)*mysoundkit\.pages\.dev$/u,
+    /^https:\/\/(?<sub>[a-z0-9-]+)\.pages\.dev$/u,
+    /^https:\/\/(?<sub>[a-z0-9-]+\.)*workers\.dev$/u,
+    /^https:\/\/(?<sub>[a-z0-9-]+\.)*rocktown-labs\.workers\.dev$/u,
+  ],
   hasEnvValue = (key: string) =>
     Boolean((env as unknown as Record<string, unknown>)[key]),
-  allowedCorsOriginPatterns = [
-    /^https:\/\/([a-z0-9-]+\.)*mysoundkit\.pages\.dev$/u,
-    /^https:\/\/[a-z0-9-]+\.pages\.dev$/u,
-    /^https:\/\/([a-z0-9-]+\.)*workers\.dev$/u,
-    /^https:\/\/([a-z0-9-]+\.)*rocktown-labs\.workers\.dev$/u,
-  ],
   isAllowedCorsOrigin = (origin: string) =>
     origin === env.CORS_ORIGIN ||
     origin === env.BETTER_AUTH_URL ||
@@ -143,6 +163,7 @@ app.use(
 );
 app.use("/v1/*", jsonBodyMiddleware);
 app.use("/v1/*", sessionMiddleware);
+app.use("/media/*", sessionMiddleware);
 
 app.doc("/api/openapi.json", {
   info: {
@@ -186,7 +207,7 @@ app.get("/health", async (c) =>
       mediaPublicUrl: hasEnvValue("MEDIA_PUBLIC_URL"),
       notificationQueue: hasEnvValue("NOTIFICATION_QUEUE"),
       trackDurationBackfillQueue: hasEnvValue("TRACK_DURATION_BACKFILL_QUEUE"),
-      trackProcessingWorkflow: hasEnvValue("TRACK_PROCESSING_WORKFLOW"),
+      trackEnrichmentWorkflow: hasEnvValue("TRACK_ENRICHMENT_WORKFLOW"),
       uploadBucket: hasEnvValue("UPLOAD_BUCKET_NAME"),
     },
     database: await checkDatabaseHealth(),
@@ -201,6 +222,7 @@ app.get("/health", async (c) =>
 app.on(["GET", "POST"], "/auth/*", (c) => createAuth().handler(c.req.raw));
 
 app
+  .route("/media", mediaRoutes)
   .route("/v1/me", meRoutes)
   .route("/v1/auth", authRoutes)
   .route("/v1/onboarding", onboardingRoutes)
@@ -240,6 +262,40 @@ app.notFound(notFound);
 // eslint-disable-next-line promise/prefer-await-to-callbacks
 app.onError((error, c) => jsonError(c, error));
 
+const buildWeeklyDigestJobs = (
+  workerEnv: AppEnv["Bindings"],
+  now: Date
+): Promise<unknown>[] =>
+  isDigestSendDay("weekly", now)
+    ? [
+        runArtistDigest({
+          cadence: "weekly",
+          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+        }),
+        runFanDigest({
+          cadence: "weekly",
+          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+        }),
+      ]
+    : [];
+
+const buildMonthlyDigestJobs = (
+  workerEnv: AppEnv["Bindings"],
+  now: Date
+): Promise<unknown>[] =>
+  isDigestSendDay("monthly", now)
+    ? [
+        runArtistDigest({
+          cadence: "monthly",
+          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+        }),
+        runFanDigest({
+          cadence: "monthly",
+          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+        }),
+      ]
+    : [];
+
 export type { AppType } from "./rpc-contract";
 
 export default {
@@ -271,12 +327,36 @@ export default {
     );
   },
   scheduled: (_controller, workerEnv, executionContext) => {
+    const now = new Date();
+
     executionContext.waitUntil(
       Promise.allSettled([
         runBattleServiceSweep({
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
         }),
+        runOpenVerseSweep({
+          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+        }),
+        runCreatorRewardsSettlement({
+          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+        }),
+        // Digests send on their send-day only (weekly = Monday UTC covering
+        // Mon-Sun with Sunday as day 7; monthly = first three days of the
+        // month covering the prior month). Period-anchored idempotency keys
+        // keep the 5-minute schedule from double-sending within a day.
+        ...buildWeeklyDigestJobs(workerEnv, now),
+        ...buildMonthlyDigestJobs(workerEnv, now),
+        runCheckoutReconciliation(),
+        runOrphanedUploadSweep({ bucket: workerEnv.MEDIA_BUCKET }),
+        scheduleDuePayoutRuns({
+          workflow: workerEnv.PAYOUT_RUN_WORKFLOW,
+        }),
         publishDueLiveRecordings(),
+        enqueueLegacyMediaBackfill({
+          batchSize: 25,
+          bucket: workerEnv.MEDIA_BUCKET,
+          workflow: workerEnv.MEDIA_PROCESSING_WORKFLOW,
+        }),
         sendDueOnboardingReminders(),
         retryDueEmailDeliveries({ queue: workerEnv.EMAIL_DELIVERY_QUEUE }),
         publishDueTrackReleases({

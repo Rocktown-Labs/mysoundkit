@@ -262,6 +262,17 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         }),
         type: "application/ld+json",
       },
+      // Traks analytics: the loader hooks history.pushState, so SPA route
+      // changes are tracked as pageviews with no extra wiring.
+      {
+        children:
+          "window.traks=window.traks||function(){(window.traks.q=window.traks.q||[]).push(arguments)}",
+      },
+      {
+        "data-site": "pb_live_e8d5aowqd1aplxgnwqgm7r79",
+        defer: true,
+        src: "https://traks-collect.rocktown-labs.workers.dev/t.js",
+      },
     ],
   }),
   notFoundComponent: NotFoundComponent,

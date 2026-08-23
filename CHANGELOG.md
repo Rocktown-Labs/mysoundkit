@@ -4,6 +4,41 @@
 
 ### Added
 
+- Added Open Verse closing automation: a cron sweep closes listings at their `closesAt` deadline, notifies owners and submitters, and sends a 24-hour closing-soon reminder to the owner.
+- Added durable `PurchaseFulfillmentWorkflow`: Stripe webhook marks orders paid, then purchases grants, delivery emails, and in-app notifications run as idempotent retry-safe workflow steps.
+- Added idempotent checkout: stable client idempotency keys (persisted per checkout intent) resolve retries to the original order and live Stripe session; Stripe session creation carries an `Idempotency-Key`.
+- Added direct download links to buyer receipt emails: 72-hour HMAC-signed asset URLs (configurable TTL on the media signer) so buyers can grab files without logging in.
+- Added creator rewards settlement engine: active premium subscriptions are allocated into `subscription_reward_allocations`, the pool is distributed across artists by qualified reward units into `creatorEarnings`, with first-earning and halfway-to-payout milestone emails (including a Stripe Connect reminder when payouts aren't ready).
+- Added `PayoutRunWorkflow`: reserved earnings age past the 30-day window into payable, sellers above the $25 minimum receive Stripe transfers, failures email the artist and retry on the next run.
+- Added artist weekly digest emails: plays, unique listeners, battles fought, and sales.
+- Added track editing UX overhaul: released-track edits save without touching locked fields via a persistent "Save changes" button, an inline credits editor lives in the Collaborators tab (also used by the upload form), quick actions (cover art swap, main file swap, credits editing, monetize toggle) run from cards and detail page without opening the full editor, and new tracks default to self-credited artist + songwriter rows.
+- Added orphaned-upload cleanup to the cron scheduler: uploaded R2 objects never registered as assets are deleted after a 7-day grace period, plus stale abandoned checkouts reconcile after 24 hours.
+
+- Added fast-fail handling for media processing when the source master is missing from R2: master verification now uses a tight retry/timeout budget, terminal failures record a distinct `MASTER_OBJECT_MISSING` error code on the processing job instead of retrying a permanently missing object through Cloudflare's default exponential backoff.
+- Added explicit deadlines to Media Processor Container RPC calls (inspect, loudness analysis, and render) so a container that fails to boot or a wedged FFmpeg job surfaces as a descriptive timeout error instead of hanging the workflow until the runtime cancels it.
+- Added in-step terminal handling for permanently missing/stale masters in `MediaProcessingWorkflow` and `TrackEnrichmentWorkflow`: both workflows record the job failure and complete normally instead of throwing into engine-level retries, and enrichment never reaches paid StemSplit/transcription API calls without a verified master.
+- Added a Credits section to the public track page below "More From This Artist" with grouped **Artists** (stage names, linked profiles), **Writers** (legal names, with split % when set), and **Producers** rows; featured artists now appear in the title byline ("with …") and in the player's artist display.
+- Added artist credits and simple writer splits: `track_collaborators.credit_split_bps` migration, `artist`/`splitBps`/`alsoCreditAsWriter` support in collaborator inputs (a songwriter row is auto-created when a featured artist is also credited as a writer), an **Artist** role option with "also credit as writer" toggle and per-credit split inputs in the new track form.
+- Added a Premium opt-out "Generate lyrics & stems" switch under Monetize Track in the new track distribution step; settlement only starts paid enrichment when enabled. The dashboard track lyrics tab button is now labeled "Generate lyrics with AI".
+- Added media processing status badges (Ready / Processing… / Failed / Partially ready) to dashboard track cards using pipeline-aware `mediaStatus`.
+- Moved the project form rights confirmation ("I own or control the rights…") from the distribution step into the Credits & Collaboration step, matching the track flow.
+- Coupled purchase-gated downloads to monetization in the new track form: enabling "Require purchase" now turns on Monetize Track, and disabling Monetize clears the purchase requirement.
+
+### Fixed
+
+- Fixed V3 True Peak correction attenuating the entire mix and pushing valid streaming derivatives below the accepted loudness range; pipeline V4 always guards AAC transient overshoot and adaptively lowers the limiter ceiling independently from loudness gain.
+- Fixed media pipeline V2 consumer downloads returning a null loudness result after successful encoding, which caused four repeated renders and `Cannot read properties of null (reading 'integratedLufs')`; pipeline V3 now assigns and validates the measurement before registration.
+- Raised preview media-container concurrency from 5 to 20, shortened idle sleep, preserved non-JSON Container diagnostics, and added processor stack logging so concurrent test uploads no longer surface opaque random 500s.
+- Replaced vague upload/detail copy and “Variant Audio” cards with truthful upload/processing states and purpose-specific names, and blocked release actions in both UI and API until streaming media is playable.
+
+- Replaced the browser-owned register/settle upload chain with one idempotent server finalization boundary that verifies R2 objects, records assets, saves release intent, and starts durable processing without waiting up to 15 minutes in the upload form.
+- Fixed project track uploads using the project-asset namespace and detached callback timeouts; project audio now uses awaited Better Upload transfers through authenticated per-track source keys and the same atomic finalization path as individual tracks.
+- Fixed premature publication and “track ready” emails: owners receive the ready notification only after playable streaming media is registered, while immediate and scheduled public releases are gated on media readiness.
+- Fixed deterministic loudness failures repeatedly rendering the same derivative by preserving validation failures as Workflow step output, and disabled FFmpeg limiter auto-leveling.
+
+- Fixed the artist profile page queueing every playable track when playing a single song; dashboard/private surfaces now always queue only the selected track.
+- Fixed preview-environment media URLs pointing at a nonexistent `media-pr-<n>` host: local and PR preview stages now build asset URLs from the API origin's guarded `/media` route, while production keeps serving through the dedicated media domain.
+
 - Added a centralized web notification dispatcher with deterministic in-app/email idempotency, preference policy, self-notification prevention, event metadata for future aggregation, and a delayed Cloudflare Queue for presence-aware missed-message email evaluation.
 - Added real conversation read state and unread counts, notification-feed cursor pagination, mark-one-read support, follower live emails, video comment alerts, collaborator track-live alerts, and missing friend/collaboration/battle/Open Verse response emails.
 - Comprehensively updated repository `README.md` with full technical architecture diagram, deep-dive breakdowns of all applications (`apps/server`, `apps/website`, `apps/native`, `apps/docs`) and shared packages (`@soundkit/*`), client-side MediaBunny audio engine details, Durable Object / Workflow background workers, local development guide, database operations, and quality verification gates.
@@ -16,6 +51,7 @@
 
 ### Fixed
 
+- Corrected the V5 AAC inter-sample peak retries so narrowly excessive True Peak encodes use available loudness headroom instead of repeatedly lowering an inactive limiter ceiling.
 - Prevented pull-request previews from force-synchronizing branch-local Drizzle schemas against the shared production database, and separated preview Sentry environments from production alerts.
 - Fixed autonomous battle timelines after tied rounds: completed scheduled rounds now enter sudden death or resolve the leading artist instead of advancing past the configured format, tied tiebreakers match persisted winner rules, and battle results now progress to the ended phase.
 - Fixed explore search results rendering behind homepage map controls and replaced generic result icons with artist avatars, track covers, and project artwork.
@@ -39,6 +75,11 @@
 
 ### Changed
 
+- Unified ordinary and battle playback on one `-13 LUFS` streaming derivative, accepted from `-14` through `-12 LUFS` with True Peak at or below `-1 dBTP`; pipeline V2 also caches each source inside the processor container and removes redundant browser-generated WAV previews.
+- Organized new source uploads under immutable per-user/per-track R2 keys (`tracks/{userId}/{trackId}/source/{assetId}-{filename}`).
+- Changed download filenames to derive from the track title instead of the raw uploaded file: masters keep their source extension (`blunt-22.wav`), generated derivatives use `.m4a`/`.flac`, and cover art downloads as `blunt-22-cover.jpg`.
+- Changed preview environments to share the single production `soundkit-media` R2 bucket instead of per-stage buckets, matching how stages share the application database: uploads from previews land in the same catalog storage, Destroy Preview removes the bucket binding from Alchemy state without deleting the bucket (`delete` is production-only), and bucket CORS uses a stable wildcard rule so stage deploys no longer rewrite each other's configuration.
+- Relaxed derivative loudness verification tolerance from ±0.6 to ±1.0 LU (EBU/Apple-style delivery tolerance) so healthy two-pass loudnorm + AAC encodes are not rejected; True Peak must still be ≤ -1 dBTP.
 - Clarified broad email notification preferences with new Messages and Live controls, and hid nonfunctional web push settings until a real push delivery channel exists.
 - Updated repository `README.md` footer attribution to Rocktown Labs.
 - Reworked `/dashboard/messages` into a mobile-app-style experience: on mobile the conversation list is the landing view, tapping a conversation opens that chat full-screen with a back button, and the list returns after back instead of forcing the first conversation open.

@@ -20,8 +20,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
+import {
+  apiClient,
+  API_V1_URL,
+  MEDIA_BASE_URL,
+  MEDIA_UPLOAD_URL,
+  rpcJson,
+  TRACK_SOURCE_UPLOAD_URL,
+} from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
 import { sliceAudioFileToSnippet } from "@/lib/media-bunny-slicer";
+import { readAudioDurationMs } from "@/lib/media-duration";
 import { canonicalGenreName } from "@/lib/music-genres";
 import {
   useOpenVerseQuery,
@@ -56,6 +65,7 @@ function OpenVerseDetailPage() {
   const { id } = Route.useParams(),
     query = useOpenVerseQuery(id),
     submitMutation = useSubmitOpenVerseMutation(id),
+    { data: session } = authClient.useSession(),
     { setCurrentTrack, setQueue } = useAudioPlayer(),
     [submissions, setSubmissions] = useState<Submission[]>([]),
     [selectedAdlibsFile, setSelectedAdlibsFile] = useState<File | null>(null),
@@ -66,6 +76,8 @@ function OpenVerseDetailPage() {
       null
     ),
     [message, setMessage] = useState(""),
+    [finalMasterFile, setFinalMasterFile] = useState<File | null>(null),
+    [isFinalizing, setIsFinalizing] = useState(false),
     [isSubmitting, setIsSubmitting] = useState(false),
     [isDownloading, setIsDownloading] = useState(false),
     [accessRequestStatus, setAccessRequestStatus] = useState<string | null>(
@@ -73,13 +85,20 @@ function OpenVerseDetailPage() {
     ),
     adlibsInputRef = useRef<HTMLInputElement | null>(null),
     auditionInputRef = useRef<HTMLInputElement | null>(null),
+    finalMasterInputRef = useRef<HTMLInputElement | null>(null),
     vocalStemInputRef = useRef<HTMLInputElement | null>(null),
     { upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
       route: "media",
     }),
-    listing = query.data;
+    { uploadAsync: uploadFinalMaster } = useUploadFiles({
+      api: TRACK_SOURCE_UPLOAD_URL,
+      credentials: "include",
+      route: "track-source",
+    }),
+    listing = query.data,
+    isListingOwner = listing?.ownerUserId === session?.user.id;
 
   useEffect(() => {
     let cancelled = false;
@@ -226,31 +245,31 @@ function OpenVerseDetailPage() {
       setIsSubmitting(true);
       try {
         const uploadAsset = async (file: File) => {
-          const uploadResult = await upload([file]),
-            uploaded = uploadResult.files[0],
-            objectKey = uploaded?.objectInfo.key;
-          if (!objectKey) {
-            throw new Error("A submission upload did not finish.");
-          }
-          return {
-            assetMimeType: file.type || "audio/wav",
-            assetObjectKey: objectKey,
-            assetOriginalFileName: file.name,
-            assetSizeBytes: file.size,
-            assetUrl: `${MEDIA_BASE_URL}/${objectKey}`,
-          };
-        },
-         [audition, vocalStem, adlibs] = await Promise.all([
-          uploadAsset(selectedAuditionFile),
-          uploadAsset(selectedVocalStemFile),
-          selectedAdlibsFile ? uploadAsset(selectedAdlibsFile) : null,
-        ]),
-         created = await submitMutation.mutateAsync({
-          adlibs: adlibs ?? undefined,
-          audition,
-          message: message.trim() || undefined,
-          vocalStem,
-        });
+            const uploadResult = await upload([file]),
+              uploaded = uploadResult.files[0],
+              objectKey = uploaded?.objectInfo.key;
+            if (!objectKey) {
+              throw new Error("A submission upload did not finish.");
+            }
+            return {
+              assetMimeType: file.type || "audio/wav",
+              assetObjectKey: objectKey,
+              assetOriginalFileName: file.name,
+              assetSizeBytes: file.size,
+              assetUrl: `${MEDIA_BASE_URL}/${objectKey}`,
+            };
+          },
+          [audition, vocalStem, adlibs] = await Promise.all([
+            uploadAsset(selectedAuditionFile),
+            uploadAsset(selectedVocalStemFile),
+            selectedAdlibsFile ? uploadAsset(selectedAdlibsFile) : null,
+          ]),
+          created = await submitMutation.mutateAsync({
+            adlibs: adlibs ?? undefined,
+            audition,
+            message: message.trim() || undefined,
+            vocalStem,
+          });
         setSubmissions((current) => [
           { ...created, submitterUserId: "me" },
           ...current,
@@ -291,10 +310,11 @@ function OpenVerseDetailPage() {
             row.id === submission.id ? { ...row, status: "accepted" } : row
           )
         );
+        await query.refetch();
         toast({
           description:
-            "The accepted artist was added to the underlying Track collaborators.",
-          title: "Submission accepted",
+            "The accepted files and collaborator are preserved. Upload the completed final master when your external mix is ready.",
+          title: "Awaiting final master",
         });
       } catch (error) {
         toast({
@@ -305,6 +325,86 @@ function OpenVerseDetailPage() {
           title: "Acceptance failed",
           variant: "destructive",
         });
+      }
+    },
+    finalizeOpenVerse = async () => {
+      if (!(listing && isListingOwner && finalMasterFile)) {
+        return;
+      }
+      setIsFinalizing(true);
+      try {
+        const result = await uploadFinalMaster([finalMasterFile]),
+          uploaded = result.files.find(
+            (entry) =>
+              entry.raw === finalMasterFile ||
+              entry.name === finalMasterFile.name
+          );
+        if (!uploaded?.objectInfo.key) {
+          throw new Error("The final master upload did not complete.");
+        }
+        const durationMs = await readAudioDurationMs(finalMasterFile).catch(
+            () => null
+          ),
+          detail = await rpcJson(
+            await apiClient.v1.tracks[":trackId"].assets.$post({
+              json: {
+                assetKind: "master",
+                durationMs: durationMs ?? undefined,
+                metadata: {
+                  durationMs,
+                  originalFileName: finalMasterFile.name,
+                },
+                mimeType: finalMasterFile.type || "audio/wav",
+                objectKey: uploaded.objectInfo.key,
+                sizeBytes: finalMasterFile.size,
+                status: "uploaded",
+                storageProvider: "r2",
+              },
+              param: { trackId: listing.trackId },
+            })
+          ),
+          masterAsset = detail.assets.find(
+            (asset) =>
+              asset.assetKind === "master" &&
+              asset.objectKey === uploaded.objectInfo.key
+          );
+        if (!masterAsset) {
+          throw new Error("SoundKit could not register the final master.");
+        }
+
+        const response = await fetch(
+          `${API_V1_URL}/open-verses/${encodeURIComponent(listing.id)}/final-master`,
+          {
+            body: JSON.stringify({ sourceAssetId: masterAsset.id }),
+            credentials: "include",
+            headers: { "content-type": "application/json" },
+            method: "POST",
+          }
+        ),
+         payload = (await response.json().catch(() => null)) as {
+          message?: string;
+        } | null;
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "Finalization failed.");
+        }
+        setFinalMasterFile(null);
+        await query.refetch();
+        toast({
+          description:
+            "The new master is authoritative. Final media processing continues durably.",
+          title: "Final master processing started",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "The final master could not be processed.",
+          title: "Finalization failed",
+          variant: "destructive",
+        });
+      } finally {
+        setIsFinalizing(false);
       }
     };
 
@@ -398,14 +498,65 @@ function OpenVerseDetailPage() {
               listing.slotStartsAtMs !== null &&
               listing.slotEndsAtMs !== null && (
                 <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
-                  This Open Verse was created before slot previews were stored
-                  separately. Download Open Slot will generate the marked{" "}
+                  SoundKit is preparing the selected{" "}
                   {formatSlot(listing.slotStartsAtMs, listing.slotEndsAtMs)}{" "}
-                  from the original track for you.
+                  listening snippet. The original master remains private.
                 </div>
               )}
           </CardContent>
         </Card>
+
+        {isListingOwner && listing.status === "awaiting_final_master" && (
+          <Card className="border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileAudio className="size-5 text-primary" />
+                Upload completed final master
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Finish the mix/master outside SoundKit, then upload the new
+                authoritative recording. Accepted submission files and credits
+                remain preserved.
+              </p>
+              <input
+                ref={finalMasterInputRef}
+                accept=".wav,.flac,.aiff,.aif,.m4a,.mp3,audio/*"
+                className="hidden"
+                onChange={(event) =>
+                  setFinalMasterFile(event.target.files?.[0] ?? null)
+                }
+                type="file"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => finalMasterInputRef.current?.click()}
+              >
+                <Upload className="size-4" />
+                {finalMasterFile?.name ?? "Choose new final master"}
+              </Button>
+              <Button
+                type="button"
+                className="w-full gap-2"
+                disabled={!finalMasterFile || isFinalizing}
+                onClick={() => void finalizeOpenVerse()}
+              >
+                {isFinalizing ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="size-4" />
+                )}
+                {isFinalizing
+                  ? "Registering final master…"
+                  : "Start final-track processing"}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -479,7 +630,7 @@ function OpenVerseDetailPage() {
                         <UserCheck className="size-3" />
                         Accepted
                       </Badge>
-                    ) : (
+                    ) : (isListingOwner && listing.status === "open" ? (
                       <Button
                         onClick={() => void acceptSubmission(submission)}
                         size="sm"
@@ -487,7 +638,7 @@ function OpenVerseDetailPage() {
                         <CheckCircle2 className="mr-1 size-4" />
                         Accept
                       </Button>
-                    )}
+                    ) : null)}
                   </div>
                 </div>
               );
@@ -501,7 +652,7 @@ function OpenVerseDetailPage() {
             <CardTitle>Submit Your Verse</CardTitle>
           </CardHeader>
           <CardContent>
-            {listing.accessMode === "approval_required" ? (
+            {listing.status === "open" ? listing.accessMode === "approval_required" ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
                   Request access from the creator before submitting files. The
@@ -518,9 +669,9 @@ function OpenVerseDetailPage() {
                 >
                   {accessRequestStatus === "approved"
                     ? "Access approved"
-                    : (accessRequestStatus === "pending"
+                    : accessRequestStatus === "pending"
                       ? "Request pending"
-                      : "Request Access")}
+                      : "Request Access"}
                 </Button>
               </div>
             ) : (
@@ -613,6 +764,12 @@ function OpenVerseDetailPage() {
                   {isSubmitting ? "Uploading…" : "Submit Verse"}
                 </Button>
               </form>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                This Open Verse is closed to new submissions. The accepted
+                collaboration is awaiting or processing its completed final
+                master.
+              </p>
             )}
           </CardContent>
         </Card>

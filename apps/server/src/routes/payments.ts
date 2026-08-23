@@ -21,7 +21,10 @@ import {
   TIP_PLATFORM_FEE_BPS,
 } from "@/lib/fees";
 import { refreshSellerAccount } from "@/lib/seller";
-import { createDestinationCheckout } from "@/lib/stripe";
+import {
+  createDestinationCheckout,
+  retrieveCheckoutSession,
+} from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
@@ -31,7 +34,10 @@ const app = new OpenAPIHono<AppEnv>(),
     transactionId: z.string().nullable(),
   }),
   checkoutBodySchema = z.object({
+    // Stable per checkout intent; retries with the same key return the same
+    // order and Stripe session instead of creating duplicates.
     cancelUrl: z.url(),
+    idempotencyKey: z.uuid().optional(),
     successUrl: z.url(),
   }),
   tipBodySchema = checkoutBodySchema.extend({
@@ -108,6 +114,60 @@ app.openapi(
       return c.json({ message: "Cart is empty." }, HttpStatusCodes.BAD_REQUEST);
     }
 
+    const body = c.req.valid("json"),
+      // A retried checkout with the same key resolves to the original order
+      // instead of creating duplicates.
+      existingOrder = body.idempotencyKey
+        ? (
+            await db
+              .select({
+                id: orders.id,
+                status: orders.status,
+                transactionId: orders.transactionId,
+              })
+              .from(orders)
+              .where(eq(orders.idempotencyKey, body.idempotencyKey))
+              .limit(1)
+          )[0]
+        : undefined;
+
+    if (existingOrder) {
+      const [existingTransaction] = existingOrder.transactionId
+        ? await db
+            .select({
+              id: transactions.id,
+              stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,
+            })
+            .from(transactions)
+            .where(eq(transactions.id, existingOrder.transactionId))
+            .limit(1)
+        : [];
+
+      // Re-resolve the live session URL; expired sessions return null and
+      // the buyer starts a fresh checkout intent with a new key.
+      let checkoutUrl: null | string = null;
+      if (
+        existingTransaction?.stripeCheckoutSessionId &&
+        existingOrder.status === "checkout_pending"
+      ) {
+        checkoutUrl =
+          (
+            await retrieveCheckoutSession(
+              existingTransaction.stripeCheckoutSessionId
+            )
+          )?.url ?? null;
+      }
+
+      return c.json(
+        {
+          checkoutUrl,
+          setupRequired: false,
+          transactionId: existingTransaction?.id ?? null,
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
     const sellerId = getSingleCheckoutSellerId(
       items.map((item) => item.sellerUserId)
     );
@@ -157,6 +217,7 @@ app.openapi(
     await db.insert(orders).values({
       buyerUserId: user.id,
       id: orderId,
+      idempotencyKey: body.idempotencyKey ?? null,
       sellerUserId: sellerId,
       status: "checkout_pending",
       subtotal: (amountCents / 100).toFixed(2),
@@ -178,8 +239,7 @@ app.openapi(
       }))
     );
 
-    const body = c.req.valid("json"),
-      checkout = await createDestinationCheckout({
+    const checkout = await createDestinationCheckout({
         applicationFeeCents: platformFeeCents,
         cancelUrl: body.cancelUrl,
         connectedAccountId: seller.stripeAccountId,

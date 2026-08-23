@@ -519,6 +519,7 @@ export const sampleProjects = [
     coverArtUrl: "/placeholder.svg",
     description: "A late-night EP rollout with five linked singles.",
     exclusiveUntil: null,
+    exportVersion: 1,
     genre: "R&B/Soul",
     id: "project_after_dark",
     isForSale: false,

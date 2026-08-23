@@ -1,5 +1,8 @@
+import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -186,6 +189,7 @@ export const projectAssetKindEnum = pgEnum("project_asset_kind", [
   "photo",
   "video",
   "attachment",
+  "release_export",
 ]);
 export const videoKindEnum = pgEnum("video_kind", [
   "music_video",
@@ -293,10 +297,38 @@ export const workflowJobStatusEnum = pgEnum("workflow_job_status", [
   "failed",
   "canceled",
 ]);
+export const mediaAssetPurposeEnum = pgEnum("media_asset_purpose", [
+  "master",
+  "streaming",
+  "battle",
+  "download",
+  "lossless_download",
+  "open_verse_snippet",
+  "preview",
+  "stem",
+  "artwork",
+  "other",
+]);
+export const mediaWorkflowTypeEnum = pgEnum("media_workflow_type", [
+  "media_processing",
+  "track_enrichment",
+  "project_export",
+  "media_retention",
+]);
+export const mediaProcessingModeEnum = pgEnum("media_processing_mode", [
+  "final_track",
+  "open_verse_base",
+  "legacy_backfill",
+]);
+export const mediaProcessingJobStatusEnum = pgEnum(
+  "media_processing_job_status",
+  ["queued", "running", "ready", "partial", "failed"]
+);
 export const openVerseStatusEnum = pgEnum("open_verse_status", [
   "open",
   "closed",
   "fulfilled",
+  "awaiting_final_master",
   "archived",
 ]);
 export const openVerseAccessModeEnum = pgEnum("open_verse_access_mode", [
@@ -867,6 +899,7 @@ export const tracks = pgTable(
       .notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     currency: text("currency").default("USD").notNull(),
+    deletedAt: timestamp("deleted_at"),
     description: text("description"),
     downloadsAllowed: boolean("downloads_allowed").default(true).notNull(),
     downloadsRequireFirstPlay: boolean("downloads_require_first_play")
@@ -902,6 +935,7 @@ export const tracks = pgTable(
       .default("demo")
       .notNull(),
     publishedAt: timestamp("published_at"),
+    purgeAfter: timestamp("purge_after"),
     purchaseMode: purchaseModeEnum("purchase_mode")
       .default("digital_download")
       .notNull(),
@@ -973,10 +1007,19 @@ export const trackAssets = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     durationMs: integer("duration_ms"),
     id: text("id").primaryKey(),
+    integratedLufs: numeric("integrated_lufs", { precision: 6, scale: 2 }),
+    isCurrent: boolean("is_current").default(true).notNull(),
     metadata: jsonb("metadata"),
     mimeType: text("mime_type"),
+    normalizationTargetLufs: numeric("normalization_target_lufs", {
+      precision: 6,
+      scale: 2,
+    }),
     objectKey: text("object_key"),
-    sizeBytes: integer("size_bytes"),
+    processingVersion: integer("processing_version"),
+    purpose: mediaAssetPurposeEnum("purpose"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    sourceAssetId: text("source_asset_id"),
     status: assetStatusEnum("status").default("pending").notNull(),
     storageProvider: assetStorageProviderEnum("storage_provider").notNull(),
     trackId: text("track_id")
@@ -988,6 +1031,7 @@ export const trackAssets = pgTable(
         onDelete: "cascade",
       }
     ),
+    truePeakDbtp: numeric("true_peak_dbtp", { precision: 6, scale: 2 }),
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => new Date())
@@ -997,8 +1041,29 @@ export const trackAssets = pgTable(
     }),
   },
   (table) => [
+    foreignKey({
+      columns: [table.sourceAssetId],
+      foreignColumns: [table.id],
+      name: "track_assets_source_asset_id_fk",
+    }).onDelete("restrict"),
     index("track_assets_track_id_idx").on(table.trackId),
+    index("track_assets_source_asset_id_idx").on(table.sourceAssetId),
+    index("track_assets_purpose_current_idx").on(
+      table.trackId,
+      table.purpose,
+      table.isCurrent
+    ),
+    uniqueIndex("track_assets_current_purpose_idx")
+      .on(table.trackId, table.purpose, table.assetKind)
+      .where(sql`${table.isCurrent} = true and ${table.purpose} is not null`),
     index("track_assets_variant_id_idx").on(table.trackVariantId),
+    uniqueIndex("track_assets_derivative_identity_idx").on(
+      table.trackId,
+      table.sourceAssetId,
+      table.purpose,
+      table.processingVersion,
+      table.assetKind
+    ),
     uniqueIndex("track_assets_storage_object_idx").on(
       table.storageProvider,
       table.objectKey
@@ -1037,7 +1102,7 @@ export const trackStemJobs = pgTable(
   },
   (table) => [
     index("track_stem_jobs_track_id_idx").on(table.trackId),
-    index("track_stem_jobs_input_asset_id_idx").on(table.inputAssetId),
+    uniqueIndex("track_stem_jobs_input_asset_id_idx").on(table.inputAssetId),
     index("track_stem_jobs_stemsplit_job_id_idx").on(table.stemsplitJobId),
   ]
 );
@@ -1092,6 +1157,7 @@ export const trackCollaborators = pgTable(
     collaboratorUserId: text("collaborator_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
+    creditSplitBps: integer("credit_split_bps"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     id: text("id").primaryKey(),
     invitationStatus: invitationStatusEnum("invitation_status")
@@ -1115,6 +1181,7 @@ export const projects = pgTable(
     currency: text("currency").default("USD").notNull(),
     description: text("description"),
     exclusiveUntil: timestamp("exclusive_until"),
+    exportVersion: integer("export_version").default(1).notNull(),
     genreId: text("genre_id").references(() => genres.id, {
       onDelete: "set null",
     }),
@@ -1175,7 +1242,9 @@ export const projectAssets = pgTable(
     assetKind: projectAssetKindEnum("asset_kind").notNull(),
     bucketName: text("bucket_name"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    exportVersion: integer("export_version"),
     id: text("id").primaryKey(),
+    metadata: jsonb("metadata"),
     mimeType: text("mime_type"),
     muxAssetId: text("mux_asset_id"),
     muxPlaybackId: text("mux_playback_id"),
@@ -1184,7 +1253,10 @@ export const projectAssets = pgTable(
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
-    sizeBytes: integer("size_bytes"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    sourceAssetId: text("source_asset_id").references(() => trackAssets.id, {
+      onDelete: "restrict",
+    }),
     status: assetStatusEnum("status").default("pending").notNull(),
     storageProvider: assetStorageProviderEnum("storage_provider").notNull(),
     updatedAt: timestamp("updated_at")
@@ -1195,7 +1267,15 @@ export const projectAssets = pgTable(
       onDelete: "set null",
     }),
   },
-  (table) => [index("project_assets_project_id_idx").on(table.projectId)]
+  (table) => [
+    index("project_assets_project_id_idx").on(table.projectId),
+    uniqueIndex("project_assets_export_identity_idx").on(
+      table.projectId,
+      table.sourceAssetId,
+      table.exportVersion,
+      table.assetKind
+    ),
+  ]
 );
 
 export const projectCollaborators = pgTable(
@@ -1274,6 +1354,10 @@ export const openVerseListings = pgTable(
     accessMode: openVerseAccessModeEnum("access_mode")
       .default("open")
       .notNull(),
+    baseMasterAssetId: text("base_master_asset_id").references(
+      () => trackAssets.id,
+      { onDelete: "restrict" }
+    ),
     bpm: integer("bpm"),
     closesAt: timestamp("closes_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1679,6 +1763,7 @@ export const orders = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     currency: text("currency").default("USD").notNull(),
     id: text("id").primaryKey(),
+    idempotencyKey: text("idempotency_key"),
     sellerUserId: text("seller_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
@@ -1699,6 +1784,7 @@ export const orders = pgTable(
   (table) => [
     index("orders_buyer_user_id_idx").on(table.buyerUserId),
     uniqueIndex("orders_transaction_id_idx").on(table.transactionId),
+    uniqueIndex("orders_idempotency_key_idx").on(table.idempotencyKey),
   ]
 );
 
@@ -2329,6 +2415,69 @@ export const workflowJobs = pgTable(
   },
   (table) => [
     index("workflow_jobs_target_idx").on(table.targetType, table.targetId),
+  ]
+);
+
+export const mediaProcessingJobs = pgTable(
+  "media_processing_jobs",
+  {
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    currentStage: text("current_stage"),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    exportVersion: integer("export_version"),
+    id: text("id").primaryKey(),
+    input: jsonb("input"),
+    mode: mediaProcessingModeEnum("mode"),
+    output: jsonb("output"),
+    pipelineVersion: integer("pipeline_version").notNull(),
+    progressPercent: numeric("progress_percent", { precision: 5, scale: 2 }),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "cascade",
+    }),
+    sourceAssetId: text("source_asset_id").references(() => trackAssets.id, {
+      onDelete: "restrict",
+    }),
+    startedAt: timestamp("started_at"),
+    status: mediaProcessingJobStatusEnum("status").default("queued").notNull(),
+    trackId: text("track_id").references(() => tracks.id, {
+      onDelete: "cascade",
+    }),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    workflowInstanceId: text("workflow_instance_id").notNull(),
+    workflowType: mediaWorkflowTypeEnum("workflow_type").notNull(),
+  },
+  (table) => [
+    index("media_processing_jobs_project_idx").on(
+      table.projectId,
+      table.workflowType,
+      table.exportVersion
+    ),
+    index("media_processing_jobs_track_idx").on(
+      table.trackId,
+      table.workflowType,
+      table.status
+    ),
+    uniqueIndex("media_processing_jobs_track_identity_idx").on(
+      table.workflowType,
+      table.trackId,
+      table.sourceAssetId,
+      table.pipelineVersion,
+      table.mode
+    ),
+    uniqueIndex("media_processing_jobs_project_identity_idx").on(
+      table.workflowType,
+      table.projectId,
+      table.exportVersion
+    ),
+    uniqueIndex("media_processing_jobs_workflow_instance_idx").on(
+      table.workflowType,
+      table.workflowInstanceId
+    ),
   ]
 );
 

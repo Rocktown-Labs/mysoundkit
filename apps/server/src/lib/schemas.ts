@@ -1,6 +1,8 @@
 /* eslint-disable unicorn/max-nested-calls, one-var, require-unicode-regexp, no-empty-function, sort-vars */
 import { z } from "@hono/zod-openapi";
 
+import { mediaAssetPurposeSchema } from "./media-pipeline";
+
 export const healthResponseSchema = z.object({
   databaseConfigured: z.boolean(),
   ok: z.boolean(),
@@ -499,6 +501,11 @@ export const trackSummarySchema = z.object({
   lyricsStatus: z
     .enum(["missing", "generating", "pending_review", "approved", "failed"])
     .default("missing"),
+  masterDownloadUrl: z.string().nullable().optional(),
+  mediaReady: z.boolean().optional(),
+  mediaStatus: z
+    .enum(["not_started", "queued", "running", "ready", "partial", "failed"])
+    .optional(),
   musicalKey: z.string().nullable().optional(),
   organizationId: z.string().nullable().optional(),
   playbackUrl: z.string().nullable().optional(),
@@ -624,6 +631,8 @@ export const dashboardAssetSchema = z.object({
   metadata: z.unknown().nullable().optional(),
   mimeType: z.string().nullable(),
   objectKey: z.string().nullable(),
+  processingVersion: z.number().int().nullable().optional(),
+  purpose: mediaAssetPurposeSchema.nullable().optional(),
   sizeBytes: z.number().int().nullable(),
   status: z.string(),
   storageProvider: z.enum(["r2", "mux", "external"]),
@@ -638,7 +647,9 @@ export const dashboardCollaboratorSchema = z.object({
   id: z.string(),
   name: z.string().nullable().optional(),
   role: z.string(),
+  splitBps: z.number().int().nullable().optional(),
   status: z.string(),
+  userId: z.string().nullable().optional(),
 });
 
 export const trackDashboardDetailSchema = trackSummarySchema.extend({
@@ -771,12 +782,41 @@ export const catalogVisualContentSchema = z.object({
   views: z.string().nullable().optional(),
 });
 
+export const collaboratorRoleSchema = z.enum([
+  "artist",
+  "producer",
+  "vocalist",
+  "engineer",
+  "songwriter",
+  "manager",
+  "social_media_manager",
+  "marketing",
+  "family_member",
+]);
+
+export const trackCreditEntrySchema = z.object({
+  avatarUrl: z.string().nullable().optional(),
+  displayName: z.string().nullable().optional(),
+  id: z.string(),
+  legalName: z.string().nullable().optional(),
+  role: collaboratorRoleSchema,
+  splitBps: z.number().int().nullable().optional(),
+  username: z.string().nullable().optional(),
+});
+
+export const trackCatalogCreditsSchema = z.object({
+  artists: z.array(trackCreditEntrySchema).default([]),
+  producers: z.array(trackCreditEntrySchema).default([]),
+  writers: z.array(trackCreditEntrySchema).default([]),
+});
+
 export const trackCatalogDetailSchema = z.object({
   artist: catalogArtistSchema,
   assets: catalogAssetSchema.array(),
   bpm: z.number().int().nullable().optional(),
   catalogItemType: catalogItemTypeSchema,
   coverArtUrl: z.string(),
+  credits: trackCatalogCreditsSchema.optional(),
   currency: z.string().default("USD"),
   description: z.string().nullable().optional(),
   downloadsAllowed: z.boolean().default(true).optional(),
@@ -824,6 +864,7 @@ export const projectSummarySchema = z.object({
   duration: z.string().optional(),
   durationMs: z.number().int().nonnegative().optional(),
   exclusiveUntil: z.string().nullable().optional(),
+  exportVersion: z.number().int().positive().default(1),
   genre: z.string().nullable().optional(),
   id: z.string(),
   isForSale: z.boolean().default(false),
@@ -1538,6 +1579,7 @@ export const onboardingFanBodySchema = z.object({
 });
 
 export const trackCollaboratorInputSchema = z.object({
+  alsoCreditAsWriter: z.boolean().optional(),
   inviteEmail: z.string().optional(),
   name: z.string().min(1).optional(),
   role: z.enum([
@@ -1551,7 +1593,14 @@ export const trackCollaboratorInputSchema = z.object({
     "marketing",
     "family_member",
   ]),
+  splitBps: z.number().int().min(0).max(10_000).optional(),
   userId: z.string().min(1).optional(),
+});
+
+export const trackCreditsSchema = z.object({
+  artists: z.array(trackCreditEntrySchema),
+  producers: z.array(trackCreditEntrySchema),
+  writers: z.array(trackCreditEntrySchema),
 });
 
 /** Standard single download price (USD). */
@@ -1593,6 +1642,9 @@ export const createTrackBodySchema = z.object({
 });
 
 export const settleTrackBodySchema = z.object({
+  // Premium enrichment (StemSplit + transcription) consumes paid third-party
+  // API quota and is opt-IN: it runs only when explicitly enabled.
+  enrichLyrics: z.boolean().default(false),
   isPublic: z.boolean(),
   productionStatus: z.enum(["demo", "mixed", "mastered", "complete"]),
   releaseAt: z.string().optional(),
@@ -1658,6 +1710,11 @@ export const createTrackAssetBodySchema = z.object({
   storageProvider: z.enum(["r2", "mux", "external"]).default("r2"),
 });
 
+export const finalizeTrackUploadBodySchema = z.object({
+  assets: z.array(createTrackAssetBodySchema).min(1),
+  settlement: settleTrackBodySchema,
+});
+
 export const openVerseQuerySchema = z.object({
   cursor: z.string().datetime().optional(),
   genre: z.string().trim().max(80).optional(),
@@ -1679,11 +1736,18 @@ export const openVerseListingSchema = z.object({
   id: z.string(),
   maxSubmissions: z.number().int(),
   musicalKey: z.string().nullable(),
+  ownerUserId: z.string(),
   playbackUrl: z.string().nullable(),
   previewAssetId: z.string().nullable(),
   slotEndsAtMs: z.number().int().nullable(),
   slotStartsAtMs: z.number().int().nullable(),
-  status: z.enum(["open", "closed", "fulfilled", "archived"]),
+  status: z.enum([
+    "open",
+    "closed",
+    "fulfilled",
+    "awaiting_final_master",
+    "archived",
+  ]),
   submissionCount: z.number().int(),
   title: z.string(),
   trackId: z.string(),
@@ -1759,6 +1823,38 @@ export const openVerseSubmissionSchema = z.object({
   ]),
   submitterUserId: z.string(),
   vocalStemAssetId: z.string().nullable(),
+});
+
+const mediaPurposeStatusSchema = z.enum([
+  "waiting",
+  "processing",
+  "ready",
+  "failed",
+  "not_applicable",
+]);
+
+export const mediaProcessingStatusSchema = z.object({
+  assets: z.object({
+    battle: mediaPurposeStatusSchema,
+    download: mediaPurposeStatusSchema,
+    lossless: mediaPurposeStatusSchema,
+    master: mediaPurposeStatusSchema,
+    streaming: mediaPurposeStatusSchema,
+  }),
+  currentStage: z.string().nullable(),
+  jobId: z.string().nullable(),
+  mediaReady: z.boolean(),
+  processingComplete: z.boolean(),
+  retryable: z.boolean(),
+  status: z.enum([
+    "not_started",
+    "queued",
+    "running",
+    "ready",
+    "partial",
+    "failed",
+  ]),
+  workflowInstanceId: z.string().nullable(),
 });
 
 export const trackProcessingStatusSchema = z.object({

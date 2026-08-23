@@ -7,14 +7,21 @@ import {
   orders,
   battles,
   purchases,
+  trackAssets,
   tracks,
   userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser, subscription } from "@soundkit/db/schema/auth";
 import { communitySubscriptions } from "@soundkit/db/schema/communities";
-import { eq, or } from "drizzle-orm";
+import {
+  and,
+  eq,
+  or,
+  sql,
+} from "drizzle-orm";
 
+import { createSignedMediaSourceUrl } from "@/lib/media-signing";
 import { enqueueTransactionalEmail } from "@/lib/email-delivery";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 
@@ -104,6 +111,7 @@ const accountFooter =
     footerNote,
     heading,
     idempotencyKey,
+    links,
     preference,
     previewText,
     queue,
@@ -118,20 +126,32 @@ const accountFooter =
     footerNote: string;
     heading: string;
     idempotencyKey: string;
+    links?: {
+      description?: string;
+      href: string;
+      label: string;
+    }[];
     preference?: EmailPreference;
     previewText: string;
     queue?: Queue<EmailDeliveryQueueMessage> | null;
     recipient: Recipient;
     subject: string;
     template:
+      | "artist_monthly_digest"
+      | "artist_weekly_digest"
+      | "fan_digest"
       | "battle_challenge"
       | "battle_reminder"
       | "battle_results"
       | "billing_issue"
       | "collaborator_invite"
+      | "earnings_halfway"
+      | "first_stream_earning"
       | "follower"
       | "friend_request"
       | "open_verse_accepted"
+      | "open_verse_closed"
+      | "open_verse_closing"
       | "open_verse_submitted"
       | "purchase_receipt"
       | "sale_notification";
@@ -149,6 +169,7 @@ const accountFooter =
         eyebrow,
         footerNote,
         heading,
+        links,
         previewText,
         subject,
       },
@@ -491,6 +512,63 @@ export const notifyOpenVerseAcceptedEmail = async ({
   });
 };
 
+const PURCHASE_LINK_TTL_SECONDS = 72 * 60 * 60;
+
+type SoundKitDb = ReturnType<typeof createDb>;
+
+// Resolve each purchased track to its download-quality derivative (falling
+// back to streaming) and mint a signed 72h URL for the buyer email.
+const buildPurchaseDownloadLinks = async (
+    db: SoundKitDb,
+    trackIds: (null | string)[]
+  ): Promise<
+    { description?: string; href: string; label: string }[]
+  > => {
+    const links: { description?: string; href: string; label: string }[] = [];
+
+    for (const trackId of trackIds.filter((id): id is string => Boolean(id))) {
+      const [row] = await db
+        .select({
+          assetId: trackAssets.id,
+          title: tracks.title,
+        })
+        .from(trackAssets)
+        .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
+        .where(
+          and(
+            eq(trackAssets.trackId, trackId),
+            eq(trackAssets.isCurrent, true),
+            or(
+              eq(trackAssets.purpose, "download"),
+              eq(trackAssets.purpose, "streaming")
+            )
+          )
+        )
+        .orderBy(
+          sql`case when ${trackAssets.purpose} = 'download' then 0 else 1 end`
+        )
+        .limit(1);
+
+      if (!row) {
+        continue;
+      }
+
+      const href = await createSignedMediaSourceUrl({
+        assetId: row.assetId,
+        ttlSeconds: PURCHASE_LINK_TTL_SECONDS,
+        trackId,
+      });
+
+      links.push({
+        description: "Direct download link, valid for 72 hours",
+        href,
+        label: `Download ${row.title}`,
+      });
+    }
+
+    return links;
+  };
+
 export const notifyPurchaseEmails = async ({
   orderId,
   queue,
@@ -529,6 +607,12 @@ export const notifyPurchaseEmails = async ({
     purchasePath = firstPurchase[0]?.id
       ? `/library/purchased/${firstPurchase[0].id}`
       : "/library/purchased",
+    // Direct download links (72h signed URLs) let the buyer grab files
+    // without logging in; the library CTA stays the permanent path.
+    downloadLinks = await buildPurchaseDownloadLinks(
+      db,
+      items.map((item) => item.trackId)
+    ),
     deliveries = [];
 
   if (buyer) {
@@ -541,6 +625,7 @@ export const notifyPurchaseEmails = async ({
         footerNote: salesFooter,
         heading: "Your purchase is ready",
         idempotencyKey: `purchase-receipt/${order.id}/${buyer.userId}`,
+        links: downloadLinks,
         preference: "sales",
         previewText: "Your SoundKit purchase is ready.",
         queue,
@@ -942,4 +1027,10 @@ export const getDisplayNameForUser = async (userId: string) => {
     .limit(1);
 
   return profile?.displayName ?? profile?.username ?? "Someone";
+};
+
+export {
+  collaborationFooter,
+  enqueueForRecipient,
+  getUserRecipient,
 };

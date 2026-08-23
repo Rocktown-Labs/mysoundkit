@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars */
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   notificationSettings,
@@ -50,7 +51,7 @@ const trackDashboardLink = (trackId: string) => `/dashboard/tracks/${trackId}`,
     return settings?.emailTrackProcessing ?? true;
   };
 
-export const notifyTrackLive = async ({
+export const notifyTrackMediaReady = async ({
   emailQueue,
   trackId,
 }: {
@@ -66,10 +67,10 @@ export const notifyTrackLive = async ({
   const [notification] = await createDb()
     .insert(userNotifications)
     .values({
-      id: `track_live:${track.id}`,
+      id: `track_media_ready:${track.id}`,
       link: trackDashboardLink(track.id),
-      message: `"${track.title}" is ready with its audio, cover art, duration, and release details.`,
-      title: "Your track is ready",
+      message: `"${track.title}" now has playable SoundKit media.`,
+      title: "Track playback ready",
       type: "track_ready",
       userId: track.ownerUserId,
     })
@@ -82,7 +83,7 @@ export const notifyTrackLive = async ({
   ) {
     await enqueueTransactionalEmail({
       actionPath: trackDashboardLink(track.id),
-      idempotencyKey: `track-ready/${track.id}`,
+      idempotencyKey: `track-media-ready/${track.id}`,
       payload: {
         trackId: track.id,
         trackTitle: track.title,
@@ -93,6 +94,25 @@ export const notifyTrackLive = async ({
       template: "track_ready",
       userId: track.ownerUserId,
     });
+  }
+
+  return {
+    notified: Boolean(notification),
+    reason: notification ? ("created" as const) : ("existing" as const),
+  };
+};
+
+export const notifyTrackLive = async ({
+  emailQueue,
+  trackId,
+}: {
+  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
+  trackId: string;
+}) => {
+  const track = await loadTrackForNotification(trackId);
+
+  if (!track?.ownerUserId) {
+    return { notified: false, reason: "track_not_found" as const };
   }
 
   const collaborators = await createDb()

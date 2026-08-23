@@ -12,6 +12,7 @@
     "@ai-sdk/devtools": "^0.0.2",
     "@ai-sdk/google": "^3.0.1",
     "@better-upload/server": "^3.0.16",
+    "@cloudflare/containers": "^0.3.7",
     "@hono/swagger-ui": "^0.5.2",
     "@hono/zod-openapi": "^1.2.4",
     "@mux/mux-node": "^12.8.1",

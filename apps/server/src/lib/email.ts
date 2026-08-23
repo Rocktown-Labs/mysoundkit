@@ -7,15 +7,22 @@ type EmailSendResult =
   | { reason: string; sent: false };
 
 export type TransactionalEmailTemplate =
+  | "artist_monthly_digest"
+  | "artist_weekly_digest"
+  | "fan_digest"
   | "battle_challenge"
   | "battle_reminder"
   | "battle_results"
   | "billing_issue"
   | "collaborator_invite"
+  | "earnings_halfway"
+  | "first_stream_earning"
   | "follower"
   | "friend_request"
   | "notification"
   | "open_verse_accepted"
+  | "open_verse_closed"
+  | "open_verse_closing"
   | "open_verse_submitted"
   | "org_invite"
   | "purchase_receipt"

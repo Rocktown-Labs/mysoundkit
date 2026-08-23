@@ -1,8 +1,15 @@
+import type { MediaProcessorContainer } from "@/containers/media-processor";
 import type { LiveRoomDurableObject } from "@/durable-objects/live-room";
 import type { PresenceDurableObject } from "@/durable-objects/presence";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import type { LiveNotificationQueueMessage } from "@/lib/live-notifications";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
+import type {
+  MediaProcessingWorkflowPayload,
+  MediaRetentionWorkflowPayload,
+  ProjectExportWorkflowPayload,
+  TrackEnrichmentWorkflowPayload,
+} from "@/lib/media-pipeline";
 import type { NotificationQueueMessage } from "@/lib/notifications";
 
 export interface AuthenticatedSession {
@@ -34,7 +41,13 @@ export interface AppEnv {
     LIVE_RECORDING_WORKFLOW?: Workflow;
     LIVE_ROOMS?: DurableObjectNamespace<LiveRoomDurableObject>;
     PRESENCE?: DurableObjectNamespace<PresenceDurableObject>;
+    PROJECT_EXPORT_WORKFLOW?: Workflow<ProjectExportWorkflowPayload>;
+    PAYOUT_RUN_WORKFLOW?: Workflow<{ periodId: string }>;
+    PURCHASE_FULFILLMENT_WORKFLOW?: Workflow<{ orderId: string }>;
     MEDIA_BUCKET?: R2Bucket;
+    MEDIA_PROCESSING_WORKFLOW?: Workflow<MediaProcessingWorkflowPayload>;
+    MEDIA_RETENTION_WORKFLOW?: Workflow<MediaRetentionWorkflowPayload>;
+    MEDIA_PROCESSOR?: DurableObjectNamespace<MediaProcessorContainer>;
     RECORDINGS_ACCESS_KEY_ID?: string;
     RECORDINGS_BUCKET?: R2Bucket;
     RECORDINGS_BUCKET_NAME?: string;
@@ -49,6 +62,7 @@ export interface AppEnv {
     CLOUDFLARE_STREAM_WEBHOOK_SECRET?: string;
     EMAIL_DELIVERY_QUEUE?: Queue<EmailDeliveryQueueMessage>;
     TRACK_DURATION_BACKFILL_QUEUE?: Queue<DurationBackfillQueueMessage>;
+    TRACK_ENRICHMENT_WORKFLOW?: Workflow<TrackEnrichmentWorkflowPayload>;
     REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL?: string;
     TURNSTILE_HOSTNAMES?: string;
     TURNSTILE_SECRET?: string;

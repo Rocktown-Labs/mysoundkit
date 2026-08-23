@@ -8,6 +8,7 @@ type TrackAssetLike = Pick<
 >;
 
 const mediaEnv = env as unknown as {
+  BETTER_AUTH_URL?: string;
   MEDIA_PUBLIC_URL?: string;
   VITE_MEDIA_URL?: string;
 };
@@ -28,6 +29,16 @@ export const mediaBaseUrl = () =>
     /\/+$/u,
     ""
   );
+
+export const guardedTrackPlaybackUrl = (
+  trackId: string,
+  context: "battle" | "ordinary" = "ordinary"
+) => {
+  const apiBaseUrl = (mediaEnv.BETTER_AUTH_URL ?? "").replace(/\/+$/u, "");
+  return apiBaseUrl
+    ? `${apiBaseUrl}/v1/tracks/${encodeURIComponent(trackId)}/playback?context=${context}`
+    : `/v1/tracks/${encodeURIComponent(trackId)}/playback?context=${context}`;
+};
 
 export const objectUrlFromMetadata = (metadata: unknown) => {
   if (!(metadata && typeof metadata === "object" && "url" in metadata)) {

@@ -1,4 +1,5 @@
 "use client";
+/* oxlint-disable complexity, no-nested-ternary, no-void, one-var, react/exhaustive-effect-dependencies, react/purity, react/set-state-in-effect, react/todo, sort-vars, unicorn/no-nested-ternary */
 
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
@@ -11,15 +12,25 @@ import {
   LoaderCircle,
   CheckCircle2,
   Calendar,
+  AlertTriangle,
   Sparkles,
   Save,
   Plus,
   Clock3,
   Rocket,
+  ImagePlus,
+  MoreVertical,
+  Repeat,
+  Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
+import {
+  TrackCreditsEditor,
+  TrackMonetizeToggle,
+  TrackQuickActionDialogs,
+} from "@/components/dashboard/track-quick-actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +41,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -41,10 +58,15 @@ import {
   useCreateTrackLyricsMutation,
   useProcessTrackMutation,
   useReviewTrackLyricsMutation,
+  useRetryTrackMediaProcessingMutation,
   useTrackQuery,
   useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
 import type { TrackDetail } from "@/lib/soundkit-api-hooks";
+import {
+  trackAssetDescription,
+  trackAssetLabel,
+} from "@/lib/track-asset-labels";
 
 export const Route = createFileRoute("/dashboard/tracks/$id/")({
   component: TrackDetailPage,
@@ -91,6 +113,17 @@ const formatBytes = (sizeBytes: number | null | undefined) => {
   },
   getCoverArtUrl = (coverArtUrl: null | string | undefined) =>
     coverArtUrl && coverArtUrl.length > 0 ? coverArtUrl : "/placeholder.svg",
+  originalAssetFileName = (asset: TrackAsset) => {
+    if (
+      asset.metadata &&
+      typeof asset.metadata === "object" &&
+      "originalFileName" in asset.metadata &&
+      typeof asset.metadata.originalFileName === "string"
+    ) {
+      return asset.metadata.originalFileName;
+    }
+    return asset.objectKey?.split("/").pop() ?? "Master";
+  },
   SECTION_HEADER_PATTERN =
     /^\s*(?:\[(?:hook|chorus|verse(?:\s+\d+)?|bridge|pre-chorus|intro|outro|refrain|post-chorus)\]|(?:hook|chorus|verse(?:\s+\d+)?|bridge|pre-chorus|intro|outro|refrain|post-chorus):)\s*$/iu;
 
@@ -167,16 +200,21 @@ const SECTION_SNIPPETS = [
   renderReleaseStatusBanner = (
     releaseAt: string | null | undefined,
     isScheduledInFuture: boolean,
-    isLive: boolean
+    isLive: boolean,
+    mediaReady: boolean,
+    mediaStatus: null | string | undefined
   ) => {
     if (isScheduledInFuture && releaseAt) {
       return (
         <div className="flex items-start gap-3 rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4">
           <Calendar className="mt-0.5 size-5 text-indigo-400" />
           <div>
-            <p className="font-semibold text-indigo-200">Scheduled Release</p>
+            <p className="font-semibold text-indigo-200">Release scheduled</p>
             <p className="text-sm text-indigo-300/80">
-              Scheduled to go live on{" "}
+              {mediaReady
+                ? "Your release audio is ready. "
+                : "We’re still preparing your release audio. "}
+              This track will go live on{" "}
               {new Date(releaseAt).toLocaleDateString(undefined, {
                 dateStyle: "full",
               })}
@@ -192,10 +230,44 @@ const SECTION_SNIPPETS = [
         <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4">
           <CheckCircle2 className="mt-0.5 size-5 text-primary" />
           <div>
-            <p className="font-semibold">Track is live</p>
+            <p className="font-semibold">Your track is live</p>
             <p className="text-sm text-muted-foreground">
-              Your master is available for playback. Background processing will
-              fill in BPM, duration, stems, and lyrics when ready.
+              Listeners can stream it now. Optional lyrics and stems may
+              continue processing in the background.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!mediaReady && mediaStatus === "running") {
+      return (
+        <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4">
+          <LoaderCircle className="mt-0.5 size-5 animate-spin text-primary" />
+          <div>
+            <p className="font-semibold">Preparing your release</p>
+            <p className="text-sm text-muted-foreground">
+              Your original master is saved and playable. We’re creating the
+              streaming version required for release.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!mediaReady) {
+      return (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+          <AlertTriangle className="mt-0.5 size-5 text-amber-400" />
+          <div>
+            <p className="font-semibold text-amber-200">
+              {mediaStatus === "failed"
+                ? "Processing needs attention"
+                : "Release audio isn’t ready"}
+            </p>
+            <p className="text-sm text-amber-200/80">
+              Your original master is safe. Retry processing before releasing
+              this track.
             </p>
           </div>
         </div>
@@ -203,12 +275,12 @@ const SECTION_SNIPPETS = [
     }
 
     return (
-      <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 p-4">
-        <LoaderCircle className="mt-0.5 size-5 animate-spin text-muted-foreground" />
+      <div className="flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+        <CheckCircle2 className="mt-0.5 size-5 text-emerald-400" />
         <div>
-          <p className="font-semibold">Draft saved</p>
-          <p className="text-sm text-muted-foreground">
-            This track is not public yet. Open it when you are ready to go live.
+          <p className="font-semibold text-emerald-200">Ready to release</p>
+          <p className="text-sm text-emerald-200/80">
+            Your streaming audio is ready. Release it whenever you’re ready.
           </p>
         </div>
       </div>
@@ -392,7 +464,7 @@ function LyricsWorkspace({
             ) : (
               <Sparkles className="mr-2 size-4" />
             )}
-            {isTranscribing ? "Queueing..." : "AI Transcribe & Sync"}
+            {isTranscribing ? "Queueing..." : "Generate lyrics with AI"}
           </Button>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -595,7 +667,7 @@ function TrackFilesPanel({
                 <FileAudio className="size-5 text-muted-foreground" />
                 <div>
                   <p className="font-medium">
-                    {masterAsset.objectKey?.split("/").pop() ?? "Master"}
+                    {originalAssetFileName(masterAsset)}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {formatBytes(masterAsset.sizeBytes)} · {masterAsset.status}
@@ -638,11 +710,19 @@ function TrackFilesPanel({
           <Card key={asset.id}>
             <CardHeader>
               <CardTitle className="text-base capitalize">
-                {asset.assetKind.replaceAll("_", " ")}
+                {trackAssetLabel(asset)}
               </CardTitle>
+              {trackAssetDescription(asset) ? (
+                <CardDescription>
+                  {trackAssetDescription(asset)}
+                </CardDescription>
+              ) : null}
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
               {formatBytes(asset.sizeBytes)} · {asset.status}
+              {asset.processingVersion
+                ? ` · pipeline v${asset.processingVersion}`
+                : ""}
             </CardContent>
           </Card>
         ))}
@@ -652,8 +732,12 @@ function TrackFilesPanel({
 
 function TrackCollaboratorsPanel({
   collaborators,
+  onSaved,
+  trackId,
 }: {
   collaborators: TrackCollaborator[];
+  onSaved: () => Promise<unknown>;
+  trackId: string;
 }) {
   return (
     <Card>
@@ -661,7 +745,7 @@ function TrackCollaboratorsPanel({
         <CardTitle>Collaborators</CardTitle>
         <CardDescription>People credited on this track</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-6">
         {collaborators.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No collaborators added yet.
@@ -692,21 +776,33 @@ function TrackCollaboratorsPanel({
             </div>
           ))
         )}
+
+        <div className="border-t border-border/40 pt-4">
+          <TrackCreditsEditor
+            collaborators={collaborators}
+            onSaved={onSaved}
+            trackId={trackId}
+          />
+        </div>
       </CardContent>
     </Card>
   );
 }
 
 function TrackDetailPage() {
-  const { id } = Route.useParams(),
-    trackQuery = useTrackQuery(id),
+  const [activeDialog, setActiveDialog] = useState<
+      null | "cover" | "credits" | "swap"
+    >(null),
+    { id } = Route.useParams(),
+    [isTranscribing, setIsTranscribing] = useState(false),
     processTrackMutation = useProcessTrackMutation(id),
-    updateTrackMutation = useUpdateTrackMutation(id),
+    retryMediaMutation = useRetryTrackMediaProcessingMutation(id),
     { setCurrentTrack, setQueue } = useAudioPlayer(),
-    track = trackQuery.data,
+    trackQuery = useTrackQuery(id),
+    trackQueryData = trackQuery.data,
     // Hooks must stay above the early returns below, otherwise the hook count
     // changes once the query resolves and React crashes (error #310).
-    [isTranscribing, setIsTranscribing] = useState(false);
+    updateTrackMutation = useUpdateTrackMutation(id);
 
   if (trackQuery.isLoading) {
     return (
@@ -717,7 +813,7 @@ function TrackDetailPage() {
     );
   }
 
-  if (trackQuery.error || !track) {
+  if (trackQuery.error || !trackQueryData) {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-bold">Track not found</h1>
@@ -731,28 +827,36 @@ function TrackDetailPage() {
     );
   }
 
-  const coverArt = getCoverArtUrl(track.coverArtUrl),
+  const coverArt = getCoverArtUrl(trackQueryData.coverArtUrl),
     assets =
-      "assets" in track && Array.isArray(track.assets) ? track.assets : [],
+      "assets" in trackQueryData && Array.isArray(trackQueryData.assets)
+        ? trackQueryData.assets
+        : [],
     collaborators =
-      "collaborators" in track && Array.isArray(track.collaborators)
-        ? track.collaborators
+      "collaborators" in trackQueryData &&
+      Array.isArray(trackQueryData.collaborators)
+        ? trackQueryData.collaborators
         : [],
     masterAsset = assets.find((asset) => asset.assetKind === "master"),
-    isLive = Boolean(track.isPublic),
-    statusLabel = formatTrackStatusLabel(isLive, track.productionStatus),
+    isLive = Boolean(trackQueryData.isPublic),
+    mediaReady = trackQueryData.mediaReady === true,
+    { mediaStatus } = trackQueryData,
+    statusLabel = formatTrackStatusLabel(
+      isLive,
+      trackQueryData.productionStatus
+    ),
     handleShare = async () => {
       const publicTrackPath =
-          track.regionSlug && track.slug
-            ? `/tracks/${track.regionSlug}/${track.slug}`
-            : `/tracks/${track.id}`,
+          trackQueryData.regionSlug && trackQueryData.slug
+            ? `/tracks/${trackQueryData.regionSlug}/${trackQueryData.slug}`
+            : `/tracks/${trackQueryData.id}`,
         shareUrl =
           typeof window === "undefined"
             ? publicTrackPath
             : `${window.location.origin}${publicTrackPath}`,
         outcome = await shareLink({
-          text: `${track.title} by ${track.artistName}`,
-          title: track.title,
+          text: `${trackQueryData.title} by ${trackQueryData.artistName}`,
+          title: trackQueryData.title,
           url: shareUrl,
         });
 
@@ -775,17 +879,42 @@ function TrackDetailPage() {
       });
     },
     handleReleaseNow = async () => {
+      if (!mediaReady) {
+        return;
+      }
       try {
         await updateTrackMutation.mutateAsync({ isPublic: true });
         toast({
-          description: `${track.title} is now public.`,
+          description: `${trackQueryData.title} is now public.`,
           title: "Track released",
         });
       } catch (error) {
         toast({
           description:
-            error instanceof Error ? error.message : "Could not release track.",
+            error instanceof Error
+              ? error.message
+              : "Could not release trackQueryData.",
           title: "Release failed",
+          variant: "destructive",
+        });
+      }
+    },
+    handleRetryMedia = async () => {
+      try {
+        await retryMediaMutation.mutateAsync();
+        await trackQuery.refetch();
+        toast({
+          description:
+            "Your master is safe. We’ll retry the streaming version in the background.",
+          title: "Processing restarted",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not restart media processing.",
+          title: "Retry failed",
           variant: "destructive",
         });
       }
@@ -817,32 +946,38 @@ function TrackDetailPage() {
       }
     },
     handlePlay = () => {
-      if (!track.playbackUrl) {
+      if (!trackQueryData.playbackUrl) {
         return;
       }
       const playerTrack = {
-        artist: track.artistName,
-        artistHref: track.artistUsername
-          ? `/artist/${track.artistUsername}`
+        artist: trackQueryData.artistName,
+        artistHref: trackQueryData.artistUsername
+          ? `/artist/${trackQueryData.artistUsername}`
           : "/dashboard/profile",
         cover: coverArt,
-        id: track.id,
-        src: track.playbackUrl,
-        title: track.title,
-        trackHref: `/dashboard/tracks/${track.id}`,
+        id: trackQueryData.id,
+        src: trackQueryData.playbackUrl,
+        title: trackQueryData.title,
+        trackHref: `/dashboard/tracks/${trackQueryData.id}`,
       };
       setQueue([playerTrack]);
       setCurrentTrack(playerTrack);
     },
-    hasScheduledDate = Boolean(track.releaseAt),
+    hasScheduledDate = Boolean(trackQueryData.releaseAt),
     isScheduledInFuture =
       hasScheduledDate &&
-      new Date(track.releaseAt as string).getTime() > Date.now(),
-    releaseDateLabel = formatReleaseDateLabel(track.releaseAt, isLive);
+      new Date(trackQueryData.releaseAt as string).getTime() > Date.now(),
+    releaseDateLabel = formatReleaseDateLabel(trackQueryData.releaseAt, isLive);
 
   return (
     <div className="space-y-6">
-      {renderReleaseStatusBanner(track.releaseAt, isScheduledInFuture, isLive)}
+      {renderReleaseStatusBanner(
+        trackQueryData.releaseAt,
+        isScheduledInFuture,
+        isLive,
+        mediaReady,
+        mediaStatus
+      )}
 
       <div className="flex flex-col gap-6 lg:flex-row">
         <div
@@ -853,12 +988,12 @@ function TrackDetailPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold">
-                {track.title}
+                {trackQueryData.title}
               </h1>
-              <p className="text-muted-foreground">{track.genre}</p>
+              <p className="text-muted-foreground">{trackQueryData.genre}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {isLive ? null : (
+              {isLive ? null : mediaReady ? (
                 <Button
                   disabled={updateTrackMutation.isPending}
                   onClick={handleReleaseNow}
@@ -867,8 +1002,25 @@ function TrackDetailPage() {
                   <Rocket className="mr-2 size-4" />
                   Release now
                 </Button>
+              ) : mediaStatus === "running" ? (
+                <Button disabled={true} type="button">
+                  <LoaderCircle className="mr-2 size-4 animate-spin" />
+                  Preparing release…
+                </Button>
+              ) : (
+                <Button
+                  disabled={retryMediaMutation.isPending}
+                  onClick={() => void handleRetryMedia()}
+                  type="button"
+                  variant="outline"
+                >
+                  <Repeat className="mr-2 size-4" />
+                  {retryMediaMutation.isPending
+                    ? "Restarting…"
+                    : "Retry processing"}
+                </Button>
               )}
-              {track.playbackUrl ? (
+              {trackQueryData.playbackUrl ? (
                 <Button onClick={handlePlay} type="button">
                   <Play className="mr-2 size-4" />
                   Play
@@ -880,6 +1032,33 @@ function TrackDetailPage() {
                   Edit
                 </Button>
               </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild={true}>
+                  <Button type="button" variant="outline">
+                    <MoreVertical className="mr-1 size-4" />
+                    Quick actions
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setActiveDialog("cover")}>
+                    <ImagePlus className="mr-2 size-4" />
+                    Change cover art
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setActiveDialog("swap")}>
+                    <Repeat className="mr-2 size-4" />
+                    Swap main file
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setActiveDialog("credits")}>
+                    <Users className="mr-2 size-4" />
+                    Edit credits
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <TrackMonetizeToggle
+                isForSale={Boolean(trackQueryData.isForSale)}
+                onToggled={() => trackQuery.refetch()}
+                trackId={trackQueryData.id}
+              />
               <Button onClick={handleShare} type="button" variant="outline">
                 <Share2 className="mr-2 size-4" />
                 Share
@@ -891,37 +1070,51 @@ function TrackDetailPage() {
             <Badge variant={isLive ? "default" : "secondary"}>
               {statusLabel}
             </Badge>
-            {track.isPublic ? <Badge variant="outline">Public</Badge> : null}
-            {track.assetStatus ? (
-              <Badge variant="outline">Assets: {track.assetStatus}</Badge>
+            {trackQueryData.isPublic ? (
+              <Badge variant="outline">Public</Badge>
             ) : null}
-            {track.isForSale &&
-            track.price !== null &&
-            track.price !== undefined ? (
-              <Badge variant="outline">${Number(track.price).toFixed(2)}</Badge>
+            {trackQueryData.assetStatus === "processing" ? (
+              <Badge variant="outline">
+                {mediaReady
+                  ? "Extras: processing"
+                  : "Release audio: processing"}
+              </Badge>
+            ) : trackQueryData.mediaStatus === "failed" ? (
+              <Badge variant="destructive">Processing failed</Badge>
+            ) : mediaReady ? (
+              <Badge variant="outline">Playback ready</Badge>
+            ) : null}
+            {trackQueryData.isForSale &&
+            trackQueryData.price !== null &&
+            trackQueryData.price !== undefined ? (
+              <Badge variant="outline">
+                ${Number(trackQueryData.price).toFixed(2)}
+              </Badge>
             ) : null}
           </div>
 
-          {track.description ? (
-            <p className="text-muted-foreground">{track.description}</p>
+          {trackQueryData.description ? (
+            <p className="text-muted-foreground">
+              {trackQueryData.description}
+            </p>
           ) : null}
 
           <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
             <div>
               <p className="text-sm text-muted-foreground">BPM</p>
               <p className="text-lg font-semibold">
-                {track.bpm ?? "Processing…"}
+                {trackQueryData.bpm ?? "Processing…"}
               </p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Key</p>
               <p className="text-lg font-semibold">
-                {track.musicalKey ?? "Processing…"}
+                {trackQueryData.musicalKey ?? "Processing…"}
               </p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Duration</p>
-              <p className="text-lg font-semibold">{track.duration}</p>
+              <p className="text-lg font-semibold">{trackQueryData.duration}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Release Date</p>
@@ -930,8 +1123,8 @@ function TrackDetailPage() {
             <div>
               <p className="text-sm text-muted-foreground">Updated</p>
               <p className="text-lg font-semibold">
-                {track.updatedAt
-                  ? new Date(track.updatedAt).toLocaleDateString()
+                {trackQueryData.updatedAt
+                  ? new Date(trackQueryData.updatedAt).toLocaleDateString()
                   : "Processing…"}
               </p>
             </div>
@@ -951,26 +1144,38 @@ function TrackDetailPage() {
             assets={assets}
             masterAsset={masterAsset}
             onPlay={handlePlay}
-            playbackUrl={track.playbackUrl}
+            playbackUrl={trackQueryData.playbackUrl}
           />
         </TabsContent>
 
         <TabsContent className="space-y-4" value="lyrics">
           <LyricsWorkspace
-            initialLyrics={track.lyrics}
-            initialRevision={track.lyricsRevision}
+            initialLyrics={trackQueryData.lyrics}
+            initialRevision={trackQueryData.lyricsRevision}
             isTranscribing={isTranscribing}
             masterAssetExists={Boolean(masterAsset)}
             onRefetchTrack={() => trackQuery.refetch()}
             onTranscribe={handleTranscribe}
-            trackId={track.id}
+            trackId={trackQueryData.id}
           />
         </TabsContent>
 
         <TabsContent className="space-y-4" value="collaborators">
-          <TrackCollaboratorsPanel collaborators={collaborators} />
+          <TrackCollaboratorsPanel
+            collaborators={collaborators}
+            onSaved={() => trackQuery.refetch()}
+            trackId={trackQueryData.id}
+          />
         </TabsContent>
       </Tabs>
+
+      <TrackQuickActionDialogs
+        activeDialog={activeDialog}
+        collaborators={collaborators}
+        onClose={() => setActiveDialog(null)}
+        onSaved={() => trackQuery.refetch()}
+        trackId={trackQueryData.id}
+      />
     </div>
   );
 }

@@ -19,6 +19,14 @@
       "persist": true,
     },
   },
+  "containers": [
+    {
+      "class_name": "MediaProcessorContainer",
+      "image": "../media-processor/Dockerfile",
+      "max_instances": 20,
+      "instance_type": "basic",
+    },
+  ],
   "analytics_engine_datasets": [
     {
       "binding": "DO_METRICS",
@@ -35,6 +43,10 @@
         "name": "PRESENCE",
         "class_name": "PresenceDurableObject",
       },
+      {
+        "name": "MEDIA_PROCESSOR",
+        "class_name": "MediaProcessorContainer",
+      },
     ],
   },
   "migrations": [
@@ -42,12 +54,47 @@
       "new_sqlite_classes": ["LiveRoomDurableObject", "PresenceDurableObject"],
       "tag": "v1",
     },
+    {
+      "new_sqlite_classes": ["MediaProcessorContainer"],
+      "tag": "v2",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "soundkit-media-dev",
+    },
   ],
   "workflows": [
     {
-      "name": "soundkit-track-processing",
-      "binding": "TRACK_PROCESSING_WORKFLOW",
-      "class_name": "TrackProcessingWorkflow",
+      "name": "soundkit-media-processing",
+      "binding": "MEDIA_PROCESSING_WORKFLOW",
+      "class_name": "MediaProcessingWorkflow",
+    },
+    {
+      "name": "soundkit-track-enrichment",
+      "binding": "TRACK_ENRICHMENT_WORKFLOW",
+      "class_name": "TrackEnrichmentWorkflow",
+    },
+    {
+      "name": "soundkit-project-export",
+      "binding": "PROJECT_EXPORT_WORKFLOW",
+      "class_name": "ProjectExportWorkflow",
+    },
+    {
+      "name": "soundkit-media-retention",
+      "binding": "MEDIA_RETENTION_WORKFLOW",
+      "class_name": "MediaRetentionWorkflow",
+    },
+    {
+      "name": "soundkit-purchase-fulfillment",
+      "binding": "PURCHASE_FULFILLMENT_WORKFLOW",
+      "class_name": "PurchaseFulfillmentWorkflow",
+    },
+    {
+      "name": "soundkit-payout-run",
+      "binding": "PAYOUT_RUN_WORKFLOW",
+      "class_name": "PayoutRunWorkflow",
     },
     {
       "name": "soundkit-live-recording",

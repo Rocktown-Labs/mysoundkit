@@ -1,0 +1,180 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  assertVerifiedDerivative,
+  DerivativeValidationError,
+  linearGainChain,
+  nextNormalizationSettings,
+  buildMetadataArguments,
+  isLosslessCodec,
+  parseFfprobeOutput,
+  parseLoudnormOutput,
+  requireDerivativeVerification,
+} from "./processor.mjs";
+
+test("technical inspection ignores descriptive tags", () => {
+  const result = parseFfprobeOutput(
+    JSON.stringify({
+      format: {
+        bit_rate: "2304000",
+        duration: "180.25",
+        format_name: "wav",
+        tags: { album: "Untrusted Album", artist: "Wrong Artist" },
+      },
+      streams: [
+        {
+          bits_per_sample: 24,
+          channels: 2,
+          codec_name: "pcm_s24le",
+          codec_type: "audio",
+          sample_rate: "48000",
+        },
+      ],
+    })
+  );
+
+  assert.deepEqual(result, {
+    bitDepth: 24,
+    bitrateKbps: 2304,
+    channels: 2,
+    codec: "pcm_s24le",
+    container: "wav",
+    durationMs: 180_250,
+    isLossless: true,
+    sampleRateHz: 48_000,
+  });
+  assert.equal("artist" in result, false);
+});
+
+test("loudnorm output yields Integrated LUFS and True Peak", () => {
+  const result = parseLoudnormOutput(`
+    [Parsed_loudnorm_0] summary
+    {
+      "input_i" : "-7.83",
+      "input_tp" : "-0.12",
+      "input_lra" : "4.10",
+      "input_thresh" : "-18.20",
+      "output_i" : "-12.01",
+      "output_tp" : "-1.50",
+      "output_lra" : "4.00",
+      "output_thresh" : "-22.20",
+      "normalization_type" : "dynamic",
+      "target_offset" : "0.01"
+    }
+  `);
+
+  assert.equal(result.inputI, -7.83);
+  assert.equal(result.inputTp, -0.12);
+});
+
+test("lossless eligibility is based on the decoded codec", () => {
+  assert.equal(isLosslessCodec("pcm_s24le"), true);
+  assert.equal(isLosslessCodec("flac"), true);
+  assert.equal(isLosslessCodec("mp3"), false);
+  assert.equal(isLosslessCodec("aac"), false);
+});
+
+test("SoundKit metadata is allowlisted and source tags are removed", () => {
+  const args = buildMetadataArguments({
+    artist: "SoundKit Artist",
+    comment: "not copied",
+    title: "SoundKit Title",
+  });
+
+  assert.deepEqual(args.slice(0, 2), ["-map_metadata", "-1"]);
+  assert.equal(args.includes("artist=SoundKit Artist"), true);
+  assert.equal(args.includes("title=SoundKit Title"), true);
+  assert.equal(args.includes("comment=not copied"), false);
+});
+
+test("linear gain chain always guards AAC transient overshoot", () => {
+  const boosted = linearGainChain({
+      analysis: { inputI: -16.17, inputTp: -3 },
+      targetLufs: -13,
+    }),
+    trimmed = linearGainChain({
+      analysis: { inputI: -7.83, inputTp: -0.12 },
+      targetLufs: -13,
+    });
+  assert.match(trimmed, /^volume=-5\.17 dB,/u);
+  assert.match(trimmed, /alimiter=limit=0\.8414/u);
+  assert.match(trimmed, /level=false/u);
+
+  assert.match(boosted, /^volume=3\.17 dB,/u);
+  assert.match(boosted, /alimiter=limit=0\.8414/u);
+});
+
+test("normalization correction preserves loudness while controlling encoded peaks", () => {
+  assert.deepEqual(
+    nextNormalizationSettings({
+      gainAdjustmentDb: 0,
+      limiterDbtp: -1.5,
+      targetLufs: -13,
+      verification: { integratedLufs: -13.03, truePeakDbtp: 2.62 },
+    }),
+    { gainAdjustmentDb: 0, limiterDbtp: -5.37 }
+  );
+
+  assert.deepEqual(
+    nextNormalizationSettings({
+      gainAdjustmentDb: 0,
+      limiterDbtp: -1.5,
+      targetLufs: -13,
+      verification: { integratedLufs: -15.28, truePeakDbtp: -2 },
+    }),
+    { gainAdjustmentDb: 2.2799999999999994, limiterDbtp: -1.5 }
+  );
+
+  assert.deepEqual(
+    nextNormalizationSettings({
+      gainAdjustmentDb: 0,
+      limiterDbtp: -1.5,
+      targetLufs: -13,
+      verification: { integratedLufs: -13.05, truePeakDbtp: -0.79 },
+    }),
+    { gainAdjustmentDb: -0.45999999999999996, limiterDbtp: -1.5 }
+  );
+});
+
+test("missing derivative verification fails with a typed error", () => {
+  assert.throws(
+    () => requireDerivativeVerification(null),
+    DerivativeValidationError
+  );
+});
+
+test("normalized derivatives enforce loudness and True Peak", () => {
+  assert.doesNotThrow(() =>
+    assertVerifiedDerivative({
+      sourceLoudness: { integratedLufs: -7.8 },
+      targetLufs: -13,
+      verification: { integratedLufs: -12, truePeakDbtp: -1.2 },
+    })
+  );
+  assert.doesNotThrow(() =>
+    assertVerifiedDerivative({
+      sourceLoudness: { integratedLufs: -7.8 },
+      targetLufs: -13,
+      verification: { integratedLufs: -14, truePeakDbtp: -1.4 },
+    })
+  );
+  assert.throws(
+    () =>
+      assertVerifiedDerivative({
+        sourceLoudness: { integratedLufs: -7.8 },
+        targetLufs: -13,
+        verification: { integratedLufs: -14.01, truePeakDbtp: -1.4 },
+      }),
+    DerivativeValidationError
+  );
+  assert.throws(
+    () =>
+      assertVerifiedDerivative({
+        sourceLoudness: { integratedLufs: -7.8 },
+        targetLufs: -13,
+        verification: { integratedLufs: -13, truePeakDbtp: -0.7 },
+      }),
+    DerivativeValidationError
+  );
+});

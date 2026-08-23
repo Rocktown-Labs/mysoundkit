@@ -1,5 +1,6 @@
 "use client";
 /* eslint-disable complexity, import/first, no-empty-function, no-nested-ternary, no-promise-executor-return, promise/avoid-new, promise/prefer-await-to-then, react/jsx-handler-names, require-await, require-unicode-regexp, unicorn/max-nested-calls */
+/* oxlint-disable one-var, prefer-destructuring, react/incompatible-library, react/no-array-index-key, sort-vars, unicorn/consistent-function-scoping */
 
 import { useUploadFiles } from "@better-upload/client";
 import { usePostHog } from "@posthog/react";
@@ -23,7 +24,7 @@ import {
   RotateCcw,
   Info,
 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import type { FieldErrors } from "react-hook-form";
 import * as z from "zod";
@@ -89,17 +90,15 @@ import {
   apiClient,
   MEDIA_BASE_URL,
   MEDIA_UPLOAD_URL,
-  PROJECT_ASSETS_UPLOAD_URL,
   rpcJson,
+  TRACK_SOURCE_UPLOAD_URL,
 } from "@/lib/api";
-import { createAudioPreviewFile } from "@/lib/audio-preview";
 import { authClient } from "@/lib/auth-client";
 import { readAudioDurationMs } from "@/lib/media-duration";
 import {
   soundkitQueryKeys,
   useGenresQuery,
   usePeopleSearchQuery,
-  useSettleTrackMutation,
   useTracksQuery,
   useUpdateProjectMutation,
 } from "@/lib/soundkit-api-hooks";
@@ -177,7 +176,8 @@ type ProjectFormValues = z.infer<typeof projectFormSchema>;
 const projectGet = apiClient.v1.projects[":projectId"].$get,
   projectPatch = apiClient.v1.projects[":projectId"].$patch,
   projectsPost = apiClient.v1.projects.index.$post,
-  trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post,
+  trackFinalizeUploadPost =
+    apiClient.v1.tracks[":trackId"]["finalize-upload"].$post,
   defaultProjectFormValues: ProjectFormValues = {
     collaborators: [],
     description: "",
@@ -363,16 +363,11 @@ export function NewProjectForm({
     [selectedCoverPreviewUrl, setSelectedCoverPreviewUrl] = useState<
       string | null
     >(null),
-    coverUploadResolverRef = useRef<((key: string) => void) | null>(null),
-    projectAssetsUploadResolverRef = useRef<
-      ((assets: ProjectTrackUploadResult[] | null) => void) | null
-    >(null),
     {
       data: existingTracks = [],
       error: tracksError,
       isLoading: tracksLoading,
     } = useTracksQuery(),
-    settleTrackMutation = useSettleTrackMutation(),
     updateProjectMutation = useUpdateProjectMutation(projectId ?? ""),
     { data: session } = authClient.useSession(),
     peopleSearch = usePeopleSearchQuery(collaboratorQuery),
@@ -561,30 +556,7 @@ export function NewProjectForm({
           let coverKey = selectedCoverFile ? "" : values.projectCoverObjectKey;
 
           if (selectedCoverFile && !coverKey) {
-            const keyPromise = new Promise<string>((resolve) => {
-              coverUploadResolverRef.current = resolve;
-            });
-            uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
-              posthog.captureException(uploadError);
-              coverUploadResolverRef.current?.("");
-              coverUploadResolverRef.current = null;
-            });
-            coverKey = await Promise.race([
-              keyPromise,
-              new Promise<string>((resolve) =>
-                setTimeout(() => resolve(""), 60_000)
-              ),
-            ]);
-            if (!coverKey) {
-              coverUploadResolverRef.current = null;
-              toast({
-                description:
-                  "Project cover upload did not finish. Please retry before saving.",
-                title: "Artwork upload incomplete",
-                variant: "destructive",
-              });
-              return;
-            }
+            coverKey = await uploadSelectedProjectCover(selectedCoverFile);
           }
 
           await updateProjectMutation.mutateAsync({
@@ -642,30 +614,7 @@ export function NewProjectForm({
       let coverKey = values.projectCoverObjectKey;
 
       if (selectedCoverFile && !coverKey) {
-        const keyPromise = new Promise<string>((resolve) => {
-          coverUploadResolverRef.current = resolve;
-        });
-        uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
-          posthog.captureException(uploadError);
-          coverUploadResolverRef.current?.("");
-          coverUploadResolverRef.current = null;
-        });
-        coverKey = await Promise.race([
-          keyPromise,
-          new Promise<string>((resolve) =>
-            setTimeout(() => resolve(""), 60_000)
-          ),
-        ]);
-        if (!coverKey) {
-          coverUploadResolverRef.current = null;
-          toast({
-            description:
-              "Project cover upload did not finish. Please retry before creating this project.",
-            title: "Artwork upload incomplete",
-            variant: "destructive",
-          });
-          return;
-        }
+        coverKey = await uploadSelectedProjectCover(selectedCoverFile);
       }
 
       if (!coverKey && releaseState.isListed) {
@@ -782,104 +731,53 @@ export function NewProjectForm({
               continue;
             }
 
-            const previewFile = await createAudioPreviewFile(
-                pendingTrack.file
-              ).catch(() => null),
-              uploadedAssets = await uploadProjectTrackFiles(
-                previewFile
-                  ? [pendingTrack.file, previewFile]
-                  : [pendingTrack.file]
-              );
-            if (!uploadedAssets) {
-              toast({
-                description:
-                  "Your project draft was saved, but one or more track files did not finish uploading. Open the project draft and retry those files.",
-                title: "Project draft saved",
-                variant: "destructive",
-              });
-              await queryClient.invalidateQueries({
-                queryKey: soundkitQueryKeys.projects,
-              });
-              router.navigate({ to: "/dashboard/projects" });
-              return;
-            }
-
-            const uploadedAsset = uploadedAssets.find(
-                (asset) => !asset.fileName.endsWith(".preview.wav")
+            const uploadedAssets = await uploadProjectTrackFiles(
+                [pendingTrack.file],
+                projectTrack.id
               ),
-              uploadedPreview = uploadedAssets.find((asset) =>
-                asset.fileName.endsWith(".preview.wav")
-              );
+              uploadedAsset = uploadedAssets[0];
             if (!uploadedAsset) {
-              continue;
+              throw new Error("The uploaded project track is unavailable.");
             }
 
             await rpcJson(
-              await trackAssetPost({
+              await trackFinalizeUploadPost({
                 json: {
-                  assetKind: "master",
-                  durationMs: pendingTrack.durationMs ?? undefined,
-                  metadata: {
-                    durationMs: pendingTrack.durationMs,
-                    originalFileName: uploadedAsset.fileName,
-                    url: `${MEDIA_BASE_URL}/${uploadedAsset.objectKey}`,
+                  assets: [
+                    {
+                      assetKind: "master",
+                      durationMs: pendingTrack.durationMs ?? undefined,
+                      metadata: {
+                        durationMs: pendingTrack.durationMs,
+                        originalFileName: uploadedAsset.fileName,
+                        url: `${MEDIA_BASE_URL}/${uploadedAsset.objectKey}`,
+                      },
+                      mimeType: uploadedAsset.mimeType,
+                      objectKey: uploadedAsset.objectKey,
+                      sizeBytes: uploadedAsset.sizeBytes,
+                      status: "uploaded",
+                      storageProvider: "r2",
+                    },
+                  ],
+                  settlement: {
+                    enrichLyrics: false,
+                    isPublic: releaseState.isListed,
+                    productionStatus: "complete",
+                    releaseAt: releaseState.releaseDate,
+                    releaseStrategy: hasReleaseDate
+                      ? "scheduled"
+                      : releaseState.isListed
+                        ? "publish_when_ready"
+                        : "private",
+                    // The project owns its cover asset. Track playback can use
+                    // the project artwork without duplicating one R2 object
+                    // across several track asset rows.
+                    requireCoverArt: false,
                   },
-                  mimeType: uploadedAsset.mimeType,
-                  objectKey: uploadedAsset.objectKey,
-                  sizeBytes: uploadedAsset.sizeBytes,
-                  status: "uploaded",
-                  storageProvider: "r2",
                 },
                 param: { trackId: projectTrack.id },
               })
             );
-
-            if (uploadedPreview) {
-              await rpcJson(
-                await trackAssetPost({
-                  json: {
-                    assetKind: "variant_audio",
-                    durationMs: Math.min(
-                      pendingTrack.durationMs ?? 30_000,
-                      30_000
-                    ),
-                    metadata: {
-                      durationMs: Math.min(
-                        pendingTrack.durationMs ?? 30_000,
-                        30_000
-                      ),
-                      originalFileName: uploadedPreview.fileName,
-                      previewDurationSeconds: 30,
-                      url: `${MEDIA_BASE_URL}/${uploadedPreview.objectKey}`,
-                      variant: "preview_30s",
-                    },
-                    mimeType: uploadedPreview.mimeType,
-                    objectKey: uploadedPreview.objectKey,
-                    sizeBytes: uploadedPreview.sizeBytes,
-                    status: "ready",
-                    storageProvider: "r2",
-                  },
-                  param: { trackId: projectTrack.id },
-                })
-              );
-            }
-          }
-        }
-
-        if (releaseState.isListed) {
-          for (const projectTrack of newProjectTracks) {
-            await settleTrackMutation.mutateAsync({
-              body: {
-                isPublic: true,
-                productionStatus: "complete",
-                releaseAt: releaseState.releaseDate,
-                releaseStrategy: hasReleaseDate
-                  ? "scheduled"
-                  : "publish_when_ready",
-                requireCoverArt: releaseState.isListed,
-              },
-              trackId: projectTrack.id,
-            });
           }
         }
 
@@ -915,11 +813,17 @@ export function NewProjectForm({
         toast({
           description:
             releaseState.status === "scheduled"
-              ? `${settledProject.title} is scheduled for ${formatDatePickerLabel(values.releaseDate)}.`
-              : releaseState.isListed
+              ? `${settledProject.title} is scheduled for ${formatDatePickerLabel(values.releaseDate)} and will publish when its tracks are playable.`
+              : settledProject.isPublic
                 ? `${settledProject.title} is listed on SoundKit.`
-                : `${settledProject.title} is saved as an unlisted project.`,
-          title: releaseState.isListed ? "Project Created" : "Project Saved",
+                : releaseState.isListed
+                  ? `${settledProject.title} is safely saved and will publish automatically when every track is playable.`
+                  : `${settledProject.title} is saved as an unlisted project.`,
+          title: settledProject.isPublic
+            ? "Project Created"
+            : releaseState.isListed
+              ? "Project processing"
+              : "Project Saved",
         });
         resetDraft();
         setSelectedCoverFile(null);
@@ -977,63 +881,12 @@ export function NewProjectForm({
     {
       averageProgress: coverProgress,
       isPending: isCoverUploading,
-      upload: uploadCover,
+      uploadAsync: uploadCoverAsync,
     } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
       onError: (uploadError) => {
         posthog.captureException(uploadError);
-        toast({
-          description: uploadError.message,
-          title: "Artwork upload failed",
-          variant: "destructive",
-        });
-        if (coverUploadResolverRef.current) {
-          coverUploadResolverRef.current("");
-          coverUploadResolverRef.current = null;
-        }
-      },
-      onUploadComplete: ({ files }) => {
-        const [uploadedFile] = files;
-
-        if (!uploadedFile) {
-          if (coverUploadResolverRef.current) {
-            coverUploadResolverRef.current("");
-            coverUploadResolverRef.current = null;
-          }
-          return;
-        }
-
-        const objectKey = uploadedFile.objectInfo.key;
-
-        setProjectCover({
-          fileName: uploadedFile.raw.name,
-          objectKey,
-          remoteUrl: `${MEDIA_BASE_URL}/${objectKey}`,
-        });
-        form.setValue("projectCoverObjectKey", objectKey, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-
-        if (coverUploadResolverRef.current) {
-          coverUploadResolverRef.current(objectKey);
-          coverUploadResolverRef.current = null;
-        }
-      },
-      onUploadFail: ({ failedFiles }) => {
-        const [failed] = failedFiles;
-        posthog.captureException(failed?.error);
-        toast({
-          description:
-            failed?.error?.message ?? "The artwork could not be stored.",
-          title: "Artwork upload failed",
-          variant: "destructive",
-        });
-        if (coverUploadResolverRef.current) {
-          coverUploadResolverRef.current("");
-          coverUploadResolverRef.current = null;
-        }
       },
       route: "media",
     });
@@ -1048,64 +901,56 @@ export function NewProjectForm({
   const {
       averageProgress: projectAssetProgress,
       isPending: isProjectAssetUploading,
-      upload: uploadProjectAssets,
+      uploadAsync: uploadProjectAssetsAsync,
     } = useUploadFiles({
-      api: PROJECT_ASSETS_UPLOAD_URL,
+      api: TRACK_SOURCE_UPLOAD_URL,
       credentials: "include",
       onError: (uploadError) => {
         posthog.captureException(uploadError);
-        toast({
-          description: uploadError.message,
-          title: "Project file upload failed",
-          variant: "destructive",
-        });
-        projectAssetsUploadResolverRef.current?.(null);
-        projectAssetsUploadResolverRef.current = null;
       },
-      onUploadComplete: ({ files }) => {
-        const assets = files.map((uploadedFile) => ({
-          fileName: uploadedFile.raw.name,
-          mimeType: uploadedFile.raw.type || "application/octet-stream",
-          objectKey: uploadedFile.objectInfo.key,
-          sizeBytes: uploadedFile.raw.size,
-        }));
-
-        projectAssetsUploadResolverRef.current?.(assets);
-        projectAssetsUploadResolverRef.current = null;
-      },
-      onUploadFail: ({ failedFiles }) => {
-        const [failed] = failedFiles;
-        posthog.captureException(failed?.error);
-        toast({
-          description:
-            failed?.error?.message ?? "The project files could not be stored.",
-          title: "Project file upload failed",
-          variant: "destructive",
-        });
-        projectAssetsUploadResolverRef.current?.(null);
-        projectAssetsUploadResolverRef.current = null;
-      },
-      route: "project-assets",
+      route: "track-source",
     }),
-    uploadProjectTrackFiles = async (files: File[]) => {
-      const uploadPromise = new Promise<ProjectTrackUploadResult[] | null>(
-        (resolve) => {
-          projectAssetsUploadResolverRef.current = resolve;
-        }
-      );
+    uploadSelectedProjectCover = async (file: File) => {
+      const result = await uploadCoverAsync([file]),
+        uploadedFile = result.files[0];
+      if (!uploadedFile) {
+        throw new Error(
+          result.failedFiles[0]?.error?.message ??
+            "The artwork could not be stored."
+        );
+      }
 
-      uploadProjectAssets(files).catch((uploadError: unknown) => {
-        posthog.captureException(uploadError);
-        projectAssetsUploadResolverRef.current?.(null);
-        projectAssetsUploadResolverRef.current = null;
+      const objectKey = uploadedFile.objectInfo.key;
+      setProjectCover({
+        fileName: uploadedFile.raw.name,
+        objectKey,
+        remoteUrl: `${MEDIA_BASE_URL}/${objectKey}`,
       });
-
-      return Promise.race([
-        uploadPromise,
-        new Promise<null>((resolve) =>
-          setTimeout(() => resolve(null), 120_000)
-        ),
-      ]);
+      form.setValue("projectCoverObjectKey", objectKey, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      return objectKey;
+    },
+    uploadProjectTrackFiles = async (
+      files: File[],
+      trackId: string
+    ): Promise<ProjectTrackUploadResult[]> => {
+      const result = await uploadProjectAssetsAsync(files, {
+        metadata: { trackId },
+      });
+      if (result.failedFiles.length > 0) {
+        throw new Error(
+          result.failedFiles[0]?.error?.message ??
+            "The project track could not be stored."
+        );
+      }
+      return result.files.map((uploadedFile) => ({
+        fileName: uploadedFile.raw.name,
+        mimeType: uploadedFile.raw.type || "application/octet-stream",
+        objectKey: uploadedFile.objectInfo.key,
+        sizeBytes: uploadedFile.raw.size,
+      }));
     },
     handleProjectCoverUpload = async (files: FileList) => {
       const [file] = [...files];
@@ -2162,30 +2007,6 @@ export function NewProjectForm({
                   </div>
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="rightsAccepted"
-                  render={({ field }) => (
-                    <FormItem className="rounded-xl border border-border/40 bg-muted/20 p-4">
-                      <div className="flex items-start gap-3">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <div className="space-y-1">
-                          <FormLabel className="text-sm">
-                            I own or control the rights to upload, distribute,
-                            and sell every song in this project on SoundKit.
-                          </FormLabel>
-                          <FormMessage />
-                        </div>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-
                 <div className="flex justify-between pt-4">
                   <Button
                     type="button"
@@ -2370,6 +2191,30 @@ export function NewProjectForm({
                     )}
                   </div>
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="rightsAccepted"
+                  render={({ field }) => (
+                    <FormItem className="rounded-xl border border-border/40 bg-muted/20 p-4">
+                      <div className="flex items-start gap-3">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1">
+                          <FormLabel className="text-sm">
+                            I own or control the rights to upload, distribute,
+                            and sell every song in this project on SoundKit.
+                          </FormLabel>
+                          <FormMessage />
+                        </div>
+                      </div>
+                    </FormItem>
+                  )}
+                />
 
                 <div className="flex justify-between pt-4">
                   <Button
