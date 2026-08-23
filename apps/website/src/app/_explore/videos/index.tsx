@@ -157,6 +157,7 @@ function VideosPage() {
           }
           isLoading={isLoadingInfinite}
           items={allVideos}
+          layout="landscape"
           title={genre === "all" ? "All Videos" : "Matching Videos"}
         >
           {(video) => <ExploreVideoCard video={video} />}
@@ -226,6 +227,7 @@ function ExploreVideoCard({ video }: { video: VideoSummary }) {
     <VideoCard
       video={{
         creator: {
+          avatarUrl: video.creatorAvatarUrl ?? null,
           name: video.creatorName ?? "SoundKit Artist",
           slug: video.creatorUsername ?? "artist",
         },
