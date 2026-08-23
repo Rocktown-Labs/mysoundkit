@@ -51,6 +51,7 @@
 
 ### Fixed
 
+- Corrected AAC inter-sample peak retries so narrowly excessive True Peak encodes use available loudness headroom instead of repeatedly lowering an inactive limiter ceiling.
 - Prevented pull-request previews from force-synchronizing branch-local Drizzle schemas against the shared production database, and separated preview Sentry environments from production alerts.
 - Fixed autonomous battle timelines after tied rounds: completed scheduled rounds now enter sudden death or resolve the leading artist instead of advancing past the configured format, tied tiebreakers match persisted winner rules, and battle results now progress to the ended phase.
 - Fixed explore search results rendering behind homepage map controls and replaced generic result icons with artist avatars, track covers, and project artwork.

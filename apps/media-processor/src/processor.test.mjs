@@ -105,7 +105,7 @@ test("linear gain chain always guards AAC transient overshoot", () => {
   assert.match(boosted, /alimiter=limit=0\.8414/u);
 });
 
-test("normalization correction lowers the limiter without attenuating the mix", () => {
+test("normalization correction preserves loudness while controlling encoded peaks", () => {
   assert.deepEqual(
     nextNormalizationSettings({
       gainAdjustmentDb: 0,
@@ -124,6 +124,16 @@ test("normalization correction lowers the limiter without attenuating the mix", 
       verification: { integratedLufs: -15.28, truePeakDbtp: -2 },
     }),
     { gainAdjustmentDb: 2.2799999999999994, limiterDbtp: -1.5 }
+  );
+
+  assert.deepEqual(
+    nextNormalizationSettings({
+      gainAdjustmentDb: 0,
+      limiterDbtp: -1.5,
+      targetLufs: -13,
+      verification: { integratedLufs: -13.05, truePeakDbtp: -0.79 },
+    }),
+    { gainAdjustmentDb: -0.45999999999999996, limiterDbtp: -1.5 }
   );
 });
 

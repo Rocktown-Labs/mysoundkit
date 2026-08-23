@@ -30,7 +30,7 @@ const INTERNAL_R2_ORIGIN = "http://soundkit-r2.internal",
   TRUE_PEAK_LIMIT_DBTP = -1,
   PEAK_CORRECTION_MARGIN_DB = 0.25,
   MIN_LIMITER_CEILING_DBTP = -18,
-  NORMALIZATION_MAX_ATTEMPTS = 3,
+  NORMALIZATION_MAX_ATTEMPTS = 4,
   AAC_BITRATE = "256k",
   MAX_DELIVERY_SAMPLE_RATE_HZ = 48_000,
   LOSSLESS_CODECS = new Set([
@@ -285,19 +285,29 @@ const inspectFile = async (filePath) => {
     verification,
   }) => {
     const loudnessDelta = targetLufs - verification.integratedLufs,
-      peakOvershoot = verification.truePeakDbtp - TRUE_PEAK_LIMIT_DBTP;
+      loudnessMissed = Math.abs(loudnessDelta) > LOUDNESS_TOLERANCE_LU,
+      peakOvershoot = verification.truePeakDbtp - TRUE_PEAK_LIMIT_DBTP,
+      peakCorrectionDb = peakOvershoot + PEAK_CORRECTION_MARGIN_DB,
+      gainCorrectedLufs = verification.integratedLufs - peakCorrectionDb,
+      canCorrectPeakWithGain =
+        !loudnessMissed &&
+        peakOvershoot > 0 &&
+        gainCorrectedLufs >= targetLufs - LOUDNESS_TOLERANCE_LU;
 
     return {
-      gainAdjustmentDb:
-        Math.abs(loudnessDelta) > LOUDNESS_TOLERANCE_LU
-          ? gainAdjustmentDb + loudnessDelta
+      // AAC can create pathological inter-sample peaks even when the pre-encode
+      // samples never reach the limiter ceiling. When a small attenuation still
+      // fits the accepted loudness window, correct the encoded peak directly.
+      // Larger peak misses continue lowering the limiter independently so the
+      // whole mix is not pushed outside the loudness gate.
+      gainAdjustmentDb: loudnessMissed
+        ? gainAdjustmentDb + loudnessDelta
+        : canCorrectPeakWithGain
+          ? gainAdjustmentDb - peakCorrectionDb
           : gainAdjustmentDb,
       limiterDbtp:
-        peakOvershoot > 0
-          ? Math.max(
-              MIN_LIMITER_CEILING_DBTP,
-              limiterDbtp - peakOvershoot - PEAK_CORRECTION_MARGIN_DB
-            )
+        peakOvershoot > 0 && !canCorrectPeakWithGain
+          ? Math.max(MIN_LIMITER_CEILING_DBTP, limiterDbtp - peakCorrectionDb)
           : limiterDbtp,
     };
   },
