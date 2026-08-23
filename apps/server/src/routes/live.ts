@@ -22,6 +22,7 @@ import type {
   LiveRoomIdentity,
   LiveRoomVoteBody,
 } from "@/durable-objects/live-room";
+import { publicAssetUrlFromParts } from "@/lib/asset-urls";
 import { evaluateBattleKitReadiness } from "@/lib/battle-kits";
 import { retryDurableObjectCall } from "@/lib/durable-object-retry";
 import {
@@ -865,14 +866,6 @@ const badRequest = (message: string) => ({
       })
     );
   },
-  objectUrlFromMetadata = (metadata: unknown) => {
-    if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
-      return null;
-    }
-
-    const { url } = metadata as { url?: unknown };
-    return typeof url === "string" ? url : null;
-  },
   liveRoomTrackFromRow = ({
     artistName,
     coverArtUrl,
@@ -1014,6 +1007,7 @@ const badRequest = (message: string) => ({
             ? db
                 .select({
                   metadata: trackAssets.metadata,
+                  objectKey: trackAssets.objectKey,
                   trackId: trackAssets.trackId,
                 })
                 .from(trackAssets)
@@ -1056,7 +1050,7 @@ const badRequest = (message: string) => ({
       coverByTrackId = new Map(
         coverRows.map((asset) => [
           asset.trackId,
-          objectUrlFromMetadata(asset.metadata),
+          publicAssetUrlFromParts(asset),
         ])
       ),
       trackById = new Map(
@@ -1306,6 +1300,7 @@ const badRequest = (message: string) => ({
             ? await db
                 .select({
                   metadata: trackAssets.metadata,
+                  objectKey: trackAssets.objectKey,
                   trackId: trackAssets.trackId,
                 })
                 .from(trackAssets)
@@ -1319,7 +1314,7 @@ const badRequest = (message: string) => ({
         coverByTrackId = new Map(
           coverRows.map((asset) => [
             asset.trackId,
-            objectUrlFromMetadata(asset.metadata),
+            publicAssetUrlFromParts(asset),
           ])
         );
 
@@ -1465,6 +1460,7 @@ const badRequest = (message: string) => ({
             ? await db
                 .select({
                   metadata: trackAssets.metadata,
+                  objectKey: trackAssets.objectKey,
                   trackId: trackAssets.trackId,
                 })
                 .from(trackAssets)
@@ -1478,7 +1474,7 @@ const badRequest = (message: string) => ({
         coverByTrackId = new Map(
           coverRows.map((asset) => [
             asset.trackId,
-            objectUrlFromMetadata(asset.metadata),
+            publicAssetUrlFromParts(asset),
           ])
         );
 

@@ -21,7 +21,6 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   formatDuration,
   guardedTrackPlaybackUrl,
-  objectUrlFromMetadata,
   publicAssetUrl,
   publicProjectAssetUrl,
 } from "@/lib/asset-urls";
@@ -180,7 +179,7 @@ export const mapTrackSummary = ({
     bpm: row.bpm,
     catalogItemType: row.catalogItemType,
     collaboratorCount,
-    coverArtUrl: objectUrlFromMetadata(coverAsset?.metadata) ?? null,
+    coverArtUrl: publicAssetUrl(coverAsset),
     downloadUrl: downloadAsset
       ? `/v1/tracks/${row.id}/assets/${downloadAsset.id}/download`
       : null,

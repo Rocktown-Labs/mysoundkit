@@ -30,11 +30,11 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { publicAssetUrlFromParts } from "@/lib/asset-urls";
 import {
   evaluateBattleKitReadiness,
   validateBattleKitTracks,
 } from "@/lib/battle-kits";
-import { resolveTrackAssetFromRows } from "@/lib/track-asset-resolver";
 import {
   forbiddenMessage,
   isAuthenticatedSession,
@@ -58,6 +58,7 @@ import {
   messageResponseSchema,
   updateBattleChallengeBodySchema,
 } from "@/lib/schemas";
+import { resolveTrackAssetFromRows } from "@/lib/track-asset-resolver";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
 
@@ -100,15 +101,7 @@ interface BattleFeedTrack {
   title: string;
 }
 
-const objectUrlFromMetadata = (metadata: unknown) => {
-    if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
-      return null;
-    }
-
-    const { url } = metadata as { url?: unknown };
-    return typeof url === "string" ? url : null;
-  },
-  selectCurrentRound = (rounds: BattleFeedRound[]) =>
+const selectCurrentRound = (rounds: BattleFeedRound[]) =>
     rounds.find((round) => round.status === "active") ??
     rounds.find((round) => round.status === "upcoming") ??
     rounds.at(-1) ??
@@ -167,6 +160,7 @@ const objectUrlFromMetadata = (metadata: unknown) => {
           db
             .select({
               metadata: trackAssets.metadata,
+              objectKey: trackAssets.objectKey,
               trackId: trackAssets.trackId,
             })
             .from(trackAssets)
@@ -180,7 +174,7 @@ const objectUrlFromMetadata = (metadata: unknown) => {
         coverByTrackId = new Map(
           coverRows.map((asset) => [
             asset.trackId,
-            objectUrlFromMetadata(asset.metadata),
+            publicAssetUrlFromParts(asset),
           ])
         );
 
@@ -1048,6 +1042,7 @@ const battleKitOwnership = ({
       trackRows = await db
         .select({
           coverMetadata: trackAssets.metadata,
+          coverObjectKey: trackAssets.objectKey,
           id: battleKitTracks.id,
           kitId: battleKitTracks.battleKitId,
           mainSlot: battleKitTracks.mainSlot,
@@ -1077,7 +1072,10 @@ const battleKitOwnership = ({
           trackRows: trackRows
             .filter((track) => track.kitId === kit.id)
             .map((track) => ({
-              coverArtUrl: objectUrlFromMetadata(track.coverMetadata),
+              coverArtUrl: publicAssetUrlFromParts({
+                metadata: track.coverMetadata,
+                objectKey: track.coverObjectKey,
+              }),
               id: track.id,
               mainSlot: track.mainSlot,
               role: track.role,

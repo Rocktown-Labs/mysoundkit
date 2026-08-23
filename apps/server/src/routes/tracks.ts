@@ -38,7 +38,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
-import { guardedTrackPlaybackUrl } from "@/lib/asset-urls";
+import { guardedTrackPlaybackUrl, publicAssetUrl } from "@/lib/asset-urls";
 import {
   resolveDownloadAccess,
   resolveListeningAccess,
@@ -154,38 +154,6 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
     }
 
     return Math.round(Number(price) * 100);
-  },
-  objectUrlFromMetadata = (metadata: unknown) => {
-    if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
-      return null;
-    }
-
-    const { url } = metadata as { url?: unknown };
-
-    return typeof url === "string" ? url : null;
-  },
-  publicTrackAssetUrl = (
-    asset: typeof trackAssets.$inferSelect | undefined
-  ) => {
-    if (!asset) {
-      return null;
-    }
-
-    const metadataUrl = objectUrlFromMetadata(asset.metadata);
-
-    if (metadataUrl) {
-      return metadataUrl;
-    }
-
-    const baseUrl = (
-      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-        .MEDIA_PUBLIC_URL ??
-      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-        .VITE_MEDIA_URL ??
-      ""
-    ).replace(/\/+$/u, "");
-
-    return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
   },
   // Downloads are named after the track, never the raw uploaded file:
   // "blunt-22.wav", "blunt-22.m4a", "blunt-22-cover.jpg".
@@ -3903,7 +3871,7 @@ app.openapi(
           access.canListen && firstAudioAsset
             ? guardedTrackPlaybackUrl(row.id)
             : null,
-        previewUrl: publicTrackAssetUrl(previewAsset),
+        previewUrl: publicAssetUrl(previewAsset),
         priceCents,
         priceLabel: formatPrice(priceCents),
         purchaseMode: row.purchaseMode,
