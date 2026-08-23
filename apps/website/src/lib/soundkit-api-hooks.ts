@@ -31,6 +31,7 @@ const meGet = apiClient.v1.me.index.$get,
   artistOnboardingPost = apiClient.v1.onboarding.artist.$post,
   artistsGet = apiClient.v1.artists.index.$get,
   artistGet = apiClient.v1.artists[":username"].$get,
+  artistMediaGet = apiClient.v1.artists[":username"].media.$get,
   fanOnboardingPost = apiClient.v1.onboarding.fan.$post,
   discoverHomeGet = apiClient.v1.discover.home.$get,
   genresGet = apiClient.v1.discover.genres.$get,
@@ -194,6 +195,8 @@ export type VideoComment = InferResponseType<
 >[number];
 export type NotificationPage = InferResponseType<typeof notificationsGet, 200>;
 export type ArtistSummary = InferResponseType<typeof artistsGet, 200>[number];
+export type ArtistProfileMedia = InferResponseType<typeof artistMediaGet, 200>;
+export type ArtistProfileCredit = ArtistProfileMedia["credits"][number];
 type ArtistFollowResponse = InferResponseType<typeof artistFollowPost, 200>;
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
 export type MeSummary = InferResponseType<typeof meGet, 200>;
@@ -375,6 +378,7 @@ export const soundkitQueryKeys = {
   adminSettings: ["admin", "settings"] as const,
   analyticsOverview: ["analytics", "overview"] as const,
   artist: (username: string) => ["artists", username] as const,
+  artistMedia: (username: string) => ["artists", username, "media"] as const,
   artists: (query?: ArtistRankingQuery) => ["artists", query ?? {}] as const,
   battleChallenges: ["battles", "challenges"] as const,
   battleKit: (id: string) => ["battles", "kits", id] as const,
@@ -878,6 +882,13 @@ export const useArtistQuery = (username: string) =>
     enabled: Boolean(username),
     queryFn: async () => rpcJson(await artistGet({ param: { username } })),
     queryKey: soundkitQueryKeys.artist(username),
+  });
+
+export const useArtistMediaQuery = (username: string) =>
+  useQuery({
+    enabled: Boolean(username),
+    queryFn: async () => rpcJson(await artistMediaGet({ param: { username } })),
+    queryKey: soundkitQueryKeys.artistMedia(username),
   });
 
 export const useArtistsQuery = (query: ArtistRankingQuery = {}) =>

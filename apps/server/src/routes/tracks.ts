@@ -2026,6 +2026,8 @@ app.openapi(
       );
     }
 
+    const assetId = objectOwner?.id ?? crypto.randomUUID();
+
     await withRetry("upsert current track asset", () =>
       db.transaction(async (transaction) => {
         await transaction
@@ -2035,7 +2037,10 @@ app.openapi(
             and(
               eq(trackAssets.trackId, trackId),
               eq(trackAssets.assetKind, body.assetKind),
-              eq(trackAssets.purpose, purpose),
+              // Legacy rows may carry a NULL purpose; demote on assetKind so
+              // an old current asset can never survive alongside its
+              // replacement.
+              or(eq(trackAssets.purpose, purpose), isNull(trackAssets.purpose)),
               eq(trackAssets.isCurrent, true),
               ne(trackAssets.objectKey, body.objectKey)
             )
@@ -2046,7 +2051,7 @@ app.openapi(
             assetKind: body.assetKind,
             bucketName: body.bucketName ?? null,
             durationMs: body.durationMs ?? null,
-            id: objectOwner?.id ?? crypto.randomUUID(),
+            id: assetId,
             isCurrent: true,
             metadata: body.metadata,
             mimeType: body.mimeType ?? null,
@@ -2079,6 +2084,30 @@ app.openapi(
           });
       })
     );
+
+    // A swapped-in master must regenerate streaming/battle/download
+    // derivatives; launch processing exactly like settlement does.
+    if (body.assetKind === "master") {
+      try {
+        await ensureMediaProcessingWorkflow({
+          payload: {
+            mode: "final_track",
+            objectKey: body.objectKey,
+            pipelineVersion: MEDIA_PIPELINE_VERSION,
+            sourceAssetId: assetId,
+            trackId,
+          },
+          workflow: (c.env as AppEnv["Bindings"]).MEDIA_PROCESSING_WORKFLOW,
+        });
+      } catch (error) {
+        logError({
+          error: error instanceof Error ? error.message : String(error),
+          event: "media_workflow_launch_failed",
+          sourceAssetId: assetId,
+          trackId,
+        });
+      }
+    }
 
     return c.json(await buildTrackDetail(track), HttpStatusCodes.CREATED);
   }
