@@ -102,6 +102,10 @@ test.describe("main application surfaces", () => {
   test("artist profiles show owned media, features, and credits", async ({
     page,
   }) => {
+    // This is the first test to load the artist profile route, so vite may
+    // compile its module on demand; allow extra time beyond the expect timeout.
+    test.setTimeout(75_000);
+
     await gotoWithViteRetry(page, "/artist/luna-eclipse");
 
     await expect(
