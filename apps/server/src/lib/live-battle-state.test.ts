@@ -1,9 +1,13 @@
+/* eslint-disable one-var, sort-vars, prefer-destructuring */
 import { describe, expect, it } from "vitest";
 
 import {
+  advanceBattleToNow,
   createBattleCoordination,
+  phaseDuration,
   transitionBattle,
 } from "@/lib/live-battle-state";
+import type { BattlePhase } from "@/lib/live-battle-state";
 import type { LiveBattleRound, LiveRoomArtist } from "@/lib/live-room-data";
 
 const artists: [LiveRoomArtist, LiveRoomArtist] = [
@@ -252,5 +256,244 @@ describe("live battle state machine", () => {
     expect(state.coordination.admittedUserIds).toHaveLength(1000);
     expect(state.coordination.queuedUserIds).toEqual([]);
     expect(state.coordination.waitingUserIds).toHaveLength(1500);
+  });
+});
+
+type TestBattleState = ReturnType<typeof host>;
+
+const PHASE_SEQUENCE_TO_VOTING = [
+    "round_intro",
+    "artist_a_turn",
+    "turn_transition",
+    "artist_b_turn",
+    "pre_vote",
+    "voting",
+  ] as const satisfies readonly BattlePhase[],
+  fans = (count: number) =>
+    Array.from({ length: count }, (_, index) => `fan-${index + 1}`),
+  startOpen = (admittedCount: number): TestBattleState => {
+    const state = host();
+    return {
+      ...state,
+      coordination: {
+        ...state.coordination,
+        admittedUserIds: fans(admittedCount),
+        phase: "waiting_room",
+        phaseEndsAt: 10,
+        phaseStartedAt: 0,
+        queuedUserIds: [],
+        removedUserIds: [],
+        waitingUserIds: [],
+      },
+    };
+  },
+  advanceOne = (state: TestBattleState): TestBattleState => {
+    const deadline = state.coordination.phaseEndsAt;
+    if (deadline === null) {
+      throw new Error(
+        `Phase ${state.coordination.phase} has no transition deadline.`
+      );
+    }
+
+    const next = transitionBattle(state, deadline),
+      duration = phaseDuration(
+        next.coordination.phase,
+        next.coordination.durations
+      );
+    expect(next.coordination.phaseStartedAt).toBe(deadline);
+    expect(next.coordination.phaseEndsAt).toBe(
+      duration === null ? null : deadline + duration
+    );
+    return next;
+  },
+  advanceThrough = (
+    initial: TestBattleState,
+    expectedPhases: readonly BattlePhase[],
+    seen?: BattlePhase[]
+  ) => {
+    let state = initial;
+    for (const expectedPhase of expectedPhases) {
+      state = advanceOne(state);
+      expect(state.coordination.phase).toBe(expectedPhase);
+      seen?.push(state.coordination.phase);
+    }
+    return state;
+  },
+  castVotes = (
+    state: TestBattleState,
+    roundNumber: number,
+    votesA: number,
+    votesB: number,
+    votedUserIds = state.coordination.requiredVoterUserIds ?? []
+  ): TestBattleState => ({
+    ...state,
+    battle: {
+      ...state.battle,
+      rounds: state.battle.rounds.map((round) =>
+        round.number === roundNumber
+          ? {
+              ...round,
+              voteTotals: { "artist-a": votesA, "artist-b": votesB },
+            }
+          : round
+      ),
+    },
+    coordination: {
+      ...state.coordination,
+      votedUserIds,
+    },
+  });
+
+describe("full battle timeline", () => {
+  it("walks a best-of-3 from waiting room through a two-round clinch", () => {
+    const seen: BattlePhase[] = [];
+    let state = startOpen(30);
+
+    state = advanceThrough(state, PHASE_SEQUENCE_TO_VOTING, seen);
+    state = castVotes(state, 1, 20, 10);
+    state = advanceThrough(state, ["round_result", "between_rounds"], seen);
+
+    state = advanceThrough(state, PHASE_SEQUENCE_TO_VOTING, seen);
+    state = castVotes(state, 2, 20, 10);
+    state = advanceThrough(state, ["round_result", "battle_result"], seen);
+
+    expect(seen).toEqual([
+      "round_intro",
+      "artist_a_turn",
+      "turn_transition",
+      "artist_b_turn",
+      "pre_vote",
+      "voting",
+      "round_result",
+      "between_rounds",
+      "round_intro",
+      "artist_a_turn",
+      "turn_transition",
+      "artist_b_turn",
+      "pre_vote",
+      "voting",
+      "round_result",
+      "battle_result",
+    ]);
+    expect(state.coordination.winnerUserId).toBe("artist-a");
+    expect(
+      state.battle.rounds.filter((round) => round.winnerArtistId === "artist-a")
+    ).toHaveLength(2);
+
+    const deadline = state.coordination.phaseEndsAt;
+    if (deadline === null) {
+      throw new Error("Battle result is missing its display deadline.");
+    }
+    const ended = advanceBattleToNow(state, deadline);
+    expect(ended.coordination.phase).toBe("ended");
+  });
+
+  it("uses sudden death after three scheduled rounds end 1-1", () => {
+    let state = startOpen(30);
+
+    for (const [roundNumber, votesA, votesB] of [
+      [1, 21, 9],
+      [2, 9, 21],
+      [3, 15, 15],
+    ] as const) {
+      state = advanceThrough(state, PHASE_SEQUENCE_TO_VOTING);
+      state = castVotes(state, roundNumber, votesA, votesB);
+      state = advanceOne(state);
+      expect(state.coordination.phase).toBe("round_result");
+
+      state = advanceOne(state);
+      if (roundNumber < 3) {
+        expect(state.coordination.phase).toBe("between_rounds");
+      }
+    }
+
+    expect(state.coordination.phase).toBe("tiebreaker_a");
+    expect(state.coordination.roundNumber).toBe(4);
+    expect(
+      state.battle.rounds.find((round) => round.number === 3)?.winnerArtistId
+    ).toBeNull();
+
+    state = advanceThrough(state, [
+      "tiebreaker_transition",
+      "tiebreaker_b",
+      "tiebreaker_voting",
+    ]);
+    state = castVotes(state, 4, 25, 5);
+    state = advanceThrough(state, ["round_result", "battle_result", "ended"]);
+
+    expect(state.coordination.winnerUserId).toBe("artist-a");
+  });
+
+  it("removes exactly the required voters who abstain between rounds", () => {
+    let state = startOpen(4);
+
+    state = advanceThrough(state, PHASE_SEQUENCE_TO_VOTING);
+    expect(state.coordination.requiredVoterUserIds).toEqual(fans(4));
+
+    state = castVotes(state, 1, 2, 0, ["fan-1", "fan-2"]);
+    state = advanceThrough(state, ["round_result", "between_rounds"]);
+
+    expect(state.coordination.removedUserIds).toEqual(["fan-3", "fan-4"]);
+    expect(state.coordination.admittedUserIds).toEqual(["fan-1", "fan-2"]);
+  });
+
+  it("records a tied regular round as complete without assigning a winner", () => {
+    let state = startOpen(30);
+
+    state = advanceThrough(state, PHASE_SEQUENCE_TO_VOTING);
+    state = castVotes(state, 1, 15, 15);
+    state = advanceOne(state);
+
+    const round = state.battle.rounds.find((entry) => entry.number === 1);
+    expect(round?.status).toBe("complete");
+    expect(round?.winnerArtistId).toBeNull();
+
+    state = advanceOne(state);
+    expect(state.coordination.phase).toBe("between_rounds");
+    expect(state.coordination.roundNumber).toBe(2);
+  });
+
+  it("ends after the scheduled rounds when one artist leads despite tied rounds", () => {
+    let state = startOpen(30);
+
+    for (const [roundNumber, votesA, votesB] of [
+      [1, 20, 10],
+      [2, 15, 15],
+      [3, 15, 15],
+    ] as const) {
+      state = advanceThrough(state, PHASE_SEQUENCE_TO_VOTING);
+      state = castVotes(state, roundNumber, votesA, votesB);
+      state = advanceThrough(state, ["round_result"]);
+      state = advanceOne(state);
+    }
+
+    expect(state.coordination.phase).toBe("battle_result");
+    expect(state.coordination.winnerUserId).toBe("artist-a");
+  });
+
+  it("resolves tied tiebreaker voting consistently toward artist A", () => {
+    let state = startOpen(2);
+    state = {
+      ...state,
+      coordination: {
+        ...state.coordination,
+        phase: "tiebreaker_voting",
+        phaseEndsAt: 10,
+        phaseStartedAt: 0,
+        requiredVoterUserIds: fans(2),
+        roundNumber: 4,
+        votedUserIds: fans(2),
+      },
+    };
+    state = castVotes(state, 4, 10, 10);
+    state = advanceOne(state);
+
+    expect(
+      state.battle.rounds.find((round) => round.number === 4)?.winnerArtistId
+    ).toBe("artist-a");
+
+    state = advanceOne(state);
+    expect(state.coordination.phase).toBe("battle_result");
+    expect(state.coordination.winnerUserId).toBe("artist-a");
   });
 });

@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- Fixed autonomous battle timelines after tied rounds: completed scheduled rounds now enter sudden death or resolve the leading artist instead of advancing past the configured format, tied tiebreakers match persisted winner rules, and battle results now progress to the ended phase.
 - Fixed mobile signup smoke navigation by using reliable document navigation for artist and fan credential links, with explicit route assertions for both paths.
 - Fixed the notification badge/feed mismatch that could show unread activity while rendering an empty dropdown; unread totals now query all persisted notifications rather than only the first page.
 - Resolved track upload race condition and conflicting state transitions in `NewTrackForm` and track settlement pipeline:
