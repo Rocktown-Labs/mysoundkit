@@ -1,11 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import { Eye, Lock, Radio, ShieldCheck, Video } from "lucide-react";
+import { Eye, Lock, Play, Radio, ShieldCheck } from "lucide-react";
 
+import { AppImage } from "@/components/ui/app-image";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 
 export interface ExploreVideoCardData {
   creator: {
+    avatarUrl?: null | string;
     name: string;
     slug: string;
   };
@@ -37,14 +39,10 @@ const kindLabels: Record<ExploreVideoCardData["videoKind"], string> = {
   teaser: "Teaser",
 };
 
-export function VideoCard({
-  video,
-  compact = false,
-}: {
-  compact?: boolean;
-  video: ExploreVideoCardData;
-}) {
-  const isPremiumLive = video.playbackPolicy === "premium_only_live",
+export function VideoCard({ video }: { video: ExploreVideoCardData }) {
+  const isLive = video.status === "live",
+    isPremiumLive = video.playbackPolicy === "premium_only_live",
+    sourceLabel = video.verifiedOnPlatform ? "SoundKit" : "YouTube",
     videoLink =
       video.regionSlug && video.slug
         ? {
@@ -54,71 +52,96 @@ export function VideoCard({
         : { params: { id: video.id }, to: "/videos/$id" as const };
 
   return (
-    <Link {...videoLink}>
-      <Card className="overflow-hidden border-border/50 bg-card/60 transition-colors hover:border-primary/60">
+    <Link
+      {...videoLink}
+      className="group block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <article
+        aria-label={`${video.title} video`}
+        className="flex min-w-0 flex-col gap-2.5"
+        data-testid="video-card"
+      >
         <div
-          className={`relative ${compact ? "aspect-[16/10]" : "aspect-video"}`}
+          className="relative aspect-video w-full overflow-hidden rounded-lg bg-muted"
+          data-testid="video-card-thumbnail"
         >
-          <img
-            src={video.thumbnail}
+          <AppImage
             alt={`${video.title} thumbnail`}
-            className="h-full w-full object-cover"
+            className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+            height={720}
+            layout="constrained"
+            loading="lazy"
+            src={video.thumbnail}
+            width={1280}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
-          <div className="absolute left-3 top-3 flex flex-wrap gap-2">
-            <Badge
-              variant={video.status === "live" ? "destructive" : "secondary"}
-            >
-              {video.status === "live" ? "Live" : kindLabels[video.videoKind]}
-            </Badge>
-            <Badge className="bg-black/70 text-white">
-              {video.verifiedOnPlatform ? (
-                <>
-                  <ShieldCheck className="mr-1 size-3 text-emerald-400" />
-                  SoundKit Verified
-                </>
-              ) : (
-                "External Source"
-              )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+
+          <div className="absolute top-2 left-2 flex flex-wrap gap-1.5">
+            <Badge variant={isLive ? "destructive" : "secondary"}>
+              {isLive ? "Live" : kindLabels[video.videoKind]}
             </Badge>
             {isPremiumLive ? (
-              <Badge className="bg-black/70 text-white">
-                <Lock className="mr-1 size-3" />
-                Premium Live
+              <Badge className="bg-black/75 text-white">
+                <Lock aria-hidden="true" />
+                Premium
               </Badge>
             ) : null}
           </div>
-          <div className="absolute bottom-3 right-3 rounded bg-black/70 px-2 py-1 text-xs font-medium text-white">
-            {video.duration}
-          </div>
+
+          <span className="absolute top-1/2 left-1/2 flex size-11 -translate-1/2 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white opacity-90 transition-[transform,background-color] group-hover:scale-105 group-hover:bg-primary motion-reduce:transition-none motion-reduce:group-hover:scale-100">
+            <Play aria-hidden="true" className="ml-0.5 size-5 fill-current" />
+          </span>
+
+          {video.duration && video.duration !== "0:00" ? (
+            <span className="absolute right-2 bottom-2 rounded bg-black/80 px-1.5 py-0.5 font-medium text-[11px] text-white tabular-nums">
+              {video.duration}
+            </span>
+          ) : null}
         </div>
-        <CardContent className="space-y-3 p-4">
-          <div className="space-y-1">
-            <h3 className="line-clamp-1 font-semibold">{video.title}</h3>
-            <p className="text-sm text-muted-foreground">
-              {video.creator.name}
+
+        <div className="flex min-w-0 items-start gap-2.5 px-0.5">
+          <Avatar className="size-9 shrink-0">
+            <AvatarImage
+              alt={`${video.creator.name} profile photo`}
+              src={video.creator.avatarUrl ?? undefined}
+            />
+            <AvatarFallback>
+              {video.creator.name.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+
+          <div className="min-w-0 flex-1">
+            <h3 className="line-clamp-2 font-semibold text-sm leading-snug transition-colors group-hover:text-primary">
+              {video.title}
+            </h3>
+            <p className="mt-0.5 flex items-center gap-1 truncate text-muted-foreground text-xs">
+              <span className="truncate">{video.creator.name}</span>
+              {video.verifiedOnPlatform ? (
+                <ShieldCheck
+                  aria-label="SoundKit verified"
+                  className="size-3 shrink-0 text-primary"
+                />
+              ) : null}
+            </p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-muted-foreground text-xs">
+              <span className="flex items-center gap-1">
+                <Eye aria-hidden="true" className="size-3" />
+                {video.viewCount} views
+              </span>
+              <span aria-hidden="true">•</span>
+              <span className="flex items-center gap-1">
+                {isLive ? (
+                  <Radio
+                    aria-hidden="true"
+                    className="size-3 text-destructive"
+                  />
+                ) : null}
+                {isLive ? "Streaming now" : sourceLabel}
+              </span>
             </p>
           </div>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Eye className="size-3.5" />
-              {video.viewCount} views
-            </span>
-            <span className="flex items-center gap-1">
-              {video.status === "live" ? (
-                <Radio className="size-3.5 text-red-500" />
-              ) : (
-                <Video className="size-3.5" />
-              )}
-              {video.status === "live"
-                ? "Streaming now"
-                : (video.verifiedOnPlatform
-                  ? "Hosted on SoundKit"
-                  : "Linked from source")}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </article>
     </Link>
   );
 }

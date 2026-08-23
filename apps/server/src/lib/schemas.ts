@@ -889,6 +889,7 @@ export const createListeningPartyBodySchema = z
   });
 
 export const videoSummarySchema = z.object({
+  creatorAvatarUrl: z.string().nullable().optional(),
   creatorName: z.string().optional(),
   creatorUsername: z.string().nullable().optional(),
   description: z.string().nullable().optional(),

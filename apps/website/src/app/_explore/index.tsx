@@ -1,4 +1,4 @@
-/* eslint-disable one-var, sort-vars, complexity, require-unicode-regexp, no-empty, no-nested-ternary, unicorn/no-nested-ternary, react-hooks/exhaustive-deps */
+/* eslint-disable one-var, sort-vars, complexity, require-unicode-regexp, no-empty, no-nested-ternary, unicorn/no-nested-ternary, react-hooks/exhaustive-deps, react/exhaustive-effect-dependencies */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Compass,
@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import { PremiumActivationCard } from "@/components/billing/premium-activation-card";
 import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-card";
 import type { LeaderboardArtist } from "@/components/explore/artist-leaderboard-card";
+import { BattleCard } from "@/components/explore/battle-card";
 import { SectionHeader } from "@/components/explore/section-header";
 import { TrackCard } from "@/components/explore/track-card";
 import { VideoCard } from "@/components/explore/video-card";
@@ -773,6 +774,7 @@ const formatCompactCount = (value?: number | null) => {
   },
   toExploreVideo = (video: VideoSummary) => ({
     creator: {
+      avatarUrl: video.creatorAvatarUrl ?? null,
       name: video.creatorName ?? "SoundKit creator",
       slug: video.creatorUsername ?? "artist",
     },
@@ -790,15 +792,59 @@ const formatCompactCount = (value?: number | null) => {
   });
 
 function BattleSummaryCard({ battle }: { battle: BattleSummary }) {
+  const tracks = battle.tracks ?? [];
+
+  if (tracks.length >= 2) {
+    return (
+      <div className="w-[320px] shrink-0 md:w-[360px]">
+        <BattleCard
+          currentRound={battle.round?.current ?? 1}
+          genre={battle.genre}
+          id={battle.id}
+          isLive={battle.status === "live"}
+          isPremiumUser={battle.visibility !== "premium_only"}
+          isVoting={battle.round?.isVoting ?? false}
+          joinMode={battle.joinMode}
+          phaseEndsAt={battle.phaseEndsAt}
+          queueSize={battle.queueSize}
+          title={battle.title}
+          totalRounds={battle.round?.total ?? 1}
+          track1={{
+            artist: tracks[0].artist,
+            cover: tracks[0].cover ?? "",
+            title: tracks[0].title,
+            votes: tracks[0].votes,
+          }}
+          track2={{
+            artist: tracks[1].artist,
+            cover: tracks[1].cover ?? "",
+            title: tracks[1].title,
+            votes: tracks[1].votes,
+          }}
+          views={`${battle.viewerCount.toLocaleString()} viewers`}
+        />
+      </div>
+    );
+  }
+
   return (
     <Link
-      className="block w-[260px] shrink-0 md:w-[300px]"
+      className="block w-[320px] shrink-0 md:w-[360px]"
       params={{ id: battle.id }}
       to="/live/battles/$id"
     >
-      <Card className="h-full border-border/40 bg-card/60 transition-colors hover:border-primary/50">
-        <CardContent className="space-y-4 p-4">
-          <div className="flex items-center justify-between gap-2">
+      <Card className="h-full overflow-hidden border-border/40 bg-card/60 transition-colors hover:border-primary/50">
+        <div className="relative aspect-video bg-muted">
+          <AppImage
+            alt={battle.title}
+            className="size-full object-cover"
+            height={720}
+            loading="lazy"
+            src="/music-battle-video-thumbnail.jpg"
+            width={1280}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
+          <div className="absolute top-2 left-2 flex gap-1.5">
             <Badge variant="secondary">{battle.genre}</Badge>
             <Badge
               variant={battle.status === "live" ? "destructive" : "outline"}
@@ -806,22 +852,15 @@ function BattleSummaryCard({ battle }: { battle: BattleSummary }) {
               {battle.status}
             </Badge>
           </div>
-          <div>
-            <h3 className="line-clamp-2 font-semibold text-base">
-              {battle.title}
-            </h3>
-            <p className="mt-1 text-muted-foreground text-xs">
-              {battle.format.replaceAll("_", " ")}
-            </p>
-          </div>
-          <div className="flex items-center justify-between text-muted-foreground text-xs">
-            <span>{battle.viewerCount.toLocaleString()} viewers</span>
-            {battle.visibility === "premium_only" ? (
-              <span className="font-medium text-primary">Premium</span>
-            ) : (
-              <span>Public</span>
-            )}
-          </div>
+          <h3 className="absolute right-3 bottom-3 left-3 line-clamp-2 font-semibold text-sm text-white">
+            {battle.title}
+          </h3>
+        </div>
+        <CardContent className="flex items-center justify-between p-3 text-muted-foreground text-xs">
+          <span>{battle.viewerCount.toLocaleString()} viewers</span>
+          <span>
+            {battle.visibility === "premium_only" ? "Premium" : "Public"}
+          </span>
         </CardContent>
       </Card>
     </Link>
@@ -846,7 +885,7 @@ function LiveStreamSummaryCard({
 
   return (
     <Link
-      className="block w-[260px] shrink-0 md:w-[300px]"
+      className="block w-[320px] shrink-0 md:w-[360px]"
       params={{ id: stream.id }}
       to="/live/streams/$id"
     >
