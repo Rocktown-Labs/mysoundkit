@@ -5,6 +5,7 @@
 ### Added
 
 - Added public artist portfolio media with Feed, Tracks, Projects, Videos, and Credits tabs, including accepted performing collaborations in Also Featured On sections and accepted songwriting, production, and engineering credits.
+- Added grouped credit displays: profile Credits tabs show Performance, Songwriting, and Production sections using visual media cards, and track detail pages list credits as role-labeled rows (Artist, Vocals, Written by, Produced by, Engineering) under the same groups.
 - Added Open Verse closing automation: a cron sweep closes listings at their `closesAt` deadline, notifies owners and submitters, and sends a 24-hour closing-soon reminder to the owner.
 - Added durable `PurchaseFulfillmentWorkflow`: Stripe webhook marks orders paid, then purchases grants, delivery emails, and in-app notifications run as idempotent retry-safe workflow steps.
 - Added idempotent checkout: stable client idempotency keys (persisted per checkout intent) resolve retries to the original order and live Stripe session; Stripe session creation carries an `Idempotency-Key`.
