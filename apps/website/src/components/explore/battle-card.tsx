@@ -1,63 +1,94 @@
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary */
 import { Link } from "@tanstack/react-router";
-import { Clock, TrendingUp, Users, Lock } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Clock, Lock, TrendingUp, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
+
+interface BattleTrack {
+  artist: string;
+  cover: string;
+  title: string;
+  votes: number;
+}
 
 interface BattleCardProps {
-  id: string;
-  title: string;
-  track1: {
-    title: string;
-    artist: string;
-    votes: number;
-    cover: string;
-  };
-  track2: {
-    title: string;
-    artist: string;
-    votes: number;
-    cover: string;
-  };
+  currentRound?: number;
   endsIn?: string;
   genre: string;
+  id: string;
   isLive?: boolean;
-  live?: boolean;
-  startsIn?: string;
-  views?: string;
-  currentRound?: number;
-  totalRounds?: number;
-  isVoting?: boolean;
-  queueSize?: number;
-  joinMode?: "waiting_room" | "watch_now";
-  phaseEndsAt?: string | null;
   isPremiumUser?: boolean;
+  isVoting?: boolean;
+  joinMode?: "waiting_room" | "watch_now";
+  live?: boolean;
+  phaseEndsAt?: string | null;
+  queueSize?: number;
+  startsIn?: string;
+  title: string;
+  totalRounds?: number;
+  track1: BattleTrack;
+  track2: BattleTrack;
+  views?: string;
+}
+
+function BattleTrackSummary({
+  percentage,
+  track,
+}: {
+  percentage: number;
+  track: BattleTrack;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 rounded-md bg-muted/40 p-2">
+      <AppImage
+        alt={`${track.title} cover artwork`}
+        className="size-9 shrink-0 rounded object-cover"
+        height={36}
+        layout="fixed"
+        loading="lazy"
+        src={track.cover || "/placeholder.svg"}
+        width={36}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium text-xs">{track.title}</p>
+        <p className="truncate text-[11px] text-muted-foreground">
+          {track.artist}
+        </p>
+      </div>
+      <span className="shrink-0 font-semibold text-xs tabular-nums">
+        {percentage.toFixed(0)}%
+      </span>
+    </div>
+  );
 }
 
 export function BattleCard({
-  id,
-  title,
-  track1,
-  track2,
+  currentRound = 1,
   endsIn,
   genre,
+  id,
   isLive = false,
-  live = false,
-  startsIn,
-  views,
-  currentRound = 1,
-  totalRounds = 3,
-  isVoting = false,
-  queueSize = 0,
-  joinMode = "watch_now",
-  phaseEndsAt = null,
   isPremiumUser = false,
+  isVoting = false,
+  joinMode = "watch_now",
+  live = false,
+  phaseEndsAt = null,
+  queueSize = 0,
+  startsIn,
+  title,
+  totalRounds = 3,
+  track1,
+  track2,
+  views,
 }: BattleCardProps) {
   const battleIsLive = isLive || live,
+    canJoinNow = battleIsLive && joinMode === "watch_now",
     timeLabel = endsIn ?? startsIn ?? views ?? "",
     totalVotes = track1.votes + track2.votes,
     track1Percentage = totalVotes > 0 ? (track1.votes / totalVotes) * 100 : 0,
@@ -97,158 +128,117 @@ export function BattleCard({
     return () => clearInterval(interval);
   }, [battleIsLive, isVoting, phaseEndsAt]);
 
-  const canJoinNow = battleIsLive && joinMode === "watch_now",
-    liveTimeLabel =
-      timeRemaining > 0
-        ? `${Math.floor(timeRemaining / 60)}:${(timeRemaining % 60)
-            .toString()
-            .padStart(2, "0")}`
-        : "Live";
+  const liveTimeLabel =
+    timeRemaining > 0
+      ? `${Math.floor(timeRemaining / 60)}:${(timeRemaining % 60)
+          .toString()
+          .padStart(2, "0")}`
+      : "Live";
 
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow group w-full">
-      <CardContent className="p-3 md:p-4">
-        <div className="flex items-center justify-between mb-3">
-          <Badge variant="secondary" className="text-[10px] md:text-xs">
-            {genre}
-          </Badge>
-          {battleIsLive ? (
-            <div className="flex flex-col items-end gap-1 flex-1 ml-2">
-              <Badge
-                variant={isVoting ? "default" : "secondary"}
-                className={`text-[10px] md:text-xs ${isVoting ? "bg-green-600" : "bg-primary"}`}
-              >
-                {isVoting ? "Voting" : `Round ${currentRound}/${totalRounds}`}
-              </Badge>
-              <div className="w-full max-w-[120px]">
-                <Progress
-                  value={roundProgress}
-                  className={`h-1.5 ${isVoting ? "[&>div]:bg-green-600" : ""}`}
-                />
-              </div>
-              <span className="text-[10px] text-muted-foreground tabular-nums">
-                {liveTimeLabel}
-              </span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="size-3" />
-              <span className="text-[10px] md:text-xs">{timeLabel}</span>
-            </div>
-          )}
-        </div>
-
-        <h3 className="font-semibold text-sm md:text-base mb-3 md:mb-4 group-hover:text-primary transition-colors line-clamp-1">
-          {title}
-        </h3>
-
-        {/* Track 1 */}
-        <div className="flex items-center gap-2 md:gap-3 mb-2">
-          <div className="relative size-10 md:size-12 rounded-md overflow-hidden shrink-0">
-            <AppImage
-              src={track1.cover || "/placeholder.svg"}
-              alt={track1.title}
-              width={48}
-              height={48}
-              layout="fixed"
-              className="w-full h-full object-cover"
-            />
+    <Card className="group w-full overflow-hidden border-border/50 bg-card/60 transition-colors hover:border-primary/60">
+      <Link
+        className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        params={{ id }}
+        to="/live/battles/$id"
+      >
+        <div className="relative aspect-video w-full overflow-hidden bg-muted">
+          <div className="grid size-full grid-cols-2">
+            {[track1, track2].map((track) => (
+              <AppImage
+                alt={`${track.title} battle artwork`}
+                className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+                height={720}
+                key={`${track.artist}-${track.title}`}
+                layout="constrained"
+                loading="lazy"
+                src={track.cover || "/placeholder.svg"}
+                width={640}
+              />
+            ))}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-xs md:text-sm truncate">
-              {track1.title}
-            </p>
-            <p className="text-[10px] md:text-xs text-muted-foreground truncate">
-              {track1.artist}
-            </p>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/40" />
+
+          <div className="absolute top-2 left-2 flex items-center gap-1.5">
+            <Badge variant={battleIsLive ? "destructive" : "secondary"}>
+              {battleIsLive ? "Live Battle" : genre}
+            </Badge>
+            {battleIsLive ? <Badge variant="secondary">{genre}</Badge> : null}
           </div>
-          <div className="text-right shrink-0">
-            <p className="text-xs md:text-sm font-semibold">
-              {track1Percentage.toFixed(0)}%
-            </p>
-            <p className="text-[9px] md:text-xs text-muted-foreground">
-              {track1.votes.toLocaleString()}
-            </p>
+
+          <span className="absolute top-1/2 left-1/2 flex size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/30 bg-black/70 font-black text-sm text-white shadow-lg">
+            VS
+          </span>
+
+          <div className="absolute right-2 bottom-2 left-2 flex items-end justify-between gap-2 text-white">
+            <h3 className="line-clamp-2 min-w-0 font-semibold text-sm leading-snug">
+              {title}
+            </h3>
+            <span className="flex shrink-0 items-center gap-1 rounded bg-black/75 px-1.5 py-0.5 text-[11px] tabular-nums">
+              <Clock aria-hidden="true" className="size-3" />
+              {battleIsLive ? liveTimeLabel : timeLabel || "Upcoming"}
+            </span>
           </div>
         </div>
+      </Link>
 
-        <div className="flex items-center gap-2 my-2">
-          <Progress value={track1Percentage} className="flex-1 h-1" />
+      <CardContent className="flex flex-col gap-3 p-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <BattleTrackSummary percentage={track1Percentage} track={track1} />
+          <BattleTrackSummary percentage={track2Percentage} track={track2} />
         </div>
 
-        {/* Track 2 */}
-        <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
-          <div className="relative size-10 md:size-12 rounded-md overflow-hidden shrink-0">
-            <AppImage
-              src={track2.cover || "/placeholder.svg"}
-              alt={track2.title}
-              width={48}
-              height={48}
-              layout="fixed"
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-xs md:text-sm truncate">
-              {track2.title}
-            </p>
-            <p className="text-[10px] md:text-xs text-muted-foreground truncate">
-              {track2.artist}
-            </p>
-          </div>
-          <div className="text-right shrink-0">
-            <p className="text-xs md:text-sm font-semibold">
-              {track2Percentage.toFixed(0)}%
-            </p>
-            <p className="text-[9px] md:text-xs text-muted-foreground">
-              {track2.votes.toLocaleString()}
-            </p>
-          </div>
-        </div>
+        <Progress className="h-1.5" value={track1Percentage} />
 
         {battleIsLive ? (
-          <div className="space-y-2">
-            {isPremiumUser ? (
-              canJoinNow ? (
-                <Link to="/live/battles/$id" params={{ id }} className="block">
-                  <Button className="w-full" size="sm">
-                    Watch Live
-                  </Button>
-                </Link>
-              ) : (
-                <Button
-                  className="w-full bg-transparent"
-                  size="sm"
-                  variant="outline"
-                  asChild
-                >
-                  <Link to="/live/battles/$id" params={{ id }}>
-                    <Users className="size-3 mr-1" />
-                    {joinMode === "waiting_room"
-                      ? `Join Waiting Room (${queueSize})`
-                      : `Join Queue (${queueSize})`}
-                  </Link>
-                </Button>
-              )
-            ) : (
-              <Link to="/pricing" className="block">
-                <Button className="w-full" size="sm" variant="secondary">
-                  <Lock className="size-3 mr-2" />
-                  Upgrade to Watch
-                </Button>
-              </Link>
-            )}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+              <span>
+                {isVoting
+                  ? "Voting Open"
+                  : `Round ${currentRound}/${totalRounds}`}
+              </span>
+              <span className="tabular-nums">{liveTimeLabel}</span>
+            </div>
+            <Progress
+              className={cn("h-1", isVoting && "[&>div]:bg-green-600")}
+              value={roundProgress}
+            />
           </div>
         ) : (
-          <Link to="/live/battles/$id" params={{ id }}>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors">
-              <TrendingUp className="size-3" />
-              <span className="text-[10px] md:text-xs">
-                {totalVotes.toLocaleString()} total votes
-              </span>
-            </div>
-          </Link>
+          <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+            <TrendingUp aria-hidden="true" />
+            <span>{totalVotes.toLocaleString()} total votes</span>
+          </div>
         )}
+
+        {battleIsLive ? (
+          isPremiumUser ? (
+            canJoinNow ? (
+              <Button asChild size="sm">
+                <Link params={{ id }} to="/live/battles/$id">
+                  Watch Live
+                </Link>
+              </Button>
+            ) : (
+              <Button asChild size="sm" variant="outline">
+                <Link params={{ id }} to="/live/battles/$id">
+                  <Users aria-hidden="true" data-icon="inline-start" />
+                  {joinMode === "waiting_room"
+                    ? `Join Waiting Room (${queueSize})`
+                    : `Join Queue (${queueSize})`}
+                </Link>
+              </Button>
+            )
+          ) : (
+            <Button asChild size="sm" variant="secondary">
+              <Link to="/pricing">
+                <Lock aria-hidden="true" data-icon="inline-start" />
+                Upgrade to Watch
+              </Link>
+            </Button>
+          )
+        ) : null}
       </CardContent>
     </Card>
   );

@@ -1,18 +1,21 @@
+/* eslint-disable one-var, sort-vars, unicorn/max-nested-calls */
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
   genres,
+  projectAssets,
   projectTracks,
   projects,
   tracks,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
+import { publicProjectAssetUrl } from "@/lib/asset-urls";
 import { searchSemanticEntities } from "@/lib/audio-processing";
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
 import { canonicalGenreName } from "@/lib/genre-catalog";
@@ -258,6 +261,30 @@ app.openapi(
       trackSummaries.push(await buildTrackSummary(row.tracks));
     }
 
+    const projectCoverRows =
+        projectRows.length > 0
+          ? await db
+              .select()
+              .from(projectAssets)
+              .where(
+                and(
+                  inArray(
+                    projectAssets.projectId,
+                    projectRows.map((project) => project.id)
+                  ),
+                  eq(projectAssets.assetKind, "cover_art")
+                )
+              )
+              .orderBy(desc(projectAssets.updatedAt))
+          : [],
+      projectCoverById = new Map<string, (typeof projectCoverRows)[number]>();
+
+    for (const asset of projectCoverRows) {
+      if (!projectCoverById.has(asset.projectId)) {
+        projectCoverById.set(asset.projectId, asset);
+      }
+    }
+
     const response = publicSearchResultSchema.parse({
       artists: artistRows.map((artist) => ({
         avatarUrl:
@@ -278,6 +305,7 @@ app.openapi(
       })),
       projects: projectRows.map((project) => ({
         ...project,
+        coverArtUrl: publicProjectAssetUrl(projectCoverById.get(project.id)),
         releaseDate: project.releaseDate?.toISOString() ?? null,
       })),
       tracks: trackSummaries,

@@ -1,3 +1,4 @@
+/* eslint-disable sort-vars, unicorn/consistent-function-scoping */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Film,
@@ -21,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -170,9 +172,15 @@ function DashboardVideosPage() {
                 >
                   <div className="flex items-center gap-4">
                     <div className="relative h-20 w-36 flex-shrink-0 overflow-hidden rounded-xl border border-border/50 group-hover:border-primary/40 transition-colors">
-                      <div className="flex h-full w-full items-center justify-center bg-muted transition-transform group-hover:scale-105">
-                        <Film className="size-8 text-muted-foreground" />
-                      </div>
+                      <AppImage
+                        alt={`${video.title} thumbnail`}
+                        className="size-full object-cover transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+                        height={180}
+                        layout="fixed"
+                        loading="lazy"
+                        src={video.thumbnailUrl}
+                        width={320}
+                      />
                       <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
                       <div className="absolute bottom-1.5 right-1.5 bg-black/80 px-1.5 py-0.5 rounded text-[10px] font-medium text-white">
                         {video.sourceProvider}

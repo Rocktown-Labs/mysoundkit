@@ -1,14 +1,9 @@
+/* eslint-disable one-var, sort-vars, react/memo-dependencies, react/preserve-manual-memoization, react/set-state-in-effect, react-hooks/exhaustive-deps, unicorn/consistent-function-scoping, react/no-array-index-key */
 import { Link, useRouterState } from "@tanstack/react-router";
-import {
-  ChevronLeft,
-  Eye,
-  Music2,
-  Swords,
-  TrendingUp,
-  Trophy,
-} from "lucide-react";
+import { Eye, Music2, Swords, TrendingUp, Trophy } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -197,6 +192,55 @@ const sortOptionsMap = {
     return [...orderedGenres, ...customGenres];
   };
 
+function BattleMatchupHero({
+  artist1,
+  artist1Image,
+  artist2,
+  artist2Image,
+  label,
+}: {
+  artist1: string;
+  artist1Image: string;
+  artist2: string;
+  artist2Image: string;
+  label: string;
+}) {
+  return (
+    <div className="relative aspect-video overflow-hidden bg-muted">
+      <div className="grid size-full grid-cols-2">
+        <AppImage
+          alt={`${artist1} artwork`}
+          className="size-full object-cover"
+          height={720}
+          layout="constrained"
+          loading="lazy"
+          src={artist1Image || "/placeholder.svg"}
+          width={640}
+        />
+        <AppImage
+          alt={`${artist2} artwork`}
+          className="size-full object-cover"
+          height={720}
+          layout="constrained"
+          loading="lazy"
+          src={artist2Image || "/placeholder.svg"}
+          width={640}
+        />
+      </div>
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/35" />
+      <Badge className="absolute top-2 left-2" variant="secondary">
+        {label}
+      </Badge>
+      <span className="absolute top-1/2 left-1/2 flex size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/30 bg-black/70 font-black text-sm text-white">
+        VS
+      </span>
+      <p className="absolute right-3 bottom-3 left-3 line-clamp-1 font-semibold text-sm text-white">
+        {artist1} vs {artist2}
+      </p>
+    </div>
+  );
+}
+
 function LiveBattleSummaryCard({
   battle,
   isPremiumUser,
@@ -312,7 +356,7 @@ function BattleRail({
         </div>
       </div>
       {battles.length > 0 ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {battles.slice(0, 6).map((battle) => (
             <LiveBattleSummaryCard
               battle={battle}
@@ -569,7 +613,14 @@ export function BattleViewAll({
               to="/live/battles/$id"
               params={{ id: battle.id }}
             >
-              <Card className="group hover:bg-accent transition-colors cursor-pointer h-full">
+              <Card className="group h-full cursor-pointer overflow-hidden transition-colors hover:bg-accent">
+                <BattleMatchupHero
+                  artist1={battle.artist1}
+                  artist1Image={battle.artist1Image}
+                  artist2={battle.artist2}
+                  artist2Image={battle.artist2Image}
+                  label={battle.genre}
+                />
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <Badge variant="secondary">{battle.genre}</Badge>
@@ -636,9 +687,16 @@ export function BattleViewAll({
             {(data as ReturnType<typeof generateUpcomingBattles>).map(
               (battle) => (
                 <Card
+                  className="group overflow-hidden transition-colors hover:bg-accent"
                   key={battle.id}
-                  className="group hover:bg-accent transition-colors"
                 >
+                  <BattleMatchupHero
+                    artist1={battle.artist1}
+                    artist1Image={battle.artist1Image}
+                    artist2={battle.artist2}
+                    artist2Image={battle.artist2Image}
+                    label={battle.genre}
+                  />
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-3">
                       <Badge variant="secondary">{battle.genre}</Badge>

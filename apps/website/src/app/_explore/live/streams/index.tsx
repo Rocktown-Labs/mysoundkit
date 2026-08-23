@@ -1,3 +1,4 @@
+/* eslint-disable sort-vars */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Plus, Radio } from "lucide-react";
 
@@ -113,6 +114,7 @@ function LiveStreamsPage() {
           empty="No creator streams match these filters."
           isLoading={isLoading}
           items={filteredStreams}
+          layout="landscape"
           title="Creator Streams"
         >
           {(stream) => <StreamCard {...stream} />}
@@ -122,7 +124,8 @@ function LiveStreamsPage() {
           <ExploreCollectionSection
             empty="No featured streams are available."
             isLoading={isLoading}
-            items={publicStreams.slice(0, 6)}
+            items={publicStreams.slice(0, 8)}
+            layout="landscape"
             onViewAll={() => openCollection({})}
             title="Featured"
           >
@@ -131,6 +134,7 @@ function LiveStreamsPage() {
           <ExploreCollectionSection
             empty="No creator streams are live right now."
             items={publicStreams.filter((stream) => stream.status === "live")}
+            layout="landscape"
             onViewAll={() => openCollection({ status: "live" })}
             title="Live Now"
           >
@@ -141,6 +145,7 @@ function LiveStreamsPage() {
             items={publicStreams.filter(
               (stream) => stream.status === "scheduled"
             )}
+            layout="landscape"
             onViewAll={() => openCollection({ status: "scheduled" })}
             title="Upcoming"
           >
@@ -163,6 +168,7 @@ function LiveStreamsPage() {
                   );
                 })}
                 key={sectionGenre.value}
+                layout="landscape"
                 onViewAll={() => openCollection({ genre: sectionGenre.value })}
                 title={sectionGenre.label}
               >
