@@ -102,15 +102,19 @@ test.describe("main application surfaces", () => {
   test("artist profiles show owned media, features, and credits", async ({
     page,
   }) => {
-    // This is the first test to load the artist profile route, so vite may
-    // compile its module on demand; allow extra time beyond the expect timeout.
-    test.setTimeout(75_000);
+    // On a cold dev server this is often the first load of the artist route;
+    // vite's dependency-optimization reload loop can consume the default
+    // 30s budget before the route finishes hydrating.
+    test.setTimeout(90_000);
 
     await gotoWithViteRetry(page, "/artist/luna-eclipse");
 
+    // Cold dev servers spend ~25-45s hydrating the first load of this route
+    // (vite dependency discovery + on-demand module transforms), so the first
+    // assertion gets a generous window inside the 90s test budget.
     await expect(
       page.getByRole("heading", { exact: true, name: "Luna Eclipse" })
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 60_000 });
     await expect(
       page.getByRole("heading", { exact: true, name: "Videos" })
     ).toBeVisible();
@@ -123,6 +127,12 @@ test.describe("main application surfaces", () => {
     await expect(page).toHaveURL(/#credits$/);
     await expect(
       page.getByRole("heading", { exact: true, name: "Credits" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Performance" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Songwriting" })
     ).toBeVisible();
     await expect(page.getByText("Songwriter")).toBeVisible();
 

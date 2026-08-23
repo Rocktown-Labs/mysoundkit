@@ -947,36 +947,68 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
 
           {/* Credits Section */}
           {(item.credits.artists.length > 0 ||
-            item.credits.writers.length > 0 ||
-            item.credits.producers.length > 0) && (
-            <section className="space-y-4 px-2 pt-6 border-t border-border/20">
+            item.credits.engineers.length > 0 ||
+            item.credits.producers.length > 0 ||
+            item.credits.vocalists.length > 0 ||
+            item.credits.writers.length > 0) && (
+            <section className="space-y-6 px-2 pt-6 border-t border-border/20">
               <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
                 Credits
               </h3>
-              <div className="grid gap-6 sm:grid-cols-3">
-                {(
-                  [
-                    { entries: item.credits.artists, label: "Artists" },
-                    { entries: item.credits.writers, label: "Writers" },
-                    { entries: item.credits.producers, label: "Producers" },
-                  ] as const
-                ).map((group) =>
-                  group.entries.length > 0 ? (
-                    <div key={group.label}>
-                      <h4 className="mb-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground/80">
-                        {group.label}
-                      </h4>
-                      <ul className="space-y-1.5">
-                        {group.entries.map((credit) => (
-                          <li className="truncate text-sm" key={credit.id}>
-                            {creditDisplayName(credit)}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null
-                )}
-              </div>
+              {(
+                [
+                  {
+                    entries: [
+                      { label: "Artist", names: item.credits.artists },
+                      { label: "Vocals", names: item.credits.vocalists },
+                    ],
+                    title: "Performance",
+                  },
+                  {
+                    entries: [
+                      { label: "Written by", names: item.credits.writers },
+                    ],
+                    title: "Songwriting",
+                  },
+                  {
+                    entries: [
+                      { label: "Produced by", names: item.credits.producers },
+                      { label: "Engineering", names: item.credits.engineers },
+                    ],
+                    title: "Production",
+                  },
+                ] as const
+              )
+                .map((group) => ({
+                  rows: group.entries
+                    .filter((row) => row.names.length > 0)
+                    .map((row) => ({
+                      label: row.label,
+                      names: row.names.map(creditDisplayName).join(", "),
+                    })),
+                  title: group.title,
+                }))
+                .filter((group) => group.rows.length > 0)
+                .map((group) => (
+                  <div key={group.title}>
+                    <h4 className="mb-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground/80">
+                      {group.title}
+                    </h4>
+                    <dl className="overflow-hidden rounded-lg border border-border/40">
+                      {group.rows.map((row) => (
+                        <div
+                          className="flex flex-col gap-1 border-border/40 border-b px-4 py-2.5 last:border-b-0 sm:flex-row sm:items-baseline sm:gap-4"
+                          key={row.label}
+                        >
+                          <dt className="shrink-0 text-muted-foreground text-sm sm:w-40">
+                            {row.label}
+                          </dt>
+                          <dd className="font-medium text-sm">{row.names}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                ))}
             </section>
           )}
         </div>
@@ -999,11 +1031,19 @@ export interface TrackCreditEntry {
 
 export interface TrackCredits {
   artists: TrackCreditEntry[];
+  engineers: TrackCreditEntry[];
   producers: TrackCreditEntry[];
+  vocalists: TrackCreditEntry[];
   writers: TrackCreditEntry[];
 }
 
-const emptyCredits: TrackCredits = { artists: [], producers: [], writers: [] };
+const emptyCredits: TrackCredits = {
+  artists: [],
+  engineers: [],
+  producers: [],
+  vocalists: [],
+  writers: [],
+};
 
 const normalizeCredits = (value: unknown): TrackCredits => {
   if (!(value && typeof value === "object")) {
@@ -1013,11 +1053,19 @@ const normalizeCredits = (value: unknown): TrackCredits => {
   const groups = value as Record<string, unknown>,
     credits: TrackCredits = {
       artists: [],
+      engineers: [],
       producers: [],
+      vocalists: [],
       writers: [],
     };
 
-  for (const group of ["artists", "producers", "writers"] as const) {
+  for (const group of [
+    "artists",
+    "engineers",
+    "producers",
+    "vocalists",
+    "writers",
+  ] as const) {
     const entries = groups[group];
     if (!Array.isArray(entries)) {
       continue;

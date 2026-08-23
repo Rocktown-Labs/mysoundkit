@@ -806,7 +806,9 @@ export const trackCreditEntrySchema = z.object({
 
 export const trackCatalogCreditsSchema = z.object({
   artists: z.array(trackCreditEntrySchema).default([]),
+  engineers: z.array(trackCreditEntrySchema).default([]),
   producers: z.array(trackCreditEntrySchema).default([]),
+  vocalists: z.array(trackCreditEntrySchema).default([]),
   writers: z.array(trackCreditEntrySchema).default([]),
 });
 

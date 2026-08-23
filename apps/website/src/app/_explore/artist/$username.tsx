@@ -294,6 +294,23 @@ function VideoGrid({
   );
 }
 
+function CreditGroupSection({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <section className="space-y-4">
+      <h3 className="font-semibold text-sm uppercase tracking-widest text-muted-foreground">
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
 function CreditList({ credits }: { credits: ArtistProfileCredit[] }) {
   return (
     <div className="grid gap-3 md:grid-cols-2">
@@ -423,6 +440,16 @@ function ArtistProfilePage() {
     featuredTracks = media?.featuredTracks ?? [],
     featuredProjects = media?.featuredProjects ?? [],
     credits = media?.credits ?? [],
+    songwritingCredits = credits.filter(
+      (credit) => credit.role === "songwriter"
+    ),
+    productionCredits = credits.filter(
+      (credit) => credit.role === "producer" || credit.role === "engineer"
+    ),
+    hasCreditsContent =
+      credits.length > 0 ||
+      featuredTracks.length > 0 ||
+      featuredProjects.length > 0,
     hasFeedContent =
       artistTracks.length > 0 ||
       projects.length > 0 ||
@@ -497,11 +524,6 @@ function ArtistProfilePage() {
           {mediaQuery.isLoading ? <MediaLoading /> : null}
           {!mediaQuery.isLoading && hasFeedContent ? (
             <div className="space-y-10">
-              {videos.length > 0 ? (
-                <ProfileSection title="Videos">
-                  <VideoGrid artist={artist} videos={videos.slice(0, 4)} />
-                </ProfileSection>
-              ) : null}
               {artistTracks.length > 0 ? (
                 <ProfileSection title="Tracks">
                   <TrackGrid tracks={artistTracks.slice(0, 8)} />
@@ -510,6 +532,11 @@ function ArtistProfilePage() {
               {projects.length > 0 ? (
                 <ProfileSection title="Projects">
                   <ProjectGrid projects={projects.slice(0, 4)} />
+                </ProfileSection>
+              ) : null}
+              {videos.length > 0 ? (
+                <ProfileSection title="Videos">
+                  <VideoGrid artist={artist} videos={videos.slice(0, 4)} />
                 </ProfileSection>
               ) : null}
               {featuredTracks.length > 0 || featuredProjects.length > 0 ? (
@@ -573,15 +600,36 @@ function ArtistProfilePage() {
 
         <TabsContent className="mt-6" value="credits">
           {mediaQuery.isLoading ? <MediaLoading /> : null}
-          {!mediaQuery.isLoading && credits.length > 0 ? (
+          {!mediaQuery.isLoading && hasCreditsContent ? (
             <ProfileSection
-              description="Accepted public songwriting, production, and engineering credits."
+              description={`How @${artist.username} appears across SoundKit releases.`}
               title="Credits"
             >
-              <CreditList credits={credits} />
+              <div className="space-y-10">
+                {featuredTracks.length > 0 || featuredProjects.length > 0 ? (
+                  <CreditGroupSection title="Performance">
+                    {featuredTracks.length > 0 ? (
+                      <TrackGrid tracks={featuredTracks} />
+                    ) : null}
+                    {featuredProjects.length > 0 ? (
+                      <ProjectGrid projects={featuredProjects} />
+                    ) : null}
+                  </CreditGroupSection>
+                ) : null}
+                {songwritingCredits.length > 0 ? (
+                  <CreditGroupSection title="Songwriting">
+                    <CreditList credits={songwritingCredits} />
+                  </CreditGroupSection>
+                ) : null}
+                {productionCredits.length > 0 ? (
+                  <CreditGroupSection title="Production">
+                    <CreditList credits={productionCredits} />
+                  </CreditGroupSection>
+                ) : null}
+              </div>
             </ProfileSection>
           ) : null}
-          {!mediaQuery.isLoading && credits.length === 0 ? (
+          {!mediaQuery.isLoading && !hasCreditsContent ? (
             <EmptyArtistTab label="credits" username={artist.username} />
           ) : null}
         </TabsContent>

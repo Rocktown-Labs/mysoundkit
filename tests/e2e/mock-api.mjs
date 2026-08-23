@@ -524,6 +524,87 @@ export const createMockApiServer = async ({
       return;
     }
 
+    const trackDetailMatch = url.pathname.match(/^\/v1\/tracks\/([^/]+)$/);
+    if (trackDetailMatch) {
+      json(
+        response,
+        200,
+        {
+          ...mockTracks[0],
+          artist: {
+            avatarUrl: mockArtists[0].avatarUrl,
+            handle: "luna-eclipse",
+            id: "artist_luna_eclipse",
+            name: "Luna Eclipse",
+            roles: ["musician"],
+            username: "luna-eclipse",
+            verified: true,
+          },
+          credits: {
+            artists: [
+              {
+                avatarUrl: null,
+                displayName: "Luna Eclipse",
+                id: "credit_artist_1",
+                legalName: null,
+                role: "artist",
+                splitBps: null,
+                username: "luna-eclipse",
+              },
+            ],
+            engineers: [
+              {
+                avatarUrl: null,
+                displayName: "Reese Nakamura",
+                id: "credit_engineer_1",
+                legalName: null,
+                role: "engineer",
+                splitBps: null,
+                username: null,
+              },
+            ],
+            producers: [
+              {
+                avatarUrl: null,
+                displayName: "Marcus Holt",
+                id: "credit_producer_1",
+                legalName: null,
+                role: "producer",
+                splitBps: null,
+                username: "marcus-holt",
+              },
+            ],
+            vocalists: [
+              {
+                avatarUrl: null,
+                displayName: "Cassandra Vale, Lena Ortiz",
+                id: "credit_vocalist_1",
+                legalName: null,
+                role: "vocalist",
+                splitBps: null,
+                username: null,
+              },
+            ],
+            writers: [
+              {
+                avatarUrl: null,
+                displayName: "Cassandra Vale, Priya Desmond",
+                id: "credit_writer_1",
+                legalName: null,
+                role: "songwriter",
+                splitBps: null,
+                username: null,
+              },
+            ],
+          },
+          listeningAccess: "public",
+          playbackUrl: "/v1/tracks/track_summer_nights/playback",
+        },
+        webOrigin
+      );
+      return;
+    }
+
     const artistMediaMatch = url.pathname.match(
       /^\/v1\/artists\/([^/]+)\/media$/
     );

@@ -3824,7 +3824,9 @@ app.openapi(
       }),
       credits = {
         artists: creditRows.filter((entry) => entry.role === "artist"),
+        engineers: creditRows.filter((entry) => entry.role === "engineer"),
         producers: creditRows.filter((entry) => entry.role === "producer"),
+        vocalists: creditRows.filter((entry) => entry.role === "vocalist"),
         writers: creditRows.filter((entry) => entry.role === "songwriter"),
       },
       assets = assetRows
