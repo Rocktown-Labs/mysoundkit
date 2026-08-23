@@ -56,6 +56,17 @@ const SITE_HOST = isProduction
   SENTRY_SERVER_DSN =
     process.env.SENTRY_DSN ||
     "https://13f74e858c970e20c62795b915266237@o4510278858309632.ingest.us.sentry.io/4511447939678208",
+  SENTRY_ENVIRONMENT = (() => {
+    if (app.local) {
+      return "development";
+    }
+
+    if (isProduction) {
+      return "production";
+    }
+
+    return app.stage;
+  })(),
   resourceName = (name: string) =>
     isProduction ? name : `${name}-${app.stage}`,
   shouldAdoptRemoteResources = isProduction || isPullRequestPreview,
@@ -268,6 +279,7 @@ export const web = await TanStackStart("web", {
     ),
     SENTRY_DSN: SENTRY_WEB_DSN,
     VITE_ENABLE_MERCH: "false",
+    VITE_SENTRY_ENVIRONMENT: SENTRY_ENVIRONMENT,
     VITE_MEDIA_URL: MEDIA_URL,
     ...optionalEnvBinding("VITE_RADAR_PUBLISHABLE_KEY"),
     ...optionalEnvBinding("VITE_STRIPE_PUBLISHABLE_KEY"),
@@ -368,6 +380,7 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("SOUNDKIT_EMAIL_FROM"),
     ...optionalEnvBinding("SOUNDKIT_EMAIL_REPLY_TO"),
     SENTRY_DSN: SENTRY_SERVER_DSN,
+    SENTRY_ENVIRONMENT,
     STEMSPLIT_API_KEY: requiredSecret(
       alchemy.secret.env.STEMSPLIT_API_KEY,
       "STEMSPLIT_API_KEY"

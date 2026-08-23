@@ -40,6 +40,7 @@ export interface AppEnv {
     RECORDINGS_BUCKET_NAME?: string;
     RECORDINGS_SECRET_ACCESS_KEY?: string;
     SENTRY_DSN?: string;
+    SENTRY_ENVIRONMENT?: string;
     CLOUDFLARE_ACCOUNT_ID?: string;
     CLOUDFLARE_API_TOKEN?: string;
     CLOUDFLARE_REALTIMEKIT_APP_ID?: string;
