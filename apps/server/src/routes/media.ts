@@ -12,6 +12,7 @@ import {
 import { and, eq } from "drizzle-orm";
 
 import { isAuthenticatedUser } from "@/lib/entitlements";
+import { isPublicTrackArtwork } from "@/lib/media-access";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
@@ -58,7 +59,7 @@ app.get("/*", async (c) => {
           isAuthenticatedUser(user) && user.id === trackRow.track.ownerUserId,
         privateAsset = isPrivateTrackAsset(trackRow.asset),
         publicArtwork =
-          trackRow.track.isPublic && trackRow.asset.purpose === "artwork",
+          trackRow.track.isPublic && isPublicTrackArtwork(trackRow.asset),
         publicStreaming =
           trackRow.track.isPublic &&
           trackRow.track.listeningAccess === "public" &&

@@ -3865,12 +3865,9 @@ app.openapi(
         assets,
         bpm: row.bpm,
         catalogItemType: row.catalogItemType,
-        coverArtUrl:
-          typeof coverAsset?.metadata === "object" &&
-          coverAsset.metadata &&
-          "url" in coverAsset.metadata
-            ? String(coverAsset.metadata.url)
-            : "/placeholder.svg",
+        coverArtUrl: coverAsset
+          ? (publicAssetUrl(coverAsset) ?? "/placeholder.svg")
+          : "/placeholder.svg",
         credits,
         currency: row.currency,
         description: row.description,
