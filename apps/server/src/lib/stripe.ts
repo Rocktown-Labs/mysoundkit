@@ -601,9 +601,7 @@ export const verifyStripeSignature = async ({
   signature: string | null;
 }) => {
   const webhookSecret =
-    secret ||
-    getEnvValue("STRIPE_COMMERCE_WEBHOOK_SECRET") ||
-    getEnvValue("STRIPE_WEBHOOK_SECRET");
+    secret || getEnvValue("STRIPE_COMMERCE_WEBHOOK_SECRET");
 
   if (!(webhookSecret && signature)) {
     return false;

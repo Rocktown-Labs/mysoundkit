@@ -214,7 +214,9 @@ A static documentation engine built with Astro 6 and Starlight, offering Pagefin
    - `BETTER_AUTH_URL`: Base URL for Better Auth (e.g. `http://localhost:3000`)
    - `CORS_ORIGIN`: Allowed frontend origin (e.g. `http://localhost:3001`)
    - `STRIPE_SECRET_KEY`: Stripe API secret key for billing & Connect
-   - `STRIPE_WEBHOOK_SECRET`: Stripe Webhook signature verification secret
+   - `STRIPE_BETTER_AUTH_WEBHOOK_SECRET`: Better Auth Stripe webhook signature secret
+   - `STRIPE_COMMERCE_WEBHOOK_SECRET`: Stripe commerce webhook signature secret
+   - `STRIPE_CONNECT_WEBHOOK_SECRET`: Stripe Connect webhook signature secret
    - `RESEND_API_KEY`: Resend API key for transactional emails
    - `TURNSTILE_SECRET_KEY`: Cloudflare Turnstile secret key
 

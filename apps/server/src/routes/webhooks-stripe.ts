@@ -433,7 +433,6 @@ app.openapi(
         secrets: [
           getEnvValue("STRIPE_COMMERCE_WEBHOOK_SECRET"),
           getEnvValue("STRIPE_CONNECT_WEBHOOK_SECRET"),
-          getEnvValue("STRIPE_WEBHOOK_SECRET"),
         ],
         signature,
       }))
