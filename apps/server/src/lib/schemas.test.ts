@@ -172,8 +172,14 @@ describe("artist dashboard release schemas", () => {
           assetId: "asset_track_1",
           fileName: "intro-tape.wav",
           genre: "Hip-Hop",
+          isrc: "US-XXX-26-00001",
           mimeType: "audio/wav",
           sizeBytes: 12_000_000,
+          streamingLinks: {
+            appleMusic: "https://music.apple.com/us/album/intro-tape",
+            spotify: "https://open.spotify.com/track/intro-tape",
+            youtube: "https://youtube.com/watch?v=intro-tape",
+          },
           title: "Intro Tape",
         },
         {

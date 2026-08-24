@@ -1980,8 +1980,16 @@ export const createProjectBodySchema = z.object({
         durationMs: z.number().int().nonnegative().optional(),
         fileName: z.string().optional(),
         genre: z.string().min(1),
+        isrc: z.string().optional(),
         mimeType: z.string().optional(),
         sizeBytes: z.number().int().nonnegative().optional(),
+        streamingLinks: z
+          .object({
+            appleMusic: z.string().optional(),
+            spotify: z.string().optional(),
+            youtube: z.string().optional(),
+          })
+          .default({}),
         title: z.string().min(1),
       })
     )

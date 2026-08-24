@@ -19,9 +19,12 @@ describe("Map Navigation Scopes", () => {
 
   it("assigns appropriate projections and scale parameters", () => {
     const globalScope = mapScopes.find((s) => s.id === "global"),
+      usaScope = mapScopes.find((s) => s.id === "usa"),
       africaScope = mapScopes.find((s) => s.id === "africa");
     expect(globalScope?.projection).toBe("geoEqualEarth");
     expect(globalScope?.scale).toBe(180);
+    expect(usaScope?.projection).toBe("geoAlbersUsa");
+    expect(usaScope?.scale).toBe(900);
     expect(mapScopes.find((s) => s.id === "europe")?.scale).toBe(300);
     expect(africaScope?.projection).toBe("geoMercator");
     expect(africaScope?.scale).toBeGreaterThan(100);

@@ -203,17 +203,17 @@ export function WorldAndUSAMap({
             scale: scopeConfig.scale,
           }}
         >
-          <ZoomableGroup
-            center={zoomCenter ?? scopeConfig.center ?? [0, 0]}
-            maxZoom={5}
-            minZoom={1}
-            zoom={zoomCenter ? 2.4 : 1}
-          >
-            {isUsaScope ? (
-              <Geographies geography={usGeoUrl}>
-                {({ geographies }) => geographies.map(renderGeography)}
-              </Geographies>
-            ) : (
+          {isUsaScope ? (
+            <Geographies geography={usGeoUrl}>
+              {({ geographies }) => geographies.map(renderGeography)}
+            </Geographies>
+          ) : (
+            <ZoomableGroup
+              center={zoomCenter ?? scopeConfig.center ?? [0, 0]}
+              maxZoom={5}
+              minZoom={1}
+              zoom={zoomCenter ? 2.4 : 1}
+            >
               <Geographies geography={worldGeoUrl}>
                 {({ geographies }) =>
                   geographies
@@ -226,8 +226,8 @@ export function WorldAndUSAMap({
                     .map(renderGeography)
                 }
               </Geographies>
-            )}
-          </ZoomableGroup>
+            </ZoomableGroup>
+          )}
         </ComposableMap>
 
         <div className="absolute bottom-3 left-3 z-20 flex items-center gap-3 rounded-lg border bg-background/90 px-3 py-1.5 text-xs shadow-md backdrop-blur">
