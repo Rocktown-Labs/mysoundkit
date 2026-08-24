@@ -45,6 +45,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -189,7 +190,7 @@ function AdminDashboard() {
       <Tabs defaultValue="overview">
         <div className="max-w-full pb-1">
           <TabsList
-            className="h-auto w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-7"
+            className="h-auto w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-8"
             style={{ display: "grid" }}
           >
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -202,6 +203,9 @@ function AdminDashboard() {
             </TabsTrigger>
             <TabsTrigger className="scroll-mt-20" value="regions">
               Regions
+            </TabsTrigger>
+            <TabsTrigger className="scroll-mt-20" value="open-verses">
+              Open Verses
             </TabsTrigger>
           </TabsList>
         </div>
@@ -225,6 +229,9 @@ function AdminDashboard() {
         </TabsContent>
         <TabsContent value="regions" className="mt-6">
           <RegionCoveragePanel />
+        </TabsContent>
+        <TabsContent value="open-verses" className="mt-6">
+          <OpenVerseAdminPanel />
         </TabsContent>
       </Tabs>
     </div>
@@ -403,6 +410,30 @@ function GenreCatalogPanel() {
   );
 }
 
+interface AdminOpenVerseListing {
+  accessRequestCount: number;
+  baseMasterAssetId: string | null;
+  createdAt: string;
+  genre: string | null;
+  id: string;
+  ownerDisplayName: string | null;
+  ownerUserId: string;
+  ownerUsername: string | null;
+  previewAssetId: string | null;
+  status: string;
+  submissionCount: number;
+  title: string;
+  trackId: string;
+  trackTitle: string | null;
+}
+
+const openVerseMediaHealth = (listing: AdminOpenVerseListing) =>
+  listing.baseMasterAssetId
+    ? listing.previewAssetId
+      ? "Ready"
+      : "Preview missing"
+    : "Legacy / incomplete";
+
 interface AdminRegionOverview {
   missingCountryCount: number;
   missingStateCount: number;
@@ -513,6 +544,271 @@ function RegionCoveragePanel() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function OpenVerseAdminPanel() {
+  const queryClient = useQueryClient(),
+    [listingToDelete, setListingToDelete] =
+      useState<AdminOpenVerseListing | null>(null),
+    listingsQuery = useQuery<AdminOpenVerseListing[]>({
+      queryFn: async () => {
+        const response = await fetch(`${API_V1_URL}/admin/open-verses`, {
+          credentials: "include",
+        });
+        if (!response.ok) {
+          throw new Error("Unable to load Open Verse listings.");
+        }
+        return (await response.json()) as AdminOpenVerseListing[];
+      },
+      queryKey: ["admin", "open-verses"],
+    }),
+    deleteListing = useMutation({
+      mutationFn: async (listingId: string) => {
+        const response = await fetch(
+          `${API_V1_URL}/open-verses/${encodeURIComponent(listingId)}`,
+          { credentials: "include", method: "DELETE" }
+        );
+        const payload = (await response.json().catch(() => null)) as {
+          message?: string;
+        } | null;
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "Unable to delete the listing.");
+        }
+        return payload;
+      },
+      onError: (error) => {
+        toast({
+          description: error.message,
+          title: "Listing not deleted",
+          variant: "destructive",
+        });
+      },
+      onSettled: () => setListingToDelete(null),
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({
+          queryKey: ["admin", "open-verses"],
+        });
+        toast({
+          description:
+            "The listing and its access requests and submissions were removed. The underlying track was preserved.",
+          title: "Open Verse deleted",
+        });
+      },
+    });
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Open Verse Catalog</CardTitle>
+          <CardDescription>
+            Inspect raw persisted listings, including legacy entries that cannot
+            complete the current submission flow. Deleting a listing preserves
+            its underlying track.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {listingsQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">
+              Loading Open Verse listings…
+            </p>
+          ) : null}
+          {listingsQuery.error ? (
+            <Alert variant="destructive">
+              <TriangleAlert />
+              <AlertTitle>Unable to load Open Verses</AlertTitle>
+              <AlertDescription>
+                Refresh the page and try loading the catalog again.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {listingsQuery.data?.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No Open Verse listings are stored.
+            </p>
+          ) : null}
+          {listingsQuery.data?.length ? (
+            <div className="flex flex-col gap-3 md:hidden">
+              {listingsQuery.data.map((listing) => {
+                const mediaHealth = openVerseMediaHealth(listing);
+                return (
+                  <Card key={listing.id}>
+                    <CardHeader>
+                      <CardTitle className="text-base">
+                        {listing.title}
+                      </CardTitle>
+                      <CardDescription className="font-mono text-xs">
+                        {listing.id}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-3 text-sm">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">
+                          {listing.status.replaceAll("_", " ")}
+                        </Badge>
+                        <Badge
+                          variant={
+                            mediaHealth === "Ready"
+                              ? "secondary"
+                              : "destructive"
+                          }
+                        >
+                          {mediaHealth}
+                        </Badge>
+                      </div>
+                      <p>
+                        <span className="text-muted-foreground">Owner:</span>{" "}
+                        {listing.ownerDisplayName ?? "Unknown owner"}
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Track:</span>{" "}
+                        {listing.trackTitle ?? "Missing track"}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {listing.accessRequestCount} requests ·{" "}
+                        {listing.submissionCount} submissions ·{" "}
+                        {new Date(listing.createdAt).toLocaleDateString()}
+                      </p>
+                    </CardContent>
+                    <CardFooter>
+                      <Button
+                        aria-label={`Delete ${listing.title}`}
+                        className="w-full"
+                        onClick={() => setListingToDelete(listing)}
+                        variant="destructive"
+                      >
+                        <Trash2 />
+                        Delete
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : null}
+          {listingsQuery.data?.length ? (
+            <div className="hidden overflow-x-auto rounded-md border md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Listing</TableHead>
+                    <TableHead>Owner</TableHead>
+                    <TableHead>Track</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Media health</TableHead>
+                    <TableHead>Requests</TableHead>
+                    <TableHead>Submissions</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="sticky right-0 bg-background text-right">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {listingsQuery.data.map((listing) => {
+                    const mediaHealth = openVerseMediaHealth(listing);
+                    return (
+                      <TableRow key={listing.id}>
+                        <TableCell>
+                          <div className="min-w-56">
+                            <p className="font-medium">{listing.title}</p>
+                            <p className="font-mono text-xs text-muted-foreground">
+                              {listing.id}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <p>{listing.ownerDisplayName ?? "Unknown owner"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {listing.ownerUsername
+                              ? `@${listing.ownerUsername}`
+                              : listing.ownerUserId}
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          <p>{listing.trackTitle ?? "Missing track"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {listing.genre ?? "No genre"}
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {listing.status.replaceAll("_", " ")}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              mediaHealth === "Ready"
+                                ? "secondary"
+                                : "destructive"
+                            }
+                          >
+                            {mediaHealth}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{listing.accessRequestCount}</TableCell>
+                        <TableCell>{listing.submissionCount}</TableCell>
+                        <TableCell>
+                          {new Date(listing.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="sticky right-0 bg-background text-right">
+                          <Button
+                            aria-label={`Delete ${listing.title}`}
+                            onClick={() => setListingToDelete(listing)}
+                            size="sm"
+                            variant="destructive"
+                          >
+                            <Trash2 />
+                            Delete
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open && !deleteListing.isPending) {
+            setListingToDelete(null);
+          }
+        }}
+        open={Boolean(listingToDelete)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this Open Verse?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes “{listingToDelete?.title}”, its access
+              requests, and its submissions. The underlying track and unrelated
+              media remain intact.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteListing.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!listingToDelete || deleteListing.isPending}
+              onClick={() => {
+                if (listingToDelete) {
+                  deleteListing.mutate(listingToDelete.id);
+                }
+              }}
+            >
+              {deleteListing.isPending ? "Deleting…" : "Delete listing"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

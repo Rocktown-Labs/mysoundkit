@@ -231,7 +231,7 @@ function LiveHubPage() {
           onChange={(next) => {
             void navigate({ search: { ...next, view: "all" } });
           }}
-          value={{ genre, sort, status }}
+          value={{ genre, sort }}
         />
       </div>
 

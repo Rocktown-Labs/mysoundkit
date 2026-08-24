@@ -413,6 +413,7 @@ describe("SoundKit API authentication boundaries", () => {
 
   it.each([
     ["read genres", "/v1/admin/genres", undefined],
+    ["read Open Verses", "/v1/admin/open-verses", undefined],
     ["read regions", "/v1/admin/regions", undefined],
     ["create genre", "/v1/admin/genres", jsonRequest({ name: "Battle Rap" })],
   ])(

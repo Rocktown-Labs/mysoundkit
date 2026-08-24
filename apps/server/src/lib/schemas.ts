@@ -1531,6 +1531,23 @@ export const adminGenreSchema = z.object({
   videoCount: z.number().int().nonnegative(),
 });
 
+export const adminOpenVerseListingSchema = z.object({
+  accessRequestCount: z.number().int().nonnegative(),
+  baseMasterAssetId: z.string().nullable(),
+  createdAt: z.string(),
+  genre: z.string().nullable(),
+  id: z.string(),
+  ownerDisplayName: z.string().nullable(),
+  ownerUserId: z.string(),
+  ownerUsername: z.string().nullable(),
+  previewAssetId: z.string().nullable(),
+  status: z.string(),
+  submissionCount: z.number().int().nonnegative(),
+  title: z.string(),
+  trackId: z.string(),
+  trackTitle: z.string().nullable(),
+});
+
 export const adminRegionOverviewSchema = z.object({
   missingCountryCount: z.number().int().nonnegative(),
   missingStateCount: z.number().int().nonnegative(),

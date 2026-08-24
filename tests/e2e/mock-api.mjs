@@ -322,6 +322,10 @@ export const createMockApiServer = async ({
     response.setHeader("access-control-allow-origin", effectiveOrigin);
     response.setHeader("access-control-allow-credentials", "true");
     response.setHeader("access-control-allow-headers", "content-type,cookie");
+    response.setHeader(
+      "access-control-allow-methods",
+      "GET,POST,PATCH,PUT,DELETE,OPTIONS"
+    );
 
     if (request.method === "OPTIONS") {
       response.writeHead(204);
@@ -489,6 +493,46 @@ export const createMockApiServer = async ({
             users: 2,
           },
         },
+        webOrigin
+      );
+      return;
+    }
+
+    if (url.pathname === "/v1/admin/open-verses") {
+      json(
+        response,
+        200,
+        [
+          {
+            accessRequestCount: 0,
+            baseMasterAssetId: null,
+            createdAt: "2026-06-01T12:00:00.000Z",
+            genre: "Hip Hop",
+            id: "legacy_open_verse",
+            ownerDisplayName: "Matt Alvis",
+            ownerUserId: "user_artist_2",
+            ownerUsername: "mattalvis",
+            previewAssetId: null,
+            status: "open",
+            submissionCount: 0,
+            title: "IYKYK open verse listing title",
+            trackId: "track_iykyk",
+            trackTitle: "IYKYK",
+          },
+        ],
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "DELETE" &&
+      url.pathname === "/v1/open-verses/legacy_open_verse"
+    ) {
+      json(
+        response,
+        200,
+        { message: "Open verse listing deleted." },
         webOrigin
       );
       return;

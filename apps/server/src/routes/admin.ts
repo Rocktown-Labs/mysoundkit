@@ -8,7 +8,9 @@ import {
   fanProfiles,
   genres,
   listeningParties,
+  openVerseAccessRequests,
   openVerseListings,
+  openVerseSubmissions,
   projects,
   trackAssets,
   tracks,
@@ -22,6 +24,7 @@ import {
   and,
   count,
   countDistinct,
+  desc,
   eq,
   isNotNull,
   isNull,
@@ -49,6 +52,7 @@ import { countryFromProfileLocation } from "@/lib/public-explore";
 import {
   adminAccessSchema,
   adminGenreSchema,
+  adminOpenVerseListingSchema,
   adminOverviewSchema,
   adminRegionOverviewSchema,
   backfillTrackDurationsBodySchema,
@@ -235,6 +239,80 @@ app.openapi(
         videoCount: 0,
       },
       HttpStatusCodes.CREATED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/open-verses",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        adminOpenVerseListingSchema.array(),
+        "Open Verse catalog"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Admin required"
+      ),
+    },
+    tags: ["Admin"],
+  }),
+  async (c) => {
+    if (!isAdminUser(c.get("user"))) {
+      return c.json(
+        { message: "Admin access is required." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+
+    const rows = await createDb()
+      .select({
+        accessRequestCount: sql<number>`(
+          select count(*)::int from ${openVerseAccessRequests}
+          where ${openVerseAccessRequests.listingId} = ${openVerseListings.id}
+        )`,
+        baseMasterAssetId: openVerseListings.baseMasterAssetId,
+        createdAt: openVerseListings.createdAt,
+        genre: genres.name,
+        id: openVerseListings.id,
+        ownerDisplayName: sql<
+          string | null
+        >`coalesce(${userProfiles.displayName}, ${user.name})`,
+        ownerUserId: openVerseListings.ownerUserId,
+        ownerUsername: userProfiles.username,
+        previewAssetId: openVerseListings.previewAssetId,
+        status: openVerseListings.status,
+        submissionCount: sql<number>`(
+          select count(*)::int from ${openVerseSubmissions}
+          where ${openVerseSubmissions.listingId} = ${openVerseListings.id}
+        )`,
+        title: openVerseListings.title,
+        trackId: openVerseListings.trackId,
+        trackTitle: tracks.title,
+      })
+      .from(openVerseListings)
+      .leftJoin(tracks, eq(tracks.id, openVerseListings.trackId))
+      .leftJoin(genres, eq(genres.id, openVerseListings.genreId))
+      .leftJoin(user, eq(user.id, openVerseListings.ownerUserId))
+      .leftJoin(
+        userProfiles,
+        eq(userProfiles.userId, openVerseListings.ownerUserId)
+      )
+      .orderBy(desc(openVerseListings.createdAt));
+
+    return c.json(
+      rows.map((row) => ({
+        ...row,
+        accessRequestCount: Number(row.accessRequestCount),
+        createdAt: row.createdAt.toISOString(),
+        submissionCount: Number(row.submissionCount),
+      })),
+      HttpStatusCodes.OK
     );
   }
 );

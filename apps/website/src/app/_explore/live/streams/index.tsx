@@ -131,7 +131,7 @@ function LiveStreamsPage() {
             search: (previous) => ({ ...previous, ...next, view: "all" }),
           });
         }}
-        value={{ genre, sort, status }}
+        value={{ genre, sort }}
       />
 
       {view === "all" ? (

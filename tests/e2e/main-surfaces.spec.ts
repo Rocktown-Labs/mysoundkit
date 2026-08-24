@@ -205,6 +205,9 @@ test.describe("main application surfaces", () => {
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByText(/battle/i).first()).toBeVisible();
     await expect(page).toHaveURL(/region=us-arkansas/);
+    if ((page.viewportSize()?.width ?? 0) >= 1024) {
+      await expect(page.getByRole("combobox")).toHaveCount(4);
+    }
     const battlesContentBox = await page
         .getByRole("heading", { exact: true, name: "Live Battles" })
         .nth(1)
@@ -221,6 +224,12 @@ test.describe("main application surfaces", () => {
       page.getByText("No listening parties are live right now.")
     ).toHaveCount(1);
     await expect(page).toHaveURL(/region=us-arkansas/);
+    await expect(
+      page.getByRole("combobox", { name: "Filter live events by status" })
+    ).toHaveCount(0);
+    if ((page.viewportSize()?.width ?? 0) >= 1024) {
+      await expect(page.getByRole("combobox")).toHaveCount(4);
+    }
     const partiesContentBox = await page
         .getByRole("heading", { exact: true, name: "Listening Parties" })
         .boundingBox(),
@@ -242,6 +251,12 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { exact: true, name: "Creator Streams" }).nth(1)
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "Filter live events by status" })
+    ).toHaveCount(0);
+    if ((page.viewportSize()?.width ?? 0) >= 1024) {
+      await expect(page.getByRole("combobox")).toHaveCount(4);
+    }
   });
 
   test("videos route renders URL-backed filters without crashing", async ({
@@ -534,5 +549,32 @@ test.describe("administration", () => {
     await expect(page.getByText("Regional catalog coverage")).toBeVisible();
     await expect(page.getByText("United States")).toBeVisible();
     await expect(page.getByText("Arkansas")).toBeVisible();
+
+    const openVersesTab = page.getByRole("tab", { name: "Open Verses" });
+    await openVersesTab.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("Open Verse Catalog")).toBeVisible();
+    if ((page.viewportSize()?.width ?? 0) >= 768) {
+      const listingRow = page.getByRole("row", {
+        name: /IYKYK open verse listing title/u,
+      });
+      await expect(listingRow).toBeVisible();
+      await expect(listingRow.getByText("Legacy / incomplete")).toBeVisible();
+    } else {
+      await expect(
+        page.getByText("IYKYK open verse listing title").first()
+      ).toBeVisible();
+      await expect(page.getByText("Legacy / incomplete").first()).toBeVisible();
+    }
+    await page
+      .getByRole("button", {
+        name: "Delete IYKYK open verse listing title",
+      })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Delete this Open Verse?" })
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Delete listing" }).click();
+    await expect(page.getByText("Open Verse deleted")).toBeVisible();
   });
 });
