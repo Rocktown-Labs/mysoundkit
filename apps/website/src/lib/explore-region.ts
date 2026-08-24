@@ -16,7 +16,21 @@ export interface ExploreRegionSelection {
   regionType: ExploreRegionType;
 }
 
-const mapScopeIds = new Set<MapScope>(mapScopes.map((scope) => scope.id));
+const mapScopeIds = new Set<MapScope>(mapScopes.map((scope) => scope.id)),
+  legacyMapScopeAliases: Readonly<Record<string, MapScope>> = {
+    "north-america": "usa",
+  };
+
+export const mapScopeFromValue = (value: unknown): MapScope | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  return (
+    legacyMapScopeAliases[value] ??
+    (mapScopeIds.has(value as MapScope) ? (value as MapScope) : undefined)
+  );
+};
 
 export const isMapScope = (value: unknown): value is MapScope =>
   typeof value === "string" && mapScopeIds.has(value as MapScope);
@@ -32,7 +46,12 @@ export const exploreRegionSlug = (value: string): string =>
     .replaceAll(/^-|-$/gu, "");
 
 export const regionTypeForMapScope = (mapScope: MapScope): ExploreRegionType =>
-  mapScope === "north-america" ? "north-america" : "global";
+  mapScope === "north-america" ||
+  mapScope === "usa" ||
+  mapScope === "canada" ||
+  mapScope === "mexico"
+    ? "north-america"
+    : "global";
 
 export const mapScopeLabel = (mapScope: MapScope): string =>
   mapScopes.find((scope) => scope.id === mapScope)?.label ?? "SoundKit";
@@ -50,8 +69,7 @@ export const resolveInitialExploreRegion = ({
 }): ExploreRegionSelection => {
   const region = search.region ?? savedRegion ?? null,
     explicitScope =
-      search.mapScope ??
-      (isMapScope(savedMapScope) ? savedMapScope : undefined),
+      search.mapScope ?? mapScopeFromValue(savedMapScope) ?? undefined,
     regionType =
       search.regionType ??
       (savedRegionType === "global" || savedRegionType === "north-america"
@@ -62,12 +80,11 @@ export const resolveInitialExploreRegion = ({
     inferredScope =
       explicitScope ??
       (regionType === "north-america"
-        ? "north-america"
-        : isMapScope(normalizedRegion)
-          ? normalizedRegion
-          : "global"),
+        ? "usa"
+        : (mapScopeFromValue(normalizedRegion) ?? "global")),
     isScopeOnlySelection =
-      normalizedRegion === "all" || normalizedRegion === inferredScope;
+      normalizedRegion === "all" ||
+      mapScopeFromValue(normalizedRegion) === inferredScope;
 
   return {
     mapScope: inferredScope,
@@ -107,9 +124,14 @@ export const mapScopeForDetectedLocation = ({
   countryCode?: string | null;
 }): MapScope => {
   const normalizedCode = countryCode?.trim().toUpperCase();
-  return normalizedCode === "US" ||
-    normalizedCode === "CA" ||
-    normalizedCode === "MX"
-    ? "north-america"
-    : "global";
+  if (normalizedCode === "US") {
+    return "usa";
+  }
+  if (normalizedCode === "CA") {
+    return "canada";
+  }
+  if (normalizedCode === "MX") {
+    return "mexico";
+  }
+  return "global";
 };

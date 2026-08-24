@@ -1,6 +1,10 @@
 export type MapScope =
   | "global"
+  /** @deprecated Use "usa". Retained for dashboard compatibility and URL migration. */
   | "north-america"
+  | "usa"
+  | "canada"
+  | "mexico"
   | "africa"
   | "europe"
   | "asia"
@@ -25,10 +29,24 @@ export const mapScopes: RegionOption[] = [
   },
   {
     center: [-100, 42],
-    id: "north-america",
-    label: "USA / North America",
+    id: "usa",
+    label: "USA",
     projection: "geoMercator",
     scale: 330,
+  },
+  {
+    center: [-105, 58],
+    id: "canada",
+    label: "Canada",
+    projection: "geoMercator",
+    scale: 270,
+  },
+  {
+    center: [-102, 23],
+    id: "mexico",
+    label: "Mexico",
+    projection: "geoMercator",
+    scale: 400,
   },
   {
     center: [18, 2],
@@ -38,11 +56,11 @@ export const mapScopes: RegionOption[] = [
     scale: 300,
   },
   {
-    center: [15, 52],
+    center: [15, 54],
     id: "europe",
     label: "Europe",
     projection: "geoMercator",
-    scale: 350,
+    scale: 300,
   },
   {
     center: [85, 32],

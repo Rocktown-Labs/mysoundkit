@@ -33,7 +33,6 @@ const usGeoUrl = new URL(
     "../../assets/maps/world-countries-110m.json",
     import.meta.url
   ).href,
-  northAmericaCountryNames = new Set(["Canada", "Mexico"]),
   geographyName = (geography: {
     id?: string | number;
     properties?: Record<string, unknown>;
@@ -89,7 +88,7 @@ export function WorldAndUSAMap({
     [zoomCenter, setZoomCenter] = useState<[number, number] | null>(null),
     scopeConfig =
       mapScopes.find((scope) => scope.id === mapScope) ?? mapScopes[0],
-    isNorthAmericaScope = mapScope === "north-america",
+    isUsaScope = mapScope === "usa",
     displayRegion =
       hoveredRegion ??
       selectedRegion ??
@@ -210,24 +209,10 @@ export function WorldAndUSAMap({
             minZoom={1}
             zoom={zoomCenter ? 2.4 : 1}
           >
-            {isNorthAmericaScope ? (
-              <>
-                <Geographies geography={worldGeoUrl}>
-                  {({ geographies }) =>
-                    geographies
-                      .filter((geography) => {
-                        const name = geographyName(geography);
-                        return name
-                          ? northAmericaCountryNames.has(name)
-                          : false;
-                      })
-                      .map(renderGeography)
-                  }
-                </Geographies>
-                <Geographies geography={usGeoUrl}>
-                  {({ geographies }) => geographies.map(renderGeography)}
-                </Geographies>
-              </>
+            {isUsaScope ? (
+              <Geographies geography={usGeoUrl}>
+                {({ geographies }) => geographies.map(renderGeography)}
+              </Geographies>
             ) : (
               <Geographies geography={worldGeoUrl}>
                 {({ geographies }) =>

@@ -8,9 +8,9 @@ interface USAMapProps {
 export function USAMap({ selectedState, onStateSelect }: USAMapProps) {
   return (
     <WorldAndUSAMap
-      mapScope="north-america"
+      mapScope="usa"
       onRegionSelect={onStateSelect}
-      onScopeChange={() => {}}
+      onScopeChange={() => null}
       selectedRegion={selectedState}
     />
   );

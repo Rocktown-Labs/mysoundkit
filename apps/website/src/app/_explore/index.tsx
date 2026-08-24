@@ -38,8 +38,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   exploreLocationPhrase,
   exploreRegionSlug,
-  isMapScope,
   mapScopeForDetectedLocation,
+  mapScopeFromValue,
   regionTypeForMapScope,
 } from "@/lib/explore-region";
 import {
@@ -68,7 +68,7 @@ interface ExploreSearch {
 export const Route = createFileRoute("/_explore/")({
   component: ExplorePage,
   validateSearch: (search: Record<string, unknown>): ExploreSearch => ({
-    mapScope: isMapScope(search.mapScope) ? search.mapScope : undefined,
+    mapScope: mapScopeFromValue(search.mapScope),
     region: typeof search.region === "string" ? search.region : undefined,
     regionType:
       search.regionType === "global" || search.regionType === "north-america"
@@ -106,25 +106,26 @@ function LocalExplorePage() {
     savedMapScope =
       typeof window === "undefined"
         ? null
-        : localStorage.getItem("exploreMapScope"),
+        : mapScopeFromValue(localStorage.getItem("exploreMapScope")),
     savedUserLocation =
       typeof window === "undefined"
         ? null
         : localStorage.getItem("soundkit_user_location"),
-    initialRegion = search.region ?? savedRegion ?? savedUserLocation ?? null,
+    initialRegion =
+      search.region ??
+      (savedRegion && mapScopeFromValue(savedRegion) ? null : savedRegion) ??
+      savedUserLocation ??
+      null,
     initialRegionType: "global" | "north-america" =
       search.regionType ??
       savedRegionType ??
       (initialRegion && initialRegion !== "all" ? "north-america" : "global"),
     initialMapScope: MapScope =
       search.mapScope ??
-      (isMapScope(savedMapScope)
-        ? savedMapScope
-        : initialRegionType === "global"
-          ? isMapScope(initialRegion)
-            ? initialRegion
-            : "global"
-          : "north-america"),
+      savedMapScope ??
+      (initialRegionType === "global"
+        ? (mapScopeFromValue(initialRegion) ?? "global")
+        : "usa"),
     [selectedRegion, setSelectedRegion] = useState<string | null>(
       initialRegion === "all" || initialRegion === initialMapScope
         ? null
@@ -334,7 +335,7 @@ function LocalExplorePage() {
       if (savedLocation) {
         setUserLocation(savedLocation);
         setSelectedRegion(savedLocation);
-        setMapScope(isMapScope(savedMapScope) ? savedMapScope : "global");
+        setMapScope(savedMapScope ?? "global");
         setLocationPromptState("granted");
         return;
       }

@@ -5,6 +5,7 @@ import {
   exploreRegionQuery,
   isMapScope,
   mapScopeForDetectedLocation,
+  mapScopeFromValue,
   resolveInitialExploreRegion,
 } from "./explore-region";
 
@@ -44,9 +45,9 @@ describe("Explore region state", () => {
       region: "all",
       regionType: "global",
     });
-    expect(
-      exploreRegionQuery({ mapScope: "north-america", region: "Arkansas" })
-    ).toEqual({ region: "arkansas", regionType: "north-america" });
+    expect(exploreRegionQuery({ mapScope: "usa", region: "Arkansas" })).toEqual(
+      { region: "arkansas", regionType: "north-america" }
+    );
     expect(exploreLocationPhrase({ mapScope: "global", region: null })).toBe(
       "On SoundKit"
     );
@@ -55,9 +56,11 @@ describe("Explore region state", () => {
   it("validates map scopes and maps detected countries", () => {
     expect(isMapScope("africa")).toBe(true);
     expect(isMapScope("middle-earth")).toBe(false);
-    expect(mapScopeForDetectedLocation({ countryCode: "ca" })).toBe(
-      "north-america"
-    );
+    expect(mapScopeForDetectedLocation({ countryCode: "ca" })).toBe("canada");
+    expect(mapScopeForDetectedLocation({ countryCode: "mx" })).toBe("mexico");
+    expect(mapScopeForDetectedLocation({ countryCode: "us" })).toBe("usa");
     expect(mapScopeForDetectedLocation({ countryCode: "NG" })).toBe("global");
+    expect(mapScopeFromValue("north-america")).toBe("usa");
+    expect(mapScopeFromValue("middle-earth")).toBeUndefined();
   });
 });
