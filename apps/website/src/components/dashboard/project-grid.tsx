@@ -27,7 +27,7 @@ import { Progress } from "@/components/ui/progress";
 
 const mockProjects = [
   {
-    coverArt: "/summer-music-album-cover.png",
+    coverArt: "/summer-music-album-cover.webp",
     description: "Upbeat track for summer playlist",
     files: {
       adlibs: true,
@@ -46,7 +46,7 @@ const mockProjects = [
     status: "complete",
   },
   {
-    coverArt: "/night-music-album-cover.png",
+    coverArt: "/night-music-album-cover.webp",
     description: "Moody R&B collaboration",
     files: {
       adlibs: false,
@@ -65,7 +65,7 @@ const mockProjects = [
     status: "in-progress",
   },
   {
-    coverArt: "/hip-hop-album-cover.png",
+    coverArt: "/hip-hop-album-cover.webp",
     description: "Hip-hop beat with guest vocals",
     files: {
       adlibs: false,
@@ -84,7 +84,7 @@ const mockProjects = [
     status: "in-progress",
   },
   {
-    coverArt: "/acoustic-guitar-album.png",
+    coverArt: "/acoustic-guitar-album.webp",
     description: "Simple acoustic guitar and vocals",
     files: {
       adlibs: false,

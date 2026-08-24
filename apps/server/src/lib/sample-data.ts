@@ -109,7 +109,7 @@ export const sampleTracks = [
     bpm: 96,
     catalogItemType: "single" as const,
     collaboratorCount: 0,
-    coverArtUrl: "/summer-music-album-cover.png",
+    coverArtUrl: "/summer-music-album-cover.webp",
     duration: "3:24",
     fileAvailability: {
       adlibs: false,
@@ -219,7 +219,7 @@ export const sampleTracks = [
 export const sampleCatalogItems = [
   {
     artist: {
-      avatarUrl: "/diverse-user-avatars.png",
+      avatarUrl: "/placeholder-user.jpg",
       followers: "124K",
       genre: "R&B / Soul",
       handle: "luna-eclipse",
@@ -242,7 +242,7 @@ export const sampleCatalogItems = [
       },
     ],
     catalogItemType: "single" as const,
-    coverArtUrl: "/summer-music-album-cover.png",
+    coverArtUrl: "/summer-music-album-cover.webp",
     currency: "USD",
     description: "Demo playback track wired directly into the SoundKit player.",
     duration: "3:24",
@@ -265,7 +265,7 @@ export const sampleCatalogItems = [
   },
   {
     artist: {
-      avatarUrl: "/diverse-user-avatars.png",
+      avatarUrl: "/placeholder-user.jpg",
       followers: "124K",
       genre: "R&B / Soul",
       handle: "luna-eclipse",
@@ -304,7 +304,7 @@ export const sampleCatalogItems = [
       },
     ],
     catalogItemType: "single" as const,
-    coverArtUrl: "/summer-music-album-cover.png",
+    coverArtUrl: "/summer-music-album-cover.webp",
     currency: "USD",
     description:
       "A smooth R&B track perfect for late-night drives and summer evenings.",
@@ -336,7 +336,7 @@ export const sampleCatalogItems = [
   },
   {
     artist: {
-      avatarUrl: "/diverse-user-avatars.png",
+      avatarUrl: "/placeholder-user.jpg",
       battleRank: "#12",
       battleRecord: "18-4",
       followers: "8.2K",
@@ -376,7 +376,7 @@ export const sampleCatalogItems = [
     ],
     bpm: 142,
     catalogItemType: "beat" as const,
-    coverArtUrl: "/hip-hop-album-cover.png",
+    coverArtUrl: "/hip-hop-album-cover.webp",
     currency: "USD",
     description: "Hard hitting trap instrumental with aggressive 808s.",
     duration: "4:12",
@@ -425,7 +425,7 @@ export const sampleCatalogItems = [
   },
   {
     artist: {
-      avatarUrl: "/diverse-user-avatars.png",
+      avatarUrl: "/placeholder-user.jpg",
       followers: "12K",
       genre: "Electronic / Pop",
       handle: "alex-rivera",
@@ -452,7 +452,7 @@ export const sampleCatalogItems = [
       },
     ],
     catalogItemType: "album" as const,
-    coverArtUrl: "/night-music-album-cover.png",
+    coverArtUrl: "/night-music-album-cover.webp",
     currency: "USD",
     description: "A neon-noir studio album exploring digital isolation.",
     genre: "Electronic / Pop",
@@ -486,7 +486,7 @@ export const samplePurchasedCatalogItems = [
   {
     artist: "Luna Eclipse",
     artistSlug: "luna-eclipse",
-    cover: "/summer-music-album-cover.png",
+    cover: "/summer-music-album-cover.webp",
     downloadUrl: "/downloads/midnight-vibes.mp3",
     duration: "3:45",
     id: "track_midnight_vibes",
@@ -500,7 +500,7 @@ export const samplePurchasedCatalogItems = [
   {
     artist: "Neon Pulse",
     artistSlug: "neon-pulse",
-    cover: "/hip-hop-album-cover.png",
+    cover: "/hip-hop-album-cover.webp",
     duration: "4:12",
     id: "track_electric_dreams",
     licenseName: "Premium Lease",
@@ -551,7 +551,7 @@ export const sampleVideos = [
     sourceProvider: "mux" as const,
     sourceTrackId: "track_midnight_vibes",
     status: "processing",
-    thumbnailUrl: "/night-music-album-cover.png",
+    thumbnailUrl: "/night-music-album-cover.webp",
     title: "Midnight Vibes Official Video",
     verifiedOnPlatform: true,
     videoKind: "music_video" as const,

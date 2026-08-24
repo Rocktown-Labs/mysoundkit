@@ -135,15 +135,34 @@ describe("SoundKit Worker API", () => {
     );
   });
 
+  it("caches allowlisted public catalog reads without caching CORS headers", async () => {
+    const url = `http://soundkit.test/v1/discover/genres?cacheTest=${crypto.randomUUID()}`,
+      first = await SELF.fetch(url, {
+        headers: { Origin: "http://127.0.0.1:3001" },
+      }),
+      second = await SELF.fetch(url, {
+        headers: { Origin: "http://127.0.0.1:3001" },
+      });
+
+    expect(first.status).toBe(200);
+    expect(first.headers.get("x-soundkit-cache")).toBe("MISS");
+    expect(first.headers.get("cache-control")).toContain("max-age=0");
+    expect(second.headers.get("x-soundkit-cache")).toBe("HIT");
+    expect(second.headers.get("cache-control")).toContain("max-age=0");
+    expect(second.headers.get("access-control-allow-origin")).toBe(
+      "http://127.0.0.1:3001"
+    );
+  });
+
   it("returns discovery and catalog read models when storage is not configured", async () => {
     const [
-      discoverResponse,
+      genresResponse,
       tracksResponse,
       videosResponse,
       battlesResponse,
       projectsResponse,
     ] = await Promise.all([
-      SELF.fetch("http://soundkit.test/v1/discover/home"),
+      SELF.fetch("http://soundkit.test/v1/discover/genres"),
       SELF.fetch("http://soundkit.test/v1/tracks"),
       SELF.fetch("http://soundkit.test/v1/videos"),
       SELF.fetch("http://soundkit.test/v1/battles"),
@@ -152,7 +171,7 @@ describe("SoundKit Worker API", () => {
       ),
     ]);
 
-    expect(discoverResponse.status).toBe(200);
+    expect(genresResponse.status).toBe(200);
     expect(tracksResponse.status).toBe(200);
     expect(videosResponse.status).toBe(200);
     expect(battlesResponse.status).toBe(200);

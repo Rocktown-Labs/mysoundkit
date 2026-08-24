@@ -35,8 +35,8 @@ import { notify } from "@/lib/notifications";
 import { createTrackPlaybackSession } from "@/lib/playback-qualification";
 import {
   genreSlugFromExploreFilter,
+  profileRegionCondition,
   regionSlugFromUser,
-  stateFromExploreRegion,
 } from "@/lib/public-explore";
 import { sampleVideos } from "@/lib/sample-data";
 import {
@@ -279,7 +279,7 @@ app.openapi(
 
     const db = createDb(),
       genreSlug = genreSlugFromExploreFilter(query.genre),
-      state = stateFromExploreRegion(query),
+      regionCondition = profileRegionCondition(query),
       publicVideoConditions = [
         eq(videos.isPublic, true),
         sql`(${videos.releaseAt} is null or ${videos.releaseAt} <= now())`,
@@ -296,10 +296,8 @@ app.openapi(
       );
     }
 
-    if (state) {
-      publicVideoConditions.push(
-        sql`lower(${userProfiles.state}) in (${state.name.toLowerCase()}, ${state.abbreviation.toLowerCase()})`
-      );
+    if (regionCondition) {
+      publicVideoConditions.push(regionCondition);
     }
 
     const limit = query.limit ?? 24,
@@ -719,14 +717,14 @@ app.openapi(
           username: userProfiles.username,
         })
         .from(videoComments)
-        .innerJoin(userProfiles, eq(userProfiles.userId, videoComments.userId))
+        .leftJoin(userProfiles, eq(userProfiles.userId, videoComments.userId))
         .where(eq(videoComments.videoId, videoId))
         .orderBy(asc(videoComments.createdAt));
 
     return c.json(
       rows.map((row) => ({
         authorAvatarUrl: row.avatarUrl,
-        authorName: row.displayName ?? row.username,
+        authorName: row.displayName ?? row.username ?? "SoundKit User",
         body: row.body,
         createdAt: row.createdAt.toISOString(),
         id: row.id,

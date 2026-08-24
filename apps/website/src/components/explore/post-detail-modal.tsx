@@ -147,7 +147,7 @@ export function PostDetailModal({
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="flex gap-3">
                     <Avatar className="size-8">
-                      <AvatarImage src="/diverse-user-avatars.png" />
+                      <AvatarImage src="/placeholder-user.jpg" />
                       <AvatarFallback>U</AvatarFallback>
                     </Avatar>
                     <div>

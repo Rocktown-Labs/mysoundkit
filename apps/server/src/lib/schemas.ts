@@ -93,15 +93,6 @@ export const adminAccessSchema = z.object({
   isAdmin: z.boolean(),
 });
 
-export const platformSettingsSchema = z.object({
-  defaultExploreRegion: z.string(),
-  defaultExploreRegionType: z.enum(["north-america", "global"]),
-  useGlobalExploreHome: z.boolean(),
-});
-
-export const updatePlatformSettingsBodySchema =
-  platformSettingsSchema.partial();
-
 export const liveExperienceKindSchema = z.enum(["battle", "party", "stream"]);
 
 export const liveScheduleModeSchema = z.enum(["asap", "scheduled"]);
@@ -531,13 +522,6 @@ export const trackSummarySchema = z.object({
     .optional(),
   title: z.string(),
   updatedAt: z.string().optional(),
-});
-
-export const discoverHomeResponseSchema = z.object({
-  featuredArtists: artistSummarySchema.array(),
-  featuredBattles: z.lazy(() => battleSummarySchema.array()),
-  featuredTracks: trackSummarySchema.array(),
-  settings: platformSettingsSchema,
 });
 
 export const playbackSourceTypeSchema = z.enum([
@@ -1534,13 +1518,52 @@ export const creatorEligibilityBodySchema = z.object({
 });
 
 export const adminGenreSchema = z.object({
+  battleCount: z.number().int().nonnegative(),
   description: z.string().nullable(),
   id: z.string(),
   name: z.string(),
+  openVerseCount: z.number().int().nonnegative(),
+  partyCount: z.number().int().nonnegative(),
+  projectCount: z.number().int().nonnegative(),
   slug: z.string(),
   totalCount: z.number().int().nonnegative(),
   trackCount: z.number().int().nonnegative(),
   videoCount: z.number().int().nonnegative(),
+});
+
+export const adminOpenVerseListingSchema = z.object({
+  accessRequestCount: z.number().int().nonnegative(),
+  baseMasterAssetId: z.string().nullable(),
+  createdAt: z.string(),
+  genre: z.string().nullable(),
+  id: z.string(),
+  ownerDisplayName: z.string().nullable(),
+  ownerUserId: z.string(),
+  ownerUsername: z.string().nullable(),
+  previewAssetId: z.string().nullable(),
+  status: z.string(),
+  submissionCount: z.number().int().nonnegative(),
+  title: z.string(),
+  trackId: z.string(),
+  trackTitle: z.string().nullable(),
+});
+
+export const adminRegionOverviewSchema = z.object({
+  missingCountryCount: z.number().int().nonnegative(),
+  missingStateCount: z.number().int().nonnegative(),
+  regions: z.array(
+    z.object({
+      artistCount: z.number().int().nonnegative(),
+      country: z.string(),
+      profileCount: z.number().int().nonnegative(),
+      projectCount: z.number().int().nonnegative(),
+      state: z.string(),
+      totalUploadCount: z.number().int().nonnegative(),
+      trackCount: z.number().int().nonnegative(),
+      videoCount: z.number().int().nonnegative(),
+    })
+  ),
+  totalProfileCount: z.number().int().nonnegative(),
 });
 
 export const createGenreBodySchema = z.object({

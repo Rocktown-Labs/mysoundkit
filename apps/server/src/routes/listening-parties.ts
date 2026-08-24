@@ -23,10 +23,12 @@ import {
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { notify } from "@/lib/notifications";
+import { profileRegionCondition } from "@/lib/public-explore";
 import {
   createListeningPartyBodySchema,
   listeningPartySummarySchema,
   messageResponseSchema,
+  publicExploreQuerySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
@@ -67,6 +69,7 @@ app.openapi(
   createRoute({
     method: "get",
     path: "/",
+    request: { query: publicExploreQuerySchema.partial() },
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
         listeningPartySummarySchema.array(),
@@ -76,18 +79,30 @@ app.openapi(
     tags: ["Listening Parties"],
   }),
   async (c) => {
+    const query = c.req.valid("query");
+
     if (!isDatabaseConfigured()) {
       return c.json([], HttpStatusCodes.OK);
     }
 
-    const rows = await createDb()
-      .select({ genre: genres.name, party: listeningParties })
-      .from(listeningParties)
-      .leftJoin(projects, eq(projects.id, listeningParties.projectId))
-      .leftJoin(genres, eq(genres.id, listeningParties.genreId))
-      .where(gte(listeningParties.scheduledStartAt, new Date()))
-      .orderBy(desc(listeningParties.scheduledStartAt))
-      .limit(50);
+    const regionCondition = profileRegionCondition(query),
+      rows = await createDb()
+        .select({ genre: genres.name, party: listeningParties })
+        .from(listeningParties)
+        .leftJoin(projects, eq(projects.id, listeningParties.projectId))
+        .leftJoin(genres, eq(genres.id, listeningParties.genreId))
+        .leftJoin(
+          userProfiles,
+          eq(userProfiles.userId, listeningParties.hostUserId)
+        )
+        .where(
+          and(
+            gte(listeningParties.scheduledStartAt, new Date()),
+            regionCondition
+          )
+        )
+        .orderBy(desc(listeningParties.scheduledStartAt))
+        .limit(50);
 
     return c.json(
       rows.map(({ genre, party }) => mapParty({ ...party, genre })),

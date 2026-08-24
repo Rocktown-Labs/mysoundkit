@@ -807,7 +807,7 @@ function MessagesPageClient() {
                                               const playerTrack: PlayerTrack = {
                                                 artist: "Shared Track",
                                                 cover:
-                                                  "/night-music-album-cover.png",
+                                                  "/night-music-album-cover.webp",
                                                 id: trackId,
                                                 src: attachment.url,
                                                 title: attachment.displayName,

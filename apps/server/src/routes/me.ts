@@ -21,6 +21,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { publicProfileAssetUrl } from "@/lib/asset-urls";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
@@ -45,6 +46,7 @@ import type {
   AuthenticatedSession,
   AuthenticatedUser,
 } from "@/lib/types";
+import { claimUploadIntent, completeUploadIntent } from "@/lib/upload-intents";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
 import {
   canManageWorkspace,
@@ -89,10 +91,12 @@ const app = new OpenAPIHono<AppEnv>(),
       [profile] = await db
         .select({
           accountType: userProfiles.accountType,
+          avatarObjectKey: userProfiles.avatarObjectKey,
           avatarUrl: userProfiles.avatarUrl,
           bio: userProfiles.bio,
           city: userProfiles.city,
           displayName: userProfiles.displayName,
+          headerObjectKey: userProfiles.headerObjectKey,
           headerUrl: userProfiles.headerUrl,
           mediaLayout: userProfiles.mediaLayout,
           onboardingCompletedAt: userProfiles.onboardingCompletedAt,
@@ -128,11 +132,17 @@ const app = new OpenAPIHono<AppEnv>(),
 
     return {
       accountType: profile.accountType,
-      avatarUrl: profile.avatarUrl,
+      avatarUrl: publicProfileAssetUrl({
+        fallbackUrl: profile.avatarUrl,
+        objectKey: profile.avatarObjectKey,
+      }),
       bio: profile.bio,
       city: profile.city,
       displayName: profile.displayName ?? user.name ?? profile.username,
-      headerUrl: profile.headerUrl,
+      headerUrl: publicProfileAssetUrl({
+        fallbackUrl: profile.headerUrl,
+        objectKey: profile.headerObjectKey,
+      }),
       id: user.id,
       links: profileLinkMap,
       mediaLayout:
@@ -925,6 +935,10 @@ app.openapi(
         messageResponseSchema,
         "Profile updated"
       ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid profile media"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
         "Authentication required"
@@ -949,6 +963,29 @@ app.openapi(
         },
         HttpStatusCodes.OK
       );
+    }
+
+    const profileObjectKeys = [
+      body.avatarObjectKey,
+      body.headerObjectKey,
+    ].filter((objectKey): objectKey is string => Boolean(objectKey));
+    if (
+      profileObjectKeys.some(
+        (objectKey) => !objectKey.startsWith(`profiles/${user.id}/`)
+      )
+    ) {
+      return c.json(
+        { message: "Profile media does not belong to this user." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+    for (const objectKey of profileObjectKeys) {
+      await claimUploadIntent({
+        entityId: user.id,
+        entityType: "profile",
+        objectKey,
+        userId: user.id,
+      });
     }
 
     const db = createDb(),
@@ -986,6 +1023,15 @@ app.openapi(
           set: artistProfileBody,
           target: artistProfiles.userId,
         });
+    }
+
+    for (const objectKey of profileObjectKeys) {
+      await completeUploadIntent({
+        entityId: user.id,
+        entityType: "profile",
+        objectKey,
+        userId: user.id,
+      });
     }
 
     if (links) {

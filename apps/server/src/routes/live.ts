@@ -69,6 +69,7 @@ import type {
   LiveRoomState,
   LiveRoomTrack,
 } from "@/lib/live-room-data";
+import { profileRegionCondition } from "@/lib/public-explore";
 import {
   battleBotActionBodySchema,
   createLiveExperienceBodySchema,
@@ -89,6 +90,10 @@ app.get("/experiences/public", async (c) => {
   }
 
   const kind = c.req.query("kind"),
+    regionCondition = profileRegionCondition({
+      region: c.req.query("region"),
+      regionType: c.req.query("regionType"),
+    }),
     db = createDb(),
     cutoff = new Date(Date.now() - 3 * 60 * 60 * 1000),
     conditions = [
@@ -103,6 +108,7 @@ app.get("/experiences/public", async (c) => {
       kind
         ? eq(liveExperiences.kind, kind as "battle" | "party" | "stream")
         : undefined,
+      regionCondition,
     ].filter((condition): condition is NonNullable<typeof condition> =>
       Boolean(condition)
     ),

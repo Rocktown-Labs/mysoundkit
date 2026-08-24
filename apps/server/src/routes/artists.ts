@@ -19,6 +19,7 @@ import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
+import { publicProfileAssetUrl } from "@/lib/asset-urls";
 import {
   buildProjectSummary,
   buildTrackSummary,
@@ -26,8 +27,8 @@ import {
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import {
   genreSlugFromExploreFilter,
+  profileRegionCondition,
   regionSlugFromUser,
-  stateFromExploreRegion,
 } from "@/lib/public-explore";
 import { sampleArtists } from "@/lib/sample-data";
 import {
@@ -179,7 +180,7 @@ app.openapi(
       return c.json(
         sampleArtists.slice(offset, offset + limit).map((artist, index) => ({
           ...artist,
-          avatarUrl: "/diverse-user-avatars.png",
+          avatarUrl: "/placeholder-user.jpg",
           joinedAt: new Date(
             Date.now() - (index + offset) * 86_400_000
           ).toISOString(),
@@ -193,7 +194,7 @@ app.openapi(
 
     const db = createDb(),
       genreSlug = genreSlugFromExploreFilter(query.genre),
-      state = stateFromExploreRegion(query),
+      regionCondition = profileRegionCondition(query),
       publicArtistConditions = [eq(artistProfiles.publicProfileEnabled, true)];
 
     if (genreSlug) {
@@ -204,15 +205,14 @@ app.openapi(
       publicArtistConditions.push(ilike(authUser.name, `%${query.q}%`));
     }
 
-    if (state) {
-      publicArtistConditions.push(
-        sql`lower(${userProfiles.state}) in (${state.name.toLowerCase()}, ${state.abbreviation.toLowerCase()})`
-      );
+    if (regionCondition) {
+      publicArtistConditions.push(regionCondition);
     }
 
     const order = artistOrderBy(query),
       rows = await db
         .select({
+          avatarObjectKey: userProfiles.avatarObjectKey,
           avatarUrl: userProfiles.avatarUrl,
           city: userProfiles.city,
           createdAt: userProfiles.createdAt,
@@ -244,6 +244,7 @@ app.openapi(
           authUser.createdAt,
           authUser.name,
           genres.name,
+          userProfiles.avatarObjectKey,
           userProfiles.city,
           userProfiles.createdAt,
           userProfiles.displayName,
@@ -269,7 +270,10 @@ app.openapi(
               : (artist.totalPlays ?? 0);
 
         return {
-          avatarUrl: artist.avatarUrl,
+          avatarUrl: publicProfileAssetUrl({
+            fallbackUrl: artist.avatarUrl,
+            objectKey: artist.avatarObjectKey,
+          }),
           followers: artist.followerCount,
           genre,
           id: artist.id,
@@ -313,6 +317,7 @@ app.openapi(
       const db = createDb(),
         [artist] = await db
           .select({
+            avatarObjectKey: userProfiles.avatarObjectKey,
             avatarUrl: userProfiles.avatarUrl,
             battleCount: artistProfiles.battleCount,
             bio: userProfiles.bio,
@@ -321,6 +326,7 @@ app.openapi(
             displayName: userProfiles.displayName,
             followerCount: artistProfiles.followerCount,
             genre: genres.name,
+            headerObjectKey: userProfiles.headerObjectKey,
             headerUrl: userProfiles.headerUrl,
             id: userProfiles.userId,
             isVerified: artistProfiles.isVerified,
@@ -397,10 +403,16 @@ app.openapi(
 
         return c.json(
           {
-            avatarUrl: artist.avatarUrl,
+            avatarUrl: publicProfileAssetUrl({
+              fallbackUrl: artist.avatarUrl,
+              objectKey: artist.avatarObjectKey,
+            }),
             battleCount: artist.battleCount,
             bio: artist.bio,
-            coverImageUrl: artist.headerUrl,
+            coverImageUrl: publicProfileAssetUrl({
+              fallbackUrl: artist.headerUrl,
+              objectKey: artist.headerObjectKey,
+            }),
             followers: artist.followerCount,
             genre,
             id: artist.id,
@@ -468,6 +480,7 @@ app.openapi(
       db = createDb(),
       [artist] = await db
         .select({
+          avatarObjectKey: userProfiles.avatarObjectKey,
           avatarUrl: userProfiles.avatarUrl,
           displayName: userProfiles.displayName,
           name: authUser.name,
@@ -696,7 +709,10 @@ app.openapi(
         videos: videoRows.map((row) =>
           profileVideoSummary({
             artist: {
-              avatarUrl: artist.avatarUrl,
+              avatarUrl: publicProfileAssetUrl({
+                fallbackUrl: artist.avatarUrl,
+                objectKey: artist.avatarObjectKey,
+              }),
               name: artistName,
               username: artist.username,
             },

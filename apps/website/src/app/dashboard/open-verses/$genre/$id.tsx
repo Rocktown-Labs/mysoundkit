@@ -1,5 +1,5 @@
 import { useUploadFiles } from "@better-upload/client";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import {
   CheckCircle2,
   Download,
@@ -8,6 +8,7 @@ import {
   Mic2,
   PlayCircle,
   Send,
+  Trash2,
   Upload,
   UserCheck,
 } from "lucide-react";
@@ -15,6 +16,16 @@ import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,6 +74,7 @@ const formatSlot = (start: number | null, end: number | null) =>
 
 function OpenVerseDetailPage() {
   const { id } = Route.useParams(),
+    router = useRouter(),
     query = useOpenVerseQuery(id),
     submitMutation = useSubmitOpenVerseMutation(id),
     { data: session } = authClient.useSession(),
@@ -98,7 +110,14 @@ function OpenVerseDetailPage() {
       route: "track-source",
     }),
     listing = query.data,
-    isListingOwner = listing?.ownerUserId === session?.user.id;
+    isListingOwner = listing?.ownerUserId === session?.user.id,
+    isCurrentUserAdmin =
+      session?.user.role
+        ?.split(",")
+        .map((value) => value.trim())
+        .includes("admin") ?? false,
+    [isDeletingListing, setIsDeletingListing] = useState(false),
+    [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,7 +165,42 @@ function OpenVerseDetailPage() {
     };
   }, [id]);
 
-  const playListing = () => {
+  const deleteListing = async () => {
+      if (!listing) {
+        return;
+      }
+      setIsDeletingListing(true);
+      try {
+        const response = await fetch(
+          `${API_V1_URL}/open-verses/${encodeURIComponent(listing.id)}`,
+          { credentials: "include", method: "DELETE" }
+        );
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as {
+            message?: string;
+          } | null;
+          throw new Error(payload?.message ?? "Unable to delete the listing.");
+        }
+        toast({
+          description: "The open verse listing was deleted.",
+          title: "Listing Deleted",
+        });
+        void router.navigate({ to: "/dashboard/open-verses" });
+      } catch (deleteError) {
+        toast({
+          description:
+            deleteError instanceof Error
+              ? deleteError.message
+              : "Unable to delete the listing.",
+          title: "Delete Failed",
+          variant: "destructive",
+        });
+      } finally {
+        setIsDeletingListing(false);
+        setIsDeleteDialogOpen(false);
+      }
+    },
+    playListing = () => {
       if (!listing?.playbackUrl) {
         return;
       }
@@ -373,17 +427,17 @@ function OpenVerseDetailPage() {
         }
 
         const response = await fetch(
-          `${API_V1_URL}/open-verses/${encodeURIComponent(listing.id)}/final-master`,
-          {
-            body: JSON.stringify({ sourceAssetId: masterAsset.id }),
-            credentials: "include",
-            headers: { "content-type": "application/json" },
-            method: "POST",
-          }
-        ),
-         payload = (await response.json().catch(() => null)) as {
-          message?: string;
-        } | null;
+            `${API_V1_URL}/open-verses/${encodeURIComponent(listing.id)}/final-master`,
+            {
+              body: JSON.stringify({ sourceAssetId: masterAsset.id }),
+              credentials: "include",
+              headers: { "content-type": "application/json" },
+              method: "POST",
+            }
+          ),
+          payload = (await response.json().catch(() => null)) as {
+            message?: string;
+          } | null;
         if (!response.ok) {
           throw new Error(payload?.message ?? "Finalization failed.");
         }
@@ -459,16 +513,30 @@ function OpenVerseDetailPage() {
                   {listing.artistName} opened a slot on {listing.trackTitle}.
                 </p>
               </div>
-              <Button
-                className="gap-2"
-                disabled={isDownloading || !listing.playbackUrl}
-                onClick={() => void downloadClip()}
-                size="sm"
-                variant="outline"
-              >
-                <Download className="size-4" />
-                {isDownloading ? "Preparing…" : "Download Open Slot (.WAV)"}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  className="gap-2"
+                  disabled={isDownloading || !listing.playbackUrl}
+                  onClick={() => void downloadClip()}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Download className="size-4" />
+                  {isDownloading ? "Preparing…" : "Download Open Slot (.WAV)"}
+                </Button>
+                {isCurrentUserAdmin ? (
+                  <Button
+                    className="gap-2"
+                    disabled={isDeletingListing}
+                    onClick={() => setIsDeleteDialogOpen(true)}
+                    size="sm"
+                    variant="destructive"
+                  >
+                    <Trash2 className="size-4" />
+                    Delete listing
+                  </Button>
+                ) : null}
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary">
@@ -652,118 +720,120 @@ function OpenVerseDetailPage() {
             <CardTitle>Submit Your Verse</CardTitle>
           </CardHeader>
           <CardContent>
-            {listing.status === "open" ? listing.accessMode === "approval_required" ? (
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Request access from the creator before submitting files. The
-                  creator must approve your request.
-                </p>
-                <Button
-                  className="w-full"
-                  disabled={
-                    accessRequestStatus === "pending" ||
-                    accessRequestStatus === "approved"
-                  }
-                  onClick={() => void requestAccess()}
-                  type="button"
+            {listing.status === "open" ? (
+              listing.accessMode === "approval_required" ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Request access from the creator before submitting files. The
+                    creator must approve your request.
+                  </p>
+                  <Button
+                    className="w-full"
+                    disabled={
+                      accessRequestStatus === "pending" ||
+                      accessRequestStatus === "approved"
+                    }
+                    onClick={() => void requestAccess()}
+                    type="button"
+                  >
+                    {accessRequestStatus === "approved"
+                      ? "Access approved"
+                      : (accessRequestStatus === "pending"
+                        ? "Request pending"
+                        : "Request Access")}
+                  </Button>
+                </div>
+              ) : (
+                <form
+                  className="space-y-4"
+                  onSubmit={(event) => void submitVerse(event)}
                 >
-                  {accessRequestStatus === "approved"
-                    ? "Access approved"
-                    : accessRequestStatus === "pending"
-                      ? "Request pending"
-                      : "Request Access"}
-                </Button>
-              </div>
-            ) : (
-              <form
-                className="space-y-4"
-                onSubmit={(event) => void submitVerse(event)}
-              >
-                <input
-                  ref={auditionInputRef}
-                  accept="audio/*,.wav,.mp3,.m4a,.aac"
-                  className="sr-only"
-                  onChange={(event) =>
-                    setSelectedAuditionFile(event.target.files?.[0] ?? null)
-                  }
-                  type="file"
-                />
-                <Button
-                  className="h-16 w-full border-dashed"
-                  onClick={() => auditionInputRef.current?.click()}
-                  type="button"
-                  variant="outline"
-                >
-                  <Upload className="mr-2 size-4" />
-                  {selectedAuditionFile
-                    ? selectedAuditionFile.name
-                    : "Attach Full Audition Bounce *"}
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Upload the full bounced take with the open-verse part recorded
-                  over the downloaded slot preview.
-                </p>
-                <input
-                  ref={vocalStemInputRef}
-                  accept="audio/*,.wav,.mp3,.m4a,.aac"
-                  className="sr-only"
-                  onChange={(event) =>
-                    setSelectedVocalStemFile(event.target.files?.[0] ?? null)
-                  }
-                  type="file"
-                />
-                <Button
-                  className="h-16 w-full border-dashed"
-                  onClick={() => vocalStemInputRef.current?.click()}
-                  type="button"
-                  variant="outline"
-                >
-                  <Mic2 className="mr-2 size-4" />
-                  {selectedVocalStemFile
-                    ? selectedVocalStemFile.name
-                    : "Attach Dry Vocal Stem *"}
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Include the isolated vocal so the creator can mix your take
-                  into the original session.
-                </p>
-                <input
-                  ref={adlibsInputRef}
-                  accept="audio/*,.wav,.mp3,.m4a,.aac"
-                  className="sr-only"
-                  onChange={(event) =>
-                    setSelectedAdlibsFile(event.target.files?.[0] ?? null)
-                  }
-                  type="file"
-                />
-                <Button
-                  className="h-14 w-full border-dashed"
-                  onClick={() => adlibsInputRef.current?.click()}
-                  type="button"
-                  variant="outline"
-                >
-                  <FileAudio className="mr-2 size-4" />
-                  {selectedAdlibsFile
-                    ? selectedAdlibsFile.name
-                    : "Attach Adlibs (Optional)"}
-                </Button>
-                <Textarea
-                  placeholder="Add a note for the creator (optional)"
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                />
-                <Button
-                  className="w-full"
-                  disabled={
-                    !(selectedAuditionFile && selectedVocalStemFile) ||
-                    isSubmitting
-                  }
-                  type="submit"
-                >
-                  <Send className="mr-2 size-4" />
-                  {isSubmitting ? "Uploading…" : "Submit Verse"}
-                </Button>
-              </form>
+                  <input
+                    ref={auditionInputRef}
+                    accept="audio/*,.wav,.mp3,.m4a,.aac"
+                    className="sr-only"
+                    onChange={(event) =>
+                      setSelectedAuditionFile(event.target.files?.[0] ?? null)
+                    }
+                    type="file"
+                  />
+                  <Button
+                    className="h-16 w-full border-dashed"
+                    onClick={() => auditionInputRef.current?.click()}
+                    type="button"
+                    variant="outline"
+                  >
+                    <Upload className="mr-2 size-4" />
+                    {selectedAuditionFile
+                      ? selectedAuditionFile.name
+                      : "Attach Full Audition Bounce *"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Upload the full bounced take with the open-verse part
+                    recorded over the downloaded slot preview.
+                  </p>
+                  <input
+                    ref={vocalStemInputRef}
+                    accept="audio/*,.wav,.mp3,.m4a,.aac"
+                    className="sr-only"
+                    onChange={(event) =>
+                      setSelectedVocalStemFile(event.target.files?.[0] ?? null)
+                    }
+                    type="file"
+                  />
+                  <Button
+                    className="h-16 w-full border-dashed"
+                    onClick={() => vocalStemInputRef.current?.click()}
+                    type="button"
+                    variant="outline"
+                  >
+                    <Mic2 className="mr-2 size-4" />
+                    {selectedVocalStemFile
+                      ? selectedVocalStemFile.name
+                      : "Attach Dry Vocal Stem *"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Include the isolated vocal so the creator can mix your take
+                    into the original session.
+                  </p>
+                  <input
+                    ref={adlibsInputRef}
+                    accept="audio/*,.wav,.mp3,.m4a,.aac"
+                    className="sr-only"
+                    onChange={(event) =>
+                      setSelectedAdlibsFile(event.target.files?.[0] ?? null)
+                    }
+                    type="file"
+                  />
+                  <Button
+                    className="h-14 w-full border-dashed"
+                    onClick={() => adlibsInputRef.current?.click()}
+                    type="button"
+                    variant="outline"
+                  >
+                    <FileAudio className="mr-2 size-4" />
+                    {selectedAdlibsFile
+                      ? selectedAdlibsFile.name
+                      : "Attach Adlibs (Optional)"}
+                  </Button>
+                  <Textarea
+                    placeholder="Add a note for the creator (optional)"
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                  />
+                  <Button
+                    className="w-full"
+                    disabled={
+                      !(selectedAuditionFile && selectedVocalStemFile) ||
+                      isSubmitting
+                    }
+                    type="submit"
+                  >
+                    <Send className="mr-2 size-4" />
+                    {isSubmitting ? "Uploading…" : "Submit Verse"}
+                  </Button>
+                </form>
+              )
             ) : (
               <p className="text-sm text-muted-foreground">
                 This Open Verse is closed to new submissions. The accepted
@@ -774,6 +844,34 @@ function OpenVerseDetailPage() {
           </CardContent>
         </Card>
       </aside>
+      {isCurrentUserAdmin ? (
+        <AlertDialog
+          onOpenChange={setIsDeleteDialogOpen}
+          open={isDeleteDialogOpen}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Delete this open verse listing?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                “{listing?.title}” and all of its access requests and
+                submissions will be permanently removed. The linked track is not
+                affected.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isDeletingListing}
+                onClick={() => void deleteListing()}
+              >
+                {isDeletingListing ? "Deleting…" : "Delete listing"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
     </div>
   );
 }

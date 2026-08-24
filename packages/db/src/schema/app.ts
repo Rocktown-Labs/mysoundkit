@@ -733,6 +733,7 @@ export const artistProfiles = pgTable(
   },
   (table) => [
     index("artist_profiles_primary_org_idx").on(table.primaryOrganizationId),
+    index("artist_profiles_primary_genre_id_idx").on(table.primaryGenreId),
   ]
 );
 
@@ -935,10 +936,10 @@ export const tracks = pgTable(
       .default("demo")
       .notNull(),
     publishedAt: timestamp("published_at"),
-    purgeAfter: timestamp("purge_after"),
     purchaseMode: purchaseModeEnum("purchase_mode")
       .default("digital_download")
       .notNull(),
+    purgeAfter: timestamp("purge_after"),
     releaseAt: timestamp("release_at"),
     releaseStrategy: releaseStrategyEnum("release_strategy")
       .default("private")
@@ -958,6 +959,7 @@ export const tracks = pgTable(
     uniqueIndex("tracks_slug_idx").on(table.slug),
     index("tracks_owner_user_id_idx").on(table.ownerUserId),
     index("tracks_organization_id_idx").on(table.organizationId),
+    index("tracks_genre_id_idx").on(table.genreId),
   ]
 );
 
@@ -1157,8 +1159,8 @@ export const trackCollaborators = pgTable(
     collaboratorUserId: text("collaborator_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
-    creditSplitBps: integer("credit_split_bps"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    creditSplitBps: integer("credit_split_bps"),
     id: text("id").primaryKey(),
     invitationStatus: invitationStatusEnum("invitation_status")
       .default("pending")
@@ -1218,6 +1220,7 @@ export const projects = pgTable(
   (table) => [
     uniqueIndex("projects_slug_idx").on(table.slug),
     index("projects_owner_user_id_idx").on(table.ownerUserId),
+    index("projects_genre_id_idx").on(table.genreId),
   ]
 );
 
@@ -1275,6 +1278,40 @@ export const projectAssets = pgTable(
       table.exportVersion,
       table.assetKind
     ),
+  ]
+);
+
+export const uploadIntents = pgTable(
+  "upload_intents",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    entityId: text("entity_id"),
+    expiresAt: timestamp("expires_at").notNull(),
+    fileName: text("file_name").notNull(),
+    id: text("id").primaryKey(),
+    mimeType: text("mime_type"),
+    objectKey: text("object_key").notNull(),
+    registeredAt: timestamp("registered_at"),
+    registeredEntityId: text("registered_entity_id"),
+    registeredEntityType: text("registered_entity_type"),
+    route: text("route").notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    status: text("status").default("pending").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    userId: text("user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    uniqueIndex("upload_intents_object_key_idx").on(table.objectKey),
+    index("upload_intents_status_expires_idx").on(
+      table.status,
+      table.expiresAt
+    ),
+    index("upload_intents_user_created_idx").on(table.userId, table.createdAt),
   ]
 );
 
@@ -1345,6 +1382,7 @@ export const listeningParties = pgTable(
       table.scheduledStartAt
     ),
     index("listening_parties_host_user_id_idx").on(table.hostUserId),
+    index("listening_parties_genre_id_idx").on(table.genreId),
   ]
 );
 
@@ -1526,6 +1564,7 @@ export const videos = pgTable(
   },
   (table) => [
     index("videos_owner_user_id_idx").on(table.ownerUserId),
+    index("videos_genre_id_idx").on(table.genreId),
     uniqueIndex("videos_slug_idx").on(table.slug),
   ]
 );
@@ -2179,6 +2218,7 @@ export const battles = pgTable(
   },
   (table) => [
     index("battles_external_battle_id_idx").on(table.externalBattleId),
+    index("battles_genre_id_idx").on(table.genreId),
   ]
 );
 

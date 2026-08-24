@@ -60,8 +60,10 @@ const API_ORIGIN = "http://soundkit.test",
     ["get", "/v1/admin/finance/summary"],
     ["post", "/v1/admin/tracks/backfill-durations"],
     ["get", "/v1/admin/tracks/backfill-durations/status"],
-    ["get", "/v1/admin/settings"],
-    ["patch", "/v1/admin/settings"],
+    ["get", "/v1/admin/genres"],
+    ["post", "/v1/admin/genres"],
+    ["get", "/v1/admin/open-verses"],
+    ["get", "/v1/admin/regions"],
     ["post", "/v1/billing/checkout"],
     ["get", "/v1/billing/plans"],
     ["get", "/v1/billing/subscription"],
@@ -82,7 +84,7 @@ const API_ORIGIN = "http://soundkit.test",
     ["post", "/v1/communities/{communityId}/messages"],
     ["get", "/v1/communities/{communityId}/posts"],
     ["post", "/v1/communities/{communityId}/posts"],
-    ["get", "/v1/discover/home"],
+    ["get", "/v1/discover/genres"],
     ["get", "/v1/library/overview"],
     ["get", "/v1/library/playlists"],
     ["get", "/v1/library/purchases"],
@@ -110,6 +112,7 @@ const API_ORIGIN = "http://soundkit.test",
     ["post", "/v1/onboarding/artist"],
     ["post", "/v1/onboarding/fan"],
     ["get", "/v1/onboarding/username-availability"],
+    ["delete", "/v1/open-verses/{listingId}"],
     ["get", "/v1/playlists"],
     ["post", "/v1/playlists"],
     ["post", "/v1/payments/checkout"],
@@ -216,6 +219,16 @@ describe("SoundKit API HTTP contracts", () => {
       nextCursor: null,
       unreadCount: 0,
     });
+  });
+
+  it("requires authentication to delete an open verse listing", async () => {
+    const { body, response } = await fetchJson<{ message: string }>(
+      "/v1/open-verses/9dea0540-0000-0000-0000-000000000000",
+      { method: "DELETE" }
+    );
+
+    expect(response.status).toBe(401);
+    expect(body.message).toContain("Authentication");
   });
 
   it("keeps observability request IDs on success and error responses", async () => {
@@ -327,27 +340,26 @@ describe("SoundKit public read API", () => {
     }
   );
 
-  it("returns the assembled discovery landing response", async () => {
-    const { body, response } = await fetchJson<{
-      featuredArtists: unknown[];
-      featuredBattles: unknown[];
-      featuredTracks: unknown[];
-      settings: {
-        defaultExploreRegion: string;
-        defaultExploreRegionType: string;
-        useGlobalExploreHome: boolean;
-      };
-    }>("/v1/discover/home");
+  it("returns the canonical discovery genre catalog", async () => {
+    const { body, response } = await fetchJson<
+      {
+        id: string;
+        name: string;
+        slug: string;
+        totalCount: number;
+      }[]
+    >("/v1/discover/genres");
 
     expect(response.status).toBe(200);
-    expect(body.featuredArtists.length).toBeGreaterThan(0);
-    expect(body.featuredBattles.length).toBeGreaterThan(0);
-    expect(body.featuredTracks.length).toBeGreaterThan(0);
-    expect(body.settings).toEqual({
-      defaultExploreRegion: "us-arkansas",
-      defaultExploreRegionType: "north-america",
-      useGlobalExploreHome: true,
-    });
+    expect(body.length).toBeGreaterThan(0);
+    expect(body[0]).toEqual(
+      expect.objectContaining({
+        id: expect.any(String),
+        name: expect.any(String),
+        slug: expect.any(String),
+        totalCount: expect.any(Number),
+      })
+    );
   });
 
   it("returns public explore read models for songs videos and ranked artists", async () => {

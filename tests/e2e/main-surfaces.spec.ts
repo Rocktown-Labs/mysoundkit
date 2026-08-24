@@ -99,6 +99,50 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("I'm an Artist")).toBeHidden();
   });
 
+  test("Explore keeps rails contained and applies real map scopes", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await gotoWithViteRetry(
+      page,
+      "/?regionType=global&region=all&mapScope=global"
+    );
+
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Top Songs On SoundKit" })
+    ).toBeVisible();
+    await expect(page.getByTestId("explore-map")).toBeVisible();
+    await expect(page.getByTestId("explore-page")).toHaveAttribute(
+      "data-hydrated",
+      "true",
+      { timeout: 60_000 }
+    );
+
+    const hasPageOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth + 1
+    );
+    expect(hasPageOverflow).toBe(false);
+
+    const firstRail = page.getByTestId("home-rail").first(),
+      railSizes = await firstRail.evaluate((rail) => ({
+        clientWidth: rail.clientWidth,
+        scrollWidth: rail.scrollWidth,
+      }));
+    expect(railSizes.scrollWidth).toBeGreaterThanOrEqual(railSizes.clientWidth);
+
+    if ((page.viewportSize()?.width ?? 0) < 1024) {
+      await page.getByRole("combobox").first().click();
+      await page.getByRole("option", { name: "Africa" }).click();
+    } else {
+      await page.getByRole("button", { exact: true, name: "Africa" }).click();
+    }
+
+    await expect(page).toHaveURL(/mapScope=africa/);
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Top Songs in Africa" })
+    ).toBeVisible();
+  });
+
   test("artist profiles show owned media, features, and credits", async ({
     page,
   }) => {
@@ -154,16 +198,47 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: "Live on SoundKit" })
     ).toBeVisible();
 
-    await gotoWithViteRetry(page, "/live/battles");
+    await gotoWithViteRetry(
+      page,
+      "/live/battles?regionType=north-america&region=us-arkansas"
+    );
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByText(/battle/i).first()).toBeVisible();
+    await expect(page).toHaveURL(/region=us-arkansas/);
+    if ((page.viewportSize()?.width ?? 0) >= 1024) {
+      await expect(page.getByRole("combobox")).toHaveCount(4);
+    }
+    const battlesContentBox = await page
+        .getByRole("heading", { exact: true, name: "Live Battles" })
+        .nth(1)
+        .boundingBox(),
+      battlesContentX = battlesContentBox?.x;
 
-    await gotoWithViteRetry(page, "/live/parties");
+    await gotoWithViteRetry(
+      page,
+      "/live/parties?regionType=north-america&region=us-arkansas"
+    );
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByText(/part/i).first()).toBeVisible();
     await expect(
       page.getByText("No listening parties are live right now.")
     ).toHaveCount(1);
+    await expect(page).toHaveURL(/region=us-arkansas/);
+    await expect(
+      page.getByRole("combobox", { name: "Filter live events by status" })
+    ).toHaveCount(0);
+    if ((page.viewportSize()?.width ?? 0) >= 1024) {
+      await expect(page.getByRole("combobox")).toHaveCount(4);
+    }
+    const partiesContentBox = await page
+        .getByRole("heading", { exact: true, name: "Listening Parties" })
+        .boundingBox(),
+      partiesContentX = partiesContentBox?.x;
+    expect(battlesContentX).toBeDefined();
+    expect(partiesContentX).toBeDefined();
+    expect(
+      Math.abs((battlesContentX ?? 0) - (partiesContentX ?? 0))
+    ).toBeLessThan(2);
 
     await gotoWithViteRetry(page, "/live/parties");
     await expect(
@@ -176,6 +251,12 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { exact: true, name: "Creator Streams" }).nth(1)
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "Filter live events by status" })
+    ).toHaveCount(0);
+    if ((page.viewportSize()?.width ?? 0) >= 1024) {
+      await expect(page.getByRole("combobox")).toHaveCount(4);
+    }
   });
 
   test("videos route renders URL-backed filters without crashing", async ({
@@ -422,6 +503,7 @@ test.describe("administration", () => {
     context,
     page,
   }) => {
+    test.setTimeout(90_000);
     await context.addCookies([
       {
         domain: cookieDomain,
@@ -431,9 +513,11 @@ test.describe("administration", () => {
       },
     ]);
 
-    await page.goto("/dashboard/admin");
+    await gotoWithViteRetry(page, "/dashboard/admin");
 
-    await expect(page.getByRole("heading", { name: "Admin" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Admin" })).toBeVisible({
+      timeout: 60_000,
+    });
     await expect(page.getByText("Gross revenue")).toBeVisible();
     await expect(page.getByText("$125.00")).toBeVisible();
 
@@ -441,5 +525,56 @@ test.describe("administration", () => {
     const usersTable = page.getByRole("table");
     await expect(usersTable.getByText("cg@rocktownlabs.com")).toBeVisible();
     await expect(usersTable.getByText("artist@example.com")).toBeVisible();
+
+    const genresTab = page.getByRole("tab", { name: "Genres" });
+    await genresTab.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByText("Genre Catalog", { exact: true })
+    ).toBeVisible();
+    await expect(page.getByLabel("Name")).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "Projects" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "Battles" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "Open Verses" })
+    ).toBeVisible();
+
+    const regionsTab = page.getByRole("tab", { name: "Regions" });
+    await regionsTab.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("Regional catalog coverage")).toBeVisible();
+    await expect(page.getByText("United States")).toBeVisible();
+    await expect(page.getByText("Arkansas")).toBeVisible();
+
+    const openVersesTab = page.getByRole("tab", { name: "Open Verses" });
+    await openVersesTab.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("Open Verse Catalog")).toBeVisible();
+    if ((page.viewportSize()?.width ?? 0) >= 768) {
+      const listingRow = page.getByRole("row", {
+        name: /IYKYK open verse listing title/u,
+      });
+      await expect(listingRow).toBeVisible();
+      await expect(listingRow.getByText("Legacy / incomplete")).toBeVisible();
+    } else {
+      await expect(
+        page.getByText("IYKYK open verse listing title").first()
+      ).toBeVisible();
+      await expect(page.getByText("Legacy / incomplete").first()).toBeVisible();
+    }
+    await page
+      .getByRole("button", {
+        name: "Delete IYKYK open verse listing title",
+      })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Delete this Open Verse?" })
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Delete listing" }).click();
+    await expect(page.getByText("Open Verse deleted")).toBeVisible();
   });
 });

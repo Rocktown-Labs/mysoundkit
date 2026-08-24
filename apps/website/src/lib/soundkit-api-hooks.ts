@@ -16,8 +16,6 @@ const meGet = apiClient.v1.me.index.$get,
   billingCheckoutPost = apiClient.v1.billing.checkout.$post,
   billingPlansGet = apiClient.v1.billing.plans.$get,
   adminAccessGet = apiClient.v1.admin.access.$get,
-  adminSettingsGet = apiClient.v1.admin.settings.$get,
-  adminSettingsPatch = apiClient.v1.admin.settings.$patch,
   adminFinancePaymentsGet = apiClient.v1.admin.finance.payments.$get,
   adminImportStripePlanPost =
     apiClient.v1.admin.finance.payments["import-plan"].$post,
@@ -33,7 +31,6 @@ const meGet = apiClient.v1.me.index.$get,
   artistGet = apiClient.v1.artists[":username"].$get,
   artistMediaGet = apiClient.v1.artists[":username"].media.$get,
   fanOnboardingPost = apiClient.v1.onboarding.fan.$post,
-  discoverHomeGet = apiClient.v1.discover.home.$get,
   genresGet = apiClient.v1.discover.genres.$get,
   searchGet = apiClient.v1.search.$get,
   tracksGet = apiClient.v1.tracks.index.$get,
@@ -309,9 +306,6 @@ type SyncStripePlansBody = InferRequestType<
 type BackfillTrackDurationsBody = InferRequestType<
   typeof adminBackfillTrackDurationsPost
 >["json"];
-type UpdatePlatformSettingsBody = InferRequestType<
-  typeof adminSettingsPatch
->["json"];
 
 export type AdTargetType = "country" | "state";
 export type AdCreativeFormat = "audio" | "image" | "video";
@@ -375,7 +369,6 @@ export const soundkitQueryKeys = {
   adminAccess: ["admin", "access"] as const,
   adminOverview: ["admin", "overview"] as const,
   adminPayments: ["admin", "payments"] as const,
-  adminSettings: ["admin", "settings"] as const,
   analyticsOverview: ["analytics", "overview"] as const,
   artist: (username: string) => ["artists", username] as const,
   artistMedia: (username: string) => ["artists", username, "media"] as const,
@@ -389,7 +382,6 @@ export const soundkitQueryKeys = {
   conversationMessages: (conversationId: string) =>
     ["messages", "conversations", conversationId, "messages"] as const,
   conversations: ["messages", "conversations"] as const,
-  discoverHome: ["discover", "home"] as const,
   friendRequests: ["messages", "friend-requests"] as const,
   friends: ["messages", "friends"] as const,
   genres: ["discover", "genres"] as const,
@@ -519,30 +511,6 @@ export const useAdminPaymentsQuery = (enabled = true) =>
     queryFn: async () => rpcJson(await adminFinancePaymentsGet()),
     queryKey: soundkitQueryKeys.adminPayments,
   });
-
-export const useAdminSettingsQuery = (enabled = true) =>
-  useQuery({
-    enabled,
-    queryFn: async () => rpcJson(await adminSettingsGet()),
-    queryKey: soundkitQueryKeys.adminSettings,
-  });
-
-export const useUpdateAdminSettingsMutation = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (body: UpdatePlatformSettingsBody) =>
-      rpcJson(await adminSettingsPatch({ json: body })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adminSettings,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.discoverHome,
-      });
-    },
-  });
-};
 
 export const useImportStripePlanMutation = () => {
   const queryClient = useQueryClient();
@@ -980,12 +948,6 @@ export const useSearchQuery = (query: SearchQuery) =>
     queryKey: soundkitQueryKeys.search(query),
   });
 
-export const useDiscoverHomeQuery = () =>
-  useQuery({
-    queryFn: async () => rpcJson(await discoverHomeGet()),
-    queryKey: soundkitQueryKeys.discoverHome,
-  });
-
 export const useTracksQuery = (
   initialData?: TrackSummary[],
   query: PublicExploreQuery = {}
@@ -1298,22 +1260,31 @@ export const useCreateListeningPartyMutation = () => {
   });
 };
 
-export const useListeningPartiesQuery = () =>
+export interface PublicRegionQuery {
+  region?: string;
+  regionType?: "global" | "north-america";
+}
+
+export const useListeningPartiesQuery = (query: PublicRegionQuery = {}) =>
   useQuery({
-    queryFn: async () => rpcJson(await listeningPartiesGet()),
-    queryKey: soundkitQueryKeys.listeningParties,
+    queryFn: async () => rpcJson(await listeningPartiesGet({ query })),
+    queryKey: [...soundkitQueryKeys.listeningParties, query],
   });
 
-export const useBattlesQuery = () =>
+export const useBattlesQuery = (query: PublicRegionQuery = {}) =>
   useQuery({
-    queryFn: async () => rpcJson(await battlesGet()),
-    queryKey: soundkitQueryKeys.battles,
+    queryFn: async () => rpcJson(await battlesGet({ query })),
+    queryKey: [...soundkitQueryKeys.battles, query],
   });
 
-export const usePublicLiveExperiencesQuery = (kind: "party" | "stream") =>
+export const usePublicLiveExperiencesQuery = (
+  kind: "party" | "stream",
+  query: PublicRegionQuery = {}
+) =>
   useQuery({
-    queryFn: async () => rpcJson(await liveExperiencesGet({ query: { kind } })),
-    queryKey: ["live", "experiences", kind],
+    queryFn: async () =>
+      rpcJson(await liveExperiencesGet({ query: { kind, ...query } })),
+    queryKey: ["live", "experiences", kind, query],
     refetchInterval: 10_000,
   });
 

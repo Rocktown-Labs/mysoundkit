@@ -75,8 +75,8 @@ import {
 } from "@/lib/playback-qualification";
 import {
   genreSlugFromExploreFilter,
+  profileRegionCondition,
   regionSlugFromUser,
-  stateFromExploreRegion,
 } from "@/lib/public-explore";
 import { withRetry } from "@/lib/retry";
 import { sampleTracks } from "@/lib/sample-data";
@@ -111,6 +111,7 @@ import {
 } from "@/lib/track-asset-resolver";
 import { notifyTrackLive } from "@/lib/track-notifications";
 import type { AppEnv } from "@/lib/types";
+import { claimUploadIntent, completeUploadIntent } from "@/lib/upload-intents";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
 import { isAllowedUploadKeyForAssetKind } from "@/routes/uploads";
@@ -519,7 +520,7 @@ app.openapi(
     if (isPublicScope || !isAuthenticatedUser(user)) {
       const db = createDb(),
         genreSlug = genreSlugFromExploreFilter(query.genre),
-        state = stateFromExploreRegion(query),
+        regionCondition = profileRegionCondition(query),
         publicTrackConditions = [
           eq(tracks.isPublic, true),
           // Soft-deleted tracks stay in the shared database for their recovery
@@ -539,10 +540,8 @@ app.openapi(
         publicTrackConditions.push(eq(genres.slug, genreSlug));
       }
 
-      if (state) {
-        publicTrackConditions.push(
-          sql`lower(${userProfiles.state}) in (${state.name.toLowerCase()}, ${state.abbreviation.toLowerCase()})`
-        );
+      if (regionCondition) {
+        publicTrackConditions.push(regionCondition);
       }
 
       const limit = query.limit ?? 24,
@@ -2028,6 +2027,15 @@ app.openapi(
 
     const assetId = objectOwner?.id ?? crypto.randomUUID();
 
+    if (body.objectKey) {
+      await claimUploadIntent({
+        entityId: trackId,
+        entityType: "track_asset",
+        objectKey: body.objectKey,
+        userId: user.id,
+      });
+    }
+
     await withRetry("upsert current track asset", () =>
       db.transaction(async (transaction) => {
         await transaction
@@ -2084,6 +2092,15 @@ app.openapi(
           });
       })
     );
+
+    if (body.objectKey) {
+      await completeUploadIntent({
+        entityId: trackId,
+        entityType: "track_asset",
+        objectKey: body.objectKey,
+        userId: user.id,
+      });
+    }
 
     // A swapped-in master must regenerate streaming/battle/download
     // derivatives; launch processing exactly like settlement does.
@@ -2255,6 +2272,12 @@ app.openapi(
           HttpStatusCodes.BAD_REQUEST
         );
       }
+      await claimUploadIntent({
+        entityId: trackId,
+        entityType: "track_asset",
+        objectKey: asset.objectKey,
+        userId: user.id,
+      });
       verifiedAssets.push({
         asset,
         existingId: objectOwner?.id ?? null,
@@ -2362,6 +2385,15 @@ app.openapi(
           return { masterAssetId, masterObjectKey, settledTrack };
         })
       );
+
+    for (const { asset } of verifiedAssets) {
+      await completeUploadIntent({
+        entityId: trackId,
+        entityType: "track_asset",
+        objectKey: asset.objectKey,
+        userId: user.id,
+      });
+    }
 
     try {
       await ensureMediaProcessingWorkflow({

@@ -10,7 +10,6 @@ import { musicGenres } from "@/lib/music-genres";
 export interface LiveCollectionFilterValue {
   genre: string;
   sort: string;
-  status: string;
 }
 
 export function LiveCollectionFilters({
@@ -21,7 +20,7 @@ export function LiveCollectionFilters({
   value: LiveCollectionFilterValue;
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2">
       <Select
         onValueChange={(genre) => onChange({ ...value, genre })}
         value={value.genre}
@@ -36,19 +35,6 @@ export function LiveCollectionFilters({
               {genre.label}
             </SelectItem>
           ))}
-        </SelectContent>
-      </Select>
-      <Select
-        onValueChange={(status) => onChange({ ...value, status })}
-        value={value.status}
-      >
-        <SelectTrigger aria-label="Filter live events by status">
-          <SelectValue placeholder="All statuses" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All statuses</SelectItem>
-          <SelectItem value="live">Live now</SelectItem>
-          <SelectItem value="scheduled">Upcoming</SelectItem>
         </SelectContent>
       </Select>
       <Select

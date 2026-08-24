@@ -412,12 +412,10 @@ describe("SoundKit API authentication boundaries", () => {
   });
 
   it.each([
-    ["read settings", "/v1/admin/settings", undefined],
-    [
-      "update settings",
-      "/v1/admin/settings",
-      jsonRequest({ useGlobalExploreHome: false }, "PATCH"),
-    ],
+    ["read genres", "/v1/admin/genres", undefined],
+    ["read Open Verses", "/v1/admin/open-verses", undefined],
+    ["read regions", "/v1/admin/regions", undefined],
+    ["create genre", "/v1/admin/genres", jsonRequest({ name: "Battle Rap" })],
   ])(
     "keeps platform administration restricted for %s",
     async (_label, path, init) => {

@@ -100,7 +100,7 @@ export function VideoDetailPage({ lookupId }: { lookupId: string }) {
                 >
                   <Avatar className="size-6 shrink-0 mt-0.5">
                     <AvatarImage
-                      src={c.authorAvatarUrl ?? "/diverse-user-avatars.png"}
+                      src={c.authorAvatarUrl ?? "/placeholder-user.jpg"}
                     />
                     <AvatarFallback>
                       {(c.authorName ?? "A").slice(0, 1)}
@@ -258,7 +258,19 @@ function VideoCommentForm({
         return;
       }
 
-      await createComment.mutateAsync({ body, videoId });
+      try {
+        await createComment.mutateAsync({ body, videoId });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Your comment could not be posted. Please try again.",
+          title: "Comment Failed",
+          variant: "destructive",
+        });
+        return;
+      }
       setDraft("");
       toast({
         description: "Your comment was posted.",

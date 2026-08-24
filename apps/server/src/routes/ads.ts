@@ -15,6 +15,11 @@ import { isAdminUser } from "@/lib/admin";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import {
+  claimUploadIntent,
+  completeUploadIntent,
+  objectKeyFromMediaUrl,
+} from "@/lib/upload-intents";
 
 const app = new OpenAPIHono<AppEnv>(),
   adPlacementSchema = z.enum([
@@ -319,28 +324,50 @@ app.openapi(
 
     const body = c.req.valid("json"),
       db = createDb(),
-      [campaign] = await db
-        .insert(adCampaigns)
-        .values({
-          advertiserId: user.id,
-          billingType: body.billingType,
-          clickthroughUrl: body.clickthroughUrl,
-          creativeFormat: body.creativeFormat,
-          creativeImageUrl: body.creativeImageUrl ?? null,
-          creativeUrl: body.creativeUrl,
-          dailyBudgetCents: body.dailyBudgetCents,
-          dailyImpressionCap: body.dailyImpressionCap,
-          endDate: body.endDate ? new Date(body.endDate) : null,
-          id: crypto.randomUUID(),
-          name: body.name,
-          placement: body.placement,
-          startDate: body.startDate ? new Date(body.startDate) : new Date(),
-          status: "draft",
-        })
-        .returning();
+      campaignId = crypto.randomUUID(),
+      creativeObjectKeys = [body.creativeUrl, body.creativeImageUrl]
+        .flatMap((url) => (url ? [objectKeyFromMediaUrl(url)] : []))
+        .filter((objectKey): objectKey is string => Boolean(objectKey));
+    for (const objectKey of creativeObjectKeys) {
+      await claimUploadIntent({
+        entityId: campaignId,
+        entityType: "ad_creative",
+        objectKey,
+        userId: user.id,
+      });
+    }
+
+    const [campaign] = await db
+      .insert(adCampaigns)
+      .values({
+        advertiserId: user.id,
+        billingType: body.billingType,
+        clickthroughUrl: body.clickthroughUrl,
+        creativeFormat: body.creativeFormat,
+        creativeImageUrl: body.creativeImageUrl ?? null,
+        creativeUrl: body.creativeUrl,
+        dailyBudgetCents: body.dailyBudgetCents,
+        dailyImpressionCap: body.dailyImpressionCap,
+        endDate: body.endDate ? new Date(body.endDate) : null,
+        id: campaignId,
+        name: body.name,
+        placement: body.placement,
+        startDate: body.startDate ? new Date(body.startDate) : new Date(),
+        status: "draft",
+      })
+      .returning();
 
     if (!campaign) {
       throw new Error("Failed to create ad campaign.");
+    }
+
+    for (const objectKey of creativeObjectKeys) {
+      await completeUploadIntent({
+        entityId: campaign.id,
+        entityType: "ad_creative",
+        objectKey,
+        userId: user.id,
+      });
     }
 
     await db.insert(adCampaignTargets).values(
@@ -376,8 +403,9 @@ app.openapi(
     tags: ["Ads"],
   }),
   async (c) => {
-    const user = c.get("user");
-    if (!isAdminUser(user)) {
+    const user = c.get("user"),
+      adminUserId = user?.id;
+    if (!(isAdminUser(user) && adminUserId)) {
       return c.json(
         { message: "Admin access is required." },
         HttpStatusCodes.FORBIDDEN
@@ -386,26 +414,47 @@ app.openapi(
 
     const body = c.req.valid("json"),
       db = createDb(),
-      [campaign] = await db
-        .insert(adCampaigns)
-        .values({
-          advertiserId: user?.id ?? "soundkit",
-          billingType: "prepaid_wallet",
-          clickthroughUrl: body.clickthroughUrl,
-          creativeFormat: body.creativeFormat,
-          creativeImageUrl: body.creativeImageUrl ?? null,
-          creativeUrl: body.creativeUrl,
-          dailyBudgetCents: 0,
-          dailyImpressionCap: 100_000,
-          id: crypto.randomUUID(),
-          name: body.name,
-          placement: body.placement,
-          startDate: new Date(),
-          status: "active",
-        })
-        .returning();
+      campaignId = crypto.randomUUID(),
+      creativeObjectKeys = [body.creativeUrl, body.creativeImageUrl]
+        .flatMap((url) => (url ? [objectKeyFromMediaUrl(url)] : []))
+        .filter((objectKey): objectKey is string => Boolean(objectKey));
+    for (const objectKey of creativeObjectKeys) {
+      await claimUploadIntent({
+        entityId: campaignId,
+        entityType: "ad_creative",
+        objectKey,
+        userId: adminUserId,
+      });
+    }
+
+    const [campaign] = await db
+      .insert(adCampaigns)
+      .values({
+        advertiserId: adminUserId,
+        billingType: "prepaid_wallet",
+        clickthroughUrl: body.clickthroughUrl,
+        creativeFormat: body.creativeFormat,
+        creativeImageUrl: body.creativeImageUrl ?? null,
+        creativeUrl: body.creativeUrl,
+        dailyBudgetCents: 0,
+        dailyImpressionCap: 100_000,
+        id: campaignId,
+        name: body.name,
+        placement: body.placement,
+        startDate: new Date(),
+        status: "active",
+      })
+      .returning();
     if (!campaign) {
       throw new Error("Failed to create house ad.");
+    }
+    for (const objectKey of creativeObjectKeys) {
+      await completeUploadIntent({
+        entityId: campaign.id,
+        entityType: "ad_creative",
+        objectKey,
+        userId: adminUserId,
+      });
     }
     await db.insert(adCampaignTargets).values([
       {

@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Trash2,
   TriangleAlert,
   UploadCloud,
   UserRoundCog,
@@ -44,6 +45,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -56,7 +58,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -74,12 +75,10 @@ import {
   useAdminAdCampaignsQuery,
   useAdminOverviewQuery,
   useAdminPaymentsQuery,
-  useAdminSettingsQuery,
   useBackfillTrackDurationsMutation,
   useImportStripePlanMutation,
   useSyncStripePlansMutation,
   useTrackDurationBackfillStatusQuery,
-  useUpdateAdminSettingsMutation,
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
@@ -89,6 +88,7 @@ export const Route = createFileRoute("/dashboard/admin")({
 
 type PendingAction =
   | { action: "ban"; userId: string; userName: string }
+  | { action: "delete"; userId: string; userName: string }
   | { action: "revoke"; userId: string; userName: string }
   | null;
 
@@ -188,15 +188,27 @@ function AdminDashboard() {
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-          <TabsTrigger value="ads">Ads</TabsTrigger>
-          <TabsTrigger value="coupons">Coupons</TabsTrigger>
-          <TabsTrigger value="genres">Genres</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
+        <div className="max-w-full pb-1">
+          <TabsList
+            className="h-auto w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-8"
+            style={{ display: "grid" }}
+          >
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="payments">Payments</TabsTrigger>
+            <TabsTrigger value="ads">Ads</TabsTrigger>
+            <TabsTrigger value="coupons">Coupons</TabsTrigger>
+            <TabsTrigger className="scroll-mt-20" value="genres">
+              Genres
+            </TabsTrigger>
+            <TabsTrigger className="scroll-mt-20" value="regions">
+              Regions
+            </TabsTrigger>
+            <TabsTrigger className="scroll-mt-20" value="open-verses">
+              Open Verses
+            </TabsTrigger>
+          </TabsList>
+        </div>
         <TabsContent value="overview" className="mt-6">
           <OverviewPanel />
         </TabsContent>
@@ -215,8 +227,11 @@ function AdminDashboard() {
         <TabsContent value="genres" className="mt-6">
           <GenreCatalogPanel />
         </TabsContent>
-        <TabsContent value="settings" className="mt-6">
-          <SettingsPanel />
+        <TabsContent value="regions" className="mt-6">
+          <RegionCoveragePanel />
+        </TabsContent>
+        <TabsContent value="open-verses" className="mt-6">
+          <OpenVerseAdminPanel />
         </TabsContent>
       </Tabs>
     </div>
@@ -224,9 +239,13 @@ function AdminDashboard() {
 }
 
 interface AdminGenre {
+  battleCount: number;
   description: string | null;
   id: string;
   name: string;
+  openVerseCount: number;
+  partyCount: number;
+  projectCount: number;
   slug: string;
   totalCount: number;
   trackCount: number;
@@ -357,6 +376,10 @@ function GenreCatalogPanel() {
                   <TableHead>Slug</TableHead>
                   <TableHead>Tracks</TableHead>
                   <TableHead>Videos</TableHead>
+                  <TableHead>Projects</TableHead>
+                  <TableHead>Battles</TableHead>
+                  <TableHead>Parties</TableHead>
+                  <TableHead>Open Verses</TableHead>
                   <TableHead>Total</TableHead>
                 </TableRow>
               </TableHeader>
@@ -369,7 +392,13 @@ function GenreCatalogPanel() {
                     </TableCell>
                     <TableCell>{genre.trackCount}</TableCell>
                     <TableCell>{genre.videoCount}</TableCell>
-                    <TableCell>{genre.totalCount}</TableCell>
+                    <TableCell>{genre.projectCount}</TableCell>
+                    <TableCell>{genre.battleCount}</TableCell>
+                    <TableCell>{genre.partyCount}</TableCell>
+                    <TableCell>{genre.openVerseCount}</TableCell>
+                    <TableCell className="font-semibold">
+                      {genre.totalCount}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -381,79 +410,405 @@ function GenreCatalogPanel() {
   );
 }
 
-function SettingsPanel() {
-  const settingsQuery = useAdminSettingsQuery(),
-    updateSettings = useUpdateAdminSettingsMutation();
+interface AdminOpenVerseListing {
+  accessRequestCount: number;
+  baseMasterAssetId: string | null;
+  createdAt: string;
+  genre: string | null;
+  id: string;
+  ownerDisplayName: string | null;
+  ownerUserId: string;
+  ownerUsername: string | null;
+  previewAssetId: string | null;
+  status: string;
+  submissionCount: number;
+  title: string;
+  trackId: string;
+  trackTitle: string | null;
+}
 
-  if (settingsQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading settings...</p>;
-  }
+const openVerseMediaHealth = (listing: AdminOpenVerseListing) =>
+  listing.baseMasterAssetId
+    ? listing.previewAssetId
+      ? "Ready"
+      : "Preview missing"
+    : "Legacy / incomplete";
 
-  if (settingsQuery.error || !settingsQuery.data) {
-    return <p className="text-sm text-destructive">Unable to load settings.</p>;
-  }
+interface AdminRegionOverview {
+  missingCountryCount: number;
+  missingStateCount: number;
+  regions: {
+    artistCount: number;
+    country: string;
+    profileCount: number;
+    projectCount: number;
+    state: string;
+    totalUploadCount: number;
+    trackCount: number;
+    videoCount: number;
+  }[];
+  totalProfileCount: number;
+}
 
-  const handleGlobalHomeChange = (checked: boolean) => {
-    updateSettings.mutate(
-      { useGlobalExploreHome: checked },
-      {
-        onError: (error) => {
-          toast({
-            description: error.message,
-            title: "Setting update failed",
-            variant: "destructive",
-          });
-        },
-        onSuccess: () => {
-          toast({
-            description: checked
-              ? "The home map now starts with app-wide totals."
-              : "The home map now starts focused on Arkansas.",
-            title: "Settings saved",
-          });
-        },
+function RegionCoveragePanel() {
+  const regionsQuery = useQuery<AdminRegionOverview>({
+    queryFn: async () => {
+      const response = await fetch(`${API_V1_URL}/admin/regions`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Unable to load regional coverage.");
       }
-    );
-  };
+      return (await response.json()) as AdminRegionOverview;
+    },
+    queryKey: ["admin", "regions"],
+  });
 
+  if (regionsQuery.isLoading) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Loading regional coverage…
+      </p>
+    );
+  }
+
+  if (regionsQuery.error || !regionsQuery.data) {
+    return (
+      <p className="text-sm text-destructive">
+        Unable to load regional coverage.
+      </p>
+    );
+  }
+
+  const coverage = regionsQuery.data;
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Globe2 className="size-4 text-primary" />
-          Explore defaults
+          Regional catalog coverage
         </CardTitle>
+        <CardDescription>
+          See where SoundKit has members and uploads, and identify profiles that
+          cannot participate in regional discovery yet.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <Label htmlFor="global-explore-home">
-              Start the home map with app-wide totals
-            </Label>
-            <p className="text-sm text-muted-foreground">
-              When enabled, `/` opens the existing map with no selected
-              location. Turning it off starts the map on Arkansas.
-            </p>
-          </div>
-          <Switch
-            id="global-explore-home"
-            checked={settingsQuery.data.useGlobalExploreHome}
-            disabled={updateSettings.isPending}
-            onCheckedChange={handleGlobalHomeChange}
+      <CardContent className="space-y-6">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <MetricRow
+            label="Profiles"
+            value={coverage.totalProfileCount.toLocaleString()}
+          />
+          <MetricRow
+            label="Missing country"
+            value={coverage.missingCountryCount.toLocaleString()}
+          />
+          <MetricRow
+            label="Missing state"
+            value={coverage.missingStateCount.toLocaleString()}
           />
         </div>
-        <div className="grid gap-4 text-sm sm:grid-cols-2">
-          <MetricRow
-            label="Fallback region"
-            value={settingsQuery.data.defaultExploreRegion}
-          />
-          <MetricRow
-            label="Fallback scope"
-            value={settingsQuery.data.defaultExploreRegionType}
-          />
+        <div className="overflow-x-auto rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Country</TableHead>
+                <TableHead>State / Region</TableHead>
+                <TableHead>Profiles</TableHead>
+                <TableHead>Artists</TableHead>
+                <TableHead>Tracks</TableHead>
+                <TableHead>Videos</TableHead>
+                <TableHead>Projects</TableHead>
+                <TableHead>Uploads</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {coverage.regions.map((region) => (
+                <TableRow key={`${region.country}:${region.state}`}>
+                  <TableCell className="font-medium">
+                    {region.country}
+                  </TableCell>
+                  <TableCell>{region.state}</TableCell>
+                  <TableCell>{region.profileCount}</TableCell>
+                  <TableCell>{region.artistCount}</TableCell>
+                  <TableCell>{region.trackCount}</TableCell>
+                  <TableCell>{region.videoCount}</TableCell>
+                  <TableCell>{region.projectCount}</TableCell>
+                  <TableCell className="font-semibold">
+                    {region.totalUploadCount}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function OpenVerseAdminPanel() {
+  const queryClient = useQueryClient(),
+    [listingToDelete, setListingToDelete] =
+      useState<AdminOpenVerseListing | null>(null),
+    listingsQuery = useQuery<AdminOpenVerseListing[]>({
+      queryFn: async () => {
+        const response = await fetch(`${API_V1_URL}/admin/open-verses`, {
+          credentials: "include",
+        });
+        if (!response.ok) {
+          throw new Error("Unable to load Open Verse listings.");
+        }
+        return (await response.json()) as AdminOpenVerseListing[];
+      },
+      queryKey: ["admin", "open-verses"],
+    }),
+    deleteListing = useMutation({
+      mutationFn: async (listingId: string) => {
+        const response = await fetch(
+          `${API_V1_URL}/open-verses/${encodeURIComponent(listingId)}`,
+          { credentials: "include", method: "DELETE" }
+        );
+        const payload = (await response.json().catch(() => null)) as {
+          message?: string;
+        } | null;
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "Unable to delete the listing.");
+        }
+        return payload;
+      },
+      onError: (error) => {
+        toast({
+          description: error.message,
+          title: "Listing not deleted",
+          variant: "destructive",
+        });
+      },
+      onSettled: () => setListingToDelete(null),
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({
+          queryKey: ["admin", "open-verses"],
+        });
+        toast({
+          description:
+            "The listing and its access requests and submissions were removed. The underlying track was preserved.",
+          title: "Open Verse deleted",
+        });
+      },
+    });
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Open Verse Catalog</CardTitle>
+          <CardDescription>
+            Inspect raw persisted listings, including legacy entries that cannot
+            complete the current submission flow. Deleting a listing preserves
+            its underlying track.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {listingsQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">
+              Loading Open Verse listings…
+            </p>
+          ) : null}
+          {listingsQuery.error ? (
+            <Alert variant="destructive">
+              <TriangleAlert />
+              <AlertTitle>Unable to load Open Verses</AlertTitle>
+              <AlertDescription>
+                Refresh the page and try loading the catalog again.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {listingsQuery.data?.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No Open Verse listings are stored.
+            </p>
+          ) : null}
+          {listingsQuery.data?.length ? (
+            <div className="flex flex-col gap-3 md:hidden">
+              {listingsQuery.data.map((listing) => {
+                const mediaHealth = openVerseMediaHealth(listing);
+                return (
+                  <Card key={listing.id}>
+                    <CardHeader>
+                      <CardTitle className="text-base">
+                        {listing.title}
+                      </CardTitle>
+                      <CardDescription className="font-mono text-xs">
+                        {listing.id}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-3 text-sm">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">
+                          {listing.status.replaceAll("_", " ")}
+                        </Badge>
+                        <Badge
+                          variant={
+                            mediaHealth === "Ready"
+                              ? "secondary"
+                              : "destructive"
+                          }
+                        >
+                          {mediaHealth}
+                        </Badge>
+                      </div>
+                      <p>
+                        <span className="text-muted-foreground">Owner:</span>{" "}
+                        {listing.ownerDisplayName ?? "Unknown owner"}
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Track:</span>{" "}
+                        {listing.trackTitle ?? "Missing track"}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {listing.accessRequestCount} requests ·{" "}
+                        {listing.submissionCount} submissions ·{" "}
+                        {new Date(listing.createdAt).toLocaleDateString()}
+                      </p>
+                    </CardContent>
+                    <CardFooter>
+                      <Button
+                        aria-label={`Delete ${listing.title}`}
+                        className="w-full"
+                        onClick={() => setListingToDelete(listing)}
+                        variant="destructive"
+                      >
+                        <Trash2 />
+                        Delete
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : null}
+          {listingsQuery.data?.length ? (
+            <div className="hidden overflow-x-auto rounded-md border md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Listing</TableHead>
+                    <TableHead>Owner</TableHead>
+                    <TableHead>Track</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Media health</TableHead>
+                    <TableHead>Requests</TableHead>
+                    <TableHead>Submissions</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="sticky right-0 bg-background text-right">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {listingsQuery.data.map((listing) => {
+                    const mediaHealth = openVerseMediaHealth(listing);
+                    return (
+                      <TableRow key={listing.id}>
+                        <TableCell>
+                          <div className="min-w-56">
+                            <p className="font-medium">{listing.title}</p>
+                            <p className="font-mono text-xs text-muted-foreground">
+                              {listing.id}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <p>{listing.ownerDisplayName ?? "Unknown owner"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {listing.ownerUsername
+                              ? `@${listing.ownerUsername}`
+                              : listing.ownerUserId}
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          <p>{listing.trackTitle ?? "Missing track"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {listing.genre ?? "No genre"}
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {listing.status.replaceAll("_", " ")}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              mediaHealth === "Ready"
+                                ? "secondary"
+                                : "destructive"
+                            }
+                          >
+                            {mediaHealth}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{listing.accessRequestCount}</TableCell>
+                        <TableCell>{listing.submissionCount}</TableCell>
+                        <TableCell>
+                          {new Date(listing.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="sticky right-0 bg-background text-right">
+                          <Button
+                            aria-label={`Delete ${listing.title}`}
+                            onClick={() => setListingToDelete(listing)}
+                            size="sm"
+                            variant="destructive"
+                          >
+                            <Trash2 />
+                            Delete
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open && !deleteListing.isPending) {
+            setListingToDelete(null);
+          }
+        }}
+        open={Boolean(listingToDelete)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this Open Verse?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes “{listingToDelete?.title}”, its access
+              requests, and its submissions. The underlying track and unrelated
+              media remain intact.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteListing.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!listingToDelete || deleteListing.isPending}
+              onClick={() => {
+                if (listingToDelete) {
+                  deleteListing.mutate(listingToDelete.id);
+                }
+              }}
+            >
+              {deleteListing.isPending ? "Deleting…" : "Delete listing"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -1098,6 +1453,13 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
           if (result.error) {
             throw new Error(result.error.message);
           }
+        } else if (action.action === "delete") {
+          const result = await authClient.admin.removeUser({
+            userId: action.userId,
+          });
+          if (result.error) {
+            throw new Error(result.error.message);
+          }
         } else if (action.action === "role") {
           const result = await authClient.admin.setRole({
             role: action.role ?? "user",
@@ -1130,8 +1492,11 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
 
         await queryClient.invalidateQueries({ queryKey: ["admin"] });
         toast({
-          description: "The user account was updated.",
-          title: "Updated",
+          description:
+            action.action === "delete"
+              ? "The user account was deleted."
+              : "The user account was updated.",
+          title: action.action === "delete" ? "Deleted" : "Updated",
         });
       },
     }),
@@ -1311,6 +1676,21 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
                         >
                           Revoke sessions
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          disabled={isSelf}
+                          onSelect={() =>
+                            setPendingAction({
+                              action: "delete",
+                              userId: user.id,
+                              userName: user.name,
+                            })
+                          }
+                        >
+                          <Trash2 className="size-4" />
+                          Delete user
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -1342,12 +1722,16 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
             <AlertDialogTitle>
               {pendingAction?.action === "ban"
                 ? "Ban this user?"
-                : "Revoke all sessions?"}
+                : pendingAction?.action === "delete"
+                  ? "Delete this user?"
+                  : "Revoke all sessions?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingAction?.action === "ban"
                 ? `${pendingAction.userName} will be signed out and unable to sign in.`
-                : `${pendingAction?.userName ?? "This user"} will be signed out on every device.`}
+                : pendingAction?.action === "delete"
+                  ? `${pendingAction.userName}'s account and sessions will be permanently removed. Content they own is not deleted and would become orphaned.`
+                  : `${pendingAction?.userName ?? "This user"} will be signed out on every device.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

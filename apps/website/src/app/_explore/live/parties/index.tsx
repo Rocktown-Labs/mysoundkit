@@ -1,14 +1,6 @@
+/* eslint-disable one-var, sort-vars */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  CalendarClock,
-  CheckCircle2,
-  Disc3,
-  Headphones,
-  Mic,
-  Play,
-  Radio,
-  Users,
-} from "lucide-react";
+import { CheckCircle2, Disc3, Headphones, Play, Radio } from "lucide-react";
 
 import { CreateFanPartyDialog } from "@/components/explore/create-fan-party-dialog";
 import {
@@ -16,8 +8,8 @@ import {
   ExploreCollectionSection,
 } from "@/components/explore/explore-collection";
 import { LiveCollectionFilters } from "@/components/explore/live-collection-filters";
+import { RegionSelectors } from "@/components/explore/region-selectors";
 import { AppImage } from "@/components/ui/app-image";
-import { Badge } from "@/components/ui/badge";
 import {
   filterAndSortLiveItems,
   normalizeGenreValue,
@@ -28,6 +20,8 @@ import type { ListeningPartySummary } from "@/lib/soundkit-api-hooks";
 
 interface LivePartiesSearch {
   genre?: string;
+  region?: string;
+  regionType?: "global" | "north-america";
   sort?: string;
   status?: string;
   view?: "all" | "sections";
@@ -42,6 +36,9 @@ export const Route = createFileRoute("/_explore/live/parties/")({
   component: LivePartiesPage,
   validateSearch: (search: Record<string, unknown>): LivePartiesSearch => ({
     genre: typeof search.genre === "string" ? search.genre : "all",
+    region: typeof search.region === "string" ? search.region : "all",
+    regionType:
+      search.regionType === "north-america" ? "north-america" : "global",
     sort: typeof search.sort === "string" ? search.sort : "starts-asc",
     status: typeof search.status === "string" ? search.status : "all",
     view: search.view === "all" ? "all" : "sections",
@@ -60,8 +57,8 @@ function PartySummaryCard({ party }: { party: PartyCollectionItem }) {
   const isLive = party.status === "live",
     coverArt =
       party.playbackMode === "artist_hosted"
-        ? "/summer-music-album-cover.png"
-        : "/night-music-album-cover.png",
+        ? "/summer-music-album-cover.webp"
+        : "/night-music-album-cover.webp",
     categoryLabel =
       party.playbackMode === "artist_hosted"
         ? "Artist Hosted"
@@ -162,7 +159,12 @@ function PartySummaryCard({ party }: { party: PartyCollectionItem }) {
 function LivePartiesPage() {
   const navigate = Route.useNavigate(),
     search = Route.useSearch(),
-    { data: parties = [], isLoading } = useListeningPartiesQuery(),
+    region = search.region ?? "all",
+    regionType = search.regionType ?? "global",
+    { data: parties = [], isLoading } = useListeningPartiesQuery({
+      region,
+      regionType,
+    }),
     genre = search.genre ?? "all",
     sort = search.sort ?? "starts-asc",
     status = search.status ?? "all",
@@ -200,11 +202,25 @@ function LivePartiesPage() {
         <CreateFanPartyDialog />
       </section>
 
+      <div className="hidden lg:block">
+        <RegionSelectors
+          onChange={(next) => {
+            void navigate({
+              search: (previous) => ({ ...previous, ...next }),
+            });
+          }}
+          region={region}
+          regionType={regionType}
+        />
+      </div>
+
       <LiveCollectionFilters
         onChange={(next) => {
-          void navigate({ search: { ...next, view: "all" } });
+          void navigate({
+            search: (previous) => ({ ...previous, ...next, view: "all" }),
+          });
         }}
-        value={{ genre, sort, status }}
+        value={{ genre, sort }}
       />
 
       {view === "all" ? (

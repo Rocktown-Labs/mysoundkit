@@ -134,15 +134,15 @@ export function LiveChatPanel({
                         userAvatar = isMe
                           ? (meProfile?.avatarUrl ??
                             meUser?.avatarUrl ??
-                            "/diverse-user-avatars.png")
-                          : "/diverse-user-avatars.png",
+                            "/placeholder-user.jpg")
+                          : "/placeholder-user.jpg",
                         handleOpenProfile = () => {
                           if (isMe && meUser) {
                             setPreviewUser({
                               avatarUrl:
                                 meProfile?.avatarUrl ??
                                 meUser.avatarUrl ??
-                                "/diverse-user-avatars.png",
+                                "/placeholder-user.jpg",
                               bio:
                                 meProfile?.bio ?? "SoundKit artist & creator.",
                               displayName:
@@ -162,7 +162,7 @@ export function LiveChatPanel({
                             });
                           } else {
                             setPreviewUser({
-                              avatarUrl: "/diverse-user-avatars.png",
+                              avatarUrl: "/placeholder-user.jpg",
                               displayName: chatMessage.userName,
                               role: isHost
                                 ? "Host & Creator"

@@ -7,6 +7,7 @@ import {
   ExploreCollectionSection,
 } from "@/components/explore/explore-collection";
 import { LiveCollectionFilters } from "@/components/explore/live-collection-filters";
+import { RegionSelectors } from "@/components/explore/region-selectors";
 import { StreamCard } from "@/components/explore/stream-card";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,8 @@ import {
 
 interface LiveStreamsSearch {
   genre?: string;
+  region?: string;
+  regionType?: "global" | "north-america";
   sort?: string;
   status?: string;
   view?: "all" | "sections";
@@ -45,6 +48,9 @@ export const Route = createFileRoute("/_explore/live/streams/")({
   component: LiveStreamsPage,
   validateSearch: (search: Record<string, unknown>): LiveStreamsSearch => ({
     genre: typeof search.genre === "string" ? search.genre : "all",
+    region: typeof search.region === "string" ? search.region : "all",
+    regionType:
+      search.regionType === "north-america" ? "north-america" : "global",
     sort: typeof search.sort === "string" ? search.sort : "starts-asc",
     status: typeof search.status === "string" ? search.status : "all",
     view: search.view === "all" ? "all" : "sections",
@@ -54,7 +60,12 @@ export const Route = createFileRoute("/_explore/live/streams/")({
 function LiveStreamsPage() {
   const navigate = Route.useNavigate(),
     search = Route.useSearch(),
-    { data: streams = [], isLoading } = usePublicLiveExperiencesQuery("stream"),
+    region = search.region ?? "all",
+    regionType = search.regionType ?? "global",
+    { data: streams = [], isLoading } = usePublicLiveExperiencesQuery(
+      "stream",
+      { region, regionType }
+    ),
     meQuery = useMeQuery(),
     entitlementsQuery = useMeEntitlementsQuery(),
     genre = search.genre ?? "all",
@@ -102,11 +113,25 @@ function LiveStreamsPage() {
         ) : null}
       </section>
 
+      <div className="hidden lg:block">
+        <RegionSelectors
+          onChange={(next) => {
+            void navigate({
+              search: (previous) => ({ ...previous, ...next }),
+            });
+          }}
+          region={region}
+          regionType={regionType}
+        />
+      </div>
+
       <LiveCollectionFilters
         onChange={(next) => {
-          void navigate({ search: { ...next, view: "all" } });
+          void navigate({
+            search: (previous) => ({ ...previous, ...next, view: "all" }),
+          });
         }}
-        value={{ genre, sort, status }}
+        value={{ genre, sort }}
       />
 
       {view === "all" ? (

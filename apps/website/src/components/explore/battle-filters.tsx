@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/select";
 import { allGenreOptions } from "@/lib/music-genres";
 
-const northAmericaLocations = [
+export const northAmericaLocations = [
     { label: "All North America", value: "all" },
     { label: "Alabama, US", value: "us-alabama" },
     { label: "Alaska, US", value: "us-alaska" },
