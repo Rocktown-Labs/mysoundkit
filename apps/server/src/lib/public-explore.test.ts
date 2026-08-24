@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveExploreRegion, stateFromExploreRegion } from "./public-explore";
+import {
+  countryFromProfileLocation,
+  resolveExploreRegion,
+  stateFromExploreRegion,
+} from "./public-explore";
 
 describe("public Explore region resolution", () => {
   it("treats global all as the whole platform", () => {
@@ -34,6 +38,13 @@ describe("public Explore region resolution", () => {
     expect(
       stateFromExploreRegion({ region: "AR", regionType: "north-america" })
     ).toEqual({ abbreviation: "AR", name: "Arkansas" });
+  });
+
+  it("infers United States from a recognized state when country is blank", () => {
+    expect(countryFromProfileLocation(null, "AR")).toBe("United States");
+    expect(countryFromProfileLocation("", "Arkansas")).toBe("United States");
+    expect(countryFromProfileLocation("Canada", "AR")).toBe("Canada");
+    expect(countryFromProfileLocation(null, "Ontario")).toBe("Unknown");
   });
 
   it("does not silently turn unsupported regions into global results", () => {

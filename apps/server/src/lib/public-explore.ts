@@ -1,6 +1,6 @@
 /* eslint-disable one-var, sort-vars */
 import { userProfiles } from "@soundkit/db/schema/app";
-import { inArray, sql } from "drizzle-orm";
+import { and, inArray, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
 import { exploreCountries } from "@/lib/country-regions";
@@ -78,7 +78,15 @@ const northAmericaStates = {
       .replaceAll("&", "and")
       .replaceAll(/[^a-z0-9]+/gu, "-")
       .replaceAll(/^-|-$/gu, ""),
-  normalizedCountryValue = sql<string>`lower(coalesce(${userProfiles.country}, ''))`;
+  normalizedCountryValue = sql<string>`lower(coalesce(${userProfiles.country}, ''))`,
+  normalizedStateValue = sql<string>`lower(trim(coalesce(${userProfiles.state}, '')))`,
+  unitedStatesStateAliases = Object.values(northAmericaStates).flatMap(
+    (state) => [state.abbreviation.toLowerCase(), state.name.toLowerCase()]
+  ),
+  inferredUnitedStatesCondition = and(
+    sql`trim(coalesce(${userProfiles.country}, '')) = ''`,
+    inArray(normalizedStateValue, unitedStatesStateAliases)
+  );
 
 export type ExploreRegionQuery = Readonly<{
   region?: string;
@@ -180,15 +188,24 @@ export const profileRegionCondition = (
     return sql`lower(coalesce(${userProfiles.state}, '')) in (${resolved.name.toLowerCase()}, ${resolved.abbreviation.toLowerCase()})`;
   }
   if (resolved.kind === "country") {
-    return inArray(normalizedCountryValue, [...resolved.aliases]);
+    const countryCondition = inArray(normalizedCountryValue, [
+      ...resolved.aliases,
+    ]);
+    return resolved.name === "United States"
+      ? or(countryCondition, inferredUnitedStatesCondition)
+      : countryCondition;
   }
 
   const aliases = exploreCountries
-    .filter((country) => country.scope === resolved.scope)
-    .flatMap((country) => country.aliases);
-  return aliases.length > 0
-    ? inArray(normalizedCountryValue, [...new Set(aliases)])
-    : sql`false`;
+      .filter((country) => country.scope === resolved.scope)
+      .flatMap((country) => country.aliases),
+    continentCondition =
+      aliases.length > 0
+        ? inArray(normalizedCountryValue, [...new Set(aliases)])
+        : sql`false`;
+  return resolved.scope === "north-america"
+    ? or(continentCondition, inferredUnitedStatesCondition)
+    : continentCondition;
 };
 
 const regionEntryByStateValue = (state?: string | null) => {
@@ -204,6 +221,17 @@ const regionEntryByStateValue = (state?: string | null) => {
         value.name.toLowerCase() === normalized
     ) ?? null
   );
+};
+
+export const countryFromProfileLocation = (
+  country?: string | null,
+  state?: string | null
+): string => {
+  const explicitCountry = country?.trim();
+  if (explicitCountry) {
+    return explicitCountry;
+  }
+  return regionEntryByStateValue(state) ? "United States" : "Unknown";
 };
 
 /** Maps a user profile state value ("AR", "Arkansas") to "us-ar". */

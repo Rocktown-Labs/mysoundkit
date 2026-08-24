@@ -6,7 +6,11 @@ import { and, eq, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
-import { canonicalGenreName, genreCatalog } from "@/lib/genre-catalog";
+import {
+  canonicalGenreName,
+  genreCatalog,
+  mergePersistedGenreCatalog,
+} from "@/lib/genre-catalog";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
@@ -104,7 +108,7 @@ app.openapi(
         });
       }
 
-      for (const row of rows) {
+      for (const row of mergePersistedGenreCatalog(rows)) {
         const counts = countsByGenreId.get(row.id) ?? {
           trackCount: 0,
           videoCount: 0,

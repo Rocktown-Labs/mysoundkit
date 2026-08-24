@@ -10,6 +10,9 @@ const alchemyConfigPath = fileURLToPath(
   deployWorkflowPath = fileURLToPath(
     new URL("../../../.github/workflows/deploy.yml", import.meta.url)
   ),
+  genreIndexMigrationPath = fileURLToPath(
+    new URL("migrations/0044_genre_lookup_indexes.sql", import.meta.url)
+  ),
   uploadIntentMigrationPath = fileURLToPath(
     new URL("migrations/0043_upload_intents.sql", import.meta.url)
   ),
@@ -52,6 +55,14 @@ describe("deployment safety policy", () => {
     expect(migration).toContain('CREATE TABLE "upload_intents"');
     expect(migration).not.toMatch(/DROP\s+(?:TABLE|COLUMN|TYPE)/iu);
     expect(migration).not.toMatch(/ALTER TABLE "(?!upload_intents")/u);
+  });
+
+  it("adds genre lookup indexes without destructive schema changes", async () => {
+    const migration = await readFile(genreIndexMigrationPath, "utf-8");
+
+    expect(migration).toContain('CREATE INDEX "tracks_genre_id_idx"');
+    expect(migration).toContain('CREATE INDEX "videos_genre_id_idx"');
+    expect(migration).not.toMatch(/(?:ALTER|DROP|DELETE|UPDATE)\s/iu);
   });
 
   it("keeps canonical production assets on the guarded media route", async () => {

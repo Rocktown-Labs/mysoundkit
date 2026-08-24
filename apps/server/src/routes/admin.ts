@@ -39,12 +39,13 @@ import {
 import {
   canonicalGenreName,
   canonicalGenreSlug,
-  genreCatalog,
+  mergePersistedGenreCatalog,
 } from "@/lib/genre-catalog";
 import {
   enqueueTrackDurationBackfills,
   loadTrackDurationBackfillStatus,
 } from "@/lib/media-metadata";
+import { countryFromProfileLocation } from "@/lib/public-explore";
 import {
   adminAccessSchema,
   adminGenreSchema,
@@ -135,15 +136,7 @@ app.openapi(
       battleCounts = toCountMap(battleRows),
       partyCounts = toCountMap(partyRows),
       openVerseCounts = toCountMap(openVerseRows),
-      genreRowsBySlug = new Map(genreRows.map((genre) => [genre.slug, genre])),
-      canonicalSlugs = new Set(genreCatalog.map((genre) => genre.slug)),
-      allGenreRows = [
-        ...genreCatalog.map((genre) => ({
-          description: genreRowsBySlug.get(genre.slug)?.description ?? null,
-          ...genre,
-        })),
-        ...genreRows.filter((genre) => !canonicalSlugs.has(genre.slug)),
-      ].toSorted((first, second) => first.name.localeCompare(second.name));
+      allGenreRows = mergePersistedGenreCatalog(genreRows);
     return c.json(
       allGenreRows.map((genre) => {
         const trackCount = trackCounts.get(genre.id) ?? 0,
@@ -303,30 +296,66 @@ app.openapi(
           .orderBy(country, state),
         db
           .select({
-            missingCountryCount: sql<number>`count(*) filter (where ${userProfiles.country} is null or trim(${userProfiles.country}) = '')::int`,
             missingStateCount: sql<number>`count(*) filter (where ${userProfiles.state} is null or trim(${userProfiles.state}) = '')::int`,
             totalProfileCount: sql<number>`count(*)::int`,
           })
           .from(userProfiles),
       ]);
 
+    const regionsByLocation = new Map<
+      string,
+      {
+        artistCount: number;
+        country: string;
+        profileCount: number;
+        projectCount: number;
+        state: string;
+        totalUploadCount: number;
+        trackCount: number;
+        videoCount: number;
+      }
+    >();
+
+    for (const row of regionRows) {
+      const effectiveCountry = countryFromProfileLocation(
+          row.country,
+          row.state
+        ),
+        key = `${effectiveCountry}\u0000${row.state}`,
+        existing = regionsByLocation.get(key),
+        trackCount = Number(row.trackCount),
+        videoCount = Number(row.videoCount),
+        projectCount = Number(row.projectCount);
+      regionsByLocation.set(key, {
+        artistCount: (existing?.artistCount ?? 0) + Number(row.artistCount),
+        country: effectiveCountry,
+        profileCount: (existing?.profileCount ?? 0) + Number(row.profileCount),
+        projectCount: (existing?.projectCount ?? 0) + projectCount,
+        state: row.state,
+        totalUploadCount:
+          (existing?.totalUploadCount ?? 0) +
+          trackCount +
+          videoCount +
+          projectCount,
+        trackCount: (existing?.trackCount ?? 0) + trackCount,
+        videoCount: (existing?.videoCount ?? 0) + videoCount,
+      });
+    }
+
+    const regions = [...regionsByLocation.values()].toSorted(
+        (first, second) =>
+          first.country.localeCompare(second.country) ||
+          first.state.localeCompare(second.state)
+      ),
+      missingCountryCount = regions
+        .filter((region) => region.country === "Unknown")
+        .reduce((total, region) => total + region.profileCount, 0);
+
     return c.json(
       {
-        missingCountryCount: Number(coverage?.missingCountryCount ?? 0),
+        missingCountryCount,
         missingStateCount: Number(coverage?.missingStateCount ?? 0),
-        regions: regionRows.map((row) => ({
-          artistCount: Number(row.artistCount),
-          country: row.country,
-          profileCount: Number(row.profileCount),
-          projectCount: Number(row.projectCount),
-          state: row.state,
-          totalUploadCount:
-            Number(row.trackCount) +
-            Number(row.videoCount) +
-            Number(row.projectCount),
-          trackCount: Number(row.trackCount),
-          videoCount: Number(row.videoCount),
-        })),
+        regions,
         totalProfileCount: Number(coverage?.totalProfileCount ?? 0),
       },
       HttpStatusCodes.OK

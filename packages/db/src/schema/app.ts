@@ -733,6 +733,7 @@ export const artistProfiles = pgTable(
   },
   (table) => [
     index("artist_profiles_primary_org_idx").on(table.primaryOrganizationId),
+    index("artist_profiles_primary_genre_id_idx").on(table.primaryGenreId),
   ]
 );
 
@@ -958,6 +959,7 @@ export const tracks = pgTable(
     uniqueIndex("tracks_slug_idx").on(table.slug),
     index("tracks_owner_user_id_idx").on(table.ownerUserId),
     index("tracks_organization_id_idx").on(table.organizationId),
+    index("tracks_genre_id_idx").on(table.genreId),
   ]
 );
 
@@ -1218,6 +1220,7 @@ export const projects = pgTable(
   (table) => [
     uniqueIndex("projects_slug_idx").on(table.slug),
     index("projects_owner_user_id_idx").on(table.ownerUserId),
+    index("projects_genre_id_idx").on(table.genreId),
   ]
 );
 
@@ -1379,6 +1382,7 @@ export const listeningParties = pgTable(
       table.scheduledStartAt
     ),
     index("listening_parties_host_user_id_idx").on(table.hostUserId),
+    index("listening_parties_genre_id_idx").on(table.genreId),
   ]
 );
 
@@ -1560,6 +1564,7 @@ export const videos = pgTable(
   },
   (table) => [
     index("videos_owner_user_id_idx").on(table.ownerUserId),
+    index("videos_genre_id_idx").on(table.genreId),
     uniqueIndex("videos_slug_idx").on(table.slug),
   ]
 );
@@ -2213,6 +2218,7 @@ export const battles = pgTable(
   },
   (table) => [
     index("battles_external_battle_id_idx").on(table.externalBattleId),
+    index("battles_genre_id_idx").on(table.genreId),
   ]
 );
 

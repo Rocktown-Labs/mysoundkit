@@ -33,6 +33,8 @@
 
 ### Fixed
 
+- Fixed Admin Genres reporting zero for persisted canonical genres by sharing persisted genre UUID resolution with discovery, and added indexes for genre-backed catalog filters.
+- Fixed Arkansas profiles displaying an unknown country and disappearing from US/North America discovery by inferring United States from recognized US state names and abbreviations when country is blank.
 - Fixed Explore rails stretching or bleeding the page, blank global “in” labels, contradictory Global-map callbacks, decorative continent filters, unsupported Live region links, and inconsistent Battles/Parties/Streams content spacing; global rails now read “On SoundKit” and rails snap-scroll internally.
 - Fixed public profile images retaining destroyed preview URLs by deriving canonical media URLs from durable avatar/header object keys.
 - Replaced multi-megabyte PNG sample covers with compact WebP assets and replaced the 805 KB avatar collage fallback with the existing 1.6 KB user placeholder.

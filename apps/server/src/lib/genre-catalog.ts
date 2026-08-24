@@ -1,7 +1,12 @@
+/* eslint-disable one-var, prefer-named-capture-group */
 export interface GenreCatalogEntry {
   id: string;
   name: string;
   slug: string;
+}
+
+export interface PersistedGenreCatalogEntry extends GenreCatalogEntry {
+  description: string | null;
 }
 
 export const genreCatalog: GenreCatalogEntry[] = [
@@ -57,4 +62,29 @@ export const canonicalGenreSlug = (value: string) => {
   const slug = slugifyGenre(value);
 
   return genreValueAliases.get(slug) ?? slug;
+};
+
+export const mergePersistedGenreCatalog = (
+  persistedGenres: readonly PersistedGenreCatalogEntry[]
+): PersistedGenreCatalogEntry[] => {
+  const canonicalSlugs = new Set(genreCatalog.map((genre) => genre.slug)),
+    persistedBySlug = new Map(
+      persistedGenres.map((genre) => [genre.slug, genre])
+    );
+
+  return [
+    ...genreCatalog.map((fallbackGenre) => {
+      const persistedGenre = persistedBySlug.get(fallbackGenre.slug);
+      return persistedGenre
+        ? {
+            ...persistedGenre,
+            name: fallbackGenre.name,
+          }
+        : {
+            ...fallbackGenre,
+            description: null,
+          };
+    }),
+    ...persistedGenres.filter((genre) => !canonicalSlugs.has(genre.slug)),
+  ].toSorted((first, second) => first.name.localeCompare(second.name));
 };
