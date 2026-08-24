@@ -70,6 +70,7 @@ function ArtistOnboardingPage() {
     [avatarUrl, setAvatarUrl] = useState(""),
     [avatarStatus, setAvatarStatus] = useState<AvatarUploadStatus>("idle"),
     [city, setCity] = useState(""),
+    [country, setCountry] = useState(""),
     [stateValue, setStateValue] = useState(""),
     [primaryGenre, setPrimaryGenre] = useState(""),
     [spotifyUrl, setSpotifyUrl] = useState(""),
@@ -190,6 +191,7 @@ function ArtistOnboardingPage() {
         !usernameAvailable ||
         !primaryGenre ||
         !city ||
+        !country ||
         !stateValue ||
         !rightsAttested
       ) {
@@ -214,6 +216,7 @@ function ArtistOnboardingPage() {
               avatarObjectKey: avatarObjectKey || undefined,
               avatarUrl: avatarUrl || undefined,
               city,
+              country,
               creatorEligibility: "independent",
               instagramHandle: instagramHandle || undefined,
               mediaLayout,
@@ -289,6 +292,7 @@ function ArtistOnboardingPage() {
         setAvatarObjectKey(draft.avatarObjectKey);
         setAvatarUrl(draft.avatarUrl);
         setCity(draft.city);
+        setCountry(draft.country);
         setStateValue(draft.stateValue);
         setPrimaryGenre(draft.primaryGenre);
         setRoles(draft.roles);
@@ -349,6 +353,7 @@ function ArtistOnboardingPage() {
         avatarObjectKey,
         avatarUrl,
         city,
+        country,
         primaryGenre,
         roles,
         selectedPlanCode,
@@ -361,6 +366,7 @@ function ArtistOnboardingPage() {
     avatarObjectKey,
     avatarUrl,
     city,
+    country,
     isDraftRestored,
     primaryGenre,
     roles,
@@ -570,8 +576,14 @@ function ArtistOnboardingPage() {
               >
                 <LocationField
                   city={city}
-                  onChange={({ city: nextCity, state: nextState }) => {
+                  country={country}
+                  onChange={({
+                    city: nextCity,
+                    country: nextCountry,
+                    state: nextState,
+                  }) => {
                     setCity(nextCity);
+                    setCountry(nextCountry);
                     setStateValue(nextState);
                   }}
                   state={stateValue}
@@ -586,7 +598,7 @@ function ArtistOnboardingPage() {
                     Back
                   </Button>
                   <div className="flex-1">
-                    {nextButton(6, !(city && stateValue))}
+                    {nextButton(6, !(city && country && stateValue))}
                   </div>
                 </div>
               </StepFrame>

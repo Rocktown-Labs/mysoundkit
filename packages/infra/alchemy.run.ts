@@ -332,7 +332,7 @@ export const web = await TanStackStart("web", {
     VITE_ENABLE_MERCH: "false",
     VITE_SENTRY_ENVIRONMENT: SENTRY_ENVIRONMENT,
     VITE_MEDIA_URL: MEDIA_URL,
-    ...optionalEnvBinding("VITE_RADAR_PUBLISHABLE_KEY"),
+    ...optionalEnvBinding("VITE_GOOGLE_MAPS_API_KEY"),
     ...optionalEnvBinding("VITE_STRIPE_PUBLISHABLE_KEY"),
     ...optionalEnvBinding("VITE_TURNSTILE_SITE_KEY"),
     VITE_SENTRY_DSN: SENTRY_WEB_DSN,

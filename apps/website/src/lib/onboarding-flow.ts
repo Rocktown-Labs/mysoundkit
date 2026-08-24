@@ -4,6 +4,7 @@ export interface ArtistOnboardingDraft {
   avatarObjectKey: string;
   avatarUrl: string;
   city: string;
+  country: string;
   locationQuery: string;
   primaryGenre: string;
   roles: ArtistRole[];
@@ -81,6 +82,7 @@ export const parseArtistOnboardingDraft = (
       typeof parsed.avatarObjectKey === "string" ? parsed.avatarObjectKey : "",
     avatarUrl: typeof parsed.avatarUrl === "string" ? parsed.avatarUrl : "",
     city: typeof parsed.city === "string" ? parsed.city : "",
+    country: typeof parsed.country === "string" ? parsed.country : "",
     locationQuery:
       typeof parsed.locationQuery === "string" ? parsed.locationQuery : "",
     primaryGenre:

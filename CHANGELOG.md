@@ -6,6 +6,7 @@
 
 - Added an Admin Open Verse catalog with raw legacy/media health, owner and track context, request/submission counts, and confirmed cleanup that preserves underlying tracks.
 - Added scoped Explore map geographies: continental views now render only their own countries, while North America retains detailed US states with clickable Canada and Mexico outlines.
+- Added global onboarding location autocomplete with Google Places (New), normalized city/region/country persistence, accessible custom suggestions, and a no-key manual fallback for local/test environments.
 - Added production-ready regional discovery across tracks, videos, projects, artists, battles, creator streams, and listening parties, with real country/continent/US-state server filters, URL-backed Live destinations, Canada/Mexico map coverage, selected-area map zoom, and locally bundled geography assets.
 - Added Admin genre and regional catalog operations: every canonical/custom genre now shows track, video, project, battle, party, and Open Verse usage; admins can add genres such as Battle Rap; and regional coverage reports surface member/upload inventory plus missing location data.
 - Added short-lived Cloudflare Cache API caching for an explicit allowlist of invariant public catalog GETs, with canonical keys, CORS-safe storage, credential/private/live exclusions, and observable HIT/MISS/BYPASS headers.

@@ -1577,6 +1577,7 @@ export const onboardingArtistBodySchema = z
     avatarObjectKey: z.string().min(1).optional(),
     avatarUrl: z.url().optional(),
     city: z.string().min(1),
+    country: z.string().min(1),
     creatorEligibility: z
       .enum(["independent", "major_label_affiliated"])
       .optional(),
@@ -1617,6 +1618,7 @@ export const onboardingResponseSchema = z.object({
 
 export const onboardingFanBodySchema = z.object({
   city: z.string().min(1),
+  country: z.string().min(1),
   genrePreferences: z.array(z.string()).min(3),
   mediaLayout: z.enum(["cards", "list"]).default("cards"),
   selectedPlanCode: z.enum(["fan_free", "soundkit_premium_fan"]),

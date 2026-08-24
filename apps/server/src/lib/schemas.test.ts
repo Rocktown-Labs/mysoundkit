@@ -15,6 +15,7 @@ import {
 
 const artistOnboardingPayload = {
   city: "Little Rock",
+  country: "United States",
   primaryGenre: "Hip-Hop",
   roles: ["musician"],
   selectedPlanCode: "artist_free",
@@ -117,6 +118,7 @@ describe("onboarding plan codes", () => {
 
   const fanPayload = {
     city: "Chicago",
+    country: "United States",
     genrePreferences: ["House", "Hip-Hop", "Soul"],
     state: "IL",
     username: "soundkit_fan",
