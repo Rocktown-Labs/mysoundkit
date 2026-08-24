@@ -46,4 +46,7 @@ export default defineConfig({
         timeout: 240_000,
         url: webBaseUrl,
       },
+  // The suite shares one vite dev server per run; uncapped workers saturate
+  // small CI machines and stall on-demand route module compilation.
+  workers: 2,
 });

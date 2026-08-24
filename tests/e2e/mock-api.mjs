@@ -176,6 +176,23 @@ const json = (response, status, body, origin) => {
       title: "Summer Nights",
     },
   ],
+  mockProjects = [
+    {
+      artistName: "Luna Eclipse",
+      artistUsername: "luna-eclipse",
+      collaboratorCount: 1,
+      coverArtUrl: "/summer-music-album-cover.png",
+      duration: "12:44",
+      id: "project_after_dark",
+      isForSale: false,
+      isPublic: true,
+      projectType: "ep",
+      slug: "after-dark",
+      status: "released",
+      title: "After Dark",
+      trackCount: 4,
+    },
+  ],
   mockArtists = [
     {
       avatarUrl: "/diverse-user-avatars.png",
@@ -223,6 +240,43 @@ const json = (response, status, body, origin) => {
       viewCount: "42K",
     },
   ],
+  mockArtistMedia = {
+    credits: [
+      {
+        contentId: "track_city_lights",
+        contentType: "track",
+        coverArtUrl: "/hip-hop-album-cover.png",
+        ownerName: "Neon Pulse",
+        ownerUsername: "neon-pulse",
+        role: "songwriter",
+        slug: "city-lights",
+        title: "City Lights",
+      },
+    ],
+    featuredProjects: [
+      {
+        ...mockProjects[0],
+        artistName: "Neon Pulse",
+        artistUsername: "neon-pulse",
+        id: "project_neon_city",
+        slug: "neon-city",
+        title: "Neon City",
+      },
+    ],
+    featuredTracks: [
+      {
+        ...mockTracks[0],
+        artistName: "Neon Pulse",
+        artistUsername: "neon-pulse",
+        id: "track_city_lights",
+        slug: "city-lights",
+        title: "City Lights",
+      },
+    ],
+    projects: mockProjects,
+    tracks: mockTracks,
+    videos: mockVideos,
+  },
   mockBattles = [
     {
       featuredRank: 1,
@@ -467,6 +521,104 @@ export const createMockApiServer = async ({
 
     if (url.pathname === "/v1/tracks" || url.pathname === "/v1/tracks/") {
       json(response, 200, mockTracks, webOrigin);
+      return;
+    }
+
+    const trackDetailMatch = url.pathname.match(/^\/v1\/tracks\/([^/]+)$/);
+    if (trackDetailMatch) {
+      json(
+        response,
+        200,
+        {
+          ...mockTracks[0],
+          artist: {
+            avatarUrl: mockArtists[0].avatarUrl,
+            handle: "luna-eclipse",
+            id: "artist_luna_eclipse",
+            name: "Luna Eclipse",
+            roles: ["musician"],
+            username: "luna-eclipse",
+            verified: true,
+          },
+          credits: {
+            artists: [
+              {
+                avatarUrl: null,
+                displayName: "Luna Eclipse",
+                id: "credit_artist_1",
+                legalName: null,
+                role: "artist",
+                splitBps: null,
+                username: "luna-eclipse",
+              },
+            ],
+            engineers: [
+              {
+                avatarUrl: null,
+                displayName: "Reese Nakamura",
+                id: "credit_engineer_1",
+                legalName: null,
+                role: "engineer",
+                splitBps: null,
+                username: null,
+              },
+            ],
+            producers: [
+              {
+                avatarUrl: null,
+                displayName: "Marcus Holt",
+                id: "credit_producer_1",
+                legalName: null,
+                role: "producer",
+                splitBps: null,
+                username: "marcus-holt",
+              },
+            ],
+            vocalists: [
+              {
+                avatarUrl: null,
+                displayName: "Cassandra Vale, Lena Ortiz",
+                id: "credit_vocalist_1",
+                legalName: null,
+                role: "vocalist",
+                splitBps: null,
+                username: null,
+              },
+            ],
+            writers: [
+              {
+                avatarUrl: null,
+                displayName: "Cassandra Vale, Priya Desmond",
+                id: "credit_writer_1",
+                legalName: null,
+                role: "songwriter",
+                splitBps: null,
+                username: null,
+              },
+            ],
+          },
+          listeningAccess: "public",
+          playbackUrl: "/v1/tracks/track_summer_nights/playback",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    const artistMediaMatch = url.pathname.match(
+      /^\/v1\/artists\/([^/]+)\/media$/
+    );
+    if (artistMediaMatch) {
+      json(response, 200, mockArtistMedia, webOrigin);
+      return;
+    }
+
+    const artistDetailMatch = url.pathname.match(/^\/v1\/artists\/([^/]+)$/);
+    if (artistDetailMatch) {
+      const artist =
+        mockArtists.find((entry) => entry.username === artistDetailMatch[1]) ??
+        mockArtists[0];
+      json(response, 200, artist, webOrigin);
       return;
     }
 

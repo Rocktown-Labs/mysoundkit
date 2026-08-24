@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
-import type { FieldErrors } from "react-hook-form";
+import type { FieldErrors, Resolver } from "react-hook-form";
 import * as z from "zod";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
@@ -218,6 +218,9 @@ type TrackFormValues = z.infer<typeof trackFormSchema>;
 // must not require those fields to pass before other changes can be saved.
 const releasedTrackFormSchema = trackFormSchema.extend({
   genre: z.string(),
+  // Status stays type-required (the select is disabled but always prefilled);
+  // only its validation strictness is relaxed for released tracks.
+  status: z.enum(["draft", "ready"]).default("ready"),
 });
 interface GenreOption {
   name: string;
@@ -377,12 +380,24 @@ export function NewTrackForm({
     isPremiumArtist = entitlementsQuery.data?.isPremium === true,
     sellerStatusQuery = useSellerStatusQuery(),
     payoutsReady = (sellerStatusQuery.data?.chargesEnabled ?? false) === true,
+    // initialTrack can arrive after mount (async route loader), so the
+    // resolver must be picked at validation time, not mount time.
+    isReleasedTrackRef = useRef(isReleasedTrack),
     form = useForm<TrackFormValues>({
       defaultValues: defaultTrackFormValues,
-      resolver: zodResolver(
-        isReleasedTrack ? releasedTrackFormSchema : trackFormSchema
-      ),
+      // Cast: the released-track variant relaxes locked fields (genre/status),
+      // which widens the output type but stays assignable at runtime.
+      resolver: ((
+        values: TrackFormValues,
+        context: Parameters<Resolver<TrackFormValues>>[1],
+        options: Parameters<Resolver<TrackFormValues>>[2]
+      ) =>
+        zodResolver(
+          isReleasedTrackRef.current ? releasedTrackFormSchema : trackFormSchema
+        )(values, context, options)) as unknown as Resolver<TrackFormValues>,
     });
+
+  isReleasedTrackRef.current = isReleasedTrack;
 
   // Prefill when editing an existing track
   useEffect(() => {
@@ -773,6 +788,12 @@ export function NewTrackForm({
 
       // Edit Mode submission
       if (trackId && initialTrack) {
+        if (isReleasedTrackRef.current) {
+          await handleSaveChanges();
+          isSubmittingRef.current = false;
+          setIsSubmitting(false);
+          return;
+        }
         try {
           setSubmitStage("uploading");
           let coverKey = values.coverObjectKey;

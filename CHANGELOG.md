@@ -5,6 +5,8 @@
 ### Added
 
 - Added admin moderation powers: administrators can delete an Open Verse listing (with its access requests and submissions) from the listing detail page, and delete user accounts from the admin Users panel via the better-auth admin plugin.
+- Added public artist portfolio media with Feed, Tracks, Projects, Videos, and Credits tabs, including accepted performing collaborations in Also Featured On sections and accepted songwriting, production, and engineering credits.
+- Added grouped credit displays: profile Credits tabs show Performance, Songwriting, and Production sections using visual media cards, and track detail pages list credits as role-labeled rows (Artist, Vocals, Written by, Produced by, Engineering) under the same groups.
 - Added Open Verse closing automation: a cron sweep closes listings at their `closesAt` deadline, notifies owners and submitters, and sends a 24-hour closing-soon reminder to the owner.
 - Added durable `PurchaseFulfillmentWorkflow`: Stripe webhook marks orders paid, then purchases grants, delivery emails, and in-app notifications run as idempotent retry-safe workflow steps.
 - Added idempotent checkout: stable client idempotency keys (persisted per checkout intent) resolve retries to the original order and live Stripe session; Stripe session creation carries an `Idempotency-Key`.
@@ -28,6 +30,8 @@
 ### Fixed
 
 - Fixed video comments silently failing: posting errors now surface a destructive toast with the API message, comment listings tolerate commenters without profile rows, and the video chat panel clears the fixed mobile bottom navigation so the comment input is reachable on small screens.
+- Fixed track quick actions and released-track editing: main-file swaps now pass the required per-track upload metadata (previously rejected as "Invalid metadata."), cover-art swaps demote legacy NULL-purpose current rows so only one cover stays current, swapped-in masters relaunch the media processing workflow so derivatives regenerate, cover uploads send the real file MIME type, and the released-track editor picks its schema resolver at validation time so disabled Status/Genre fields no longer block saving.
+- Fixed the explore home page stretching horizontally on large screens when card rails overflow; rails now scroll in place while the map keeps its full width.
 - Fixed V3 True Peak correction attenuating the entire mix and pushing valid streaming derivatives below the accepted loudness range; pipeline V4 always guards AAC transient overshoot and adaptively lowers the limiter ceiling independently from loudness gain.
 - Fixed media pipeline V2 consumer downloads returning a null loudness result after successful encoding, which caused four repeated renders and `Cannot read properties of null (reading 'integratedLufs')`; pipeline V3 now assigns and validates the measurement before registration.
 - Raised preview media-container concurrency from 5 to 20, shortened idle sleep, preserved non-JSON Container diagnostics, and added processor stack logging so concurrent test uploads no longer surface opaque random 500s.

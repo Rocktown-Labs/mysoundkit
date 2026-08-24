@@ -1,23 +1,49 @@
 "use client";
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, unicorn/no-negated-condition, react/set-state-in-effect */
 
-import { createFileRoute } from "@tanstack/react-router";
-import { Film, Grid3x3, LayoutGrid, LoaderCircle, Music } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  FileBadge2,
+  Film,
+  Grid3x3,
+  LayoutGrid,
+  LoaderCircle,
+  Music,
+} from "lucide-react";
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 
 import { ProfileShell } from "@/components/dashboard/profile/profile-shell";
+import { ProjectCard } from "@/components/explore/project-card";
 import { TrackCard } from "@/components/explore/track-card";
+import { VideoCard } from "@/components/explore/video-card";
+import type { ExploreVideoCardData } from "@/components/explore/video-card";
+import { AppImage } from "@/components/ui/app-image";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { absoluteSiteUrl, createShareMeta, seoDescription } from "@/lib/seo";
 import { loadPublicArtistSeo } from "@/lib/seo-data";
 import type { ArtistSeoData } from "@/lib/seo-data";
 import {
+  useArtistMediaQuery,
   useArtistQuery,
   useMeQuery,
-  useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
-import type { ArtistSummary } from "@/lib/soundkit-api-hooks";
+import type {
+  ArtistProfileCredit,
+  ArtistSummary,
+  PublicProjectSummary,
+  TrackSummary,
+  VideoSummary,
+} from "@/lib/soundkit-api-hooks";
 
-const artistProfileTabs = ["all", "tracks", "projects", "videos"] as const;
+const artistProfileTabs = [
+  "all",
+  "tracks",
+  "projects",
+  "videos",
+  "credits",
+] as const;
 type ArtistProfileTab = (typeof artistProfileTabs)[number];
 
 const isArtistProfileTab = (value: unknown): value is ArtistProfileTab =>
@@ -64,8 +90,13 @@ export const Route = createFileRoute("/_explore/artist/$username")({
         : [],
     };
   },
-  loader: ({ params }) =>
-    loadPublicArtistSeo(params.username).catch(() => null),
+  loader: async ({ params }) => {
+    try {
+      return await loadPublicArtistSeo(params.username);
+    } catch {
+      return null;
+    }
+  },
 });
 
 const formatCount = (value?: number) => {
@@ -127,7 +158,39 @@ const formatCount = (value?: number) => {
     tracks: trackCountOverride ?? artist.trackCount ?? 0,
     username: artist.username,
     verified: artist.verified,
-  });
+  }),
+  videoCardData = (
+    video: VideoSummary,
+    fallbackArtist: ArtistSummary
+  ): ExploreVideoCardData => ({
+    creator: {
+      avatarUrl: video.creatorAvatarUrl ?? fallbackArtist.avatarUrl,
+      name: video.creatorName ?? fallbackArtist.name,
+      slug: video.creatorUsername ?? fallbackArtist.username,
+    },
+    duration: video.duration ?? "0:00",
+    id: video.id,
+    playbackPolicy: video.playbackPolicy,
+    regionSlug: video.regionSlug,
+    slug: video.slug,
+    status: video.status,
+    thumbnail: video.thumbnailUrl ?? "/placeholder.svg",
+    title: video.title,
+    verifiedOnPlatform: video.verifiedOnPlatform,
+    videoKind: video.videoKind,
+    viewCount: video.viewCount ?? "0",
+  }),
+  creditRoleLabel = (role: ArtistProfileCredit["role"]) => {
+    if (role === "songwriter") {
+      return "Songwriter";
+    }
+
+    if (role === "producer") {
+      return "Producer";
+    }
+
+    return "Engineer";
+  };
 
 function EmptyArtistTab({
   label,
@@ -147,9 +210,186 @@ function EmptyArtistTab({
   );
 }
 
+function MediaLoading() {
+  return (
+    <div className="flex min-h-48 items-center justify-center">
+      <LoaderCircle
+        aria-label="Loading artist media"
+        className="size-6 animate-spin text-primary"
+      />
+    </div>
+  );
+}
+
+function ProfileSection({
+  children,
+  description,
+  title,
+}: {
+  children: ReactNode;
+  description?: string;
+  title: string;
+}) {
+  const headingId = `profile-${title.toLowerCase().replaceAll(" ", "-")}`;
+
+  return (
+    <section aria-labelledby={headingId} className="space-y-4">
+      <div>
+        <h2 className="font-bold text-xl tracking-tight" id={headingId}>
+          {title}
+        </h2>
+        {description ? (
+          <p className="mt-1 text-muted-foreground text-sm">{description}</p>
+        ) : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function TrackGrid({ tracks }: { tracks: TrackSummary[] }) {
+  return (
+    <div className="flex flex-wrap gap-4">
+      {tracks.map((track) => (
+        <TrackCard
+          artist={track.artistName}
+          artistSlug={track.artistUsername ?? "artist"}
+          cover={track.coverArtUrl ?? "/placeholder.svg"}
+          duration={track.duration ?? "0:00"}
+          id={track.id}
+          key={track.id}
+          plays={track.plays ? track.plays.toLocaleString() : "0"}
+          regionSlug={track.regionSlug}
+          slug={track.slug}
+          title={track.title}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ProjectGrid({ projects }: { projects: PublicProjectSummary[] }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+      {projects.map((project) => (
+        <ProjectCard key={project.id} project={project} />
+      ))}
+    </div>
+  );
+}
+
+function VideoGrid({
+  artist,
+  videos,
+}: {
+  artist: ArtistSummary;
+  videos: VideoSummary[];
+}) {
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      {videos.map((video) => (
+        <VideoCard key={video.id} video={videoCardData(video, artist)} />
+      ))}
+    </div>
+  );
+}
+
+function CreditGroupSection({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <section className="space-y-4">
+      <h3 className="font-semibold text-sm uppercase tracking-widest text-muted-foreground">
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+function CreditList({ credits }: { credits: ArtistProfileCredit[] }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {credits.map((credit) => {
+        const link =
+          credit.contentType === "track"
+            ? {
+                params: { id: credit.contentId },
+                to: "/tracks/$id" as const,
+              }
+            : {
+                params: { id: credit.contentId },
+                to: "/projects/$id" as const,
+              };
+
+        return (
+          <Link
+            {...link}
+            className="group flex gap-4 rounded-xl border border-border/50 bg-card/60 p-3 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            key={`${credit.contentType}-${credit.contentId}-${credit.role}`}
+          >
+            <AppImage
+              alt={`${credit.title} artwork`}
+              className="size-20 shrink-0 rounded-lg object-cover"
+              height={160}
+              src={credit.coverArtUrl ?? "/placeholder.svg"}
+              width={160}
+            />
+            <div className="min-w-0 flex-1 py-1">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="truncate font-semibold group-hover:text-primary">
+                    {credit.title}
+                  </h3>
+                  <p className="truncate text-muted-foreground text-sm">
+                    {credit.ownerName}
+                  </p>
+                </div>
+                <Badge variant="secondary">
+                  {creditRoleLabel(credit.role)}
+                </Badge>
+              </div>
+              <p className="mt-3 text-muted-foreground text-xs uppercase tracking-wide">
+                {credit.contentType === "track"
+                  ? "Track credit"
+                  : `${credit.projectType ?? "Project"} credit`}
+              </p>
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function FeaturedMedia({
+  projects,
+  tracks,
+}: {
+  projects: PublicProjectSummary[];
+  tracks: TrackSummary[];
+}) {
+  return (
+    <ProfileSection
+      description="Public releases by other artists that include this artist as a performer."
+      title="Also Featured On"
+    >
+      <div className="space-y-6">
+        {tracks.length > 0 ? <TrackGrid tracks={tracks} /> : null}
+        {projects.length > 0 ? <ProjectGrid projects={projects} /> : null}
+      </div>
+    </ProfileSection>
+  );
+}
+
 function ArtistProfilePage() {
   const { username } = Route.useParams(),
     artistQuery = useArtistQuery(username),
+    mediaQuery = useArtistMediaQuery(username),
     meQuery = useMeQuery(),
     [activeTab, setActiveTab] = useState<ArtistProfileTab>("all");
 
@@ -163,15 +403,18 @@ function ArtistProfilePage() {
 
   const currentUser = meQuery.data?.user,
     artist = artistQuery.data,
+    media = mediaQuery.data,
     isOwner = Boolean(
       artist &&
       currentUser &&
       (currentUser.username?.toLowerCase() === artist.username.toLowerCase() ||
         currentUser.id === artist.id)
     ),
-    tracksQuery = useTracksQuery(undefined, {
-      scope: isOwner ? "dashboard" : "public",
-    });
+    artistTracks = media?.tracks ?? [],
+    totalArtistPlays = artistTracks.reduce(
+      (sum, track) => sum + (track.plays || 0),
+      0
+    );
 
   if (artistQuery.isLoading) {
     return (
@@ -192,14 +435,27 @@ function ArtistProfilePage() {
     );
   }
 
-  const allTracks = tracksQuery.data ?? [],
-    artistTracks = allTracks.filter(
-      (t) =>
-        t.artistUsername?.toLowerCase() === artist.username.toLowerCase() ||
-        t.artistName?.toLowerCase() === artist.name.toLowerCase() ||
-        isOwner
+  const projects = media?.projects ?? [],
+    videos = media?.videos ?? [],
+    featuredTracks = media?.featuredTracks ?? [],
+    featuredProjects = media?.featuredProjects ?? [],
+    credits = media?.credits ?? [],
+    songwritingCredits = credits.filter(
+      (credit) => credit.role === "songwriter"
     ),
-    totalArtistPlays = artistTracks.reduce((sum, t) => sum + (t.plays || 0), 0);
+    productionCredits = credits.filter(
+      (credit) => credit.role === "producer" || credit.role === "engineer"
+    ),
+    hasCreditsContent =
+      credits.length > 0 ||
+      featuredTracks.length > 0 ||
+      featuredProjects.length > 0,
+    hasFeedContent =
+      artistTracks.length > 0 ||
+      projects.length > 0 ||
+      videos.length > 0 ||
+      featuredTracks.length > 0 ||
+      featuredProjects.length > 0;
 
   return (
     <ProfileShell
@@ -213,110 +469,169 @@ function ArtistProfilePage() {
       viewerAccountType={meQuery.data?.user.accountType ?? null}
     >
       <Tabs
-        value={activeTab}
+        className="w-full"
         onValueChange={(tab) => {
           if (!isArtistProfileTab(tab)) {
             return;
           }
 
           setActiveTab(tab);
+          window.history.replaceState(null, "", `#${tab}`);
         }}
-        className="w-full"
+        value={activeTab}
       >
-        <div className="flex items-center justify-center border-border/10 border-t">
-          <TabsList className="h-14 gap-8 bg-transparent md:gap-16">
+        <div className="border-border/10 border-t">
+          <TabsList className="flex h-14 w-full justify-start gap-6 overflow-x-auto bg-transparent px-1 md:justify-center md:gap-12">
             <TabsTrigger
+              className="h-full shrink-0 gap-2 rounded-none border-transparent border-t-2 px-0 font-bold text-[10px] uppercase tracking-widest data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none md:text-xs"
               value="all"
-              className="h-full gap-2 rounded-none border-transparent border-t-2 px-0 font-bold text-[10px] uppercase tracking-widest data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none md:text-xs"
             >
               <Grid3x3 className="size-4" />
-              <span className="hidden sm:inline">Feed</span>
+              <span>Feed</span>
             </TabsTrigger>
             <TabsTrigger
+              className="h-full shrink-0 gap-2 rounded-none border-transparent border-t-2 px-0 font-bold text-[10px] uppercase tracking-widest data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none md:text-xs"
               value="tracks"
-              className="h-full gap-2 rounded-none border-transparent border-t-2 px-0 font-bold text-[10px] uppercase tracking-widest data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none md:text-xs"
             >
               <Music className="size-4" />
-              <span className="hidden sm:inline">Tracks</span>
+              <span>Tracks</span>
             </TabsTrigger>
             <TabsTrigger
+              className="h-full shrink-0 gap-2 rounded-none border-transparent border-t-2 px-0 font-bold text-[10px] uppercase tracking-widest data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none md:text-xs"
               value="projects"
-              className="h-full gap-2 rounded-none border-transparent border-t-2 px-0 font-bold text-[10px] uppercase tracking-widest data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none md:text-xs"
             >
               <LayoutGrid className="size-4" />
-              <span className="hidden sm:inline">Projects</span>
+              <span>Projects</span>
             </TabsTrigger>
             <TabsTrigger
+              className="h-full shrink-0 gap-2 rounded-none border-transparent border-t-2 px-0 font-bold text-[10px] uppercase tracking-widest data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none md:text-xs"
               value="videos"
-              className="h-full gap-2 rounded-none border-transparent border-t-2 px-0 font-bold text-[10px] uppercase tracking-widest data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none md:text-xs"
             >
               <Film className="size-4" />
-              <span className="hidden sm:inline">Videos</span>
+              <span>Videos</span>
+            </TabsTrigger>
+            <TabsTrigger
+              className="h-full shrink-0 gap-2 rounded-none border-transparent border-t-2 px-0 font-bold text-[10px] uppercase tracking-widest data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none md:text-xs"
+              value="credits"
+            >
+              <FileBadge2 className="size-4" />
+              <span>Credits</span>
             </TabsTrigger>
           </TabsList>
         </div>
 
-        <TabsContent value="all" className="mt-6">
-          {artistTracks.length > 0 ? (
-            <div
-              className={
-                artist.mediaLayout === "list"
-                  ? "flex flex-col gap-2"
-                  : "flex flex-wrap gap-4"
-              }
-            >
-              {artistTracks.map((t) => (
-                <TrackCard
-                  key={t.id}
-                  id={t.id}
-                  title={t.title}
-                  artist={t.artistName}
-                  artistSlug={t.artistUsername ?? artist.username}
-                  cover={t.coverArtUrl ?? "/placeholder.svg"}
-                  plays={t.plays ? t.plays.toLocaleString() : "0"}
-                  duration={t.duration ?? "3:20"}
-                  regionSlug={t.regionSlug}
-                  slug={t.slug}
+        <TabsContent className="mt-6" value="all">
+          {mediaQuery.isLoading ? <MediaLoading /> : null}
+          {!mediaQuery.isLoading && hasFeedContent ? (
+            <div className="space-y-10">
+              {artistTracks.length > 0 ? (
+                <ProfileSection title="Tracks">
+                  <TrackGrid tracks={artistTracks.slice(0, 8)} />
+                </ProfileSection>
+              ) : null}
+              {projects.length > 0 ? (
+                <ProfileSection title="Projects">
+                  <ProjectGrid projects={projects.slice(0, 4)} />
+                </ProfileSection>
+              ) : null}
+              {videos.length > 0 ? (
+                <ProfileSection title="Videos">
+                  <VideoGrid artist={artist} videos={videos.slice(0, 4)} />
+                </ProfileSection>
+              ) : null}
+              {featuredTracks.length > 0 || featuredProjects.length > 0 ? (
+                <FeaturedMedia
+                  projects={featuredProjects.slice(0, 4)}
+                  tracks={featuredTracks.slice(0, 8)}
                 />
-              ))}
+              ) : null}
             </div>
-          ) : (
+          ) : null}
+          {!mediaQuery.isLoading && !hasFeedContent ? (
             <EmptyArtistTab label="public posts" username={artist.username} />
-          )}
+          ) : null}
         </TabsContent>
-        <TabsContent value="tracks" className="mt-6">
-          {artistTracks.length > 0 ? (
-            <div
-              className={
-                artist.mediaLayout === "list"
-                  ? "flex flex-col gap-2"
-                  : "flex flex-wrap gap-4"
-              }
-            >
-              {artistTracks.map((t) => (
-                <TrackCard
-                  key={t.id}
-                  id={t.id}
-                  title={t.title}
-                  artist={t.artistName}
-                  artistSlug={t.artistUsername ?? artist.username}
-                  cover={t.coverArtUrl ?? "/placeholder.svg"}
-                  plays={t.plays ? t.plays.toLocaleString() : "0"}
-                  duration={t.duration ?? "3:20"}
-                  regionSlug={t.regionSlug}
-                  slug={t.slug}
-                />
-              ))}
+
+        <TabsContent className="mt-6" value="tracks">
+          {mediaQuery.isLoading ? <MediaLoading /> : null}
+          {mediaQuery.isLoading ? null : (
+            <div className="space-y-10">
+              {artistTracks.length > 0 ? (
+                <ProfileSection title="Tracks">
+                  <TrackGrid tracks={artistTracks} />
+                </ProfileSection>
+              ) : (
+                <EmptyArtistTab label="tracks" username={artist.username} />
+              )}
+              {featuredTracks.length > 0 ? (
+                <FeaturedMedia projects={[]} tracks={featuredTracks} />
+              ) : null}
             </div>
-          ) : (
-            <EmptyArtistTab label="tracks" username={artist.username} />
           )}
         </TabsContent>
-        <TabsContent value="projects" className="mt-6">
-          <EmptyArtistTab label="projects" username={artist.username} />
+
+        <TabsContent className="mt-6" value="projects">
+          {mediaQuery.isLoading ? <MediaLoading /> : null}
+          {mediaQuery.isLoading ? null : (
+            <div className="space-y-10">
+              {projects.length > 0 ? (
+                <ProfileSection title="Projects">
+                  <ProjectGrid projects={projects} />
+                </ProfileSection>
+              ) : (
+                <EmptyArtistTab label="projects" username={artist.username} />
+              )}
+              {featuredProjects.length > 0 ? (
+                <FeaturedMedia projects={featuredProjects} tracks={[]} />
+              ) : null}
+            </div>
+          )}
         </TabsContent>
-        <TabsContent value="videos" className="mt-6">
-          <EmptyArtistTab label="videos" username={artist.username} />
+
+        <TabsContent className="mt-6" value="videos">
+          {mediaQuery.isLoading ? <MediaLoading /> : null}
+          {!mediaQuery.isLoading && videos.length > 0 ? (
+            <VideoGrid artist={artist} videos={videos} />
+          ) : null}
+          {!mediaQuery.isLoading && videos.length === 0 ? (
+            <EmptyArtistTab label="videos" username={artist.username} />
+          ) : null}
+        </TabsContent>
+
+        <TabsContent className="mt-6" value="credits">
+          {mediaQuery.isLoading ? <MediaLoading /> : null}
+          {!mediaQuery.isLoading && hasCreditsContent ? (
+            <ProfileSection
+              description={`How @${artist.username} appears across SoundKit releases.`}
+              title="Credits"
+            >
+              <div className="space-y-10">
+                {featuredTracks.length > 0 || featuredProjects.length > 0 ? (
+                  <CreditGroupSection title="Performance">
+                    {featuredTracks.length > 0 ? (
+                      <TrackGrid tracks={featuredTracks} />
+                    ) : null}
+                    {featuredProjects.length > 0 ? (
+                      <ProjectGrid projects={featuredProjects} />
+                    ) : null}
+                  </CreditGroupSection>
+                ) : null}
+                {songwritingCredits.length > 0 ? (
+                  <CreditGroupSection title="Songwriting">
+                    <CreditList credits={songwritingCredits} />
+                  </CreditGroupSection>
+                ) : null}
+                {productionCredits.length > 0 ? (
+                  <CreditGroupSection title="Production">
+                    <CreditList credits={productionCredits} />
+                  </CreditGroupSection>
+                ) : null}
+              </div>
+            </ProfileSection>
+          ) : null}
+          {!mediaQuery.isLoading && !hasCreditsContent ? (
+            <EmptyArtistTab label="credits" username={artist.username} />
+          ) : null}
         </TabsContent>
       </Tabs>
     </ProfileShell>

@@ -806,7 +806,9 @@ export const trackCreditEntrySchema = z.object({
 
 export const trackCatalogCreditsSchema = z.object({
   artists: z.array(trackCreditEntrySchema).default([]),
+  engineers: z.array(trackCreditEntrySchema).default([]),
   producers: z.array(trackCreditEntrySchema).default([]),
+  vocalists: z.array(trackCreditEntrySchema).default([]),
   writers: z.array(trackCreditEntrySchema).default([]),
 });
 
@@ -959,6 +961,27 @@ export const videoSummarySchema = z.object({
     "live_recording",
   ]),
   viewCount: z.string().optional(),
+});
+
+export const artistProfileCreditSchema = z.object({
+  contentId: z.string(),
+  contentType: z.enum(["track", "project"]),
+  coverArtUrl: z.string().nullable(),
+  ownerName: z.string(),
+  ownerUsername: z.string().nullable(),
+  projectType: z.enum(["album", "ep", "mixtape", "single"]).optional(),
+  role: z.enum(["producer", "engineer", "songwriter"]),
+  slug: z.string(),
+  title: z.string(),
+});
+
+export const artistProfileMediaSchema = z.object({
+  credits: artistProfileCreditSchema.array(),
+  featuredProjects: projectSummarySchema.array(),
+  featuredTracks: trackSummarySchema.array(),
+  projects: projectSummarySchema.array(),
+  tracks: trackSummarySchema.array(),
+  videos: videoSummarySchema.array(),
 });
 
 export const sellerStatusSchema = z.object({

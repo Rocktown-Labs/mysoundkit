@@ -6,22 +6,41 @@ import {
   genres,
   playbackSessions,
   profileLinks,
+  projectCollaborators,
+  projectTracks,
+  projects,
+  trackCollaborators,
   tracks,
   userProfiles,
+  videos,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
+import {
+  buildProjectSummary,
+  buildTrackSummary,
+} from "@/lib/dashboard-mappers";
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import {
   genreSlugFromExploreFilter,
+  regionSlugFromUser,
   stateFromExploreRegion,
 } from "@/lib/public-explore";
 import { sampleArtists } from "@/lib/sample-data";
-import { artistRankingQuerySchema, artistSummarySchema } from "@/lib/schemas";
+import {
+  artistProfileMediaSchema,
+  artistRankingQuerySchema,
+  artistSummarySchema,
+  messageResponseSchema,
+} from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import { videoPlaybackSourceType } from "@/lib/video-playback";
+import { resolveVideoThumbnailUrl } from "@/lib/video-thumbnails";
+
+type CreativeCreditRole = "engineer" | "producer" | "songwriter";
 
 const app = new OpenAPIHono<AppEnv>(),
   locationLabel = ({
@@ -30,7 +49,63 @@ const app = new OpenAPIHono<AppEnv>(),
   }: {
     city: string | null;
     state: string | null;
-  }) => [city, state].filter(Boolean).join(", ");
+  }) => [city, state].filter(Boolean).join(", "),
+  performingRoles: ("artist" | "vocalist")[] = ["artist", "vocalist"],
+  creativeCreditRoles: ("engineer" | "producer" | "songwriter")[] = [
+    "engineer",
+    "producer",
+    "songwriter",
+  ],
+  formatVideoDuration = (durationMs: number | null) => {
+    if (!durationMs) {
+      return "0:00";
+    }
+
+    const totalSeconds = Math.round(durationMs / 1000),
+      minutes = Math.floor(totalSeconds / 60),
+      seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  },
+  profileVideoSummary = ({
+    artist,
+    genre,
+    state,
+    video,
+    viewCount,
+  }: {
+    artist: {
+      avatarUrl: string | null;
+      name: string;
+      username: string;
+    };
+    genre: string | null;
+    state: string | null;
+    video: typeof videos.$inferSelect;
+    viewCount: number;
+  }) => ({
+    creatorAvatarUrl: artist.avatarUrl,
+    creatorName: artist.name,
+    creatorUsername: artist.username,
+    description: video.description,
+    duration: formatVideoDuration(video.durationMs),
+    externalPlaybackUrl: video.externalPlaybackUrl,
+    genre,
+    id: video.id,
+    muxPlaybackId: video.muxPlaybackId,
+    playbackPolicy: video.playbackPolicy,
+    regionSlug: regionSlugFromUser(state) ?? null,
+    releaseAt: video.releaseAt?.toISOString() ?? null,
+    slug: video.slug,
+    sourceProjectId: video.sourceProjectId,
+    sourceProvider: video.sourceProvider,
+    sourceTrackId: video.sourceTrackId,
+    status: video.status,
+    thumbnailUrl: resolveVideoThumbnailUrl(video),
+    title: video.title,
+    verifiedOnPlatform: video.verifiedOnPlatform,
+    videoKind: video.videoKind,
+    viewCount: String(viewCount),
+  });
 
 export const capitalizeWords = (input?: string | null) => {
   if (!input || input.trim().length === 0) {
@@ -351,6 +426,289 @@ app.openapi(
       sampleArtists.find((entry) => entry.username === username) ??
       sampleArtists[0];
     return c.json(artist, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/{username}/media",
+    request: {
+      params: z.object({
+        username: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        artistProfileMediaSchema,
+        "Public artist media and credits"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Artist not found"
+      ),
+    },
+    tags: ["Artists"],
+  }),
+  async (c) => {
+    const emptyMedia = {
+      credits: [],
+      featuredProjects: [],
+      featuredTracks: [],
+      projects: [],
+      tracks: [],
+      videos: [],
+    };
+
+    if (!isDatabaseConfigured()) {
+      return c.json(emptyMedia, HttpStatusCodes.OK);
+    }
+
+    const { username } = c.req.valid("param"),
+      db = createDb(),
+      [artist] = await db
+        .select({
+          avatarUrl: userProfiles.avatarUrl,
+          displayName: userProfiles.displayName,
+          name: authUser.name,
+          stageName: artistProfiles.stageName,
+          state: userProfiles.state,
+          userId: artistProfiles.userId,
+          username: userProfiles.username,
+        })
+        .from(artistProfiles)
+        .innerJoin(userProfiles, eq(userProfiles.userId, artistProfiles.userId))
+        .innerJoin(authUser, eq(authUser.id, artistProfiles.userId))
+        .where(
+          and(
+            eq(artistProfiles.publicProfileEnabled, true),
+            or(
+              eq(userProfiles.username, username),
+              ilike(userProfiles.username, username),
+              eq(userProfiles.userId, username),
+              ilike(userProfiles.displayName, username),
+              ilike(artistProfiles.stageName, username),
+              ilike(authUser.name, username)
+            )
+          )
+        )
+        .limit(1);
+
+    if (!artist) {
+      return c.json(
+        { message: "Artist profile was not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const [
+        ownedTrackRows,
+        ownedProjectRows,
+        collaborationTrackRows,
+        collaborationProjectRows,
+        videoRows,
+      ] = await Promise.all([
+        db
+          .select()
+          .from(tracks)
+          .where(
+            and(
+              eq(tracks.ownerUserId, artist.userId),
+              eq(tracks.isPublic, true)
+            )
+          )
+          .orderBy(desc(tracks.updatedAt))
+          .limit(50),
+        db
+          .select()
+          .from(projects)
+          .where(
+            and(
+              eq(projects.ownerUserId, artist.userId),
+              eq(projects.isPublic, true)
+            )
+          )
+          .orderBy(desc(projects.updatedAt))
+          .limit(50),
+        db
+          .select({
+            role: trackCollaborators.collaboratorRole,
+            track: tracks,
+          })
+          .from(trackCollaborators)
+          .innerJoin(tracks, eq(tracks.id, trackCollaborators.trackId))
+          .where(
+            and(
+              eq(trackCollaborators.collaboratorUserId, artist.userId),
+              eq(trackCollaborators.invitationStatus, "accepted"),
+              eq(tracks.isPublic, true),
+              ne(tracks.ownerUserId, artist.userId)
+            )
+          )
+          .orderBy(desc(tracks.updatedAt)),
+        db
+          .select({
+            project: projects,
+            role: projectCollaborators.collaboratorRole,
+          })
+          .from(projectCollaborators)
+          .innerJoin(projects, eq(projects.id, projectCollaborators.projectId))
+          .where(
+            and(
+              eq(projectCollaborators.collaboratorUserId, artist.userId),
+              eq(projectCollaborators.invitationStatus, "accepted"),
+              eq(projects.isPublic, true),
+              ne(projects.ownerUserId, artist.userId)
+            )
+          )
+          .orderBy(desc(projects.updatedAt)),
+        db
+          .select({
+            genre: genres.name,
+            video: videos,
+            viewCount: sql<number>`coalesce((
+              select count(*)::int
+              from ${playbackSessions}
+              where ${playbackSessions.sourceType} = ${videoPlaybackSourceType}
+                and ${playbackSessions.sourceId} = ${videos.id}
+            ), 0)`,
+          })
+          .from(videos)
+          .leftJoin(genres, eq(genres.id, videos.genreId))
+          .where(
+            and(
+              eq(videos.ownerUserId, artist.userId),
+              eq(videos.isPublic, true),
+              sql`(${videos.releaseAt} is null or ${videos.releaseAt} <= now())`
+            )
+          )
+          .orderBy(desc(videos.updatedAt))
+          .limit(50),
+      ]),
+      performingTrackRows = collaborationTrackRows.filter((row) =>
+        performingRoles.includes(row.role as (typeof performingRoles)[number])
+      ),
+      performingProjectRows = collaborationProjectRows.filter((row) =>
+        performingRoles.includes(row.role as (typeof performingRoles)[number])
+      ),
+      creativeTrackRows = collaborationTrackRows.filter((row) =>
+        creativeCreditRoles.includes(
+          row.role as (typeof creativeCreditRoles)[number]
+        )
+      ),
+      creativeProjectRows = collaborationProjectRows.filter((row) =>
+        creativeCreditRoles.includes(
+          row.role as (typeof creativeCreditRoles)[number]
+        )
+      ),
+      performingTrackIds = performingTrackRows.map((row) => row.track.id),
+      featuredTrackProjectRows =
+        performingTrackIds.length > 0
+          ? await db
+              .select({ project: projects })
+              .from(projectTracks)
+              .innerJoin(projects, eq(projects.id, projectTracks.projectId))
+              .where(
+                and(
+                  inArray(projectTracks.trackId, performingTrackIds),
+                  eq(projects.isPublic, true),
+                  ne(projects.ownerUserId, artist.userId)
+                )
+              )
+              .orderBy(desc(projects.updatedAt))
+          : [],
+      featuredTrackById = new Map(
+        performingTrackRows.map((row) => [row.track.id, row.track])
+      ),
+      featuredProjectById = new Map([
+        ...performingProjectRows.map(
+          (row) => [row.project.id, row.project] as const
+        ),
+        ...featuredTrackProjectRows.map(
+          (row) => [row.project.id, row.project] as const
+        ),
+      ]),
+      [
+        ownedTracks,
+        ownedProjects,
+        featuredTracks,
+        featuredProjects,
+        creativeTrackSummaries,
+        creativeProjectSummaries,
+      ] = await Promise.all([
+        Promise.all(ownedTrackRows.map((row) => buildTrackSummary(row))),
+        Promise.all(ownedProjectRows.map((row) => buildProjectSummary(row))),
+        Promise.all(
+          [...featuredTrackById.values()].map((row) => buildTrackSummary(row))
+        ),
+        Promise.all(
+          [...featuredProjectById.values()].map((row) =>
+            buildProjectSummary(row)
+          )
+        ),
+        Promise.all(
+          creativeTrackRows.map(async (row) => ({
+            role: row.role as CreativeCreditRole,
+            summary: await buildTrackSummary(row.track),
+          }))
+        ),
+        Promise.all(
+          creativeProjectRows.map(async (row) => ({
+            role: row.role as CreativeCreditRole,
+            summary: await buildProjectSummary(row.project),
+          }))
+        ),
+      ]),
+      artistName = capitalizeWords(
+        artist.stageName ?? artist.displayName ?? artist.name
+      ),
+      credits = [
+        ...creativeTrackSummaries.map(({ role, summary }) => ({
+          contentId: summary.id,
+          contentType: "track" as const,
+          coverArtUrl: summary.coverArtUrl ?? null,
+          ownerName: summary.artistName,
+          ownerUsername: summary.artistUsername ?? null,
+          role,
+          slug: summary.slug,
+          title: summary.title,
+        })),
+        ...creativeProjectSummaries.map(({ role, summary }) => ({
+          contentId: summary.id,
+          contentType: "project" as const,
+          coverArtUrl: summary.coverArtUrl ?? null,
+          ownerName: summary.artistName ?? "SoundKit Artist",
+          ownerUsername: summary.artistUsername ?? null,
+          projectType: summary.projectType,
+          role,
+          slug: summary.slug,
+          title: summary.title,
+        })),
+      ];
+
+    return c.json(
+      {
+        credits,
+        featuredProjects,
+        featuredTracks,
+        projects: ownedProjects,
+        tracks: ownedTracks,
+        videos: videoRows.map((row) =>
+          profileVideoSummary({
+            artist: {
+              avatarUrl: artist.avatarUrl,
+              name: artistName,
+              username: artist.username,
+            },
+            genre: row.genre,
+            state: artist.state,
+            video: row.video,
+            viewCount: row.viewCount,
+          })
+        ),
+      },
+      HttpStatusCodes.OK
+    );
   }
 );
 
