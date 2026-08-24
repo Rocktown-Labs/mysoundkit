@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added admin moderation powers: administrators can delete an Open Verse listing (with its access requests and submissions) from the listing detail page, and delete user accounts from the admin Users panel via the better-auth admin plugin.
 - Added Open Verse closing automation: a cron sweep closes listings at their `closesAt` deadline, notifies owners and submitters, and sends a 24-hour closing-soon reminder to the owner.
 - Added durable `PurchaseFulfillmentWorkflow`: Stripe webhook marks orders paid, then purchases grants, delivery emails, and in-app notifications run as idempotent retry-safe workflow steps.
 - Added idempotent checkout: stable client idempotency keys (persisted per checkout intent) resolve retries to the original order and live Stripe session; Stripe session creation carries an `Idempotency-Key`.
@@ -26,6 +27,7 @@
 
 ### Fixed
 
+- Fixed video comments silently failing: posting errors now surface a destructive toast with the API message, comment listings tolerate commenters without profile rows, and the video chat panel clears the fixed mobile bottom navigation so the comment input is reachable on small screens.
 - Fixed V3 True Peak correction attenuating the entire mix and pushing valid streaming derivatives below the accepted loudness range; pipeline V4 always guards AAC transient overshoot and adaptively lowers the limiter ceiling independently from loudness gain.
 - Fixed media pipeline V2 consumer downloads returning a null loudness result after successful encoding, which caused four repeated renders and `Cannot read properties of null (reading 'integratedLufs')`; pipeline V3 now assigns and validates the measurement before registration.
 - Raised preview media-container concurrency from 5 to 20, shortened idle sleep, preserved non-JSON Container diagnostics, and added processor stack logging so concurrent test uploads no longer surface opaque random 500s.

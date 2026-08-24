@@ -75,7 +75,7 @@ export function LiveTwitchShell({
 
         {/* Right Chat Sidebar (flush full-height chrome on desktop / bottom on mobile) */}
         {isChatOpen && chatPanel ? (
-          <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l border-border/40 bg-card/60 backdrop-blur-md max-lg:min-h-[420px] max-lg:border-t">
+          <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l border-border/40 bg-card/60 backdrop-blur-md max-lg:mb-16 max-lg:min-h-[420px] max-lg:border-t">
             {chatPanel}
           </aside>
         ) : null}

@@ -719,14 +719,14 @@ app.openapi(
           username: userProfiles.username,
         })
         .from(videoComments)
-        .innerJoin(userProfiles, eq(userProfiles.userId, videoComments.userId))
+        .leftJoin(userProfiles, eq(userProfiles.userId, videoComments.userId))
         .where(eq(videoComments.videoId, videoId))
         .orderBy(asc(videoComments.createdAt));
 
     return c.json(
       rows.map((row) => ({
         authorAvatarUrl: row.avatarUrl,
-        authorName: row.displayName ?? row.username,
+        authorName: row.displayName ?? row.username ?? "SoundKit User",
         body: row.body,
         createdAt: row.createdAt.toISOString(),
         id: row.id,

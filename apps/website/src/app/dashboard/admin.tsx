@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Trash2,
   TriangleAlert,
   UploadCloud,
   UserRoundCog,
@@ -89,6 +90,7 @@ export const Route = createFileRoute("/dashboard/admin")({
 
 type PendingAction =
   | { action: "ban"; userId: string; userName: string }
+  | { action: "delete"; userId: string; userName: string }
   | { action: "revoke"; userId: string; userName: string }
   | null;
 
@@ -1098,6 +1100,13 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
           if (result.error) {
             throw new Error(result.error.message);
           }
+        } else if (action.action === "delete") {
+          const result = await authClient.admin.removeUser({
+            userId: action.userId,
+          });
+          if (result.error) {
+            throw new Error(result.error.message);
+          }
         } else if (action.action === "role") {
           const result = await authClient.admin.setRole({
             role: action.role ?? "user",
@@ -1130,8 +1139,11 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
 
         await queryClient.invalidateQueries({ queryKey: ["admin"] });
         toast({
-          description: "The user account was updated.",
-          title: "Updated",
+          description:
+            action.action === "delete"
+              ? "The user account was deleted."
+              : "The user account was updated.",
+          title: action.action === "delete" ? "Deleted" : "Updated",
         });
       },
     }),
@@ -1311,6 +1323,21 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
                         >
                           Revoke sessions
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          disabled={isSelf}
+                          onSelect={() =>
+                            setPendingAction({
+                              action: "delete",
+                              userId: user.id,
+                              userName: user.name,
+                            })
+                          }
+                        >
+                          <Trash2 className="size-4" />
+                          Delete user
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -1342,12 +1369,16 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
             <AlertDialogTitle>
               {pendingAction?.action === "ban"
                 ? "Ban this user?"
-                : "Revoke all sessions?"}
+                : pendingAction?.action === "delete"
+                  ? "Delete this user?"
+                  : "Revoke all sessions?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingAction?.action === "ban"
                 ? `${pendingAction.userName} will be signed out and unable to sign in.`
-                : `${pendingAction?.userName ?? "This user"} will be signed out on every device.`}
+                : pendingAction?.action === "delete"
+                  ? `${pendingAction.userName}'s account and sessions will be permanently removed. Content they own is not deleted and would become orphaned.`
+                  : `${pendingAction?.userName ?? "This user"} will be signed out on every device.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -258,7 +258,19 @@ function VideoCommentForm({
         return;
       }
 
-      await createComment.mutateAsync({ body, videoId });
+      try {
+        await createComment.mutateAsync({ body, videoId });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Your comment could not be posted. Please try again.",
+          title: "Comment Failed",
+          variant: "destructive",
+        });
+        return;
+      }
       setDraft("");
       toast({
         description: "Your comment was posted.",

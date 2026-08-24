@@ -108,6 +108,7 @@ const API_ORIGIN = "http://soundkit.test",
     ["post", "/v1/onboarding/artist"],
     ["post", "/v1/onboarding/fan"],
     ["get", "/v1/onboarding/username-availability"],
+    ["delete", "/v1/open-verses/{listingId}"],
     ["get", "/v1/playlists"],
     ["post", "/v1/playlists"],
     ["post", "/v1/payments/checkout"],
@@ -214,6 +215,16 @@ describe("SoundKit API HTTP contracts", () => {
       nextCursor: null,
       unreadCount: 0,
     });
+  });
+
+  it("requires authentication to delete an open verse listing", async () => {
+    const { body, response } = await fetchJson<{ message: string }>(
+      "/v1/open-verses/9dea0540-0000-0000-0000-000000000000",
+      { method: "DELETE" }
+    );
+
+    expect(response.status).toBe(401);
+    expect(body.message).toContain("Authentication");
   });
 
   it("keeps observability request IDs on success and error responses", async () => {

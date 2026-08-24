@@ -18,6 +18,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { isAdminUser } from "@/lib/admin";
 import { publicAssetUrl } from "@/lib/asset-urls";
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
 import { getDisplayNameForUser } from "@/lib/email-events";
@@ -54,6 +55,7 @@ import { resolveActiveOrganizationId } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>(),
+  listingIdParams = z.object({ listingId: z.string() }),
   slugify = (value: string) =>
     value
       .trim()
@@ -492,6 +494,94 @@ app.openapi(
 
 app.openapi(
   createRoute({
+    method: "delete",
+    path: "/{listingId}",
+    request: { params: listingIdParams },
+    responses: {
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Admin access required"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Open verse not found"
+      ),
+      [HttpStatusCodes.OK]: jsonContent(
+        messageResponseSchema,
+        "Open verse deleted"
+      ),
+    },
+    tags: ["Open Verses"],
+  }),
+  async (c) => {
+    const currentUser = c.get("user"),
+      session = c.get("session");
+
+    if (!isAuthenticatedSession(session) || !isAuthenticatedUser(currentUser)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isAdminUser(currentUser)) {
+      return c.json(
+        { message: "Administrator access is required." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Database is not configured." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const { listingId } = c.req.valid("param"),
+      db = createDb(),
+      [listing] = await db
+        .select({ id: openVerseListings.id })
+        .from(openVerseListings)
+        .where(eq(openVerseListings.id, listingId))
+        .limit(1);
+
+    if (!listing) {
+      return c.json(
+        { message: "Open verse not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    await db.transaction(async (transaction) => {
+      await transaction
+        .delete(openVerseAccessRequests)
+        .where(eq(openVerseAccessRequests.listingId, listingId));
+      await transaction
+        .delete(openVerseSubmissions)
+        .where(eq(openVerseSubmissions.listingId, listingId));
+      await transaction
+        .delete(openVerseListings)
+        .where(eq(openVerseListings.id, listingId));
+    });
+
+    logError({
+      event: "open_verse_listing_deleted",
+      listingId,
+      message: "Open verse listing deleted by administrator",
+      userId: currentUser.id,
+    });
+
+    return c.json(
+      { message: "Open verse listing deleted." },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
     method: "post",
     path: "/{listingId}/access-requests",
     request: {
@@ -812,9 +902,9 @@ app.openapi(
     const status =
       body.action === "approve"
         ? "approved"
-        : body.action === "decline"
+        : (body.action === "decline"
           ? "declined"
-          : "canceled";
+          : "canceled");
     const [updated] = await db
       .update(openVerseAccessRequests)
       .set({
