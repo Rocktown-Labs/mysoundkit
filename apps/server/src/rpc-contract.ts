@@ -64,6 +64,7 @@ import type {
   backfillTrackDurationsResponseSchema,
   trackDurationBackfillStatusSchema,
   platformSettingsSchema,
+  artistProfileMediaSchema,
   artistSummarySchema,
   battleChallengesResponseSchema,
   battleKitSchema,
@@ -350,6 +351,9 @@ export const rpcContract = new Hono()
   )
   .get("/v1/artists/:username", (c) =>
     c.json({} as z.infer<typeof artistSummarySchema>)
+  )
+  .get("/v1/artists/:username/media", (c) =>
+    c.json({} as z.infer<typeof artistProfileMediaSchema>)
   )
   .get("/v1/messages/friends", (c) =>
     c.json([] as z.infer<typeof friendSummarySchema>[])

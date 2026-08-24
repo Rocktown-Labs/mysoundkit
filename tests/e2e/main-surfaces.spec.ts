@@ -99,6 +99,50 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("I'm an Artist")).toBeHidden();
   });
 
+  test("artist profiles show owned media, features, and credits", async ({
+    page,
+  }) => {
+    // On a cold dev server this is often the first load of the artist route;
+    // vite's dependency-optimization reload loop can consume the default
+    // 30s budget before the route finishes hydrating.
+    test.setTimeout(90_000);
+
+    await gotoWithViteRetry(page, "/artist/luna-eclipse");
+
+    // Cold dev servers spend ~25-45s hydrating the first load of this route
+    // (vite dependency discovery + on-demand module transforms), so the first
+    // assertion gets a generous window inside the 90s test budget.
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Luna Eclipse" })
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Videos" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Also Featured On" })
+    ).toBeVisible();
+    await expect(page.getByText("City Lights").first()).toBeVisible();
+
+    await page.getByRole("tab", { name: "Credits" }).click();
+    await expect(page).toHaveURL(/#credits$/);
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Credits" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Performance" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Songwriting" })
+    ).toBeVisible();
+    await expect(page.getByText("Songwriter")).toBeVisible();
+
+    await page.getByRole("tab", { name: "Tracks" }).click();
+    await expect(page).toHaveURL(/#tracks$/);
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Also Featured On" })
+    ).toBeVisible();
+  });
+
   test("live surfaces render while realtime implementation is pending", async ({
     page,
   }) => {
