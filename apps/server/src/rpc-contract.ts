@@ -47,7 +47,6 @@ import {
   createBattleKitBodySchema,
   updateBattleKitBodySchema,
   settleTrackBodySchema,
-  updatePlatformSettingsBodySchema,
   updateBattleChallengeBodySchema,
   updateNotificationSettingsBodySchema,
   updateProjectBodySchema,
@@ -63,7 +62,6 @@ import type {
   analyticsOverviewSchema,
   backfillTrackDurationsResponseSchema,
   trackDurationBackfillStatusSchema,
-  platformSettingsSchema,
   artistProfileMediaSchema,
   artistSummarySchema,
   battleChallengesResponseSchema,
@@ -71,7 +69,6 @@ import type {
   battleSummarySchema,
   conversationSummarySchema,
   directVideoUploadResponseSchema,
-  discoverHomeResponseSchema,
   entitlementSummarySchema,
   friendRequestSummarySchema,
   friendSummarySchema,
@@ -215,6 +212,9 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
       setupScreen: z.boolean(),
     })
     .passthrough(),
+  publicLiveExperienceQuerySchema = publicExploreQuerySchema.partial().extend({
+    kind: z.enum(["battle", "party", "stream"]).optional(),
+  }),
   liveExperienceActionResponseSchema = z
     .object({
       action: z.string().optional(),
@@ -228,22 +228,25 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
     .passthrough();
 
 export const rpcContract = new Hono()
-  .get("/v1/live/experiences/public", (c) =>
-    c.json(
-      [] as {
-        creatorAvatar: string | null;
-        creatorName: string | null;
-        endsAt: string | null;
-        genre: string | null;
-        id: string;
-        kind: "battle" | "party" | "stream";
-        source: string;
-        startsAt: string;
-        status: string;
-        title: string;
-        viewerCount: number;
-      }[]
-    )
+  .get(
+    "/v1/live/experiences/public",
+    validator("query", (value) => publicLiveExperienceQuerySchema.parse(value)),
+    (c) =>
+      c.json(
+        [] as {
+          creatorAvatar: string | null;
+          creatorName: string | null;
+          endsAt: string | null;
+          genre: string | null;
+          id: string;
+          kind: "battle" | "party" | "stream";
+          source: string;
+          startsAt: string;
+          status: string;
+          title: string;
+          viewerCount: number;
+        }[]
+      )
   )
   .get("/v1/admin/access", (c) =>
     c.json({} as z.infer<typeof adminAccessSchema>)
@@ -258,14 +261,6 @@ export const rpcContract = new Hono()
   )
   .get("/v1/admin/tracks/backfill-durations/status", (c) =>
     c.json({} as z.infer<typeof trackDurationBackfillStatusSchema>)
-  )
-  .get("/v1/admin/settings", (c) =>
-    c.json({} as z.infer<typeof platformSettingsSchema>)
-  )
-  .patch(
-    "/v1/admin/settings",
-    jsonValidator(updatePlatformSettingsBodySchema),
-    (c) => c.json({} as z.infer<typeof platformSettingsSchema>)
   )
   .get("/v1/admin/finance/payments", (c) =>
     c.json({} as z.infer<typeof adminPaymentsOverviewSchema>)
@@ -400,9 +395,6 @@ export const rpcContract = new Hono()
     validator("query", (value) => publicSearchQuerySchema.parse(value)),
     (c) => c.json({} as z.infer<typeof publicSearchResultSchema>)
   )
-  .get("/v1/discover/home", (c) =>
-    c.json({} as z.infer<typeof discoverHomeResponseSchema>)
-  )
   .get("/v1/discover/genres", (c) =>
     c.json([] as z.infer<typeof genreCatalogItemSchema>[])
   )
@@ -515,16 +507,24 @@ export const rpcContract = new Hono()
     jsonValidator(updateProjectBodySchema),
     (c) => c.json({} as z.infer<typeof projectDashboardDetailSchema>)
   )
-  .get("/v1/listening-parties/", (c) =>
-    c.json([] as z.infer<typeof listeningPartySummarySchema>[])
+  .get(
+    "/v1/listening-parties/",
+    validator("query", (value) =>
+      publicExploreQuerySchema.partial().parse(value)
+    ),
+    (c) => c.json([] as z.infer<typeof listeningPartySummarySchema>[])
   )
   .post(
     "/v1/listening-parties/",
     jsonValidator(createListeningPartyBodySchema),
     (c) => c.json({} as z.infer<typeof listeningPartySummarySchema>, 201)
   )
-  .get("/v1/battles/", (c) =>
-    c.json([] as z.infer<typeof battleSummarySchema>[])
+  .get(
+    "/v1/battles/",
+    validator("query", (value) =>
+      publicExploreQuerySchema.partial().parse(value)
+    ),
+    (c) => c.json([] as z.infer<typeof battleSummarySchema>[])
   )
   .get("/v1/battles/challenges", (c) =>
     c.json({} as z.infer<typeof battleChallengesResponseSchema>)

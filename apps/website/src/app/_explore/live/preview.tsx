@@ -674,7 +674,7 @@ function BattlePreviewSection({
                       : "border-border/60 opacity-80"
                   }`}
                 >
-                  <AvatarImage src="/diverse-user-avatars.png" />
+                  <AvatarImage src="/placeholder-user.jpg" />
                   <AvatarFallback className="font-bold">MK</AvatarFallback>
                 </Avatar>
                 <p className="font-bold text-sm sm:text-base text-white">
@@ -702,7 +702,7 @@ function BattlePreviewSection({
                       : "border-border/60 opacity-80"
                   }`}
                 >
-                  <AvatarImage src="/diverse-user-avatars.png" />
+                  <AvatarImage src="/placeholder-user.jpg" />
                   <AvatarFallback className="font-bold">NV</AvatarFallback>
                 </Avatar>
                 <p className="font-bold text-sm sm:text-base text-white">
@@ -841,7 +841,7 @@ function BattlePreviewSection({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Avatar className="size-11 border">
-                        <AvatarImage src="/diverse-user-avatars.png" />
+                        <AvatarImage src="/placeholder-user.jpg" />
                         <AvatarFallback>MK</AvatarFallback>
                       </Avatar>
                       <div>
@@ -900,7 +900,7 @@ function BattlePreviewSection({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Avatar className="size-11 border">
-                        <AvatarImage src="/diverse-user-avatars.png" />
+                        <AvatarImage src="/placeholder-user.jpg" />
                         <AvatarFallback>NV</AvatarFallback>
                       </Avatar>
                       <div>
@@ -1417,7 +1417,7 @@ function PartyPreviewSection({
           alt="Album Background"
           className="size-full object-cover opacity-25 blur-3xl transition-all duration-700 scale-110 absolute inset-0 pointer-events-none"
           height={720}
-          src="/night-music-album-cover.png"
+          src="/night-music-album-cover.webp"
           width={1280}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/85 to-black/60 pointer-events-none" />
@@ -1478,7 +1478,7 @@ function PartyPreviewSection({
                     alt="Midnight Reverie Album Art"
                     className="size-full object-cover"
                     height={256}
-                    src="/night-music-album-cover.png"
+                    src="/night-music-album-cover.webp"
                     width={256}
                   />
                   {isPlaying && (
@@ -1905,7 +1905,7 @@ function ChallengePreviewSection({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3.5">
                   <Avatar className="size-12 border">
-                    <AvatarImage src="/diverse-user-avatars.png" />
+                    <AvatarImage src="/placeholder-user.jpg" />
                     <AvatarFallback>NV</AvatarFallback>
                   </Avatar>
                   <div>
@@ -1931,7 +1931,7 @@ function ChallengePreviewSection({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3.5">
                   <Avatar className="size-12 border">
-                    <AvatarImage src="/diverse-user-avatars.png" />
+                    <AvatarImage src="/placeholder-user.jpg" />
                     <AvatarFallback>MK</AvatarFallback>
                   </Avatar>
                   <div>

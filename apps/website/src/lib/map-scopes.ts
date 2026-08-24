@@ -24,10 +24,11 @@ export const mapScopes: RegionOption[] = [
     scale: 140,
   },
   {
+    center: [-100, 42],
     id: "north-america",
     label: "USA / North America",
-    projection: "geoAlbersUsa",
-    scale: 950,
+    projection: "geoMercator",
+    scale: 330,
   },
   {
     center: [18, 2],

@@ -44,6 +44,7 @@ import {
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
 import { notify } from "@/lib/notifications";
+import { profileRegionCondition } from "@/lib/public-explore";
 import { sampleBattles } from "@/lib/sample-data";
 import {
   battleEligibilityBodySchema,
@@ -56,6 +57,7 @@ import {
   battleSummarySchema,
   createChallengeBodySchema,
   messageResponseSchema,
+  publicExploreQuerySchema,
   updateBattleChallengeBodySchema,
 } from "@/lib/schemas";
 import { resolveTrackAssetFromRows } from "@/lib/track-asset-resolver";
@@ -261,6 +263,7 @@ app.openapi(
   createRoute({
     method: "get",
     path: "/",
+    request: { query: publicExploreQuerySchema.partial() },
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
         battleSummarySchema.array(),
@@ -270,11 +273,14 @@ app.openapi(
     tags: ["Battles"],
   }),
   async (c) => {
+    const query = c.req.valid("query");
+
     if (!isDatabaseConfigured()) {
       return c.json(sampleBattles, HttpStatusCodes.OK);
     }
 
     const db = createDb(),
+      regionCondition = profileRegionCondition(query),
       rows = await db
         .select({
           format: battles.format,
@@ -288,6 +294,17 @@ app.openapi(
         })
         .from(battles)
         .leftJoin(genres, eq(genres.id, battles.genreId))
+        .where(
+          regionCondition
+            ? sql`exists (
+                select 1 from ${userProfiles}
+                where ${userProfiles.userId} in (
+                  ${battles.challengerArtistUserId},
+                  ${battles.opponentArtistUserId}
+                ) and ${regionCondition}
+              )`
+            : undefined
+        )
         .orderBy(desc(battles.viewerCount))
         .limit(50),
       enrichedRows = await enrichBattleFeedRows(
@@ -363,41 +380,43 @@ app.openapi(
       );
     }
 
-    const [ownedTracks, approvedLyricsRows, mediaAssetRows] = await Promise.all([
-        db
-          .select({ id: tracks.id })
-          .from(tracks)
-          .where(
-            and(
-              inArray(tracks.id, trackIds),
-              organizationId
-                ? eq(tracks.organizationId, organizationId)
-                : eq(tracks.ownerUserId, user.id)
-            )
-          ),
-        db
-          .select({
-            id: trackLyrics.id,
-            timedLines: trackLyrics.timedLines,
-            trackId: trackLyrics.trackId,
-          })
-          .from(trackLyrics)
-          .where(
-            and(
-              inArray(trackLyrics.trackId, trackIds),
-              eq(trackLyrics.status, "approved")
-            )
-          ),
-        db
-          .select()
-          .from(trackAssets)
-          .where(
-            and(
-              inArray(trackAssets.trackId, trackIds),
-              eq(trackAssets.isCurrent, true)
-            )
-          ),
-      ]),
+    const [ownedTracks, approvedLyricsRows, mediaAssetRows] = await Promise.all(
+        [
+          db
+            .select({ id: tracks.id })
+            .from(tracks)
+            .where(
+              and(
+                inArray(tracks.id, trackIds),
+                organizationId
+                  ? eq(tracks.organizationId, organizationId)
+                  : eq(tracks.ownerUserId, user.id)
+              )
+            ),
+          db
+            .select({
+              id: trackLyrics.id,
+              timedLines: trackLyrics.timedLines,
+              trackId: trackLyrics.trackId,
+            })
+            .from(trackLyrics)
+            .where(
+              and(
+                inArray(trackLyrics.trackId, trackIds),
+                eq(trackLyrics.status, "approved")
+              )
+            ),
+          db
+            .select()
+            .from(trackAssets)
+            .where(
+              and(
+                inArray(trackAssets.trackId, trackIds),
+                eq(trackAssets.isCurrent, true)
+              )
+            ),
+        ]
+      ),
       ownedTrackIds = new Set(ownedTracks.map((track) => track.id)),
       approvedLyricsByTrackId = new Map<
         string,

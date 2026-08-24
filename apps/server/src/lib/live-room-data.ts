@@ -189,7 +189,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
         "party-track-1",
         "Opening Glow",
         "Luna Eclipse",
-        "/night-music-album-cover.png",
+        "/night-music-album-cover.webp",
         "played",
         midnightLyrics
       ),
@@ -197,7 +197,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
         "party-track-2",
         "Summer Nights",
         "Luna Eclipse",
-        "/summer-music-album-cover.png",
+        "/summer-music-album-cover.webp",
         "playing",
         summerNightsLyrics
       ),
@@ -205,7 +205,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
         "party-track-3",
         "After Hours",
         "Luna Eclipse",
-        "/night-music-album-cover.png",
+        "/night-music-album-cover.webp",
         "queued",
         neonLyrics
       ),
@@ -216,7 +216,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
     battle: {
       artists: [
         {
-          avatarUrl: "/diverse-user-avatars.png",
+          avatarUrl: "/placeholder-user.jpg",
           id: "artist-dj-nova",
           isMuted: false,
           name: "DJ Nova",
@@ -225,7 +225,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
           verified: true,
         },
         {
-          avatarUrl: "/diverse-user-avatars.png",
+          avatarUrl: "/placeholder-user.jpg",
           id: "artist-mc-rhythm",
           isMuted: true,
           name: "MC Rhythm",
@@ -241,7 +241,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
             "battle-a-1",
             "Midnight Drive",
             "DJ Nova",
-            "/summer-music-album-cover.png",
+            "/summer-music-album-cover.webp",
             "played",
             summerNightsLyrics
           ),
@@ -249,7 +249,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
             "battle-b-1",
             "City Lights",
             "MC Rhythm",
-            "/night-music-album-cover.png",
+            "/night-music-album-cover.webp",
             "played",
             midnightLyrics
           ),
@@ -265,7 +265,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
             "battle-a-2",
             "Neon Dreams",
             "DJ Nova",
-            "/summer-music-album-cover.png",
+            "/summer-music-album-cover.webp",
             "played",
             neonLyrics
           ),
@@ -273,7 +273,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
             "battle-b-2",
             "Street Poetry",
             "MC Rhythm",
-            "/night-music-album-cover.png",
+            "/night-music-album-cover.webp",
             "played",
             midnightLyrics
           ),
@@ -289,7 +289,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
             "battle-a-3",
             "Electric Pulse",
             "DJ Nova",
-            "/summer-music-album-cover.png",
+            "/summer-music-album-cover.webp",
             "playing",
             neonLyrics
           ),
@@ -297,7 +297,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
             "battle-b-3",
             "Urban Flow",
             "MC Rhythm",
-            "/night-music-album-cover.png",
+            "/night-music-album-cover.webp",
             "queued",
             midnightLyrics
           ),
@@ -366,7 +366,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
         "battle-a-3",
         "Electric Pulse",
         "DJ Nova",
-        "/summer-music-album-cover.png",
+        "/summer-music-album-cover.webp",
         "playing",
         neonLyrics
       ),
@@ -374,7 +374,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
         "battle-b-3",
         "Urban Flow",
         "MC Rhythm",
-        "/night-music-album-cover.png",
+        "/night-music-album-cover.webp",
         "queued",
         midnightLyrics
       ),

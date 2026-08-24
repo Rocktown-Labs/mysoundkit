@@ -65,6 +65,19 @@ export const publicAssetUrlFromParts = ({
 export const publicAssetUrl = (asset: TrackAssetLike | undefined) =>
   asset ? publicAssetUrlFromParts(asset) : null;
 
+export const publicProfileAssetUrl = ({
+  fallbackUrl,
+  objectKey,
+}: {
+  fallbackUrl?: string | null;
+  objectKey?: string | null;
+}) => {
+  const baseUrl = mediaBaseUrl();
+  return baseUrl && objectKey
+    ? `${baseUrl}/${objectKey}`
+    : (fallbackUrl ?? null);
+};
+
 export const publicProjectAssetUrl = (
   asset: InferSelectModel<typeof projectAssets> | undefined
 ) => {

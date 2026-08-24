@@ -71,7 +71,7 @@ const formatFollowers = (followers: number) => {
     artist: ArtistSummary,
     displayRank: number
   ): LeaderboardArtist => ({
-    avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
+    avatar: artist.avatarUrl ?? "/placeholder-user.jpg",
     genre: artist.genre,
     location: artist.location || "Arkansas, US",
     name: artist.name,
@@ -186,7 +186,7 @@ function ArtistGenreRail({
           {artists.map((artist) => (
             <ArtistCard
               key={artist.username}
-              avatar={artist.avatarUrl ?? "/diverse-user-avatars.png"}
+              avatar={artist.avatarUrl ?? "/placeholder-user.jpg"}
               followers={formatFollowers(artist.followers)}
               genre={artist.genre}
               name={artist.name}

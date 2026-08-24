@@ -72,7 +72,7 @@ const json = (response, status, body, origin) => {
       artistName: isBattle ? "DJ Nova" : "Luna Eclipse",
       coverArtUrl: isStream
         ? "/music-battle-video-thumbnail.jpg"
-        : "/summer-music-album-cover.png",
+        : "/summer-music-album-cover.webp",
       durationMs: 205_000,
       id: `${roomId}-track-1`,
       lyrics: [
@@ -96,7 +96,7 @@ const json = (response, status, body, origin) => {
         ? {
             artists: [
               {
-                avatarUrl: "/diverse-user-avatars.png",
+                avatarUrl: "/placeholder-user.jpg",
                 id: "artist-dj-nova",
                 isMuted: false,
                 name: "DJ Nova",
@@ -105,7 +105,7 @@ const json = (response, status, body, origin) => {
                 verified: true,
               },
               {
-                avatarUrl: "/diverse-user-avatars.png",
+                avatarUrl: "/placeholder-user.jpg",
                 id: "artist-mc-rhythm",
                 isMuted: true,
                 name: "MC Rhythm",
@@ -155,16 +155,11 @@ const json = (response, status, body, origin) => {
       viewerCount: 512,
     };
   },
-  platformSettings = {
-    defaultExploreRegion: "us-arkansas",
-    defaultExploreRegionType: "north-america",
-    useGlobalExploreHome: true,
-  },
   mockTracks = [
     {
       artistName: "Luna Eclipse",
       artistUsername: "luna-eclipse",
-      coverArtUrl: "/summer-music-album-cover.png",
+      coverArtUrl: "/summer-music-album-cover.webp",
       duration: "3:24",
       genre: "R&B/Soul",
       id: "track_summer_nights",
@@ -181,7 +176,7 @@ const json = (response, status, body, origin) => {
       artistName: "Luna Eclipse",
       artistUsername: "luna-eclipse",
       collaboratorCount: 1,
-      coverArtUrl: "/summer-music-album-cover.png",
+      coverArtUrl: "/summer-music-album-cover.webp",
       duration: "12:44",
       id: "project_after_dark",
       isForSale: false,
@@ -195,7 +190,7 @@ const json = (response, status, body, origin) => {
   ],
   mockArtists = [
     {
-      avatarUrl: "/diverse-user-avatars.png",
+      avatarUrl: "/placeholder-user.jpg",
       battleCount: 12,
       followers: 124_000,
       genre: "R&B/Soul",
@@ -209,7 +204,7 @@ const json = (response, status, body, origin) => {
       weeklyPlays: 2_400_000,
     },
     {
-      avatarUrl: "/diverse-user-avatars.png",
+      avatarUrl: "/placeholder-user.jpg",
       battleCount: 9,
       followers: 89_000,
       genre: "Electronic",
@@ -233,7 +228,7 @@ const json = (response, status, body, origin) => {
       playbackPolicy: "public",
       sourceProvider: "external",
       status: "ready",
-      thumbnailUrl: "/music-video-thumbnail.png",
+      thumbnailUrl: "/music-video-thumbnail.webp",
       title: "Midnight Vibes",
       verifiedOnPlatform: true,
       videoKind: "music_video",
@@ -245,7 +240,7 @@ const json = (response, status, body, origin) => {
       {
         contentId: "track_city_lights",
         contentType: "track",
-        coverArtUrl: "/hip-hop-album-cover.png",
+        coverArtUrl: "/hip-hop-album-cover.webp",
         ownerName: "Neon Pulse",
         ownerUsername: "neon-pulse",
         role: "songwriter",
@@ -499,20 +494,50 @@ export const createMockApiServer = async ({
       return;
     }
 
-    if (url.pathname === "/v1/admin/settings") {
-      json(response, 200, platformSettings, webOrigin);
+    if (url.pathname === "/v1/admin/genres") {
+      json(
+        response,
+        200,
+        [
+          {
+            battleCount: 1,
+            description: "Rhythm, rhyme, and lyrical competition.",
+            id: "genre_hip_hop",
+            name: "Hip Hop",
+            openVerseCount: 1,
+            partyCount: 1,
+            projectCount: 1,
+            slug: "hip-hop",
+            totalCount: 8,
+            trackCount: 3,
+            videoCount: 1,
+          },
+        ],
+        webOrigin
+      );
       return;
     }
 
-    if (url.pathname === "/v1/discover/home") {
+    if (url.pathname === "/v1/admin/regions") {
       json(
         response,
         200,
         {
-          featuredArtists: mockArtists,
-          featuredBattles: mockBattles,
-          featuredTracks: mockTracks,
-          settings: platformSettings,
+          missingCountryCount: 0,
+          missingStateCount: 0,
+          regions: [
+            {
+              artistCount: 1,
+              country: "United States",
+              profileCount: 2,
+              projectCount: 1,
+              state: "Arkansas",
+              totalUploadCount: 5,
+              trackCount: 3,
+              videoCount: 1,
+            },
+          ],
+          totalProfileCount: 2,
         },
         webOrigin
       );
@@ -641,7 +666,7 @@ export const createMockApiServer = async ({
         200,
         [
           {
-            authorAvatarUrl: "/diverse-user-avatars.png",
+            authorAvatarUrl: "/placeholder-user.jpg",
             authorName: "MusicFan99",
             body: "Incredible production quality!",
             createdAt: "2026-05-26T12:00:00.000Z",

@@ -170,7 +170,7 @@ export function AppSidebar() {
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton size="lg">
                   <Avatar className="size-8">
-                    <AvatarImage src="/diverse-user-avatars.png" />
+                    <AvatarImage src="/placeholder-user.jpg" />
                     <AvatarFallback>JD</AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col gap-0.5 leading-none">

@@ -1,5 +1,5 @@
-/* eslint-disable one-var, sort-vars, react/memo-dependencies, react/preserve-manual-memoization, react/set-state-in-effect, react-hooks/exhaustive-deps, unicorn/consistent-function-scoping, react/no-array-index-key */
-import { Link, useRouterState } from "@tanstack/react-router";
+/* eslint-disable one-var, sort-vars, complexity, react/memo-dependencies, react/preserve-manual-memoization, react/set-state-in-effect, react-hooks/exhaustive-deps, unicorn/consistent-function-scoping, react/no-array-index-key */
+import { Link, useSearch } from "@tanstack/react-router";
 import { Eye, Music2, Swords, TrendingUp, Trophy } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -379,19 +379,20 @@ export function BattleViewAll({
   title,
   description,
 }: BattleViewAllProps) {
-  const locationSearch = useRouterState({ select: (s) => s.location.search }),
-    searchParams = new URLSearchParams(
-      typeof locationSearch === "string" ? locationSearch : ""
-    ),
+  const routeSearch = useSearch({ strict: false }),
     [selectedMatchup, setSelectedMatchup] = useState<
       ReturnType<typeof generateUpcomingBattles>[number] | null
     >(null),
     isInitialMount = useRef(true),
     defaultSort = sortOptionsMap[type][0].value,
-    regionTypeFromSearch = searchParams.get("regionType"),
-    regionFromSearch = searchParams.get("region"),
-    genreFromSearch = searchParams.get("genre"),
-    sortFromSearch = searchParams.get("sort"),
+    regionTypeFromSearch =
+      routeSearch.regionType === "global" ? "global" : null,
+    regionFromSearch =
+      typeof routeSearch.region === "string" ? routeSearch.region : null,
+    genreFromSearch =
+      typeof routeSearch.genre === "string" ? routeSearch.genre : null,
+    sortFromSearch =
+      typeof routeSearch.sort === "string" ? routeSearch.sort : null,
     hasSearchFilters =
       regionTypeFromSearch !== null ||
       regionFromSearch !== null ||
@@ -404,7 +405,7 @@ export function BattleViewAll({
     [genre, setGenre] = useState(() => genreFromSearch ?? DEFAULT_GENRE),
     [sort, setSort] = useState(() => sortFromSearch ?? defaultSort),
     { data: battleSummaries = [], isLoading: isLoadingBattles } =
-      useBattlesQuery(),
+      useBattlesQuery({ region, regionType }),
     entitlementsQuery = useMeEntitlementsQuery(),
     isPremiumUser = Boolean(
       entitlementsQuery.data?.isPremium ||
@@ -523,7 +524,7 @@ export function BattleViewAll({
     };
 
   return (
-    <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
+    <div className="space-y-8 pb-8">
       {/* Header */}
       <div className="mb-8">
         <h1 className="mb-2 flex items-center gap-2 font-bold text-2xl md:text-3xl lg:text-4xl">

@@ -4,20 +4,29 @@ import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
+  battles,
   fanProfiles,
   genres,
   listeningParties,
   openVerseListings,
-  platformSettings,
   projects,
   trackAssets,
   tracks,
+  userProfiles,
   videos,
 } from "@soundkit/db/schema/app";
 import { user } from "@soundkit/db/schema/auth";
 import { communities } from "@soundkit/db/schema/communities";
 import { platformFees, transactions } from "@soundkit/db/schema/payments";
-import { and, count, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  countDistinct,
+  eq,
+  isNotNull,
+  isNull,
+  sql,
+} from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -27,31 +36,36 @@ import {
   backfillSearchEmbeddings,
   loadEmbeddingStatus,
 } from "@/lib/audio-processing";
-import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
+import {
+  canonicalGenreName,
+  canonicalGenreSlug,
+  genreCatalog,
+} from "@/lib/genre-catalog";
 import {
   enqueueTrackDurationBackfills,
   loadTrackDurationBackfillStatus,
 } from "@/lib/media-metadata";
 import {
-  loadPlatformSettings,
-  platformDiscoverySettingsKey,
-} from "@/lib/platform-settings";
-import {
   adminAccessSchema,
   adminGenreSchema,
   adminOverviewSchema,
+  adminRegionOverviewSchema,
   backfillTrackDurationsBodySchema,
-  createGenreBodySchema,
   backfillTrackDurationsResponseSchema,
+  createGenreBodySchema,
   messageResponseSchema,
-  platformSettingsSchema,
   trackDurationBackfillStatusQuerySchema,
   trackDurationBackfillStatusSchema,
-  updatePlatformSettingsBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>(),
+  toCountMap = (
+    rows: {
+      count: number | string;
+      genreId: string | null;
+    }[]
+  ) => new Map(rows.map((row) => [row.genreId, Number(row.count)]));
 
 app.openapi(
   createRoute({
@@ -80,7 +94,15 @@ app.openapi(
       return c.json([], HttpStatusCodes.OK);
     }
     const db = createDb(),
-      [genreRows, trackRows, videoRows] = await Promise.all([
+      [
+        genreRows,
+        trackRows,
+        videoRows,
+        projectRows,
+        battleRows,
+        partyRows,
+        openVerseRows,
+      ] = await Promise.all([
         db.select().from(genres).orderBy(genres.name),
         db
           .select({ count: count(), genreId: tracks.genreId })
@@ -90,23 +112,62 @@ app.openapi(
           .select({ count: count(), genreId: videos.genreId })
           .from(videos)
           .groupBy(videos.genreId),
+        db
+          .select({ count: count(), genreId: projects.genreId })
+          .from(projects)
+          .groupBy(projects.genreId),
+        db
+          .select({ count: count(), genreId: battles.genreId })
+          .from(battles)
+          .groupBy(battles.genreId),
+        db
+          .select({ count: count(), genreId: listeningParties.genreId })
+          .from(listeningParties)
+          .groupBy(listeningParties.genreId),
+        db
+          .select({ count: count(), genreId: openVerseListings.genreId })
+          .from(openVerseListings)
+          .groupBy(openVerseListings.genreId),
       ]),
-      trackCounts = new Map(
-        trackRows.map((row) => [row.genreId, Number(row.count)])
-      ),
-      videoCounts = new Map(
-        videoRows.map((row) => [row.genreId, Number(row.count)])
-      );
+      trackCounts = toCountMap(trackRows),
+      videoCounts = toCountMap(videoRows),
+      projectCounts = toCountMap(projectRows),
+      battleCounts = toCountMap(battleRows),
+      partyCounts = toCountMap(partyRows),
+      openVerseCounts = toCountMap(openVerseRows),
+      genreRowsBySlug = new Map(genreRows.map((genre) => [genre.slug, genre])),
+      canonicalSlugs = new Set(genreCatalog.map((genre) => genre.slug)),
+      allGenreRows = [
+        ...genreCatalog.map((genre) => ({
+          description: genreRowsBySlug.get(genre.slug)?.description ?? null,
+          ...genre,
+        })),
+        ...genreRows.filter((genre) => !canonicalSlugs.has(genre.slug)),
+      ].toSorted((first, second) => first.name.localeCompare(second.name));
     return c.json(
-      genreRows.map((genre) => {
+      allGenreRows.map((genre) => {
         const trackCount = trackCounts.get(genre.id) ?? 0,
-          videoCount = videoCounts.get(genre.id) ?? 0;
+          videoCount = videoCounts.get(genre.id) ?? 0,
+          projectCount = projectCounts.get(genre.id) ?? 0,
+          battleCount = battleCounts.get(genre.id) ?? 0,
+          partyCount = partyCounts.get(genre.id) ?? 0,
+          openVerseCount = openVerseCounts.get(genre.id) ?? 0;
         return {
+          battleCount,
           description: genre.description,
           id: genre.id,
           name: genre.name,
+          openVerseCount,
+          partyCount,
+          projectCount,
           slug: genre.slug,
-          totalCount: trackCount + videoCount,
+          totalCount:
+            trackCount +
+            videoCount +
+            projectCount +
+            battleCount +
+            partyCount +
+            openVerseCount,
           trackCount,
           videoCount,
         };
@@ -168,15 +229,107 @@ app.openapi(
       .values({ description: body.description ?? null, id, name, slug });
     return c.json(
       {
+        battleCount: 0,
         description: body.description ?? null,
         id,
         name,
+        openVerseCount: 0,
+        partyCount: 0,
+        projectCount: 0,
         slug,
         totalCount: 0,
         trackCount: 0,
         videoCount: 0,
       },
       HttpStatusCodes.CREATED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/regions",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        adminRegionOverviewSchema,
+        "Regional catalog coverage"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Admin required"
+      ),
+    },
+    tags: ["Admin"],
+  }),
+  async (c) => {
+    if (!isAdminUser(c.get("user"))) {
+      return c.json(
+        { message: "Admin access is required." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        {
+          missingCountryCount: 0,
+          missingStateCount: 0,
+          regions: [],
+          totalProfileCount: 0,
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const db = createDb(),
+      country = sql<string>`coalesce(nullif(trim(${userProfiles.country}), ''), 'Unknown')`,
+      state = sql<string>`coalesce(nullif(trim(${userProfiles.state}), ''), 'Unknown')`,
+      [regionRows, [coverage]] = await Promise.all([
+        db
+          .select({
+            artistCount: sql<number>`count(distinct case when ${userProfiles.accountType} = 'artist' then ${userProfiles.userId} end)::int`,
+            country,
+            profileCount: countDistinct(userProfiles.userId),
+            projectCount: countDistinct(projects.id),
+            state,
+            trackCount: countDistinct(tracks.id),
+            videoCount: countDistinct(videos.id),
+          })
+          .from(userProfiles)
+          .leftJoin(tracks, eq(tracks.ownerUserId, userProfiles.userId))
+          .leftJoin(videos, eq(videos.ownerUserId, userProfiles.userId))
+          .leftJoin(projects, eq(projects.ownerUserId, userProfiles.userId))
+          .groupBy(userProfiles.country, userProfiles.state)
+          .orderBy(country, state),
+        db
+          .select({
+            missingCountryCount: sql<number>`count(*) filter (where ${userProfiles.country} is null or trim(${userProfiles.country}) = '')::int`,
+            missingStateCount: sql<number>`count(*) filter (where ${userProfiles.state} is null or trim(${userProfiles.state}) = '')::int`,
+            totalProfileCount: sql<number>`count(*)::int`,
+          })
+          .from(userProfiles),
+      ]);
+
+    return c.json(
+      {
+        missingCountryCount: Number(coverage?.missingCountryCount ?? 0),
+        missingStateCount: Number(coverage?.missingStateCount ?? 0),
+        regions: regionRows.map((row) => ({
+          artistCount: Number(row.artistCount),
+          country: row.country,
+          profileCount: Number(row.profileCount),
+          projectCount: Number(row.projectCount),
+          state: row.state,
+          totalUploadCount:
+            Number(row.trackCount) +
+            Number(row.videoCount) +
+            Number(row.projectCount),
+          trackCount: Number(row.trackCount),
+          videoCount: Number(row.videoCount),
+        })),
+        totalProfileCount: Number(coverage?.totalProfileCount ?? 0),
+      },
+      HttpStatusCodes.OK
     );
   }
 );
@@ -518,95 +671,6 @@ app.openapi(
       await loadTrackDurationBackfillStatus(runId),
       HttpStatusCodes.OK
     );
-  }
-);
-
-app.openapi(
-  createRoute({
-    method: "get",
-    path: "/settings",
-    responses: {
-      [HttpStatusCodes.OK]: jsonContent(
-        platformSettingsSchema,
-        "Platform settings"
-      ),
-      [HttpStatusCodes.FORBIDDEN]: jsonContent(
-        messageResponseSchema,
-        "Admin required"
-      ),
-    },
-    tags: ["Admin"],
-  }),
-  async (c) => {
-    if (!isAdminUser(c.get("user"))) {
-      return c.json(
-        { message: "Admin access is required." },
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
-
-    return c.json(await loadPlatformSettings(), HttpStatusCodes.OK);
-  }
-);
-
-app.openapi(
-  createRoute({
-    method: "patch",
-    path: "/settings",
-    request: {
-      body: {
-        content: {
-          "application/json": {
-            schema: updatePlatformSettingsBodySchema,
-          },
-        },
-      },
-    },
-    responses: {
-      [HttpStatusCodes.OK]: jsonContent(
-        platformSettingsSchema,
-        "Updated platform settings"
-      ),
-      [HttpStatusCodes.FORBIDDEN]: jsonContent(
-        messageResponseSchema,
-        "Admin required"
-      ),
-    },
-    tags: ["Admin"],
-  }),
-  async (c) => {
-    if (!isAdminUser(c.get("user"))) {
-      return c.json(
-        { message: "Admin access is required." },
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
-
-    const body = updatePlatformSettingsBodySchema.parse(await c.req.json()),
-      nextSettings = platformSettingsSchema.parse({
-        ...(await loadPlatformSettings()),
-        ...body,
-      });
-
-    if (isDatabaseConfigured()) {
-      await createDb()
-        .insert(platformSettings)
-        .values({
-          key: platformDiscoverySettingsKey,
-          updatedByUserId: c.get("user")?.id ?? null,
-          value: nextSettings,
-        })
-        .onConflictDoUpdate({
-          set: {
-            updatedAt: new Date(),
-            updatedByUserId: c.get("user")?.id ?? null,
-            value: nextSettings,
-          },
-          target: platformSettings.key,
-        });
-    }
-
-    return c.json(nextSettings, HttpStatusCodes.OK);
   }
 );
 

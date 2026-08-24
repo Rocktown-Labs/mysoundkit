@@ -100,7 +100,7 @@ export function VideoDetailPage({ lookupId }: { lookupId: string }) {
                 >
                   <Avatar className="size-6 shrink-0 mt-0.5">
                     <AvatarImage
-                      src={c.authorAvatarUrl ?? "/diverse-user-avatars.png"}
+                      src={c.authorAvatarUrl ?? "/placeholder-user.jpg"}
                     />
                     <AvatarFallback>
                       {(c.authorName ?? "A").slice(0, 1)}

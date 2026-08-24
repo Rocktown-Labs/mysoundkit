@@ -30,17 +30,17 @@ const fetchPosts = async ({ pageParam = 0 }) => {
 
   return Array.from({ length: 9 }, (_, i) => ({
     artist: {
-      avatar: "/diverse-user-avatars.png",
+      avatar: "/placeholder-user.jpg",
       name: "John Doe",
       username: "johndoe",
     },
     comments: Math.floor(Math.random() * 200) + 10,
     id: `post-${pageParam}-${i}`,
     image: [
-      "/summer-music-album-cover.png",
-      "/night-music-album-cover.png",
-      "/hip-hop-album-cover.png",
-      "/acoustic-guitar-album.png",
+      "/summer-music-album-cover.webp",
+      "/night-music-album-cover.webp",
+      "/hip-hop-album-cover.webp",
+      "/acoustic-guitar-album.webp",
     ][(pageParam * 9 + i) % 4],
     likes: Math.floor(Math.random() * 5000) + 100,
     title: `Release ${pageParam * 9 + i + 1}`,
@@ -53,7 +53,7 @@ function DashboardProfilePage() {
     meQuery = useMeQuery(),
     profile = meQuery.data?.user,
     user = {
-      avatar: profile?.avatarUrl ?? "/diverse-user-avatars.png",
+      avatar: profile?.avatarUrl ?? "/placeholder-user.jpg",
       battleRecord: "0",
       bio: profile?.bio ?? "No public bio yet.",
       coverImage: profile?.headerUrl ?? "",

@@ -57,7 +57,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -75,12 +74,10 @@ import {
   useAdminAdCampaignsQuery,
   useAdminOverviewQuery,
   useAdminPaymentsQuery,
-  useAdminSettingsQuery,
   useBackfillTrackDurationsMutation,
   useImportStripePlanMutation,
   useSyncStripePlansMutation,
   useTrackDurationBackfillStatusQuery,
-  useUpdateAdminSettingsMutation,
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
@@ -190,15 +187,24 @@ function AdminDashboard() {
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-          <TabsTrigger value="ads">Ads</TabsTrigger>
-          <TabsTrigger value="coupons">Coupons</TabsTrigger>
-          <TabsTrigger value="genres">Genres</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
+        <div className="max-w-full pb-1">
+          <TabsList
+            className="h-auto w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-7"
+            style={{ display: "grid" }}
+          >
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="payments">Payments</TabsTrigger>
+            <TabsTrigger value="ads">Ads</TabsTrigger>
+            <TabsTrigger value="coupons">Coupons</TabsTrigger>
+            <TabsTrigger className="scroll-mt-20" value="genres">
+              Genres
+            </TabsTrigger>
+            <TabsTrigger className="scroll-mt-20" value="regions">
+              Regions
+            </TabsTrigger>
+          </TabsList>
+        </div>
         <TabsContent value="overview" className="mt-6">
           <OverviewPanel />
         </TabsContent>
@@ -217,8 +223,8 @@ function AdminDashboard() {
         <TabsContent value="genres" className="mt-6">
           <GenreCatalogPanel />
         </TabsContent>
-        <TabsContent value="settings" className="mt-6">
-          <SettingsPanel />
+        <TabsContent value="regions" className="mt-6">
+          <RegionCoveragePanel />
         </TabsContent>
       </Tabs>
     </div>
@@ -226,9 +232,13 @@ function AdminDashboard() {
 }
 
 interface AdminGenre {
+  battleCount: number;
   description: string | null;
   id: string;
   name: string;
+  openVerseCount: number;
+  partyCount: number;
+  projectCount: number;
   slug: string;
   totalCount: number;
   trackCount: number;
@@ -359,6 +369,10 @@ function GenreCatalogPanel() {
                   <TableHead>Slug</TableHead>
                   <TableHead>Tracks</TableHead>
                   <TableHead>Videos</TableHead>
+                  <TableHead>Projects</TableHead>
+                  <TableHead>Battles</TableHead>
+                  <TableHead>Parties</TableHead>
+                  <TableHead>Open Verses</TableHead>
                   <TableHead>Total</TableHead>
                 </TableRow>
               </TableHeader>
@@ -371,7 +385,13 @@ function GenreCatalogPanel() {
                     </TableCell>
                     <TableCell>{genre.trackCount}</TableCell>
                     <TableCell>{genre.videoCount}</TableCell>
-                    <TableCell>{genre.totalCount}</TableCell>
+                    <TableCell>{genre.projectCount}</TableCell>
+                    <TableCell>{genre.battleCount}</TableCell>
+                    <TableCell>{genre.partyCount}</TableCell>
+                    <TableCell>{genre.openVerseCount}</TableCell>
+                    <TableCell className="font-semibold">
+                      {genre.totalCount}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -383,76 +403,113 @@ function GenreCatalogPanel() {
   );
 }
 
-function SettingsPanel() {
-  const settingsQuery = useAdminSettingsQuery(),
-    updateSettings = useUpdateAdminSettingsMutation();
+interface AdminRegionOverview {
+  missingCountryCount: number;
+  missingStateCount: number;
+  regions: {
+    artistCount: number;
+    country: string;
+    profileCount: number;
+    projectCount: number;
+    state: string;
+    totalUploadCount: number;
+    trackCount: number;
+    videoCount: number;
+  }[];
+  totalProfileCount: number;
+}
 
-  if (settingsQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading settings...</p>;
-  }
-
-  if (settingsQuery.error || !settingsQuery.data) {
-    return <p className="text-sm text-destructive">Unable to load settings.</p>;
-  }
-
-  const handleGlobalHomeChange = (checked: boolean) => {
-    updateSettings.mutate(
-      { useGlobalExploreHome: checked },
-      {
-        onError: (error) => {
-          toast({
-            description: error.message,
-            title: "Setting update failed",
-            variant: "destructive",
-          });
-        },
-        onSuccess: () => {
-          toast({
-            description: checked
-              ? "The home map now starts with app-wide totals."
-              : "The home map now starts focused on Arkansas.",
-            title: "Settings saved",
-          });
-        },
+function RegionCoveragePanel() {
+  const regionsQuery = useQuery<AdminRegionOverview>({
+    queryFn: async () => {
+      const response = await fetch(`${API_V1_URL}/admin/regions`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Unable to load regional coverage.");
       }
-    );
-  };
+      return (await response.json()) as AdminRegionOverview;
+    },
+    queryKey: ["admin", "regions"],
+  });
 
+  if (regionsQuery.isLoading) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Loading regional coverage…
+      </p>
+    );
+  }
+
+  if (regionsQuery.error || !regionsQuery.data) {
+    return (
+      <p className="text-sm text-destructive">
+        Unable to load regional coverage.
+      </p>
+    );
+  }
+
+  const coverage = regionsQuery.data;
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Globe2 className="size-4 text-primary" />
-          Explore defaults
+          Regional catalog coverage
         </CardTitle>
+        <CardDescription>
+          See where SoundKit has members and uploads, and identify profiles that
+          cannot participate in regional discovery yet.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <Label htmlFor="global-explore-home">
-              Start the home map with app-wide totals
-            </Label>
-            <p className="text-sm text-muted-foreground">
-              When enabled, `/` opens the existing map with no selected
-              location. Turning it off starts the map on Arkansas.
-            </p>
-          </div>
-          <Switch
-            id="global-explore-home"
-            checked={settingsQuery.data.useGlobalExploreHome}
-            disabled={updateSettings.isPending}
-            onCheckedChange={handleGlobalHomeChange}
+      <CardContent className="space-y-6">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <MetricRow
+            label="Profiles"
+            value={coverage.totalProfileCount.toLocaleString()}
+          />
+          <MetricRow
+            label="Missing country"
+            value={coverage.missingCountryCount.toLocaleString()}
+          />
+          <MetricRow
+            label="Missing state"
+            value={coverage.missingStateCount.toLocaleString()}
           />
         </div>
-        <div className="grid gap-4 text-sm sm:grid-cols-2">
-          <MetricRow
-            label="Fallback region"
-            value={settingsQuery.data.defaultExploreRegion}
-          />
-          <MetricRow
-            label="Fallback scope"
-            value={settingsQuery.data.defaultExploreRegionType}
-          />
+        <div className="overflow-x-auto rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Country</TableHead>
+                <TableHead>State / Region</TableHead>
+                <TableHead>Profiles</TableHead>
+                <TableHead>Artists</TableHead>
+                <TableHead>Tracks</TableHead>
+                <TableHead>Videos</TableHead>
+                <TableHead>Projects</TableHead>
+                <TableHead>Uploads</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {coverage.regions.map((region) => (
+                <TableRow key={`${region.country}:${region.state}`}>
+                  <TableCell className="font-medium">
+                    {region.country}
+                  </TableCell>
+                  <TableCell>{region.state}</TableCell>
+                  <TableCell>{region.profileCount}</TableCell>
+                  <TableCell>{region.artistCount}</TableCell>
+                  <TableCell>{region.trackCount}</TableCell>
+                  <TableCell>{region.videoCount}</TableCell>
+                  <TableCell>{region.projectCount}</TableCell>
+                  <TableCell className="font-semibold">
+                    {region.totalUploadCount}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       </CardContent>
     </Card>

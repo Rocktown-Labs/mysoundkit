@@ -45,17 +45,19 @@ import {
   createMessageBodySchema,
   friendRequestSummarySchema,
   friendSummarySchema,
+  messageResponseSchema,
   messageSchema,
   peopleSearchQuerySchema,
   peopleSearchResultSchema,
   respondFriendRequestBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import { claimUploadIntent, completeUploadIntent } from "@/lib/upload-intents";
 
 const app = new OpenAPIHono<AppEnv>(),
   sampleFriends = [
     {
-      avatarUrl: "/diverse-user-avatars.png",
+      avatarUrl: "/placeholder-user.jpg",
       email: "alex@soundkit.app",
       id: "sample-alex",
       lastInteractionAt: new Date().toISOString(),
@@ -65,7 +67,7 @@ const app = new OpenAPIHono<AppEnv>(),
       username: "alex",
     },
     {
-      avatarUrl: "/diverse-user-avatars.png",
+      avatarUrl: "/placeholder-user.jpg",
       email: "sam@soundkit.app",
       id: "sample-sam",
       lastInteractionAt: new Date().toISOString(),
@@ -1730,6 +1732,10 @@ app.openapi(
         messageSchema,
         "Message sent in conversation"
       ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid message attachment"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         z.object({ message: z.string() }),
         "Authentication required"
@@ -1786,7 +1792,29 @@ app.openapi(
     }
 
     const messageId = body.clientMessageId ?? crypto.randomUUID(),
-      now = new Date(),
+      attachmentObjectKeys = body.attachments
+        .map((attachment) => attachment.objectKey)
+        .filter((objectKey): objectKey is string => Boolean(objectKey));
+    if (
+      attachmentObjectKeys.some(
+        (objectKey) => !objectKey.startsWith(`uploads/${user.id}/`)
+      )
+    ) {
+      return c.json(
+        { message: "A message attachment does not belong to this user." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+    for (const objectKey of attachmentObjectKeys) {
+      await claimUploadIntent({
+        entityId: messageId,
+        entityType: "message_attachment",
+        objectKey,
+        userId: user.id,
+      });
+    }
+
+    const now = new Date(),
       [message] = await db
         .insert(messages)
         .values({
@@ -1817,6 +1845,15 @@ app.openapi(
               )
               .returning()
           : [];
+
+    for (const objectKey of attachmentObjectKeys) {
+      await completeUploadIntent({
+        entityId: messageId,
+        entityType: "message_attachment",
+        objectKey,
+        userId: user.id,
+      });
+    }
 
     await db
       .update(conversations)

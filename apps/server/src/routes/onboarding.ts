@@ -36,6 +36,7 @@ import {
   usernameAvailabilityResponseSchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import { claimUploadIntent, completeUploadIntent } from "@/lib/upload-intents";
 import { ensureWorkspaceForUser } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>(),
@@ -593,6 +594,24 @@ app.openapi(
         );
       }
 
+      if (
+        body.avatarObjectKey &&
+        !body.avatarObjectKey.startsWith(`profiles/${user.id}/`)
+      ) {
+        return c.json(
+          { message: "Profile media does not belong to this user." },
+          HttpStatusCodes.BAD_REQUEST
+        );
+      }
+      if (body.avatarObjectKey) {
+        await claimUploadIntent({
+          entityId: user.id,
+          entityType: "profile",
+          objectKey: body.avatarObjectKey,
+          userId: user.id,
+        });
+      }
+
       const db = createDb(),
         now = new Date(),
         genreId = await ensureGenre(body.primaryGenre),
@@ -636,6 +655,15 @@ app.openapi(
           },
           target: userProfiles.userId,
         });
+
+      if (body.avatarObjectKey) {
+        await completeUploadIntent({
+          entityId: user.id,
+          entityType: "profile",
+          objectKey: body.avatarObjectKey,
+          userId: user.id,
+        });
+      }
 
       await db
         .insert(artistProfiles)

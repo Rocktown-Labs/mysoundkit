@@ -79,7 +79,7 @@ import {
 import type { FriendSummary } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
-const FALLBACK_AVATAR = "/diverse-user-avatars.png",
+const FALLBACK_AVATAR = "/placeholder-user.jpg",
   SLASH_COMMANDS = [
     {
       command: "/collab",
@@ -962,7 +962,7 @@ function FloatingChatBarClient() {
                                                                 artist:
                                                                   "Shared Track",
                                                                 cover:
-                                                                  "/night-music-album-cover.png",
+                                                                  "/night-music-album-cover.webp",
                                                                 id: trackId,
                                                                 src: att.url,
                                                                 title:

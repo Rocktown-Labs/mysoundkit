@@ -54,7 +54,7 @@ export function StreamCard({
       thumbnailUrl ||
       (isCurrentlyLive
         ? "/music-battle-video-thumbnail.jpg"
-        : "/night-music-album-cover.png"),
+        : "/night-music-album-cover.webp"),
     // Derive relevant tag pills (e.g. genre, language/style)
     resolvedTags =
       tags && tags.length > 0
@@ -122,7 +122,7 @@ export function StreamCard({
           <Avatar className="size-9 shrink-0">
             <AvatarImage
               alt={displayName}
-              src={creatorAvatar ?? "/diverse-user-avatars.png"}
+              src={creatorAvatar ?? "/placeholder-user.jpg"}
             />
             <AvatarFallback>
               {displayName.slice(0, 2).toUpperCase()}

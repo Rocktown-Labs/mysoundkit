@@ -46,6 +46,7 @@ import { publishDueTrackReleases } from "@/lib/release-notifications";
 import { withRetry } from "@/lib/retry";
 import type { AppEnv } from "@/lib/types";
 import { jsonBodyMiddleware } from "@/middleware/json-body";
+import { publicResponseCache } from "@/middleware/public-response-cache";
 import { sessionMiddleware } from "@/middleware/session";
 import {
   logWarn,
@@ -162,6 +163,7 @@ app.use(
   })
 );
 app.use("/v1/*", jsonBodyMiddleware);
+app.use("/v1/*", publicResponseCache);
 app.use("/v1/*", sessionMiddleware);
 app.use("/media/*", sessionMiddleware);
 

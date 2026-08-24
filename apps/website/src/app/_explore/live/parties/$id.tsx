@@ -248,7 +248,7 @@ function ListeningPartyDetailPage() {
           alt={currentTrack?.title ?? room.title}
           className="size-full object-cover opacity-25 blur-3xl transition-all duration-700 scale-110 absolute inset-0 pointer-events-none"
           height={720}
-          src={currentTrack?.coverArtUrl ?? "/night-music-album-cover.png"}
+          src={currentTrack?.coverArtUrl ?? "/night-music-album-cover.webp"}
           width={1280}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/85 to-black/60 pointer-events-none" />
@@ -302,7 +302,7 @@ function ListeningPartyDetailPage() {
                     height={256}
                     src={
                       currentTrack?.coverArtUrl ??
-                      "/night-music-album-cover.png"
+                      "/night-music-album-cover.webp"
                     }
                     width={256}
                   />

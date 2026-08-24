@@ -935,10 +935,10 @@ export const tracks = pgTable(
       .default("demo")
       .notNull(),
     publishedAt: timestamp("published_at"),
-    purgeAfter: timestamp("purge_after"),
     purchaseMode: purchaseModeEnum("purchase_mode")
       .default("digital_download")
       .notNull(),
+    purgeAfter: timestamp("purge_after"),
     releaseAt: timestamp("release_at"),
     releaseStrategy: releaseStrategyEnum("release_strategy")
       .default("private")
@@ -1157,8 +1157,8 @@ export const trackCollaborators = pgTable(
     collaboratorUserId: text("collaborator_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
-    creditSplitBps: integer("credit_split_bps"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    creditSplitBps: integer("credit_split_bps"),
     id: text("id").primaryKey(),
     invitationStatus: invitationStatusEnum("invitation_status")
       .default("pending")
@@ -1275,6 +1275,40 @@ export const projectAssets = pgTable(
       table.exportVersion,
       table.assetKind
     ),
+  ]
+);
+
+export const uploadIntents = pgTable(
+  "upload_intents",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    entityId: text("entity_id"),
+    expiresAt: timestamp("expires_at").notNull(),
+    fileName: text("file_name").notNull(),
+    id: text("id").primaryKey(),
+    mimeType: text("mime_type"),
+    objectKey: text("object_key").notNull(),
+    registeredAt: timestamp("registered_at"),
+    registeredEntityId: text("registered_entity_id"),
+    registeredEntityType: text("registered_entity_type"),
+    route: text("route").notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    status: text("status").default("pending").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    userId: text("user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    uniqueIndex("upload_intents_object_key_idx").on(table.objectKey),
+    index("upload_intents_status_expires_idx").on(
+      table.status,
+      table.expiresAt
+    ),
+    index("upload_intents_user_created_idx").on(table.userId, table.createdAt),
   ]
 );
 

@@ -60,8 +60,9 @@ const API_ORIGIN = "http://soundkit.test",
     ["get", "/v1/admin/finance/summary"],
     ["post", "/v1/admin/tracks/backfill-durations"],
     ["get", "/v1/admin/tracks/backfill-durations/status"],
-    ["get", "/v1/admin/settings"],
-    ["patch", "/v1/admin/settings"],
+    ["get", "/v1/admin/genres"],
+    ["post", "/v1/admin/genres"],
+    ["get", "/v1/admin/regions"],
     ["post", "/v1/billing/checkout"],
     ["get", "/v1/billing/plans"],
     ["get", "/v1/billing/subscription"],
@@ -82,7 +83,7 @@ const API_ORIGIN = "http://soundkit.test",
     ["post", "/v1/communities/{communityId}/messages"],
     ["get", "/v1/communities/{communityId}/posts"],
     ["post", "/v1/communities/{communityId}/posts"],
-    ["get", "/v1/discover/home"],
+    ["get", "/v1/discover/genres"],
     ["get", "/v1/library/overview"],
     ["get", "/v1/library/playlists"],
     ["get", "/v1/library/purchases"],
@@ -338,27 +339,26 @@ describe("SoundKit public read API", () => {
     }
   );
 
-  it("returns the assembled discovery landing response", async () => {
-    const { body, response } = await fetchJson<{
-      featuredArtists: unknown[];
-      featuredBattles: unknown[];
-      featuredTracks: unknown[];
-      settings: {
-        defaultExploreRegion: string;
-        defaultExploreRegionType: string;
-        useGlobalExploreHome: boolean;
-      };
-    }>("/v1/discover/home");
+  it("returns the canonical discovery genre catalog", async () => {
+    const { body, response } = await fetchJson<
+      {
+        id: string;
+        name: string;
+        slug: string;
+        totalCount: number;
+      }[]
+    >("/v1/discover/genres");
 
     expect(response.status).toBe(200);
-    expect(body.featuredArtists.length).toBeGreaterThan(0);
-    expect(body.featuredBattles.length).toBeGreaterThan(0);
-    expect(body.featuredTracks.length).toBeGreaterThan(0);
-    expect(body.settings).toEqual({
-      defaultExploreRegion: "us-arkansas",
-      defaultExploreRegionType: "north-america",
-      useGlobalExploreHome: true,
-    });
+    expect(body.length).toBeGreaterThan(0);
+    expect(body[0]).toEqual(
+      expect.objectContaining({
+        id: expect.any(String),
+        name: expect.any(String),
+        slug: expect.any(String),
+        totalCount: expect.any(Number),
+      })
+    );
   });
 
   it("returns public explore read models for songs videos and ranked artists", async () => {

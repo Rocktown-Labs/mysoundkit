@@ -72,8 +72,8 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
       item.kind === "battle"
         ? "/music-battle-video-thumbnail.jpg"
         : item.kind === "party"
-          ? "/summer-music-album-cover.png"
-          : "/night-music-album-cover.png",
+          ? "/summer-music-album-cover.webp"
+          : "/night-music-album-cover.webp",
     categoryLabel = kindLabel(item.kind),
     tags = [
       item.genre,
@@ -226,12 +226,14 @@ function LiveHubPage() {
         </p>
       </section>
 
-      <LiveCollectionFilters
-        onChange={(next) => {
-          void navigate({ search: { ...next, view: "all" } });
-        }}
-        value={{ genre, sort, status }}
-      />
+      <div className="hidden lg:block">
+        <LiveCollectionFilters
+          onChange={(next) => {
+            void navigate({ search: { ...next, view: "all" } });
+          }}
+          value={{ genre, sort, status }}
+        />
+      </div>
 
       {view === "all" ? (
         <ExploreCollectionGrid

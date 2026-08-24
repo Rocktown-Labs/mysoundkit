@@ -26,8 +26,8 @@ export interface StreamDiscoveryItem {
 export const partyDiscoveryItems: PartyDiscoveryItem[] = [
   {
     albumCovers: [
-      "/summer-music-album-cover.png",
-      "/night-music-album-cover.png",
+      "/summer-music-album-cover.webp",
+      "/night-music-album-cover.webp",
     ],
     currentTrack: "Spotlight Album - Track 3",
     genre: "Hip-Hop/Rap",
@@ -38,7 +38,10 @@ export const partyDiscoveryItems: PartyDiscoveryItem[] = [
     title: "Single Album Spotlight",
   },
   {
-    albumCovers: ["/hip-hop-album-cover.png", "/summer-music-album-cover.png"],
+    albumCovers: [
+      "/hip-hop-album-cover.webp",
+      "/summer-music-album-cover.webp",
+    ],
     currentTrack: "Album A Track 2 vs Album B Track 2",
     genre: "R&B/Soul",
     hostName: "A&R Live Room",
@@ -48,7 +51,7 @@ export const partyDiscoveryItems: PartyDiscoveryItem[] = [
     title: "Alternating Album Faceoff",
   },
   {
-    albumCovers: ["/night-music-album-cover.png", "/hip-hop-album-cover.png"],
+    albumCovers: ["/night-music-album-cover.webp", "/hip-hop-album-cover.webp"],
     currentTrack: "Unreleased Track 5",
     genre: "Electronic",
     hostName: "Indie Discovery Club",
@@ -57,7 +60,10 @@ export const partyDiscoveryItems: PartyDiscoveryItem[] = [
     title: "New Music Discovery Session",
   },
   {
-    albumCovers: ["/summer-music-album-cover.png", "/hip-hop-album-cover.png"],
+    albumCovers: [
+      "/summer-music-album-cover.webp",
+      "/hip-hop-album-cover.webp",
+    ],
     currentTrack: "Crowd Favorite - Track 1",
     genre: "Pop",
     hostName: "Release Radar",
@@ -67,8 +73,8 @@ export const partyDiscoveryItems: PartyDiscoveryItem[] = [
   },
   {
     albumCovers: [
-      "/night-music-album-cover.png",
-      "/summer-music-album-cover.png",
+      "/night-music-album-cover.webp",
+      "/summer-music-album-cover.webp",
     ],
     currentTrack: "Live poem over piano loop",
     genre: "Spoken Word",
@@ -82,7 +88,7 @@ export const partyDiscoveryItems: PartyDiscoveryItem[] = [
 export const streamDiscoveryItems: StreamDiscoveryItem[] = [
   {
     category: "Studio",
-    creatorAvatar: "/diverse-user-avatars.png",
+    creatorAvatar: "/placeholder-user.jpg",
     creatorName: "Metro Boomin",
     genre: "Hip-Hop/Rap",
     id: "stream-studio",
@@ -93,7 +99,7 @@ export const streamDiscoveryItems: StreamDiscoveryItem[] = [
   },
   {
     category: "Performance",
-    creatorAvatar: "/diverse-user-avatars.png",
+    creatorAvatar: "/placeholder-user.jpg",
     creatorName: "Ariana",
     genre: "Pop",
     id: "stream-performance",
@@ -104,7 +110,7 @@ export const streamDiscoveryItems: StreamDiscoveryItem[] = [
   },
   {
     category: "Talkback",
-    creatorAvatar: "/diverse-user-avatars.png",
+    creatorAvatar: "/placeholder-user.jpg",
     creatorName: "Mike Dean",
     genre: "R&B/Soul",
     id: "stream-breakdown",
@@ -114,7 +120,7 @@ export const streamDiscoveryItems: StreamDiscoveryItem[] = [
   },
   {
     category: "Production",
-    creatorAvatar: "/diverse-user-avatars.png",
+    creatorAvatar: "/placeholder-user.jpg",
     creatorName: "Voltage Dreams",
     genre: "Electronic",
     id: "stream-electronic",
@@ -124,7 +130,7 @@ export const streamDiscoveryItems: StreamDiscoveryItem[] = [
   },
   {
     category: "Performance",
-    creatorAvatar: "/diverse-user-avatars.png",
+    creatorAvatar: "/placeholder-user.jpg",
     creatorName: "Street Poet",
     genre: "Spoken Word",
     id: "stream-spoken-word",

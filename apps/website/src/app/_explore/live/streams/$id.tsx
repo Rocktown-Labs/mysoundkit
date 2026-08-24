@@ -123,7 +123,7 @@ function StreamDetailPage() {
     creatorAvatar =
       artistData?.avatarUrl ??
       experience?.creatorAvatar ??
-      "/diverse-user-avatars.png",
+      "/placeholder-user.jpg",
     chatPanel = (
       <LiveChatPanel
         disabled={chat.isPending}

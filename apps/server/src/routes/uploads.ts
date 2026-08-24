@@ -13,6 +13,7 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import { recordUploadIntent } from "@/lib/upload-intents";
 import { logInfo, logWarn } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>(),
@@ -182,13 +183,22 @@ const requireUploadUser = async (request: Request) => {
             const userId = await requireArtistUploadUser(req);
 
             return {
-              generateObjectInfo: ({ file }) => ({
-                key: createObjectKey({
+              generateObjectInfo: async ({ file }) => {
+                const key = createObjectKey({
                   fileName: file.name,
                   prefix: "uploads",
                   userId,
-                }),
-              }),
+                });
+                await recordUploadIntent({
+                  fileName: file.name,
+                  mimeType: file.type,
+                  objectKey: key,
+                  route: "media",
+                  sizeBytes: file.size,
+                  userId,
+                });
+                return { key };
+              },
             };
           },
         }),
@@ -205,13 +215,22 @@ const requireUploadUser = async (request: Request) => {
             const userId = await requireUploadUser(req);
 
             return {
-              generateObjectInfo: ({ file }) => ({
-                key: createObjectKey({
+              generateObjectInfo: async ({ file }) => {
+                const key = createObjectKey({
                   fileName: file.name,
                   prefix: "profiles",
                   userId,
-                }),
-              }),
+                });
+                await recordUploadIntent({
+                  fileName: file.name,
+                  mimeType: file.type,
+                  objectKey: key,
+                  route: "profile-media",
+                  sizeBytes: file.size,
+                  userId,
+                });
+                return { key };
+              },
             };
           },
         }),
@@ -233,13 +252,22 @@ const requireUploadUser = async (request: Request) => {
             const userId = await requireArtistUploadUser(req);
 
             return {
-              generateObjectInfo: ({ file }) => ({
-                key: createObjectKey({
+              generateObjectInfo: async ({ file }) => {
+                const key = createObjectKey({
                   fileName: file.name,
                   prefix: "projects",
                   userId,
-                }),
-              }),
+                });
+                await recordUploadIntent({
+                  fileName: file.name,
+                  mimeType: file.type,
+                  objectKey: key,
+                  route: "project-assets",
+                  sizeBytes: file.size,
+                  userId,
+                });
+                return { key };
+              },
             };
           },
         }),
@@ -280,14 +308,24 @@ const requireUploadUser = async (request: Request) => {
             });
 
             return {
-              generateObjectInfo: ({ file }) => ({
-                key: createObjectKey({
+              generateObjectInfo: async ({ file }) => {
+                const key = createObjectKey({
                   entityId: track.id,
                   fileName: file.name,
                   prefix: "tracks",
                   userId,
-                }),
-              }),
+                });
+                await recordUploadIntent({
+                  entityId: track.id,
+                  fileName: file.name,
+                  mimeType: file.type,
+                  objectKey: key,
+                  route: "track-source",
+                  sizeBytes: file.size,
+                  userId,
+                });
+                return { key };
+              },
             };
           },
         }),

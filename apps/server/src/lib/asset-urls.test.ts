@@ -5,6 +5,7 @@ import {
   objectUrlFromMetadata,
   publicAssetUrl,
   publicAssetUrlFromParts,
+  publicProfileAssetUrl,
 } from "./asset-urls";
 
 const originalMediaPublicUrl = process.env.MEDIA_PUBLIC_URL;
@@ -30,6 +31,17 @@ describe("public asset URLs", () => {
         objectKey: "uploads/user/cover.jpg",
       })
     ).toBe("https://media.mysoundkit.com/media/uploads/user/cover.jpg");
+  });
+
+  it("canonicalizes profile object keys instead of stale preview URLs", () => {
+    process.env.MEDIA_PUBLIC_URL = "https://media.mysoundkit.com/media";
+
+    expect(
+      publicProfileAssetUrl({
+        fallbackUrl: "https://media-pr-43.mysoundkit.com/profiles/avatar.jpg",
+        objectKey: "profiles/user/avatar.jpg",
+      })
+    ).toBe("https://media.mysoundkit.com/media/profiles/user/avatar.jpg");
   });
 
   it("keeps metadata URLs as a legacy fallback", () => {

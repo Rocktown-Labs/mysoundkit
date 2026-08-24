@@ -10,6 +10,9 @@ const alchemyConfigPath = fileURLToPath(
   deployWorkflowPath = fileURLToPath(
     new URL("../../../.github/workflows/deploy.yml", import.meta.url)
   ),
+  uploadIntentMigrationPath = fileURLToPath(
+    new URL("migrations/0043_upload_intents.sql", import.meta.url)
+  ),
   workflowJob = (workflow: string, name: string, nextName: string) => {
     const startMarker = `  ${name}:\n`,
       endMarker = `  ${nextName}:\n`,
@@ -41,6 +44,14 @@ describe("deployment safety policy", () => {
 
     expect(schemaStep).toBeGreaterThan(-1);
     expect(deployStep).toBeGreaterThan(schemaStep);
+  });
+
+  it("adds upload intents without changing existing production tables", async () => {
+    const migration = await readFile(uploadIntentMigrationPath, "utf-8");
+
+    expect(migration).toContain('CREATE TABLE "upload_intents"');
+    expect(migration).not.toMatch(/DROP\s+(?:TABLE|COLUMN|TYPE)/iu);
+    expect(migration).not.toMatch(/ALTER TABLE "(?!upload_intents")/u);
   });
 
   it("keeps canonical production assets on the guarded media route", async () => {

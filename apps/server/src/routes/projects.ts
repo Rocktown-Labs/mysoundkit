@@ -15,6 +15,7 @@ import {
   trackAssets,
   tracks,
   userFollows,
+  userProfiles,
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
@@ -47,7 +48,8 @@ import {
 import { notify } from "@/lib/notifications";
 import {
   genreSlugFromExploreFilter,
-  stateFromExploreRegion,
+  profileRegionCondition,
+  resolveExploreRegion,
 } from "@/lib/public-explore";
 import { publishProjectIfMediaReady } from "@/lib/release-notifications";
 import { sampleProjects } from "@/lib/sample-data";
@@ -60,6 +62,7 @@ import {
   updateProjectBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import { claimUploadIntent, completeUploadIntent } from "@/lib/upload-intents";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
 
@@ -113,13 +116,24 @@ const projectOrderBy = (sort?: string) => {
     query: PublicProjectExploreQuery
   ) => {
     const genreSlug = genreSlugFromExploreFilter(query.genre),
-      state = stateFromExploreRegion(query),
-      regionSlug = state ? `us-${state.abbreviation.toLowerCase()}` : null,
+      region = resolveExploreRegion(query),
+      regionSlug =
+        region.kind === "state"
+          ? `us-${region.abbreviation.toLowerCase()}`
+          : null,
       q = query.q?.toLowerCase();
 
     if (
       genreSlug &&
       genreSlugFromExploreFilter(project.genre ?? "") !== genreSlug
+    ) {
+      return false;
+    }
+
+    if (
+      region.kind === "unknown" ||
+      region.kind === "country" ||
+      region.kind === "continent"
     ) {
       return false;
     }
@@ -276,7 +290,8 @@ app.openapi(
       );
     }
 
-    const publicProjectConditions = [eq(projects.isPublic, true)];
+    const regionCondition = profileRegionCondition(query),
+      publicProjectConditions = [eq(projects.isPublic, true)];
 
     if (query.type) {
       publicProjectConditions.push(eq(projects.projectType, query.type));
@@ -292,16 +307,21 @@ app.openapi(
       );
     }
 
+    if (regionCondition) {
+      publicProjectConditions.push(regionCondition);
+    }
+
     const rows = await createDb()
-        .select()
+        .select({ project: projects })
         .from(projects)
+        .leftJoin(userProfiles, eq(userProfiles.userId, projects.ownerUserId))
         .where(and(...publicProjectConditions))
         .orderBy(projectOrderBy(query.sort))
         .limit(100),
       summaries = [];
 
-    for (const row of rows) {
-      const summary = await buildProjectSummary(row);
+    for (const { project } of rows) {
+      const summary = await buildProjectSummary(project);
 
       if (projectMatchesExploreFilters(summary, query)) {
         summaries.push(summary);
@@ -391,6 +411,10 @@ app.openapi(
         projectSummarySchema,
         "Project created"
       ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid project media"
+      ),
       [HttpStatusCodes.INTERNAL_SERVER_ERROR]: jsonContent(
         messageResponseSchema,
         "Internal server error"
@@ -434,6 +458,22 @@ app.openapi(
           trackCount: body.trackIds.length + body.newTracks.length,
         },
         HttpStatusCodes.CREATED
+      );
+    }
+
+    const hasInvalidTrackObject = body.newTracks.some(
+        (track) =>
+          track.assetId && !track.assetId.startsWith(`tracks/${user.id}/`)
+      ),
+      hasInvalidProjectObject = body.assetIds.some(
+        (objectKey) =>
+          !objectKey.startsWith(`projects/${user.id}/`) &&
+          !objectKey.startsWith(`uploads/${user.id}/`)
+      );
+    if (hasInvalidTrackObject || hasInvalidProjectObject) {
+      return c.json(
+        { message: "An uploaded object does not belong to this user." },
+        HttpStatusCodes.BAD_REQUEST
       );
     }
 
@@ -521,6 +561,12 @@ app.openapi(
         });
 
         if (newTrack.assetId) {
+          await claimUploadIntent({
+            entityId: trackId,
+            entityType: "track_asset",
+            objectKey: newTrack.assetId,
+            userId: user.id,
+          });
           await db.insert(trackAssets).values({
             assetKind: "master",
             bucketName: getUploadBucketName(),
@@ -537,6 +583,12 @@ app.openapi(
             storageProvider: "r2",
             trackId,
             uploaderUserId: user.id,
+          });
+          await completeUploadIntent({
+            entityId: trackId,
+            entityType: "track_asset",
+            objectKey: newTrack.assetId,
+            userId: user.id,
           });
         }
 
@@ -556,6 +608,14 @@ app.openapi(
       }
 
       if (body.assetIds.length > 0) {
+        for (const objectKey of body.assetIds) {
+          await claimUploadIntent({
+            entityId: projectId,
+            entityType: "project_asset",
+            objectKey,
+            userId: user.id,
+          });
+        }
         await db.insert(projectAssets).values(
           body.assetIds.map((objectKey) => ({
             assetKind: "cover_art" as const,
@@ -570,6 +630,14 @@ app.openapi(
             uploaderUserId: user.id,
           }))
         );
+        for (const objectKey of body.assetIds) {
+          await completeUploadIntent({
+            entityId: projectId,
+            entityType: "project_asset",
+            objectKey,
+            userId: user.id,
+          });
+        }
       }
 
       if (body.collaborators.length > 0) {
@@ -747,6 +815,10 @@ app.openapi(
         projectDashboardDetailSchema,
         "Project updated"
       ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid project media"
+      ),
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         messageResponseSchema,
         "Project not found"
@@ -869,6 +941,26 @@ app.openapi(
     const coverObjectKey = body.assetIds?.[0] ?? null;
 
     if (coverObjectKey) {
+      const allowedProjectPrefixes = [
+        `projects/${user.id}/`,
+        `uploads/${user.id}/`,
+      ];
+      if (
+        !allowedProjectPrefixes.some((prefix) =>
+          coverObjectKey.startsWith(prefix)
+        )
+      ) {
+        return c.json(
+          { message: "Cover artwork does not belong to this user." },
+          HttpStatusCodes.BAD_REQUEST
+        );
+      }
+      await claimUploadIntent({
+        entityId: project.id,
+        entityType: "project_asset",
+        objectKey: coverObjectKey,
+        userId: user.id,
+      });
       await db
         .delete(projectAssets)
         .where(
@@ -888,6 +980,12 @@ app.openapi(
         status: "uploaded",
         storageProvider: "r2",
         uploaderUserId: user.id,
+      });
+      await completeUploadIntent({
+        entityId: project.id,
+        entityType: "project_asset",
+        objectKey: coverObjectKey,
+        userId: user.id,
       });
     }
 
@@ -1481,6 +1579,10 @@ app.openapi(
         projectDashboardDetailSchema,
         "Track added to project"
       ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid uploaded track"
+      ),
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         messageResponseSchema,
         "Project not found"
@@ -1543,9 +1645,33 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
+    if (
+      !body.sourceObjectKey.startsWith(`tracks/${user.id}/`) &&
+      !body.sourceObjectKey.startsWith(`uploads/${user.id}/`)
+    ) {
+      return c.json(
+        { message: "Uploaded project track does not belong to this user." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const uploadedObject = await c.env.MEDIA_BUCKET?.head(body.sourceObjectKey);
+    if (!uploadedObject) {
+      return c.json(
+        { message: "Uploaded project track was not found in storage." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
     const trackId = crypto.randomUUID(),
       now = new Date(),
       genreId = body.genre ? await ensureGenreId(body.genre) : project.genreId;
+    await claimUploadIntent({
+      entityId: trackId,
+      entityType: "track_asset",
+      objectKey: body.sourceObjectKey,
+      userId: user.id,
+    });
 
     await db.insert(tracks).values({
       downloadsAllowed: true,
@@ -1564,13 +1690,6 @@ app.openapi(
       title: body.title,
     });
 
-    const uploadedObject = await c.env.MEDIA_BUCKET?.head(body.sourceObjectKey);
-    if (!uploadedObject) {
-      return c.json(
-        { message: "Uploaded project track was not found in storage." },
-        HttpStatusCodes.NOT_FOUND
-      );
-    }
     const masterAssetId = crypto.randomUUID();
     await db.insert(trackAssets).values({
       assetKind: "master",
@@ -1586,6 +1705,12 @@ app.openapi(
       storageProvider: "r2",
       trackId,
       uploaderUserId: user.id,
+    });
+    await completeUploadIntent({
+      entityId: trackId,
+      entityType: "track_asset",
+      objectKey: body.sourceObjectKey,
+      userId: user.id,
     });
 
     const existingTracks = await db
