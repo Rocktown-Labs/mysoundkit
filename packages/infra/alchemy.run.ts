@@ -450,10 +450,6 @@ export const server = await Worker("server", {
       alchemy.secret.env.STRIPE_SECRET_KEY,
       "STRIPE_SECRET_KEY"
     ),
-    STRIPE_WEBHOOK_SECRET: requiredSecret(
-      alchemy.secret.env.STRIPE_WEBHOOK_SECRET,
-      "STRIPE_WEBHOOK_SECRET"
-    ),
     ...optionalEnvBinding("STRIPE_BETTER_AUTH_WEBHOOK_SECRET"),
     ...optionalEnvBinding("STRIPE_COMMERCE_WEBHOOK_SECRET"),
     ...optionalEnvBinding("STRIPE_CONNECT_WEBHOOK_SECRET"),

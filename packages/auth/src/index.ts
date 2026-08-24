@@ -371,9 +371,9 @@ export const createAuth = () => {
     isDevelopment =
       globalThis.process?.env.NODE_ENV === "development" || isLocalAuthUrl,
     stripeClient = createStripeClient(),
-    stripeWebhookSecret =
-      getEnvValue("STRIPE_BETTER_AUTH_WEBHOOK_SECRET") ||
-      getEnvValue("STRIPE_WEBHOOK_SECRET"),
+    stripeWebhookSecret = getEnvValue(
+      "STRIPE_BETTER_AUTH_WEBHOOK_SECRET"
+    ),
     allowedAuthHosts = uniqueValues([
       authHost,
       siteHost,

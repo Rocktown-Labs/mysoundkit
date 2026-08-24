@@ -23,7 +23,7 @@ const jsonRequest = (method: string, body: unknown) => ({
   }) => {
     const key = await crypto.subtle.importKey(
         "raw",
-        new TextEncoder().encode("whsec_soundkit_test"),
+        new TextEncoder().encode("whsec_soundkit_commerce_test"),
         { hash: "SHA-256", name: "HMAC" },
         false,
         ["sign"]
