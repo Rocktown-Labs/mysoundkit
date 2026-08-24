@@ -17,11 +17,11 @@ export interface RegionOption {
 
 export const mapScopes: RegionOption[] = [
   {
-    center: [0, 0],
+    center: [0, 8],
     id: "global",
     label: "Global",
     projection: "geoEqualEarth",
-    scale: 140,
+    scale: 180,
   },
   {
     center: [-100, 42],

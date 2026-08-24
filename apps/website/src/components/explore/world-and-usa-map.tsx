@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { exploreRegionSlug } from "@/lib/explore-region";
+import { isWorldCountryInMapScope } from "@/lib/map-country-scopes";
 import { mapScopes } from "@/lib/map-scopes";
 import type { MapScope } from "@/lib/map-scopes";
 
@@ -229,7 +230,16 @@ export function WorldAndUSAMap({
               </>
             ) : (
               <Geographies geography={worldGeoUrl}>
-                {({ geographies }) => geographies.map(renderGeography)}
+                {({ geographies }) =>
+                  geographies
+                    .filter((geography) => {
+                      const name = geographyName(geography);
+                      return name
+                        ? isWorldCountryInMapScope(mapScope, name)
+                        : false;
+                    })
+                    .map(renderGeography)
+                }
               </Geographies>
             )}
           </ZoomableGroup>
