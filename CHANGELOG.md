@@ -28,6 +28,7 @@
 
 ### Fixed
 
+- Fixed legacy cover art failing to load on public track cards: the guarded media worker now serves cover art from both v2-pipeline rows (purpose "artwork") and legacy rows (assetKind "cover_art"), and the public track detail API returns canonical media-host URLs instead of stale upload-time hosts.
 - Fixed track quick actions and released-track editing: main-file swaps now pass the required per-track upload metadata (previously rejected as "Invalid metadata."), cover-art swaps demote legacy NULL-purpose current rows so only one cover stays current, swapped-in masters relaunch the media processing workflow so derivatives regenerate, cover uploads send the real file MIME type, and the released-track editor picks its schema resolver at validation time so disabled Status/Genre fields no longer block saving.
 - Fixed the explore home page stretching horizontally on large screens when card rails overflow; rails now scroll in place while the map keeps its full width.
 - Fixed V3 True Peak correction attenuating the entire mix and pushing valid streaming derivatives below the accepted loudness range; pipeline V4 always guards AAC transient overshoot and adaptively lowers the limiter ceiling independently from loudness gain.
