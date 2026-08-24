@@ -48,7 +48,8 @@ export const publicCacheKey = (request: Request): Request => {
   return new Request(url, { method: "GET" });
 };
 
-const cacheControl = `public, max-age=0, s-maxage=${PUBLIC_CACHE_TTL_SECONDS}, stale-while-revalidate=${PUBLIC_CACHE_STALE_SECONDS}`;
+const browserCacheControl = "private, max-age=0, must-revalidate",
+  edgeCacheControl = `public, max-age=${PUBLIC_CACHE_TTL_SECONDS}, stale-while-revalidate=${PUBLIC_CACHE_STALE_SECONDS}`;
 
 export const publicResponseCache = createMiddleware<AppEnv>(async (c, next) => {
   if (!isPublicCacheRequest(c.req.raw) || !("caches" in globalThis)) {
@@ -62,6 +63,7 @@ export const publicResponseCache = createMiddleware<AppEnv>(async (c, next) => {
 
   if (cached) {
     const headers = new Headers(cached.headers);
+    headers.set("Cache-Control", browserCacheControl);
     headers.set("X-SoundKit-Cache", "HIT");
     return new Response(cached.body, {
       headers,
@@ -81,9 +83,9 @@ export const publicResponseCache = createMiddleware<AppEnv>(async (c, next) => {
 
   const browserHeaders = new Headers(response.headers),
     storedHeaders = new Headers(response.headers);
-  browserHeaders.set("Cache-Control", cacheControl);
+  browserHeaders.set("Cache-Control", browserCacheControl);
   browserHeaders.set("X-SoundKit-Cache", "MISS");
-  storedHeaders.set("Cache-Control", cacheControl);
+  storedHeaders.set("Cache-Control", edgeCacheControl);
   storedHeaders.delete("Access-Control-Allow-Credentials");
   storedHeaders.delete("Access-Control-Allow-Origin");
   storedHeaders.delete("Vary");

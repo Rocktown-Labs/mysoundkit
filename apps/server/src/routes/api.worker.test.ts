@@ -146,7 +146,9 @@ describe("SoundKit Worker API", () => {
 
     expect(first.status).toBe(200);
     expect(first.headers.get("x-soundkit-cache")).toBe("MISS");
+    expect(first.headers.get("cache-control")).toContain("max-age=0");
     expect(second.headers.get("x-soundkit-cache")).toBe("HIT");
+    expect(second.headers.get("cache-control")).toContain("max-age=0");
     expect(second.headers.get("access-control-allow-origin")).toBe(
       "http://127.0.0.1:3001"
     );
