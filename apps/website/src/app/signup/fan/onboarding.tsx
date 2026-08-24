@@ -34,6 +34,7 @@ function FanOnboardingPage() {
     [usernameAvailable, setUsernameAvailable] = useState(false),
     [selectedGenres, setSelectedGenres] = useState<string[]>([]),
     [city, setCity] = useState(""),
+    [country, setCountry] = useState(""),
     [stateValue, setStateValue] = useState(""),
     [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards"),
     [selectedPlanCode, setSelectedPlanCode] = useState("soundkit_premium_fan"),
@@ -97,7 +98,13 @@ function FanOnboardingPage() {
     },
     completeOnboarding = async () => {
       if (
-        !(usernameAvailable && selectedGenres.length >= 3 && city && stateValue)
+        !(
+          usernameAvailable &&
+          selectedGenres.length >= 3 &&
+          city &&
+          country &&
+          stateValue
+        )
       ) {
         setErrorMessage(
           "Choose an available username, at least three genres, and your location before completing setup."
@@ -111,6 +118,7 @@ function FanOnboardingPage() {
         const response = await fetch(`${API_V1_URL}/onboarding/fan`, {
             body: JSON.stringify({
               city,
+              country,
               genrePreferences: selectedGenres,
               mediaLayout,
               selectedPlanCode,
@@ -234,6 +242,7 @@ function FanOnboardingPage() {
       FAN_ONBOARDING_DRAFT_KEY,
       JSON.stringify({
         city,
+        country,
         mediaLayout,
         selectedGenres,
         selectedPlanCode,
@@ -244,6 +253,7 @@ function FanOnboardingPage() {
     );
   }, [
     city,
+    country,
     isDraftRestored,
     mediaLayout,
     selectedGenres,
@@ -363,12 +373,18 @@ function FanOnboardingPage() {
               <StepFrame
                 icon={<MapPin />}
                 title="Where Are You Located?"
-                subtitle="Discover local artists and events with a full city and state location."
+                subtitle="Discover local artists and events with a city and region or country."
               >
                 <LocationField
                   city={city}
-                  onChange={({ city: nextCity, state: nextState }) => {
+                  country={country}
+                  onChange={({
+                    city: nextCity,
+                    country: nextCountry,
+                    state: nextState,
+                  }) => {
                     setCity(nextCity);
+                    setCountry(nextCountry);
                     setStateValue(nextState);
                   }}
                   state={stateValue}
@@ -384,7 +400,7 @@ function FanOnboardingPage() {
                   </Button>
                   <Button
                     className="h-12 flex-1"
-                    disabled={!(city && stateValue)}
+                    disabled={!(city && country && stateValue)}
                     onClick={() => goToStep(4)}
                     size="lg"
                   >

@@ -19,10 +19,14 @@ describe("regional world map countries", () => {
     expect(isWorldCountryInMapScope("oceania", "India")).toBe(false);
   });
 
-  it("preserves global and North America as separate map layers", () => {
+  it("keeps country scopes separate from the global layer", () => {
     expect(isWorldCountryInMapScope("global", "Brazil")).toBe(true);
-    expect(isWorldCountryInMapScope("north-america", "Brazil")).toBe(true);
+    expect(isWorldCountryInMapScope("usa", "United States")).toBe(true);
+    expect(isWorldCountryInMapScope("usa", "Canada")).toBe(false);
+    expect(isWorldCountryInMapScope("canada", "Canada")).toBe(true);
+    expect(isWorldCountryInMapScope("mexico", "Mexico")).toBe(true);
     expect(regionalWorldCountryNames.africa.has("W. Sahara")).toBe(true);
     expect(regionalWorldCountryNames.asia.has("Turkey")).toBe(true);
+    expect(regionalWorldCountryNames.europe.has("Norway")).toBe(true);
   });
 });

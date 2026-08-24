@@ -103,6 +103,7 @@ export const regionalWorldCountryNames: Readonly<
       "Yemen",
       "Saudi Arabia",
     ]),
+    canada: new Set(["Canada"]),
     europe: new Set([
       "Russia",
       "Norway",
@@ -174,6 +175,7 @@ export const regionalWorldCountryNames: Readonly<
       "Paraguay",
       "Trinidad and Tobago",
     ]),
+    mexico: new Set(["Mexico"]),
     oceania: new Set([
       "Fiji",
       "Papua New Guinea",
@@ -183,6 +185,7 @@ export const regionalWorldCountryNames: Readonly<
       "New Zealand",
       "Australia",
     ]),
+    usa: new Set(["United States"]),
   },
   isWorldCountryInMapScope = (
     mapScope: MapScope,

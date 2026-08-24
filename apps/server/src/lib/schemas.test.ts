@@ -15,6 +15,7 @@ import {
 
 const artistOnboardingPayload = {
   city: "Little Rock",
+  country: "United States",
   primaryGenre: "Hip-Hop",
   roles: ["musician"],
   selectedPlanCode: "artist_free",
@@ -117,6 +118,7 @@ describe("onboarding plan codes", () => {
 
   const fanPayload = {
     city: "Chicago",
+    country: "United States",
     genrePreferences: ["House", "Hip-Hop", "Soul"],
     state: "IL",
     username: "soundkit_fan",
@@ -170,8 +172,14 @@ describe("artist dashboard release schemas", () => {
           assetId: "asset_track_1",
           fileName: "intro-tape.wav",
           genre: "Hip-Hop",
+          isrc: "US-XXX-26-00001",
           mimeType: "audio/wav",
           sizeBytes: 12_000_000,
+          streamingLinks: {
+            appleMusic: "https://music.apple.com/us/album/intro-tape",
+            spotify: "https://open.spotify.com/track/intro-tape",
+            youtube: "https://youtube.com/watch?v=intro-tape",
+          },
           title: "Intro Tape",
         },
         {

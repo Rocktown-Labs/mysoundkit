@@ -530,6 +530,7 @@ describe("SoundKit public write API", () => {
       "/v1/onboarding/fan",
       jsonRequest({
         city: "Chicago",
+        country: "United States",
         genrePreferences: ["House", "Hip-Hop", "Soul"],
         selectedPlanCode: "fan_free",
         state: "IL",
@@ -580,6 +581,7 @@ describe("SoundKit public write API", () => {
         "/v1/onboarding/artist",
         jsonRequest({
           city: "Little Rock",
+          country: "United States",
           primaryGenre: "Hip-Hop",
           roles: ["musician"],
           selectedPlanCode: "artist_free",
@@ -592,6 +594,7 @@ describe("SoundKit public write API", () => {
         "/v1/onboarding/fan",
         jsonRequest({
           city: "Little Rock",
+          country: "United States",
           genrePreferences: ["Hip-Hop", "Soul", "Jazz"],
           selectedPlanCode: "fan_free",
           state: "AR",
@@ -612,6 +615,7 @@ describe("SoundKit public write API", () => {
         "/v1/onboarding/artist",
         jsonRequest({
           city: "Little Rock",
+          country: "United States",
           primaryGenre: "Hip-Hop",
           roles: ["musician"],
           selectedPlanCode: "artist_lite_ads",
@@ -624,6 +628,7 @@ describe("SoundKit public write API", () => {
         "/v1/onboarding/fan",
         jsonRequest({
           city: "Chicago",
+          country: "United States",
           genrePreferences: ["House"],
           selectedPlanCode: "fan_lite_ads",
           state: "IL",

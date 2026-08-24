@@ -153,10 +153,14 @@ const isCollaboratorRole = (value: string): value is CollaboratorRole =>
           file: z.any().optional(),
           fileName: z.string().optional(),
           genre: z.string().min(1, "Genre is required"),
+          isrc: z.string().optional(),
           mimeType: z.string().optional(),
           name: z.string().min(1, "Track name is required"),
           producers: z.string().optional(),
           sizeBytes: z.number().int().optional(),
+          streamingAppleMusic: z.string().optional(),
+          streamingSpotify: z.string().optional(),
+          streamingYoutube: z.string().optional(),
           writers: z.string().optional(),
         })
       )
@@ -675,6 +679,12 @@ export function NewProjectForm({
               downloadsRequirePurchase: false,
               durationMs: pendingTrackFiles[index]?.durationMs ?? undefined,
               genre: track.genre || values.genre || "Hip-Hop/Rap",
+              isrc: track.isrc?.trim() || undefined,
+              streamingLinks: {
+                appleMusic: track.streamingAppleMusic?.trim() || undefined,
+                spotify: track.streamingSpotify?.trim() || undefined,
+                youtube: track.streamingYoutube?.trim() || undefined,
+              },
               title: track.name,
             };
 
@@ -872,8 +882,12 @@ export function NewProjectForm({
         append({
           file,
           genre: form.getValues("genre") || "Hip-Hop/Rap",
+          isrc: "",
           name: file.name.replace(/\.[^/.]+$/, ""),
           producers: "",
+          streamingAppleMusic: "",
+          streamingSpotify: "",
+          streamingYoutube: "",
           writers: "",
         });
       }
@@ -2005,6 +2019,103 @@ export function NewProjectForm({
                       variant="compact"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-4 rounded-xl border border-border/40 bg-muted/20 p-4">
+                  <div className="space-y-1">
+                    <h4 className="font-semibold text-sm">
+                      Release Identifiers
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Add registry and platform links when a new project track
+                      is already live elsewhere.
+                    </p>
+                  </div>
+                  {fields.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-border/50 px-3 py-4 text-xs text-muted-foreground">
+                      Upload a new track in Step 2 to add its ISRC and platform
+                      links here. Existing library tracks keep their saved
+                      identifiers.
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {fields.map((field, index) => (
+                        <div
+                          className="space-y-4 rounded-lg border border-border/40 bg-background/40 p-4"
+                          key={field.id}
+                        >
+                          <p className="font-medium text-sm">
+                            {field.name || `New Track ${index + 1}`}
+                          </p>
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <FormField
+                              control={form.control}
+                              name={`newTracks.${index}.isrc`}
+                              render={({ field: isrcField }) => (
+                                <FormItem>
+                                  <FormLabel>ISRC</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      {...isrcField}
+                                      placeholder="US-XXX-26-00001"
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`newTracks.${index}.streamingSpotify`}
+                              render={({ field: spotifyField }) => (
+                                <FormItem>
+                                  <FormLabel>Spotify Track URL</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      {...spotifyField}
+                                      placeholder="https://open.spotify.com/track/..."
+                                      type="url"
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`newTracks.${index}.streamingAppleMusic`}
+                              render={({ field: appleMusicField }) => (
+                                <FormItem>
+                                  <FormLabel>Apple Music Track URL</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      {...appleMusicField}
+                                      placeholder="https://music.apple.com/..."
+                                      type="url"
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`newTracks.${index}.streamingYoutube`}
+                              render={({ field: youtubeField }) => (
+                                <FormItem>
+                                  <FormLabel>YouTube URL</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      {...youtubeField}
+                                      placeholder="https://youtube.com/watch?v=..."
+                                      type="url"
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-between pt-4">

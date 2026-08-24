@@ -634,6 +634,7 @@ app.openapi(
           accountType: "artist",
           ...avatar,
           city: body.city,
+          country: body.country,
           displayName: body.songwriterLegalName?.trim() || body.username,
           mediaLayout: body.mediaLayout,
           onboardingCompletedAt: now,
@@ -647,6 +648,7 @@ app.openapi(
             accountType: "artist",
             ...avatar,
             city: body.city,
+            country: body.country,
             mediaLayout: body.mediaLayout,
             onboardingCompletedAt: now,
             state: body.state,
@@ -884,6 +886,7 @@ app.openapi(
         .values({
           accountType: "fan",
           city: body.city,
+          country: body.country,
           displayName: body.username,
           mediaLayout: body.mediaLayout,
           onboardingCompletedAt: now,
@@ -896,6 +899,7 @@ app.openapi(
           set: {
             accountType: "fan",
             city: body.city,
+            country: body.country,
             mediaLayout: body.mediaLayout,
             onboardingCompletedAt: now,
             state: body.state,

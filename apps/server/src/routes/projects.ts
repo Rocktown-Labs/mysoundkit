@@ -551,12 +551,14 @@ app.openapi(
           id: trackId,
           isForSale: body.isForSale,
           isPublic: false,
+          isrc: newTrack.isrc ?? null,
           listeningAccess: body.listeningAccess,
           organizationId,
           ownerUserId: user.id,
           productionStatus: "demo",
           releaseStrategy: "private",
           slug: uniqueSlug(newTrack.title),
+          streamingLinks: newTrack.streamingLinks,
           title: newTrack.title,
         });
 
