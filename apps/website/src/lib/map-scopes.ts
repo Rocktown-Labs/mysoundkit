@@ -35,7 +35,7 @@ export const mapScopes: RegionOption[] = [
     id: "africa",
     label: "Africa",
     projection: "geoMercator",
-    scale: 220,
+    scale: 300,
   },
   {
     center: [15, 52],
@@ -49,20 +49,20 @@ export const mapScopes: RegionOption[] = [
     id: "asia",
     label: "Asia",
     projection: "geoMercator",
-    scale: 200,
+    scale: 320,
   },
   {
     center: [-65, -15],
     id: "latin-america",
     label: "Latin America",
     projection: "geoMercator",
-    scale: 250,
+    scale: 300,
   },
   {
     center: [135, -25],
     id: "oceania",
     label: "Oceania",
     projection: "geoMercator",
-    scale: 300,
+    scale: 420,
   },
 ];
