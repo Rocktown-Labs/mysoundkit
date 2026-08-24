@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars */
 import { describe, expect, it } from "vitest";
 
 import { mapScopes } from "./map-scopes";
@@ -15,11 +16,10 @@ describe("Map Navigation Scopes", () => {
   });
 
   it("assigns appropriate projections and scale parameters", () => {
-    const globalScope = mapScopes.find((s) => s.id === "global");
+    const globalScope = mapScopes.find((s) => s.id === "global"),
+      africaScope = mapScopes.find((s) => s.id === "africa");
     expect(globalScope?.projection).toBe("geoEqualEarth");
-    expect(globalScope?.scale).toBe(140);
-
-    const africaScope = mapScopes.find((s) => s.id === "africa");
+    expect(globalScope?.scale).toBe(180);
     expect(africaScope?.projection).toBe("geoMercator");
     expect(africaScope?.scale).toBeGreaterThan(100);
   });

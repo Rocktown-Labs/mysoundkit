@@ -5,6 +5,7 @@
 ### Added
 
 - Added an Admin Open Verse catalog with raw legacy/media health, owner and track context, request/submission counts, and confirmed cleanup that preserves underlying tracks.
+- Added scoped Explore map geographies: continental views now render only their own countries, while North America retains detailed US states with clickable Canada and Mexico outlines.
 - Added production-ready regional discovery across tracks, videos, projects, artists, battles, creator streams, and listening parties, with real country/continent/US-state server filters, URL-backed Live destinations, Canada/Mexico map coverage, selected-area map zoom, and locally bundled geography assets.
 - Added Admin genre and regional catalog operations: every canonical/custom genre now shows track, video, project, battle, party, and Open Verse usage; admins can add genres such as Battle Rap; and regional coverage reports surface member/upload inventory plus missing location data.
 - Added short-lived Cloudflare Cache API caching for an explicit allowlist of invariant public catalog GETs, with canonical keys, CORS-safe storage, credential/private/live exclusions, and observable HIT/MISS/BYPASS headers.
@@ -35,6 +36,7 @@
 ### Fixed
 
 - Removed the redundant Status dropdown from public Parties and Streams so Battles, Parties, and Streams each expose North America, Global, Genre, and Sort while rail-driven Live/Upcoming filtering remains URL-backed.
+- Improved the Global Explore map’s flat overview sizing and centering for desktop and mobile layouts.
 - Fixed Admin Genres reporting zero for persisted canonical genres by sharing persisted genre UUID resolution with discovery, and added indexes for genre-backed catalog filters.
 - Fixed Arkansas profiles displaying an unknown country and disappearing from US/North America discovery by inferring United States from recognized US state names and abbreviations when country is blank.
 - Fixed Explore rails stretching or bleeding the page, blank global “in” labels, contradictory Global-map callbacks, decorative continent filters, unsupported Live region links, and inconsistent Battles/Parties/Streams content spacing; global rails now read “On SoundKit” and rails snap-scroll internally.
