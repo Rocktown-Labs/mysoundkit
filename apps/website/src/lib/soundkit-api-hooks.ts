@@ -687,6 +687,16 @@ export const useCreateFriendRequestMutation = () => {
   return useMutation({
     mutationFn: async (body: { message?: string; username: string }) =>
       rpcJson(await friendRequestsPost({ json: body })),
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(
+        soundkitQueryKeys.friendRequests,
+        context?.previousRequests
+      );
+      queryClient.setQueryData(
+        soundkitQueryKeys.network,
+        context?.previousNetwork
+      );
+    },
     onMutate: async ({ message, username }) => {
       await Promise.all([
         queryClient.cancelQueries({
@@ -731,13 +741,6 @@ export const useCreateFriendRequestMutation = () => {
       );
       return { previousNetwork, previousRequests };
     },
-    onError: (_error, _variables, context) => {
-      queryClient.setQueryData(
-        soundkitQueryKeys.friendRequests,
-        context?.previousRequests
-      );
-      queryClient.setQueryData(soundkitQueryKeys.network, context?.previousNetwork);
-    },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.friendRequests,
@@ -764,6 +767,16 @@ export const useRespondFriendRequestMutation = () => {
           param: { requestId },
         })
       ),
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(
+        soundkitQueryKeys.friendRequests,
+        context?.previousRequests
+      );
+      queryClient.setQueryData(
+        soundkitQueryKeys.network,
+        context?.previousNetwork
+      );
+    },
     onMutate: async ({ action, requestId }) => {
       await Promise.all([
         queryClient.cancelQueries({
@@ -787,7 +800,10 @@ export const useRespondFriendRequestMutation = () => {
             ? removeRequest(requests)
             : requests.map((item) =>
                 item.id === requestId
-                  ? { ...item, status: action === "cancel" ? "canceled" : "declined" }
+                  ? {
+                      ...item,
+                      status: action === "cancel" ? "canceled" : "declined",
+                    }
                   : item
               )
       );
@@ -837,13 +853,6 @@ export const useRespondFriendRequestMutation = () => {
         }
       );
       return { previousNetwork, previousRequests };
-    },
-    onError: (_error, _variables, context) => {
-      queryClient.setQueryData(
-        soundkitQueryKeys.friendRequests,
-        context?.previousRequests
-      );
-      queryClient.setQueryData(soundkitQueryKeys.network, context?.previousNetwork);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -1143,6 +1152,27 @@ export const useUpdateTrackMutation = (trackId: string) => {
   return useMutation({
     mutationFn: async (body: UpdateTrackBody) =>
       rpcJson(await trackPatch({ json: body, param: { trackId } })),
+    onError: (_error, _body, context) => {
+      queryClient.setQueryData(
+        soundkitQueryKeys.track(trackId),
+        context?.previousTrack
+      );
+    },
+    onMutate: async (body) => {
+      await queryClient.cancelQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      });
+      const previousTrack = queryClient.getQueryData<TrackDetail>(
+        soundkitQueryKeys.track(trackId)
+      );
+      if (previousTrack) {
+        queryClient.setQueryData(soundkitQueryKeys.track(trackId), {
+          ...previousTrack,
+          ...body,
+        });
+      }
+      return { previousTrack };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.tracksPrefix,
@@ -1160,6 +1190,24 @@ export const useDeleteTrackMutation = () => {
   return useMutation({
     mutationFn: async (trackId: string) =>
       rpcJson(await trackDelete({ param: { trackId } })),
+    onError: (_error, _trackId, context) => {
+      for (const [queryKey, tracks] of context?.previousTracks ?? []) {
+        queryClient.setQueryData(queryKey, tracks);
+      }
+    },
+    onMutate: async (trackId) => {
+      await queryClient.cancelQueries({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      });
+      const previousTracks = queryClient.getQueriesData<TrackSummary[]>({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      });
+      queryClient.setQueriesData<TrackSummary[]>(
+        { queryKey: soundkitQueryKeys.tracksPrefix },
+        (tracks) => tracks?.filter((track) => track.id !== trackId)
+      );
+      return { previousTracks };
+    },
     onSuccess: (_, trackId) => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.tracksPrefix,
@@ -1337,6 +1385,27 @@ export const useUpdateProjectMutation = (projectId: string) => {
   return useMutation({
     mutationFn: async (body: UpdateProjectBody) =>
       rpcJson(await projectPatch({ json: body, param: { projectId } })),
+    onError: (_error, _body, context) => {
+      queryClient.setQueryData(
+        soundkitQueryKeys.project(projectId),
+        context?.previousProject
+      );
+    },
+    onMutate: async (body) => {
+      await queryClient.cancelQueries({
+        queryKey: soundkitQueryKeys.project(projectId),
+      });
+      const previousProject = queryClient.getQueryData<PublicProjectSummary>(
+        soundkitQueryKeys.project(projectId)
+      );
+      if (previousProject) {
+        queryClient.setQueryData(soundkitQueryKeys.project(projectId), {
+          ...previousProject,
+          ...body,
+        });
+      }
+      return { previousProject };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects });
       queryClient.invalidateQueries({
@@ -1368,6 +1437,24 @@ export const useDeleteProjectMutation = () => {
         payload?.message ?? `Project delete failed: ${response.status}`,
         response.status
       );
+    },
+    onError: (_error, _projectId, context) => {
+      queryClient.setQueryData(
+        soundkitQueryKeys.projects,
+        context?.previousProjects
+      );
+    },
+    onMutate: async (projectId) => {
+      await queryClient.cancelQueries({ queryKey: soundkitQueryKeys.projects });
+      const previousProjects = queryClient.getQueryData<ProjectSummary[]>(
+        soundkitQueryKeys.projects
+      );
+      queryClient.setQueryData<ProjectSummary[]>(
+        soundkitQueryKeys.projects,
+        (projects = []) =>
+          projects.filter((project) => project.id !== projectId)
+      );
+      return { previousProjects };
     },
     onSuccess: (_, projectId) => {
       queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects });
@@ -2156,6 +2243,24 @@ export const useDeleteVideoMutation = () => {
   return useMutation({
     mutationFn: async (videoId: string) =>
       rpcJson(await videoDelete({ param: { videoId } })),
+    onError: (_error, _videoId, context) => {
+      for (const [queryKey, videos] of context?.previousVideos ?? []) {
+        queryClient.setQueryData(queryKey, videos);
+      }
+    },
+    onMutate: async (videoId) => {
+      await queryClient.cancelQueries({
+        queryKey: soundkitQueryKeys.videosPrefix,
+      });
+      const previousVideos = queryClient.getQueriesData<VideoSummary[]>({
+        queryKey: soundkitQueryKeys.videosPrefix,
+      });
+      queryClient.setQueriesData<VideoSummary[]>(
+        { queryKey: soundkitQueryKeys.videosPrefix },
+        (videos) => videos?.filter((video) => video.id !== videoId)
+      );
+      return { previousVideos };
+    },
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.videosPrefix,

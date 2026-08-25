@@ -26,8 +26,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { usePresence } from "@/lib/presence-context";
 import { useDbFollowActions } from "@/lib/data-db";
+import { usePresence } from "@/lib/presence-context";
 import {
   useCreateFriendRequestMutation,
   useNetworkQuery,
@@ -97,7 +97,7 @@ function PersonCard({
   const { isUserOnline, registerPresenceUsers } = usePresence(),
     friendRequestMutation = useCreateFriendRequestMutation(),
     { unfollow } = useDbFollowActions(),
-    isArtist = person.accountType === "artist", 
+    isArtist = person.accountType === "artist",
     unfollowPerson = async () => {
       if (!person.username) {
         return;

@@ -32,10 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  useDbPlaylistActions,
-  useDbPlaylists,
-} from "@/lib/data-db";
+import { useDbPlaylistActions, useDbPlaylists } from "@/lib/data-db";
 import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
 import { createPlaylistColumns } from "./-columns";
@@ -258,9 +255,7 @@ function PlaylistsPage() {
             />
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>
-              Cancel
-            </AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={
                 !deleteCandidate ||
