@@ -43,6 +43,8 @@ const app = new OpenAPIHono<AppEnv>(),
     bio: z.string().nullable(),
     displayName: z.string(),
     followerCount: z.number().int().nonnegative(),
+    id: z.string(),
+    isFollowing: z.boolean(),
     location: z.string().nullable(),
     username: z.string(),
   });
@@ -70,6 +72,8 @@ app.openapi(
           bio: null,
           displayName: "SoundKit Fan",
           followerCount: 0,
+          id: "profile_fan",
+          isFollowing: false,
           location: null,
           username: c.req.valid("param").username,
         },
@@ -78,6 +82,7 @@ app.openapi(
     }
 
     const { username } = c.req.valid("param"),
+      viewer = c.get("user"),
       db = createDb(),
       [profile] = await db
         .select({
@@ -102,9 +107,21 @@ app.openapi(
     }
 
     const [followerSummary] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(userFollows)
-      .where(eq(userFollows.targetUserId, profile.userId));
+        .select({ count: sql<number>`count(*)::int` })
+        .from(userFollows)
+        .where(eq(userFollows.targetUserId, profile.userId)),
+      [viewerFollow] = isAuthenticatedUser(viewer)
+        ? await db
+            .select({ id: userFollows.followerUserId })
+            .from(userFollows)
+            .where(
+              and(
+                eq(userFollows.followerUserId, viewer.id),
+                eq(userFollows.targetUserId, profile.userId)
+              )
+            )
+            .limit(1)
+        : [];
 
     return c.json(
       {
@@ -113,6 +130,8 @@ app.openapi(
         bio: profile.bio,
         displayName: profile.displayName,
         followerCount: followerSummary?.count ?? 0,
+        id: profile.userId,
+        isFollowing: Boolean(viewerFollow),
         location:
           [profile.city, profile.state].filter(Boolean).join(", ") || null,
         username: profile.username,

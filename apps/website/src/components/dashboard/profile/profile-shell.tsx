@@ -40,10 +40,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import { useDbFollowActions, useDbFollowing } from "@/lib/data-db";
 import { canShowChallengeAction } from "@/lib/live-experience";
 import { absoluteSiteUrl } from "@/lib/seo";
 import { shareLink } from "@/lib/share";
-import { useFollowArtistMutation } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 interface ProfileShellProps {
@@ -56,6 +56,7 @@ interface ProfileShellProps {
     battleRecord?: string;
     bio: string;
     coverImage: string;
+    followerCount?: number;
     followers: string;
     following: string;
     genre: string;
@@ -77,6 +78,7 @@ interface ProfileShellProps {
     tracks: number;
     username: string;
     verified: boolean;
+    isFollowing?: boolean;
   };
   viewerAccountType?: "artist" | "fan" | null;
 }
@@ -89,8 +91,18 @@ export function ProfileShell({
   viewerAccountType,
 }: ProfileShellProps) {
   const router = useRouter(),
-    followArtist = useFollowArtistMutation(user.username),
-    [followerCount, setFollowerCount] = useState(user.followers),
+    { data: following } = useDbFollowing(),
+    { follow, unfollow } = useDbFollowActions(),
+    [isFollowingOverride, setIsFollowingOverride] = useState<boolean | null>(
+      null
+    ),
+    [followerCount, setFollowerCount] = useState(
+      user.followerCount ?? (Number(user.followers.replaceAll(",", "")) || 0)
+    ),
+    isFollowing =
+      isFollowingOverride ??
+      user.isFollowing ??
+      following.some((person) => person.username === user.username),
     [isShareOpen, setIsShareOpen] = useState(false),
     showChallenge = canShowChallengeAction({
       isOwner: Boolean(isOwner),
@@ -150,8 +162,23 @@ export function ProfileShell({
         : null,
     ].filter((link): link is Exclude<typeof link, null> => Boolean(link)),
     handleFollow = async () => {
-      const result = await followArtist.mutateAsync();
-      setFollowerCount(result.followerCount.toLocaleString());
+      const transaction = isFollowing
+        ? unfollow({
+            accountType: targetIsArtist ? "artist" : "fan",
+            id: user.username,
+            username: user.username,
+          })
+        : follow({
+            accountType: targetIsArtist ? "artist" : "fan",
+            id: user.username,
+            name: user.name,
+            username: user.username,
+          });
+      await transaction.isPersisted.promise;
+      setIsFollowingOverride(!isFollowing);
+      setFollowerCount((current) =>
+        Math.max(0, current + (isFollowing ? -1 : 1))
+      );
     },
     profileShareUrl = absoluteSiteUrl(`/artist/${user.username}`),
     profileShareTitle = `Check out ${user.name} on SoundKit`,
@@ -334,12 +361,11 @@ export function ProfileShell({
                       <>
                         <Button
                           className="rounded-full shadow-xl shadow-primary/30 px-8 font-bold h-11"
-                          disabled={followArtist.isPending}
                           onClick={() => void handleFollow()}
                           type="button"
                         >
                           <UserPlus className="size-4 mr-2" />
-                          {followArtist.isPending ? "Following..." : "Follow"}
+                          {isFollowing ? "Following" : "Follow"}
                         </Button>
                         {showChallenge && (
                           <Button
@@ -373,7 +399,7 @@ export function ProfileShell({
                   </div>
                   <div className="text-center sm:text-left pr-4 border-r border-border/10">
                     <p className="text-xl font-black text-foreground">
-                      {followerCount}
+                      {followerCount.toLocaleString()}
                     </p>
                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-black">
                       Followers

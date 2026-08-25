@@ -37,9 +37,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { useLiveRoom } from "@/lib/live-room";
 import {
-  useMeQuery,
-  useToggleSaveTrackMutation,
-} from "@/lib/soundkit-api-hooks";
+  useDbSavedTrackActions,
+  useDbSavedTrackIds,
+} from "@/lib/data-db";
+import { useMeQuery } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_explore/live/parties/$id")({
@@ -99,9 +100,10 @@ function ListeningPartyDetailPage() {
     [activeTrackId, setActiveTrackId] = useState<string | null>(null),
     [activeTab, setActiveTab] = useState<"tracklist" | "lyrics">("tracklist"),
     [likedTrackIds, setLikedTrackIds] = useState<Set<string>>(new Set()),
-    [savedTrackIds, setSavedTrackIds] = useState<Set<string>>(new Set()),
+    { data: savedTrackRows = [] } = useDbSavedTrackIds(),
+    { toggle } = useDbSavedTrackActions(),
+    savedTrackIds = new Set(savedTrackRows.map((track) => track.id)),
     [isAlbumSaved, setIsAlbumSaved] = useState(false),
-    saveTrackMutation = useToggleSaveTrackMutation(),
     room = query.data,
     authoritativePlayback = room?.party?.playback,
     isPlaying = authoritativePlayback
@@ -146,28 +148,20 @@ function ListeningPartyDetailPage() {
       });
     },
     handleToggleSaveTrack = async (trackId: string, trackTitle: string) => {
-      setSavedTrackIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(trackId)) {
-          next.delete(trackId);
-        } else {
-          next.add(trackId);
-        }
-        return next;
-      });
-
+      const wasSaved = savedTrackIds.has(trackId);
       try {
-        const result = await saveTrackMutation.mutateAsync(trackId);
+        await toggle(trackId).isPersisted.promise;
         toast({
-          description: result.saved
-            ? `Saved "${trackTitle}" to your Library!`
-            : `Removed "${trackTitle}" from your Library.`,
-          title: result.saved ? "Track Saved" : "Track Removed",
+          description: wasSaved
+            ? `Removed "${trackTitle}" from your Library.`
+            : `Saved "${trackTitle}" to your Library!`,
+          title: wasSaved ? "Track Removed" : "Track Saved",
         });
       } catch {
         toast({
-          description: `Updated "${trackTitle}" in your Library.`,
-          title: "Library Updated",
+          description: `Could not update "${trackTitle}" in your Library.`,
+          title: "Library update failed",
+          variant: "destructive",
         });
       }
     },

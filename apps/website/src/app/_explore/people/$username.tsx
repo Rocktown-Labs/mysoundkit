@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Headphones, MapPin, UserPlus } from "lucide-react";
 
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
+import { useDbFollowActions, useDbFollowing } from "@/lib/data-db";
 import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/people/$username")({
@@ -32,32 +33,61 @@ function PublicUserProfilePage() {
           bio: string | null;
           displayName: string;
           followerCount: number;
+          id: string;
+          isFollowing: boolean;
           location: string | null;
           username: string;
         };
       },
       queryKey: ["public-profile", username],
     }),
-    followMutation = useMutation({
-      mutationFn: async () => {
-        const response = await fetch(
-          `${API_V1_URL}/social/profiles/${encodeURIComponent(username)}/follow`,
-          { credentials: "include", method: "POST" }
-        );
-        if (!response.ok) {
-          throw new Error("Sign in to follow this profile.");
+    { data: following } = useDbFollowing(),
+    { follow, unfollow } = useDbFollowActions(),
+    profile = profileQuery.data,
+    isFollowing = Boolean(
+      profile?.isFollowing ||
+      (profile?.id && following.some((person) => person.id === profile.id))
+    ),
+    followMutation = {
+      isPending: false,
+      mutate: () => {
+        if (!profile) {
+          return;
         }
-        return (await response.json()) as { followerCount: number };
+        const transaction = isFollowing
+          ? unfollow({
+              accountType: profile.accountType,
+              id: profile.id,
+              username: profile.username,
+            })
+          : follow({
+              accountType: profile.accountType,
+              id: profile.id,
+              name: profile.displayName,
+              username: profile.username,
+            });
+        void transaction.isPersisted.promise
+          .then(async () => {
+            await profileQuery.refetch();
+            toast({
+              description: isFollowing
+                ? `You no longer follow @${username}.`
+                : `You now follow @${username}.`,
+              title: isFollowing ? "Unfollowed" : "Following",
+            });
+          })
+          .catch((error: unknown) => {
+            toast({
+              description:
+                error instanceof Error
+                  ? error.message
+                  : "Could not update this follow.",
+              title: "Follow failed",
+              variant: "destructive",
+            });
+          });
       },
-      onSuccess: async () => {
-        await profileQuery.refetch();
-        toast({
-          description: `You now follow @${username}.`,
-          title: "Following",
-        });
-      },
-    }),
-    profile = profileQuery.data;
+    };
 
   if (profileQuery.isLoading) {
     return (
@@ -138,12 +168,9 @@ function PublicUserProfilePage() {
             </Link>
           </Button>
         ) : (
-          <Button
-            disabled={followMutation.isPending}
-            onClick={() => followMutation.mutate()}
-          >
+          <Button onClick={() => followMutation.mutate()}>
             <UserPlus className="mr-2 size-4" />
-            Follow
+            {isFollowing ? "Following" : "Follow"}
           </Button>
         )}
       </CardContent>

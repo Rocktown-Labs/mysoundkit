@@ -404,6 +404,7 @@ export const artistSummarySchema = z.object({
   followers: z.number(),
   genre: z.string(),
   id: z.string(),
+  isFollowing: z.boolean().optional(),
   joinedAt: z.string().optional(),
   links: z
     .object({
@@ -2081,6 +2082,7 @@ export const videoCommentSchema = z.object({
 
 export const createVideoCommentBodySchema = z.object({
   body: z.string().min(1).max(2000),
+  clientCommentId: z.string().uuid().optional(),
 });
 
 export const createPlaylistBodySchema = z.object({

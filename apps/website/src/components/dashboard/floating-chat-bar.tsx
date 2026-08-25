@@ -64,11 +64,11 @@ import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import { isImmersiveExploreRoute } from "@/lib/immersive-route";
 import {
   useCreateMessageCollectionMutation,
+  useMessagingConversations,
   useMessagingMessages,
 } from "@/lib/message-db";
 import { usePresence } from "@/lib/presence-context";
 import {
-  useConversationsQuery,
   useFriendsQuery,
   useLibrarySavedQuery,
   useMarkConversationReadMutation,
@@ -170,7 +170,7 @@ function FloatingChatBarClient() {
     isArtist =
       meQuery.data?.user.accountType === "artist" ||
       meQuery.data?.user.role === "admin",
-    conversationsQuery = useConversationsQuery(isArtist),
+    conversationsQuery = useMessagingConversations(),
     friendsQuery = useFriendsQuery(),
     uploadedTracksQuery = useTracksQuery(),
     savedTracksQuery = useLibrarySavedQuery(),

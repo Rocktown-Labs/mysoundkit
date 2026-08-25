@@ -687,6 +687,57 @@ export const useCreateFriendRequestMutation = () => {
   return useMutation({
     mutationFn: async (body: { message?: string; username: string }) =>
       rpcJson(await friendRequestsPost({ json: body })),
+    onMutate: async ({ message, username }) => {
+      await Promise.all([
+        queryClient.cancelQueries({
+          queryKey: soundkitQueryKeys.friendRequests,
+        }),
+        queryClient.cancelQueries({ queryKey: soundkitQueryKeys.network }),
+      ]);
+      const previousRequests = queryClient.getQueryData<FriendRequestSummary[]>(
+          soundkitQueryKeys.friendRequests
+        ),
+        previousNetwork = queryClient.getQueryData<NetworkResponse>(
+          soundkitQueryKeys.network
+        ),
+        optimisticRequest: FriendRequestSummary = {
+          avatarUrl: null,
+          createdAt: new Date().toISOString(),
+          direction: "outgoing",
+          displayName: `@${username}`,
+          id: `local-${crypto.randomUUID()}`,
+          message: message ?? null,
+          status: "pending",
+          userId: `local-${username}`,
+          username,
+        };
+      queryClient.setQueryData<FriendRequestSummary[]>(
+        soundkitQueryKeys.friendRequests,
+        (requests = []) => [optimisticRequest, ...requests]
+      );
+      queryClient.setQueryData<NetworkResponse | undefined>(
+        soundkitQueryKeys.network,
+        (network) =>
+          network
+            ? {
+                ...network,
+                counts: {
+                  ...network.counts,
+                  pendingRequests: network.counts.pendingRequests + 1,
+                },
+                requests: [optimisticRequest, ...network.requests],
+              }
+            : network
+      );
+      return { previousNetwork, previousRequests };
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(
+        soundkitQueryKeys.friendRequests,
+        context?.previousRequests
+      );
+      queryClient.setQueryData(soundkitQueryKeys.network, context?.previousNetwork);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.friendRequests,
@@ -713,6 +764,87 @@ export const useRespondFriendRequestMutation = () => {
           param: { requestId },
         })
       ),
+    onMutate: async ({ action, requestId }) => {
+      await Promise.all([
+        queryClient.cancelQueries({
+          queryKey: soundkitQueryKeys.friendRequests,
+        }),
+        queryClient.cancelQueries({ queryKey: soundkitQueryKeys.network }),
+      ]);
+      const previousRequests = queryClient.getQueryData<FriendRequestSummary[]>(
+          soundkitQueryKeys.friendRequests
+        ),
+        previousNetwork = queryClient.getQueryData<NetworkResponse>(
+          soundkitQueryKeys.network
+        ),
+        request = previousRequests?.find((item) => item.id === requestId);
+      const removeRequest = (requests: FriendRequestSummary[] = []) =>
+        requests.filter((item) => item.id !== requestId);
+      queryClient.setQueryData<FriendRequestSummary[]>(
+        soundkitQueryKeys.friendRequests,
+        (requests = []) =>
+          action === "accept"
+            ? removeRequest(requests)
+            : requests.map((item) =>
+                item.id === requestId
+                  ? { ...item, status: action === "cancel" ? "canceled" : "declined" }
+                  : item
+              )
+      );
+      queryClient.setQueryData<NetworkResponse | undefined>(
+        soundkitQueryKeys.network,
+        (network) => {
+          if (!network) {
+            return network;
+          }
+          const pendingRequests = Math.max(
+            0,
+            network.counts.pendingRequests -
+              (request?.status === "pending" ? 1 : 0)
+          );
+          if (action !== "accept" || !request) {
+            return {
+              ...network,
+              counts: { ...network.counts, pendingRequests },
+              requests:
+                action === "accept"
+                  ? network.requests
+                  : removeRequest(network.requests),
+            };
+          }
+          const friend = {
+            accountType: "artist" as const,
+            avatarUrl: request.avatarUrl,
+            canMessage: true,
+            email: null,
+            followsYou: false,
+            id: request.userId,
+            isFollowing: false,
+            isFriend: true,
+            name: request.displayName,
+            username: request.username,
+          };
+          return {
+            ...network,
+            counts: {
+              ...network.counts,
+              friends: network.counts.friends + 1,
+              pendingRequests,
+            },
+            friends: [friend, ...network.friends],
+            requests: removeRequest(network.requests),
+          };
+        }
+      );
+      return { previousNetwork, previousRequests };
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(
+        soundkitQueryKeys.friendRequests,
+        context?.previousRequests
+      );
+      queryClient.setQueryData(soundkitQueryKeys.network, context?.previousNetwork);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.friendRequests,

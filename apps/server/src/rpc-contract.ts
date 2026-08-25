@@ -159,6 +159,10 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
   notificationsQuerySchema = z.object({
     cursor: z.string().optional(),
     limit: z.coerce.number().int().min(1).max(50).optional(),
+    offset: z.coerce.number().int().min(0).optional(),
+  }),
+  notificationStatsSchema = z.object({
+    unreadCount: z.number().int().nonnegative(),
   }),
   notificationsResponseSchema = z.object({
     items: z.array(notificationSummarySchema),
@@ -574,6 +578,7 @@ export const rpcContract = new Hono()
     "/v1/library/playlists",
     jsonValidator(
       z.object({
+        clientPlaylistId: z.string().uuid().optional(),
         description: z.string().optional(),
         isPublic: z.boolean().optional(),
         title: z.string().min(1),
@@ -745,6 +750,9 @@ export const rpcContract = new Hono()
     validator("query", (value) => notificationsQuerySchema.parse(value)),
     (c) => c.json({} as z.infer<typeof notificationsResponseSchema>)
   )
+  .get("/v1/notifications/summary", (c) =>
+    c.json({} as z.infer<typeof notificationStatsSchema>)
+  )
   .post("/v1/notifications/:notificationId/read", (c) =>
     c.json({ success: true })
   )
@@ -813,6 +821,9 @@ export const rpcContract = new Hono()
     c.json({} as z.infer<typeof followResponseSchema>)
   )
   .delete("/v1/social/artists/:username/follow", (c) =>
+    c.json({} as z.infer<typeof followResponseSchema>)
+  )
+  .post("/v1/social/profiles/:username/follow", (c) =>
     c.json({} as z.infer<typeof followResponseSchema>)
   )
   .delete("/v1/social/profiles/:username/follow", (c) =>

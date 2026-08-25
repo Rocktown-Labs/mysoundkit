@@ -1661,7 +1661,7 @@ app.openapi(
         })
         .from(messages)
         .where(inArray(messages.conversationId, convoIdsToFetch))
-        .orderBy(asc(messages.createdAt))
+        .orderBy(asc(messages.createdAt), asc(messages.id))
         .limit(200),
       messageIds = rows.map((row) => row.id),
       attachmentRows =
@@ -1792,7 +1792,39 @@ app.openapi(
     }
 
     const messageId = body.clientMessageId ?? crypto.randomUUID(),
-      attachmentObjectKeys = body.attachments
+      [existingMessage] = await db
+        .select()
+        .from(messages)
+        .where(
+          and(
+            eq(messages.id, messageId),
+            eq(messages.conversationId, conversationId),
+            eq(messages.senderUserId, user.id)
+          )
+        )
+        .limit(1);
+
+    if (existingMessage) {
+      const existingAttachments = await db
+        .select()
+        .from(messageAttachments)
+        .where(eq(messageAttachments.messageId, messageId));
+      return c.json(
+        {
+          attachments: existingAttachments.map(
+            ({ messageId: _, ...attachment }) => attachment
+          ),
+          body: existingMessage.body,
+          createdAt: toIso(existingMessage.createdAt),
+          id: existingMessage.id,
+          senderId: existingMessage.senderUserId,
+          status: existingMessage.status,
+        },
+        HttpStatusCodes.CREATED
+      );
+    }
+
+    const attachmentObjectKeys = body.attachments
         .map((attachment) => attachment.objectKey)
         .filter((objectKey): objectKey is string => Boolean(objectKey));
     if (
@@ -1825,6 +1857,7 @@ app.openapi(
           senderUserId: user.id,
           status: "sent",
         })
+        .onConflictDoNothing()
         .returning(),
       attachments =
         body.attachments.length > 0

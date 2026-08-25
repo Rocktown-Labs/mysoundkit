@@ -28,6 +28,7 @@ const DEFAULT_PAGE_SIZE = 20,
       .min(1)
       .max(MAX_PAGE_SIZE)
       .default(DEFAULT_PAGE_SIZE),
+    offset: z.coerce.number().int().min(0).default(0),
   }),
   notificationsResponseSchema = z.object({
     items: z.array(notificationSchema),
@@ -35,6 +36,9 @@ const DEFAULT_PAGE_SIZE = 20,
     unreadCount: z.number().int().nonnegative(),
   }),
   notificationIdParamSchema = z.object({ notificationId: z.string().min(1) }),
+  notificationSummarySchema = z.object({
+    unreadCount: z.number().int().nonnegative(),
+  }),
   app = new OpenAPIHono<AppEnv>();
 
 interface NotificationCursor {
@@ -107,7 +111,7 @@ app.openapi(
     }
 
     try {
-      const { cursor: encodedCursor, limit } = c.req.valid("query"),
+      const { cursor: encodedCursor, limit, offset } = c.req.valid("query"),
         cursor = decodeCursor(encodedCursor),
         db = createDb(),
         cursorCondition = cursor
@@ -128,7 +132,8 @@ app.openapi(
               desc(userNotifications.createdAt),
               desc(userNotifications.id)
             )
-            .limit(limit + 1),
+            .limit(limit + 1)
+            .offset(encodedCursor ? 0 : offset),
           db
             .select({ count: count() })
             .from(userNotifications)
@@ -161,6 +166,40 @@ app.openapi(
         HttpStatusCodes.OK
       );
     }
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/summary",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        notificationSummarySchema,
+        "Notification summary"
+      ),
+    },
+    tags: ["Notifications"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json({ unreadCount: 0 }, HttpStatusCodes.OK);
+    }
+
+    const [unread] = await createDb()
+      .select({ count: count() })
+      .from(userNotifications)
+      .where(
+        and(
+          eq(userNotifications.userId, user.id),
+          eq(userNotifications.read, false)
+        )
+      );
+    return c.json(
+      { unreadCount: Number(unread?.count ?? 0) },
+      HttpStatusCodes.OK
+    );
   }
 );
 

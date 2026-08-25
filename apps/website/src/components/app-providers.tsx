@@ -12,6 +12,8 @@ import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provi
 import { BattleQueueCta } from "@/components/live/battle-queue-cta";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { authClient } from "@/lib/auth-client";
+import { DataDbProvider } from "@/lib/data-db";
 import { MessagingDbProvider } from "@/lib/message-db";
 import { PresenceProvider } from "@/lib/presence-context";
 
@@ -27,36 +29,44 @@ const AppDevtools = import.meta.env.DEV
   : null;
 
 export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
-  const [queryClient, setQueryClient] = useState(() => new QueryClient());
+  const [queryClient, setQueryClient] = useState(() => new QueryClient()),
+    { data: session } = authClient.useSession(),
+    scopeKey = session?.user.id ?? "anonymous";
   void setQueryClient;
 
   return (
     <QueryClientProvider client={queryClient}>
-      <MessagingDbProvider queryClient={queryClient}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableColorScheme={false}
-          enableSystem={false}
-        >
-          <KeyboardShortcutsProvider>
-            <PresenceProvider>
-              <AudioPlayerProvider>
-                <CartProvider>{children}</CartProvider>
-                <MusicPlayer />
-                <FloatingChatBar />
-                <BattleQueueCta />
-              </AudioPlayerProvider>
-            </PresenceProvider>
-          </KeyboardShortcutsProvider>
-          <Toaster />
-          {AppDevtools ? (
-            <Suspense fallback={null}>
-              <AppDevtools />
-            </Suspense>
-          ) : null}
-        </ThemeProvider>
-      </MessagingDbProvider>
+      <DataDbProvider
+        key={scopeKey}
+        queryClient={queryClient}
+        scopeKey={scopeKey}
+      >
+        <MessagingDbProvider key={scopeKey} queryClient={queryClient}>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableColorScheme={false}
+            enableSystem={false}
+          >
+            <KeyboardShortcutsProvider>
+              <PresenceProvider>
+                <AudioPlayerProvider>
+                  <CartProvider>{children}</CartProvider>
+                  <MusicPlayer />
+                  <FloatingChatBar />
+                  <BattleQueueCta />
+                </AudioPlayerProvider>
+              </PresenceProvider>
+            </KeyboardShortcutsProvider>
+            <Toaster />
+            {AppDevtools ? (
+              <Suspense fallback={null}>
+                <AppDevtools />
+              </Suspense>
+            ) : null}
+          </ThemeProvider>
+        </MessagingDbProvider>
+      </DataDbProvider>
     </QueryClientProvider>
   );
 }
