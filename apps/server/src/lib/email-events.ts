@@ -639,7 +639,7 @@ export const notifyPurchaseEmails = async ({
   if (seller) {
     deliveries.push(
       await enqueueForRecipient({
-        actionPath: "/dashboard/sales",
+        actionPath: "/dashboard/career/payments",
         body: `${buyer?.name ?? "Someone"} bought ${itemSummary} for ${amount}. Open your dashboard to review the order and keep an eye on your sales activity.`,
         ctaLabel: "View sale",
         eyebrow: "New sale",
@@ -726,7 +726,7 @@ export const notifyBillingIssueEmail = async ({
   }
 
   return enqueueForRecipient({
-    actionPath: "/dashboard/settings/billing",
+    actionPath: "/library/settings",
     body: "We could not complete your latest SoundKit payment. Update your billing details to keep your plan and account access current.",
     ctaLabel: "Update billing",
     eyebrow: "Billing",
@@ -831,9 +831,9 @@ export const notifyPayoutFailedEmail = async ({
   }
 
   return enqueueForRecipient({
-    actionPath: "/dashboard/payouts",
-    body: `A scheduled payout could not be completed.${failureReason ? ` Reason: ${failureReason}.` : ""} Please open your Payouts dashboard and review your connected Stripe account details.`,
-    ctaLabel: "Review payouts",
+    actionPath: "/dashboard/career/payments",
+    body: `A scheduled payout could not be completed.${failureReason ? ` Reason: ${failureReason}.` : ""} Please open your payments dashboard and review your connected Stripe account details.`,
+    ctaLabel: "Review payments",
     eyebrow: "Payout action required",
     footerNote: accountFooter,
     heading: "Payout action required",

@@ -165,7 +165,7 @@ app.openapi(
         organizationId,
         refreshUrl:
           body.refreshUrl ??
-          new URL("/dashboard/settings/payouts", c.req.url).toString(),
+          new URL("/dashboard/career/payments", c.req.url).toString(),
         returnUrl:
           body.returnUrl ?? new URL("/dashboard", c.req.url).toString(),
         user,

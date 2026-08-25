@@ -1163,7 +1163,7 @@ app.openapi(
           const accountLink = await createSellerAccountLink({
             organizationId,
             refreshUrl: new URL(
-              "/dashboard/settings/payouts",
+              "/dashboard/career/payments",
               c.req.url
             ).toString(),
             returnUrl: new URL("/dashboard", c.req.url).toString(),
