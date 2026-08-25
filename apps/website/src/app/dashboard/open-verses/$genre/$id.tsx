@@ -6,6 +6,7 @@ import {
   FileAudio,
   LoaderCircle,
   Mic2,
+  Globe2,
   PlayCircle,
   Send,
   Trash2,
@@ -46,6 +47,7 @@ import { canonicalGenreName } from "@/lib/music-genres";
 import {
   useOpenVerseQuery,
   useSubmitOpenVerseMutation,
+  useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/open-verses/$genre/$id")({
@@ -110,6 +112,7 @@ function OpenVerseDetailPage() {
       route: "track-source",
     }),
     listing = query.data,
+    updateTrackMutation = useUpdateTrackMutation(listing?.trackId ?? ""),
     isListingOwner = listing?.ownerUserId === session?.user.id,
     isCurrentUserAdmin =
       session?.user.role
@@ -165,7 +168,32 @@ function OpenVerseDetailPage() {
     };
   }, [id]);
 
-  const deleteListing = async () => {
+  const toggleListingVisibility = async () => {
+    if (!listing || updateTrackMutation.isPending) {
+      return;
+    }
+    try {
+      await updateTrackMutation.mutateAsync({ isPublic: !listing.isPublic });
+      await query.refetch();
+      toast({
+        description: listing.isPublic
+          ? "The Open Verse is now unlisted."
+          : "The Open Verse is now live.",
+        title: listing.isPublic ? "Open Verse unlisted" : "Open Verse live",
+      });
+    } catch (error) {
+      toast({
+        description:
+          error instanceof Error
+            ? error.message
+            : "Could not change Open Verse visibility.",
+        title: "Visibility update failed",
+        variant: "destructive",
+      });
+    }
+  },
+
+   deleteListing = async () => {
       if (!listing) {
         return;
       }
@@ -524,6 +552,22 @@ function OpenVerseDetailPage() {
                   <Download className="size-4" />
                   {isDownloading ? "Preparing…" : "Download Open Slot (.WAV)"}
                 </Button>
+                {isListingOwner ? (
+                  <Button
+                    className="gap-2"
+                    disabled={updateTrackMutation.isPending}
+                    onClick={toggleListingVisibility}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <Globe2 className="size-4" />
+                    {updateTrackMutation.isPending
+                      ? "Saving…"
+                      : (listing.isPublic
+                        ? "Unlist"
+                        : "Make live")}
+                  </Button>
+                ) : null}
                 {isCurrentUserAdmin ? (
                   <Button
                     className="gap-2"

@@ -85,7 +85,7 @@ function TracksPage() {
     } | null>(null),
     [deleteConfirmation, setDeleteConfirmation] = useState(""),
     [quickAction, setQuickAction] = useState<{
-      action: "cover" | "credits" | "swap";
+      action: "cover" | "credits" | "genre" | "status" | "swap";
       trackId: string;
     } | null>(null),
     completedCount = tracks.filter(

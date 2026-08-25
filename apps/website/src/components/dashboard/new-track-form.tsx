@@ -406,7 +406,11 @@ export function NewTrackForm({
       assets = Array.isArray(initialTrack.assets)
         ? (initialTrack.assets as Record<string, unknown>[])
         : [],
-      coverAsset = assets.find((asset) => asset.assetKind === "cover_art"),
+      coverAsset =
+        assets.find(
+          (asset) =>
+            asset.assetKind === "cover_art" && asset.isCurrent !== false
+        ) ?? assets.find((asset) => asset.assetKind === "cover_art"),
       coverObjectKey =
         (coverAsset?.objectKey as string) ||
         (initialTrack.coverArtUrl as string);

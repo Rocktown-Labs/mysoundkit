@@ -37,7 +37,8 @@
 
 ### Fixed
 
-- Fixed missing R2 media references by clearing confirmed-deleted profile, track, and project asset keys after a 404, and made shared images recover when asynchronous source URLs change.
+- Fixed missing R2 media references by clearing confirmed-deleted profile, track, and project asset keys after a 404, preferring current cover assets across dashboard/public surfaces, and making shared images recover when asynchronous source URLs change.
+- Added focused track, project, and Open Verse detail actions for genre/status/visibility changes, clearer sell-track labeling, public-page navigation, and responsive action menus.
 - Fixed minor AAC true-peak overshoots blocking streaming derivatives: normalization still attempts the strict -1 dBTP target, but verified encoded copies up to +0.5 dBTP are now accepted while the original master remains unchanged.
 - Fixed track edit submission being blocked by the in-flight submission guard and stale status/genre validation; edit mode now preserves existing release metadata and allows draft status updates.
 - Fixed Explore map React hydration failures by mounting the interactive geography map after client hydration.

@@ -5,6 +5,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Download,
   Edit,
+  ExternalLink,
   Share2,
   Play,
   Music2,
@@ -17,10 +18,12 @@ import {
   Save,
   Plus,
   Clock3,
+  Tags,
   Rocket,
   ImagePlus,
   MoreVertical,
   Repeat,
+  Settings2,
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -791,7 +794,7 @@ function TrackCollaboratorsPanel({
 
 function TrackDetailPage() {
   const [activeDialog, setActiveDialog] = useState<
-      null | "cover" | "credits" | "swap"
+      null | "cover" | "credits" | "genre" | "status" | "swap"
     >(null),
     { id } = Route.useParams(),
     [isTranscribing, setIsTranscribing] = useState(false),
@@ -845,12 +848,12 @@ function TrackDetailPage() {
       isLive,
       trackQueryData.productionStatus
     ),
+    publicTrackPath =
+      trackQueryData.regionSlug && trackQueryData.slug
+        ? `/tracks/${trackQueryData.regionSlug}/${trackQueryData.slug}`
+        : `/tracks/${trackQueryData.id}`,
     handleShare = async () => {
-      const publicTrackPath =
-          trackQueryData.regionSlug && trackQueryData.slug
-            ? `/tracks/${trackQueryData.regionSlug}/${trackQueryData.slug}`
-            : `/tracks/${trackQueryData.id}`,
-        shareUrl =
+      const shareUrl =
           typeof window === "undefined"
             ? publicTrackPath
             : `${window.location.origin}${publicTrackPath}`,
@@ -1048,6 +1051,14 @@ function TrackDetailPage() {
                     <Repeat className="mr-2 size-4" />
                     Swap main file
                   </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setActiveDialog("genre")}>
+                    <Tags className="mr-2 size-4" />
+                    Change genre
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setActiveDialog("status")}>
+                    <Settings2 className="mr-2 size-4" />
+                    Change release status
+                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setActiveDialog("credits")}>
                     <Users className="mr-2 size-4" />
                     Edit credits
@@ -1059,6 +1070,14 @@ function TrackDetailPage() {
                 onToggled={() => trackQuery.refetch()}
                 trackId={trackQueryData.id}
               />
+              {isLive ? (
+                <Button asChild={true} type="button" variant="outline">
+                  <a href={publicTrackPath}>
+                    <ExternalLink className="mr-2 size-4" />
+                    View public page
+                  </a>
+                </Button>
+              ) : null}
               <Button onClick={handleShare} type="button" variant="outline">
                 <Share2 className="mr-2 size-4" />
                 Share
@@ -1172,6 +1191,9 @@ function TrackDetailPage() {
       <TrackQuickActionDialogs
         activeDialog={activeDialog}
         collaborators={collaborators}
+        currentGenre={trackQueryData.genre}
+        isLive={isLive}
+        mediaReady={mediaReady}
         onClose={() => setActiveDialog(null)}
         onSaved={() => trackQuery.refetch()}
         trackId={trackQueryData.id}

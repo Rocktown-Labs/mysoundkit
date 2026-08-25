@@ -2,16 +2,20 @@
 import { Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
-  Edit,
-  Share,
-  Download,
   CheckCircle,
   Clock,
-  LoaderCircle,
+  Download,
+  Edit,
+  ExternalLink,
   FolderOpen,
+  LoaderCircle,
+  MoreVertical,
   Music,
   Rocket,
+  Settings2,
+  Share,
 } from "lucide-react";
+import { useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +27,30 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
 import {
   useProjectQuery,
@@ -71,7 +98,11 @@ const STATUS_META: Record<
   };
 
 export function ProjectDetails({ projectId }: ProjectDetailsProps) {
-  const projectQuery = useProjectQuery(projectId),
+  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false),
+    [selectedStatus, setSelectedStatus] = useState<"draft" | "released">(
+      "draft"
+    ),
+    projectQuery = useProjectQuery(projectId),
     updateProjectMutation = useUpdateProjectMutation(projectId),
     project = projectQuery.data;
 
@@ -134,6 +165,36 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
               ? error.message
               : "Could not release project.",
           title: "Release failed",
+          variant: "destructive",
+        });
+      }
+    },
+    handleStatusSave = async () => {
+      try {
+        await updateProjectMutation.mutateAsync(
+          selectedStatus === "released"
+            ? {
+                isPublic: true,
+                releaseDate: new Date().toISOString(),
+                status: "released",
+              }
+            : { isPublic: false, status: "draft" }
+        );
+        setIsStatusDialogOpen(false);
+        toast({
+          description:
+            selectedStatus === "released"
+              ? "The project is now public."
+              : "The project is back in draft mode.",
+          title: "Project status updated",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not update project status.",
+          title: "Status update failed",
           variant: "destructive",
         });
       }
@@ -206,7 +267,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                 </CardDescription>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {project.status === "draft" ? (
                 <Button
                   disabled={updateProjectMutation.isPending}
@@ -221,43 +282,72 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                   params={{ id: projectId }}
                   to="/dashboard/projects/$id/edit"
                 >
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
+                  <Edit className="mr-2 size-4" />
+                  Edit metadata
                 </Link>
               </Button>
-              <Button onClick={handleShare} variant="outline">
-                <Share className="h-4 w-4 mr-2" />
-                Share
-              </Button>
-              <Button
-                className="bg-primary hover:bg-primary/90"
-                onClick={() => {
-                  const downloadableTracks = project.tracks.filter(
-                    (t) => t.downloadUrl || t.playbackUrl
-                  );
-                  if (downloadableTracks.length === 0) {
-                    toast({
-                      description:
-                        "No audio files uploaded to this project yet.",
-                      title: "No files available",
-                    });
-                    return;
-                  }
-                  for (const track of downloadableTracks) {
-                    const url = track.downloadUrl || track.playbackUrl;
-                    if (url) {
-                      window.open(url, "_blank", "noopener,noreferrer");
-                    }
-                  }
-                  toast({
-                    description: `Started download for ${downloadableTracks.length} track${downloadableTracks.length === 1 ? "" : "s"}.`,
-                    title: "Downloading files",
-                  });
-                }}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download All
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild={true}>
+                  <Button aria-label="More project actions" variant="outline">
+                    <MoreVertical className="mr-2 size-4" />
+                    More actions
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setSelectedStatus(
+                        project.status === "released" ? "released" : "draft"
+                      );
+                      setIsStatusDialogOpen(true);
+                    }}
+                  >
+                    <Settings2 className="mr-2 size-4" />
+                    Change release status
+                  </DropdownMenuItem>
+                  {project.isPublic ? (
+                    <DropdownMenuItem asChild={true}>
+                      <a href={`/projects/${project.id}`}>
+                        <ExternalLink className="mr-2 size-4" />
+                        View public page
+                      </a>
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem onSelect={handleShare}>
+                    <Share className="mr-2 size-4" />
+                    Copy share link
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      const downloadableTracks = project.tracks.filter(
+                        (track) => track.downloadUrl || track.playbackUrl
+                      );
+                      if (downloadableTracks.length === 0) {
+                        toast({
+                          description:
+                            "No audio files uploaded to this project yet.",
+                          title: "No files available",
+                        });
+                        return;
+                      }
+                      for (const track of downloadableTracks) {
+                        const url = track.downloadUrl || track.playbackUrl;
+                        if (url) {
+                          window.open(url, "_blank", "noopener,noreferrer");
+                        }
+                      }
+                      toast({
+                        description: `Started download for ${downloadableTracks.length} track${downloadableTracks.length === 1 ? "" : "s"}.`,
+                        title: "Downloading files",
+                      });
+                    }}
+                  >
+                    <Download className="mr-2 size-4" />
+                    Download all files
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </CardHeader>
@@ -348,6 +438,50 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           </div>
         </CardContent>
       </Card>
+      <Dialog onOpenChange={setIsStatusDialogOpen} open={isStatusDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change project status</DialogTitle>
+            <DialogDescription>
+              Move this project between draft and released without opening the
+              full editor.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="project-status">Status</Label>
+            <Select
+              onValueChange={(value) =>
+                setSelectedStatus(value as "draft" | "released")
+              }
+              value={selectedStatus}
+            >
+              <SelectTrigger id="project-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="released">Released / public</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setIsStatusDialogOpen(false)}
+              type="button"
+              variant="ghost"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={updateProjectMutation.isPending}
+              onClick={handleStatusSave}
+              type="button"
+            >
+              {updateProjectMutation.isPending ? "Saving…" : "Save status"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
