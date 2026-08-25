@@ -38,6 +38,7 @@
 ### Fixed
 
 - Fixed missing R2 media references by clearing confirmed-deleted profile, track, and project asset keys after a 404, and made shared images recover when asynchronous source URLs change.
+- Fixed minor AAC true-peak overshoots blocking streaming derivatives: normalization still attempts the strict -1 dBTP target, but verified encoded copies up to +0.5 dBTP are now accepted while the original master remains unchanged.
 - Fixed track edit submission being blocked by the in-flight submission guard and stale status/genre validation; edit mode now preserves existing release metadata and allows draft status updates.
 - Fixed Explore map React hydration failures by mounting the interactive geography map after client hydration.
 - Removed the redundant Status dropdown from public Parties and Streams so Battles, Parties, and Streams each expose North America, Global, Genre, and Sort while rail-driven Live/Upcoming filtering remains URL-backed.
