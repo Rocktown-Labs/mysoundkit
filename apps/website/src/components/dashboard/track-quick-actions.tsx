@@ -8,6 +8,8 @@ import {
   ImagePlus,
   LoaderCircle,
   Repeat,
+  Settings2,
+  Tags,
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -28,6 +30,13 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
@@ -44,6 +53,7 @@ import {
 } from "@/lib/api";
 import { optimizeCoverImageFile } from "@/lib/image-processing";
 import {
+  useGenresQuery,
   useSellerStatusQuery,
   useTrackQuery,
   useUpdateTrackMutation,
@@ -142,18 +152,24 @@ interface QuickActionDialogProps {
   trackId: string;
 }
 
-type QuickActionDialogName = "cover" | "credits" | "swap";
+type QuickActionDialogName = "cover" | "credits" | "genre" | "status" | "swap";
 
 /** Renders the quick-action dialogs for a track detail view. */
 export function TrackQuickActionDialogs({
   activeDialog,
   collaborators,
+  currentGenre,
+  isLive,
+  mediaReady,
   onClose,
   onSaved,
   trackId,
 }: {
   activeDialog: null | QuickActionDialogName;
   collaborators: TrackCollaboratorRow[];
+  currentGenre?: null | string;
+  isLive?: boolean;
+  mediaReady?: boolean;
   onClose: () => void;
   onSaved: () => unknown;
   trackId: string;
@@ -176,6 +192,21 @@ export function TrackQuickActionDialogs({
         onOpenChange={handleOpenChange}
         onSaved={onSaved}
         open={activeDialog === "swap"}
+        trackId={trackId}
+      />
+      <TrackGenreDialog
+        currentGenre={currentGenre}
+        onOpenChange={handleOpenChange}
+        onSaved={onSaved}
+        open={activeDialog === "genre"}
+        trackId={trackId}
+      />
+      <TrackStatusDialog
+        isLive={isLive ?? false}
+        mediaReady={mediaReady ?? false}
+        onOpenChange={handleOpenChange}
+        onSaved={onSaved}
+        open={activeDialog === "status"}
         trackId={trackId}
       />
       <EditCreditsDialog
@@ -345,6 +376,217 @@ export function ChangeCoverArtDialog({
             ) : (
               "Save cover"
             )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TrackGenreDialog({
+  currentGenre,
+  onOpenChange,
+  onSaved,
+  open,
+  trackId,
+}: QuickActionDialogProps & { currentGenre?: null | string }) {
+  const genresQuery = useGenresQuery(),
+    updateTrackMutation = useUpdateTrackMutation(trackId),
+    [selectedGenre, setSelectedGenre] = useState(""),
+    genreOptions = genresQuery.data ?? [],
+    currentOption = genreOptions.find(
+      (genre) => genre.name === currentGenre || genre.slug === currentGenre
+    ),
+    handleOpenChange = (nextOpen: boolean) => {
+      if (nextOpen) {
+        setSelectedGenre(currentOption?.slug ?? "");
+      }
+      onOpenChange(nextOpen);
+    },
+    handleSave = async () => {
+      const genre = genreOptions.find(
+        (option) => option.slug === selectedGenre
+      );
+      if (!genre || updateTrackMutation.isPending) {
+        return;
+      }
+      try {
+        await updateTrackMutation.mutateAsync({ genre: genre.slug });
+        await onSaved();
+        toast({
+          description: `Genre changed to ${genre.name}.`,
+          title: "Genre updated",
+        });
+        onOpenChange(false);
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error ? error.message : "Could not update genre.",
+          title: "Genre update failed",
+          variant: "destructive",
+        });
+      }
+    };
+
+  useEffect(() => {
+    if (open) {
+      setSelectedGenre(currentOption?.slug ?? "");
+    }
+  }, [currentOption?.slug, open]);
+
+  return (
+    <Dialog onOpenChange={handleOpenChange} open={open}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Change genre</DialogTitle>
+          <DialogDescription>
+            Keep the current genre or choose a replacement from SoundKit’s
+            catalog.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="track-genre">Genre</Label>
+          <Select
+            disabled={genresQuery.isLoading || updateTrackMutation.isPending}
+            onValueChange={setSelectedGenre}
+            value={selectedGenre}
+          >
+            <SelectTrigger id="track-genre">
+              <SelectValue placeholder="Choose a genre" />
+            </SelectTrigger>
+            <SelectContent>
+              {genreOptions.map((genre) => (
+                <SelectItem key={genre.slug} value={genre.slug}>
+                  {genre.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter>
+          <Button
+            onClick={() => handleOpenChange(false)}
+            type="button"
+            variant="ghost"
+          >
+            Cancel
+          </Button>
+          <Button
+            disabled={!selectedGenre || updateTrackMutation.isPending}
+            onClick={() => void handleSave()}
+            type="button"
+          >
+            {updateTrackMutation.isPending ? "Saving…" : "Save genre"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TrackStatusDialog({
+  isLive,
+  mediaReady,
+  onOpenChange,
+  onSaved,
+  open,
+  trackId,
+}: QuickActionDialogProps & { isLive: boolean; mediaReady: boolean }) {
+  const updateTrackMutation = useUpdateTrackMutation(trackId),
+    [selectedStatus, setSelectedStatus] = useState(isLive ? "live" : "draft"),
+    handleOpenChange = (nextOpen: boolean) => {
+      if (nextOpen) {
+        setSelectedStatus(isLive ? "live" : "draft");
+      }
+      onOpenChange(nextOpen);
+    },
+    handleSave = async () => {
+      if (updateTrackMutation.isPending) {
+        return;
+      }
+      try {
+        await updateTrackMutation.mutateAsync(
+          selectedStatus === "live"
+            ? { isPublic: true }
+            : {
+                isPublic: false,
+                productionStatus: "demo",
+                releaseStrategy: "private",
+              }
+        );
+        await onSaved();
+        toast({
+          description:
+            selectedStatus === "live"
+              ? "The track is now live."
+              : "The track is back in draft mode.",
+          title: "Track status updated",
+        });
+        onOpenChange(false);
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not update track status.",
+          title: "Status update failed",
+          variant: "destructive",
+        });
+      }
+    };
+
+  useEffect(() => {
+    if (open) {
+      setSelectedStatus(isLive ? "live" : "draft");
+    }
+  }, [isLive, open]);
+
+  return (
+    <Dialog onOpenChange={handleOpenChange} open={open}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Change release status</DialogTitle>
+          <DialogDescription>
+            Move this track between draft and live without opening the full
+            editor.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="track-status">Status</Label>
+          <Select onValueChange={setSelectedStatus} value={selectedStatus}>
+            <SelectTrigger id="track-status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem disabled={!mediaReady} value="live">
+                Live{mediaReady ? "" : " (media not ready)"}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          {mediaReady ? null : (
+            <p className="text-xs text-muted-foreground">
+              Finish media processing before making this track live.
+            </p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button
+            onClick={() => handleOpenChange(false)}
+            type="button"
+            variant="ghost"
+          >
+            Cancel
+          </Button>
+          <Button
+            disabled={
+              updateTrackMutation.isPending ||
+              (selectedStatus === "live" && !mediaReady)
+            }
+            onClick={() => void handleSave()}
+            type="button"
+          >
+            {updateTrackMutation.isPending ? "Saving…" : "Save status"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -734,18 +976,20 @@ export function MonetizeToggleSwitch({
     </span>
   );
 
+  const labeledToggle = (
+    <div className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-1">
+      {toggleControl}
+      <Label className="text-sm whitespace-nowrap">Sell track</Label>
+    </div>
+  );
+
   if (payoutsReady) {
-    return (
-      <div className="flex items-center gap-2">
-        {toggleControl}
-        <Label className="text-sm">Monetize</Label>
-      </div>
-    );
+    return labeledToggle;
   }
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{toggleControl}</TooltipTrigger>
+      <TooltipTrigger asChild>{labeledToggle}</TooltipTrigger>
       <TooltipContent>
         Connect Stripe payouts before selling this track.
       </TooltipContent>
@@ -754,7 +998,7 @@ export function MonetizeToggleSwitch({
 }
 
 interface TrackCardQuickMenuItemsProps {
-  onOpenAction: (action: "cover" | "credits" | "swap") => void;
+  onOpenAction: (action: QuickActionDialogName) => void;
   track: {
     id: string;
     isForSale?: boolean | null;
@@ -803,6 +1047,14 @@ export function TrackCardQuickMenuItems({
         <ImagePlus className="mr-2 size-4" />
         Change cover art
       </DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => onOpenAction("genre")}>
+        <Tags className="mr-2 size-4" />
+        Change genre
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => onOpenAction("status")}>
+        <Settings2 className="mr-2 size-4" />
+        Change release status
+      </DropdownMenuItem>
       <DropdownMenuItem onSelect={() => onOpenAction("swap")}>
         <Repeat className="mr-2 size-4" />
         Swap main file
@@ -843,7 +1095,7 @@ export function TrackCardQuickActionDialogs({
   onClose,
   trackId,
 }: {
-  action: "cover" | "credits" | "swap";
+  action: QuickActionDialogName;
   onClose: () => void;
   trackId: string;
 }) {
@@ -857,6 +1109,9 @@ export function TrackCardQuickActionDialogs({
     <TrackQuickActionDialogs
       activeDialog={action}
       collaborators={dialogCollaborators}
+      currentGenre={trackQuery.data?.genre}
+      isLive={trackQuery.data?.isPublic}
+      mediaReady={trackQuery.data?.mediaReady}
       onClose={onClose}
       onSaved={() => void trackQuery.refetch()}
       trackId={trackId}

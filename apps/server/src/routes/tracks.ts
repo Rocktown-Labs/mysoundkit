@@ -105,6 +105,7 @@ import {
   updateTrackBodySchema,
 } from "@/lib/schemas";
 import { createSellerAccountLink, isSellerEnabled } from "@/lib/seller";
+import { resolveTrackCoverAssetFromRows } from "@/lib/track-asset-resolver";
 import {
   resolveTrackAsset,
   resolveTrackAssetFromRows,
@@ -3828,10 +3829,7 @@ app.openapi(
         roleRows.length > 0
           ? roleRows.map((roleRow) => roleRow.role)
           : ["musician"],
-      coverAsset =
-        assetRows.find(
-          (asset) => asset.assetKind === "cover_art" && asset.status === "ready"
-        ) ?? assetRows.find((asset) => asset.assetKind === "cover_art"),
+      coverAsset = resolveTrackCoverAssetFromRows(assetRows),
       firstAudioAsset = resolveTrackAssetFromRows({
         allowLegacyFallback: true,
         assets: assetRows,
@@ -3898,7 +3896,7 @@ app.openapi(
         bpm: row.bpm,
         catalogItemType: row.catalogItemType,
         coverArtUrl: coverAsset
-          ? (publicAssetUrl(coverAsset) ?? "/placeholder.svg")
+          ? (publicAssetUrl(coverAsset ?? undefined) ?? "/placeholder.svg")
           : "/placeholder.svg",
         credits,
         currency: row.currency,

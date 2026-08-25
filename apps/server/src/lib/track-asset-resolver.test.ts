@@ -2,7 +2,10 @@
 import type { trackAssets } from "@soundkit/db/schema/app";
 import { describe, expect, it } from "vitest";
 
-import { resolveTrackAssetFromRows } from "./track-asset-resolver";
+import {
+  resolveTrackAssetFromRows,
+  resolveTrackCoverAssetFromRows,
+} from "./track-asset-resolver";
 
 type TrackAsset = typeof trackAssets.$inferSelect;
 
@@ -39,6 +42,19 @@ const asset = (
 };
 
 describe("central track asset resolver", () => {
+  it("selects current cover art instead of a stale ready cover", () => {
+    const staleCover = asset({
+        assetKind: "cover_art",
+        id: "cover-stale",
+        isCurrent: false,
+      }),
+      currentCover = asset({ assetKind: "cover_art", id: "cover-current" });
+
+    expect(resolveTrackCoverAssetFromRows([staleCover, currentCover])?.id).toBe(
+      "cover-current"
+    );
+  });
+
   it("does not expose a V2 master while streaming is processing", () => {
     const master = asset({
       assetKind: "master",

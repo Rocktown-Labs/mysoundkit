@@ -70,7 +70,12 @@ export const stripeRequest = async <T>({
       // Keep the bounded raw response when Stripe does not return JSON.
     }
 
-    throw new Error(`Stripe request failed with ${response.status}: ${detail}`);
+    const requestId = response.headers.get("request-id");
+    throw new Error(
+      `Stripe request failed with ${response.status}${
+        requestId ? ` (request ${requestId})` : ""
+      }: ${detail}`
+    );
   }
 
   return JSON.parse(responseBody) as T;

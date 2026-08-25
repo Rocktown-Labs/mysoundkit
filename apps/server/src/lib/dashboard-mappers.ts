@@ -26,7 +26,10 @@ import {
 } from "@/lib/asset-urls";
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import { regionSlugFromUser } from "@/lib/public-explore";
-import { resolveTrackAssetFromRows } from "@/lib/track-asset-resolver";
+import {
+  resolveTrackAssetFromRows,
+  resolveTrackCoverAssetFromRows,
+} from "@/lib/track-asset-resolver";
 
 const mapAssetForDashboard = (
     asset:
@@ -41,6 +44,7 @@ const mapAssetForDashboard = (
         : null,
     durationMs: "durationMs" in asset ? asset.durationMs : null,
     id: asset.id,
+    isCurrent: "isCurrent" in asset ? asset.isCurrent : true,
     metadata: "metadata" in asset ? asset.metadata : null,
     mimeType: asset.mimeType,
     objectKey: asset.objectKey,
@@ -60,13 +64,19 @@ const mapAssetForDashboard = (
     ).length,
     artworks: assets.filter(
       (asset) =>
-        asset.assetKind === "cover_art" || asset.assetKind === "artwork"
+        (asset.assetKind === "cover_art" || asset.assetKind === "artwork") &&
+        asset.isCurrent &&
+        Boolean(asset.objectKey) &&
+        (asset.status === "ready" || asset.status === "uploaded")
     ).length,
     booklets: assets.filter((asset) => asset.assetKind === "booklet").length,
     cleanVersions: assets.filter((asset) => asset.assetKind === "clean").length,
     coverArt: assets.some(
       (asset) =>
-        asset.assetKind === "cover_art" || asset.assetKind === "artwork"
+        (asset.assetKind === "cover_art" || asset.assetKind === "artwork") &&
+        asset.isCurrent &&
+        Boolean(asset.objectKey) &&
+        (asset.status === "ready" || asset.status === "uploaded")
     ),
     instrumental: assets.some((asset) => asset.assetKind === "instrumental"),
     instrumentals: assets.filter((asset) => asset.assetKind === "instrumental")
@@ -129,7 +139,7 @@ export const mapTrackSummary = ({
   regionSlug?: string | null;
   row: InferSelectModel<typeof tracks>;
 }) => {
-  const coverAsset = assets.find((asset) => asset.assetKind === "cover_art"),
+  const coverAsset = resolveTrackCoverAssetFromRows(assets),
     masterAsset = resolveTrackAssetFromRows({
       assets,
       purpose: "master",
@@ -179,7 +189,7 @@ export const mapTrackSummary = ({
     bpm: row.bpm,
     catalogItemType: row.catalogItemType,
     collaboratorCount,
-    coverArtUrl: publicAssetUrl(coverAsset),
+    coverArtUrl: publicAssetUrl(coverAsset ?? undefined),
     downloadUrl: downloadAsset
       ? `/v1/tracks/${row.id}/assets/${downloadAsset.id}/download`
       : null,

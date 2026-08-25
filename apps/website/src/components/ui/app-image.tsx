@@ -1,7 +1,8 @@
+/* eslint-disable one-var, sort-vars */
 import { Image } from "@unpic/react";
 import type { ImageProps } from "@unpic/react";
 import type { ComponentProps } from "react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 type AppImageProps = Omit<ImageProps, "src" | "alt"> & {
   alt: string;
@@ -17,23 +18,19 @@ export function AppImage({
   src,
   ...props
 }: AppImageProps) {
-  const [imgSrc, setImgSrc] = useState<string>(src || "/placeholder.svg"),
-    hasErroredRef = useRef(false),
+  const sourceKey = src ?? "",
+    [failedSourceKey, setFailedSourceKey] = useState<string | null>(null),
+    hasFailed = failedSourceKey === sourceKey,
     handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-      if (!hasErroredRef.current) {
-        hasErroredRef.current = true;
-        setImgSrc("/placeholder.svg");
-      }
-      if (onError) {
-        onError(e);
-      }
+      setFailedSourceKey(sourceKey);
+      onError?.(e);
     },
-    effectiveSrc = imgSrc || "/placeholder.svg",
+    effectiveSrc = hasFailed ? "/placeholder.svg" : src || "/placeholder.svg",
     isBlobOrDataOrFallback =
       effectiveSrc.startsWith("blob:") ||
       effectiveSrc.startsWith("data:") ||
       effectiveSrc.startsWith("/") ||
-      hasErroredRef.current;
+      hasFailed;
 
   if (isBlobOrDataOrFallback) {
     return (

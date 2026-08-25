@@ -51,6 +51,19 @@ const semanticPurpose = (
     );
   };
 
+export const resolveTrackCoverAssetFromRows = (
+  assets: (typeof trackAssets.$inferSelect)[]
+): typeof trackAssets.$inferSelect | null =>
+  assets.find(
+    (asset) =>
+      asset.assetKind === "cover_art" &&
+      asset.isCurrent &&
+      asset.status === "ready" &&
+      Boolean(asset.objectKey)
+  ) ??
+  assets.find((asset) => asset.assetKind === "cover_art" && asset.isCurrent) ??
+  null;
+
 export const resolveTrackAssetFromRows = ({
   allowLegacyFallback = false,
   assets,

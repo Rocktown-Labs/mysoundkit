@@ -216,11 +216,13 @@ type TrackFormValues = z.infer<typeof trackFormSchema>;
 
 // Released tracks lock genre/status in the UI, so their edit-time validation
 // must not require those fields to pass before other changes can be saved.
-const releasedTrackFormSchema = trackFormSchema.extend({
-  genre: z.string(),
-  // Status stays type-required (the select is disabled but always prefilled);
-  // only its validation strictness is relaxed for released tracks.
-  status: z.enum(["draft", "ready"]).default("ready"),
+const editTrackFormSchema = trackFormSchema.extend({
+  // Existing tracks already have their release setup. Keep these fields
+  // optional during edits so a stale/legacy record cannot block unrelated
+  // metadata changes.
+  genre: z.string().optional(),
+  rightsAccepted: z.boolean().optional(),
+  status: z.enum(["draft", "ready"]).optional(),
 });
 interface GenreOption {
   name: string;
@@ -380,24 +382,16 @@ export function NewTrackForm({
     isPremiumArtist = entitlementsQuery.data?.isPremium === true,
     sellerStatusQuery = useSellerStatusQuery(),
     payoutsReady = (sellerStatusQuery.data?.chargesEnabled ?? false) === true,
-    // initialTrack can arrive after mount (async route loader), so the
-    // resolver must be picked at validation time, not mount time.
-    isReleasedTrackRef = useRef(isReleasedTrack),
+    editTrackResolver = zodResolver(
+      editTrackFormSchema
+    ) as unknown as Resolver<TrackFormValues>,
+    createTrackResolver = zodResolver(
+      trackFormSchema
+    ) as unknown as Resolver<TrackFormValues>,
     form = useForm<TrackFormValues>({
       defaultValues: defaultTrackFormValues,
-      // Cast: the released-track variant relaxes locked fields (genre/status),
-      // which widens the output type but stays assignable at runtime.
-      resolver: ((
-        values: TrackFormValues,
-        context: Parameters<Resolver<TrackFormValues>>[1],
-        options: Parameters<Resolver<TrackFormValues>>[2]
-      ) =>
-        zodResolver(
-          isReleasedTrackRef.current ? releasedTrackFormSchema : trackFormSchema
-        )(values, context, options)) as unknown as Resolver<TrackFormValues>,
+      resolver: trackId ? editTrackResolver : createTrackResolver,
     });
-
-  isReleasedTrackRef.current = isReleasedTrack;
 
   // Prefill when editing an existing track
   useEffect(() => {
@@ -412,7 +406,11 @@ export function NewTrackForm({
       assets = Array.isArray(initialTrack.assets)
         ? (initialTrack.assets as Record<string, unknown>[])
         : [],
-      coverAsset = assets.find((asset) => asset.assetKind === "cover_art"),
+      coverAsset =
+        assets.find(
+          (asset) =>
+            asset.assetKind === "cover_art" && asset.isCurrent !== false
+        ) ?? assets.find((asset) => asset.assetKind === "cover_art"),
       coverObjectKey =
         (coverAsset?.objectKey as string) ||
         (initialTrack.coverArtUrl as string);
@@ -788,106 +786,11 @@ export function NewTrackForm({
 
       // Edit Mode submission
       if (trackId && initialTrack) {
-        if (isReleasedTrackRef.current) {
-          await handleSaveChanges();
-          isSubmittingRef.current = false;
-          setIsSubmitting(false);
-          return;
-        }
-        try {
-          setSubmitStage("uploading");
-          let coverKey = values.coverObjectKey;
-          if (selectedCoverFile) {
-            const optimizedCover = await optimizeCoverImageFile(
-              selectedCoverFile
-            ).catch(() => selectedCoverFile);
-            const coverResult = await uploadCoverAsync([optimizedCover]);
-            const uploadedCover = coverResult.files[0];
-            if (uploadedCover) {
-              coverKey = uploadedCover.objectInfo.key;
-              await rpcJson(
-                await trackAssetPost({
-                  json: {
-                    assetKind: "cover_art",
-                    metadata: {
-                      originalFileName: selectedCoverFile.name,
-                      url: `${MEDIA_BASE_URL}/${coverKey}`,
-                    },
-                    mimeType: "image/*",
-                    objectKey: coverKey,
-                    status: "ready",
-                    storageProvider: "r2",
-                  },
-                  param: { trackId },
-                })
-              );
-            }
-          }
-
-          setSubmitStage("settling");
-          const release = mapStatusToRelease(values.status, values.releaseAt);
-          await updateTrackMutation.mutateAsync({
-            description: values.description || undefined,
-            downloadsAllowed: values.downloadsAllowed,
-            downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
-            downloadsRequirePurchase: values.downloadsRequirePurchase,
-            exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil, true),
-            // Genre and status-derived release metadata are locked once a
-            // track is released; omit them so the PATCH never touches them.
-            ...(isReleasedTrack
-              ? {}
-              : {
-                  genre: values.genre,
-                  isPublic: release.isPublic,
-                  productionStatus: release.productionStatus,
-                  releaseAt: values.releaseAt || undefined,
-                  releaseStrategy: release.releaseStrategy,
-                }),
-            isForSale: values.isForSale,
-            isrc: values.isrc || undefined,
-            listeningAccess: values.listeningAccess,
-            musicalKey: values.key || undefined,
-            price: values.isForSale ? SINGLE_PRICE_USD : undefined,
-            priceCents: values.isForSale
-              ? Math.round(SINGLE_PRICE_USD * 100)
-              : undefined,
-            streamingLinks: {
-              appleMusic: values.streamingAppleMusic || undefined,
-              spotify: values.streamingSpotify || undefined,
-              youtube: values.streamingYoutube || undefined,
-            },
-            title: values.name,
-          });
-
-          setSubmitStage("settled");
-          toast({
-            description: `"${values.name}" details updated successfully.`,
-            title: "Track Updated",
-          });
-          clearDraft();
-          allowNavigation();
-          router.navigate({
-            params: { id: trackId },
-            to: "/dashboard/tracks/$id",
-          });
-        } catch (error) {
-          posthog.captureException(error);
-          toast({
-            description:
-              error instanceof Error
-                ? error.message
-                : "Failed to update track.",
-            title: "Update Failed",
-            variant: "destructive",
-          });
-          setIsSubmitting(false);
-          setSubmitStage("idle");
-        } finally {
-          isSubmittingRef.current = false;
-        }
+        await handleSaveChanges();
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
         return;
       }
-
       if (!selectedMasterFile && !uploadedTrack) {
         toast({
           description: "Upload a master audio file before completing setup.",
@@ -1194,11 +1097,11 @@ export function NewTrackForm({
       }
     },
     handleSaveChanges = async () => {
-      if (!(trackId && initialTrack) || isSubmittingRef.current) {
+      if (!(trackId && initialTrack) || isSavingChanges) {
         return;
       }
       const values = form.getValues(),
-        parsed = releasedTrackFormSchema.safeParse(values);
+        parsed = editTrackFormSchema.safeParse(values);
       if (!parsed.success) {
         toast({
           description: "Review the highlighted fields before saving.",
@@ -1226,6 +1129,7 @@ export function NewTrackForm({
           "listeningAccess",
           "name",
           "releaseAt",
+          "status",
           "streamingAppleMusic",
           "streamingSpotify",
           "streamingYoutube",
@@ -1324,6 +1228,13 @@ export function NewTrackForm({
         }
         if (!isReleasedTrack && changedKeys.has("releaseAt")) {
           payload.releaseAt = values.releaseAt || undefined;
+        }
+        if (!isReleasedTrack && changedKeys.has("status") && values.status) {
+          const release = mapStatusToRelease(values.status, values.releaseAt);
+          payload.isPublic = release.isPublic;
+          payload.productionStatus = release.productionStatus;
+          payload.releaseAt = values.releaseAt || undefined;
+          payload.releaseStrategy = release.releaseStrategy;
         }
         if (
           changedKeys.has("streamingAppleMusic") ||
