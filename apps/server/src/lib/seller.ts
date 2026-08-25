@@ -9,6 +9,8 @@ import type { AuthenticatedUser } from "@/lib/types";
 const STRIPE_V2_VERSION = "2026-07-29.dahlia",
   getEnvValue = (key: string) =>
     (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
+  stripeErrorMessage = (error: unknown) =>
+    error instanceof Error ? error.message : String(error),
   stripeV2Request = async <T>({
     body,
     method = "POST",
@@ -33,9 +35,12 @@ const STRIPE_V2_VERSION = "2026-07-29.dahlia",
       method,
     });
     if (!response.ok) {
-      const detail = (await response.text()).slice(0, 300);
+      const detail = (await response.text()).slice(0, 300),
+        requestId = response.headers.get("request-id");
       throw new Error(
-        `Stripe Connect request failed (${response.status}): ${detail}`
+        `Stripe Connect request failed (${response.status})${
+          requestId ? ` (request ${requestId})` : ""
+        }: ${detail}`
       );
     }
     return (await response.json()) as T;
@@ -218,7 +223,13 @@ export const createSellerAccountLink = async ({
         include: ["configuration.recipient", "identity", "requirements"],
       },
       path: "/core/accounts",
-    }).catch(() => null);
+    }).catch((error) => {
+      console.error("Stripe v2 account creation failed", {
+        error: stripeErrorMessage(error),
+        stripeAccountId,
+      });
+      return null;
+    });
 
     if (account) {
       stripeAccountId = account.id;
@@ -253,7 +264,10 @@ export const createSellerAccountLink = async ({
         params: v1Params,
         path: "/accounts",
       }).catch((error) => {
-        console.error("Stripe v1 account creation failed", error);
+        console.error("Stripe v1 account creation failed", {
+          error: stripeErrorMessage(error),
+          stripeAccountId,
+        });
         return null;
       });
 
@@ -297,7 +311,13 @@ export const createSellerAccountLink = async ({
       },
     },
     path: "/core/account_links",
-  }).catch(() => null);
+  }).catch((error) => {
+    console.error("Stripe v2 account link creation failed", {
+      error: stripeErrorMessage(error),
+      stripeAccountId,
+    });
+    return null;
+  });
 
   if (!accountLink && stripeAccountId) {
     const linkParams = new URLSearchParams();
@@ -311,7 +331,10 @@ export const createSellerAccountLink = async ({
       params: linkParams,
       path: "/account_links",
     }).catch((error) => {
-      console.error("Stripe v1 account link creation failed", error);
+      console.error("Stripe v1 account link creation failed", {
+        error: stripeErrorMessage(error),
+        stripeAccountId,
+      });
       return null;
     });
 
