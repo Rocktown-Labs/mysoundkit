@@ -37,6 +37,9 @@
 
 ### Fixed
 
+- Fixed missing R2 media references by clearing confirmed-deleted profile, track, and project asset keys after a 404, and made shared images recover when asynchronous source URLs change.
+- Fixed track edit submission being blocked by the in-flight submission guard and stale status/genre validation; edit mode now preserves existing release metadata and allows draft status updates.
+- Fixed Explore map React hydration failures by mounting the interactive geography map after client hydration.
 - Removed the redundant Status dropdown from public Parties and Streams so Battles, Parties, and Streams each expose North America, Global, Genre, and Sort while rail-driven Live/Upcoming filtering remains URL-backed.
 - Improved the Global Explore map’s flat overview sizing and centering for desktop and mobile layouts.
 - Fixed Admin Genres reporting zero for persisted canonical genres by sharing persisted genre UUID resolution with discovery, and added indexes for genre-backed catalog filters.

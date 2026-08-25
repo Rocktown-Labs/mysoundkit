@@ -1,9 +1,9 @@
-/* eslint-disable one-var, sort-vars */
+/* eslint-disable one-var, sort-vars, react/set-state-in-effect */
 "use client";
 
 import { geoCentroid } from "d3-geo";
 import { MapPin } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ComposableMap,
   Geographies,
@@ -85,6 +85,7 @@ export function WorldAndUSAMap({
   selectedRegions,
 }: WorldAndUSAMapProps) {
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null),
+    [isMounted, setIsMounted] = useState(false),
     [zoomCenter, setZoomCenter] = useState<[number, number] | null>(null),
     scopeConfig =
       mapScopes.find((scope) => scope.id === mapScope) ?? mapScopes[0],
@@ -140,6 +141,24 @@ export function WorldAndUSAMap({
         />
       );
     };
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <div
+        className="relative w-full max-w-full overflow-hidden rounded-lg border border-border/50 bg-muted/30"
+        data-testid="explore-map"
+      >
+        <div
+          aria-busy="true"
+          className="h-[280px] w-full sm:h-[380px] md:h-[460px] lg:h-[500px]"
+        />
+      </div>
+    );
+  }
 
   return (
     <div

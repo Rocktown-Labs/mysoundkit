@@ -8,12 +8,14 @@ import {
   projects,
   trackAssets,
   tracks,
+  userProfiles,
 } from "@soundkit/db/schema/app";
 import { and, eq } from "drizzle-orm";
 
 import { isAuthenticatedUser } from "@/lib/entitlements";
 import { isPublicTrackArtwork } from "@/lib/media-access";
 import type { AppEnv } from "@/lib/types";
+import { logWarn } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>(),
   objectKeyFromPath = (path: string) => {
@@ -36,6 +38,52 @@ const app = new OpenAPIHono<AppEnv>(),
     asset.assetKind === "verse_vocal" ||
     asset.assetKind === "adlib" ||
     asset.assetKind === "reference_audio";
+
+const clearMissingMediaReferences = async (objectKey: string) => {
+  if (!isDatabaseConfigured()) {
+    return;
+  }
+
+  try {
+    const db = createDb(),
+      updatedAt = new Date();
+
+    await Promise.all([
+      db
+        .update(userProfiles)
+        .set({ avatarObjectKey: null, avatarUrl: null })
+        .where(eq(userProfiles.avatarObjectKey, objectKey)),
+      db
+        .update(userProfiles)
+        .set({ headerObjectKey: null, headerUrl: null })
+        .where(eq(userProfiles.headerObjectKey, objectKey)),
+      db
+        .update(trackAssets)
+        .set({
+          isCurrent: false,
+          objectKey: null,
+          status: "deleted",
+          updatedAt,
+        })
+        .where(eq(trackAssets.objectKey, objectKey)),
+      db
+        .update(projectAssets)
+        .set({ objectKey: null, status: "deleted", updatedAt })
+        .where(eq(projectAssets.objectKey, objectKey)),
+    ]);
+
+    logWarn({
+      event: "missing_media_references_cleared",
+      objectKey,
+    });
+  } catch (error) {
+    logWarn({
+      error: error instanceof Error ? error.message : String(error),
+      event: "missing_media_reference_cleanup_failed",
+      objectKey,
+    });
+  }
+};
 
 app.get("/*", async (c) => {
   const objectKey = objectKeyFromPath(c.req.path),
@@ -107,6 +155,7 @@ app.get("/*", async (c) => {
   }
   const object = await bucket.get(objectKey);
   if (!object) {
+    c.executionCtx.waitUntil(clearMissingMediaReferences(objectKey));
     return c.json({ message: "Media not found." }, 404);
   }
   const headers = new Headers({
