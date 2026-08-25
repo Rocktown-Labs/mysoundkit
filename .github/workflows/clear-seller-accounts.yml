@@ -1,0 +1,33 @@
+name: Clear Seller Accounts
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type CLEAR SELLER ACCOUNTS to confirm deletion
+        required: true
+        type: string
+
+jobs:
+  clear:
+    name: Clear production seller accounts
+    if: ${{ inputs.confirmation == 'CLEAR SELLER ACCOUNTS' }}
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Delete seller account records
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          DATABASE_URL="${DATABASE_URL/sslmode=verify-full/sslmode=require}"
+          export DATABASE_URL
+          psql "$DATABASE_URL" --set=ON_ERROR_STOP=1 --tuples-only --no-align <<'SQL'
+          WITH deleted AS (
+            DELETE FROM seller_accounts
+            RETURNING id
+          )
+          SELECT 'Deleted seller account rows: ' || count(*) FROM deleted;
+          SQL
