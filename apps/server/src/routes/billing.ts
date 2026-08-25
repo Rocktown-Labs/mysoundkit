@@ -1,3 +1,4 @@
+import { createAuth } from "@soundkit/auth";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
@@ -22,11 +23,21 @@ import {
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
+  customerTypeSchema = z.enum(["organization", "user"]),
   subscriptionSummarySchema = z.object({
     activePlanCode: z.string().nullable(),
     entitlements: entitlementSummarySchema,
     status: z.string().nullable(),
     workspace: workspaceSummarySchema.nullable(),
+  }),
+  portalBodySchema = z.object({
+    customerType: customerTypeSchema.default("user"),
+    referenceId: z.string().optional(),
+    returnUrl: z.url(),
+  }),
+  portalResponseSchema = z.object({
+    portalUrl: z.string().url().nullable(),
+    setupRequired: z.boolean(),
   });
 
 app.openapi(
@@ -58,6 +69,7 @@ app.openapi(
 
 const checkoutBodySchema = z.object({
   cancelUrl: z.url(),
+  customerType: customerTypeSchema.default("organization"),
   planCode: z.string(),
   referenceId: z.string().optional(),
   seats: z.number().int().positive().optional(),
@@ -98,11 +110,12 @@ app.openapi(
       session = c.get("session"),
       referenceId =
         body.referenceId ??
-        (isAuthenticatedSession(session)
+        (body.customerType === "organization" && isAuthenticatedSession(session)
           ? (session.activeOrganizationId ?? user.id)
           : user.id),
       checkout = await checkoutForPlan({
         cancelUrl: body.cancelUrl,
+        customerType: body.customerType,
         planCode: body.planCode,
         referenceId,
         request: c.req.raw,
@@ -111,6 +124,88 @@ app.openapi(
       });
 
     return c.json(checkout, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/portal",
+    request: {
+      body: jsonContentRequired(portalBodySchema, "Billing portal payload"),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        portalResponseSchema,
+        "Billing portal status"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Billing"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const body = c.req.valid("json"),
+      session = c.get("session"),
+      referenceId =
+        body.referenceId ??
+        (body.customerType === "organization" && isAuthenticatedSession(session)
+          ? (session.activeOrganizationId ?? user.id)
+          : user.id),
+      auth = createAuth();
+
+    if (!("createBillingPortal" in auth.api)) {
+      return c.json(
+        { portalUrl: null, setupRequired: true },
+        HttpStatusCodes.OK
+      );
+    }
+
+    try {
+      const createBillingPortal = auth.api.createBillingPortal as (input: {
+          body: {
+            customerType: "organization" | "user";
+            disableRedirect: boolean;
+            referenceId: string;
+            returnUrl: string;
+          };
+          headers: Headers;
+        }) => Promise<unknown>,
+        result = await createBillingPortal({
+          body: {
+            customerType: body.customerType,
+            disableRedirect: true,
+            referenceId,
+            returnUrl: body.returnUrl,
+          },
+          headers: c.req.raw.headers,
+        }),
+        portalUrl =
+          typeof result === "object" &&
+          result !== null &&
+          "url" in result &&
+          typeof result.url === "string"
+            ? result.url
+            : null;
+
+      return c.json(
+        { portalUrl, setupRequired: !portalUrl },
+        HttpStatusCodes.OK
+      );
+    } catch {
+      return c.json(
+        { portalUrl: null, setupRequired: true },
+        HttpStatusCodes.OK
+      );
+    }
   }
 );
 
