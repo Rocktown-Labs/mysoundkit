@@ -774,6 +774,7 @@ app.openapi(
     request: {
       body: jsonContent(
         z.object({
+          clientPlaylistId: z.string().uuid().optional(),
           description: z.string().optional(),
           isPublic: z.boolean().optional(),
           title: z.string().min(1),
@@ -802,7 +803,9 @@ app.openapi(
       );
     }
     const body = c.req.valid("json"),
-      id = `playlist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      id =
+        body.clientPlaylistId ??
+        `playlist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
     if (!isDatabaseConfigured()) {
       return c.json(

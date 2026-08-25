@@ -42,22 +42,6 @@ export interface MessageCollectionMutationOptions {
   onSuccess?: (message: MessageSummary) => void;
 }
 
-const compareMessageChronology = <
-  T extends { createdAt?: string; id: string; sentAt?: string },
->(
-  left: T,
-  right: T
-) => {
-  const leftTime = Date.parse(left.createdAt ?? left.sentAt ?? ""),
-    rightTime = Date.parse(right.createdAt ?? right.sentAt ?? ""),
-    normalizedLeftTime = Number.isNaN(leftTime) ? 0 : leftTime,
-    normalizedRightTime = Number.isNaN(rightTime) ? 0 : rightTime;
-
-  return (
-    normalizedLeftTime - normalizedRightTime || left.id.localeCompare(right.id)
-  );
-};
-
 const makeConversationCollection = (queryClient: QueryClient) =>
     createCollection(
       queryCollectionOptions<ConversationSummary>({
@@ -233,7 +217,12 @@ const useMessagingDb = () => {
 
 export const useMessagingConversations = () => {
   const { conversations } = useMessagingDb();
-  return useLiveQuery(conversations);
+  return useLiveQuery((q) =>
+    q
+      .from({ conversation: conversations })
+      .orderBy(({ conversation }) => conversation.updatedAt, "desc")
+      .orderBy(({ conversation }) => conversation.id, "desc")
+  );
 };
 
 export const useLiveRoomChat = (roomId: string) => {
@@ -242,14 +231,13 @@ export const useLiveRoomChat = (roomId: string) => {
       () => getLiveRoomChat(roomId),
       [getLiveRoomChat, roomId]
     ),
-    result = useLiveQuery(collection),
-    data = useMemo(
-      () =>
-        [...(result.data as unknown as LiveRoomChatMessage[])].sort(
-          compareMessageChronology
-        ),
-      [result.data]
-    );
+    result = useLiveQuery((q) =>
+      q
+        .from({ message: collection })
+        .orderBy(({ message }) => message.sentAt, "asc")
+        .orderBy(({ message }) => message.id, "asc")
+    ),
+    data = result.data as unknown as LiveRoomChatMessage[];
 
   return { ...result, collection, data };
 };
@@ -260,14 +248,13 @@ export const useMessagingMessages = (conversationId: string) => {
       () => getMessages(conversationId),
       [conversationId, getMessages]
     ),
-    result = useLiveQuery(collection),
-    data = useMemo(
-      () =>
-        [...(result.data as unknown as MessageSummary[])].sort(
-          compareMessageChronology
-        ),
-      [result.data]
+    result = useLiveQuery((q) =>
+      q
+        .from({ message: collection })
+        .orderBy(({ message }) => message.createdAt, "asc")
+        .orderBy(({ message }) => message.id, "asc")
     ),
+    data = result.data as unknown as MessageSummary[],
     refetch = useCallback(async () => {
       await collection.utils.refetch();
     }, [collection]);

@@ -26,13 +26,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
+import { useDbFollowActions } from "@/lib/data-db";
 import { usePresence } from "@/lib/presence-context";
 import {
   useCreateFriendRequestMutation,
   useNetworkQuery,
   useRespondFriendRequestMutation,
   useSearchQuery,
-  useUnfollowArtistMutation,
 } from "@/lib/soundkit-api-hooks";
 import type { NetworkResponse } from "@/lib/soundkit-api-hooks";
 
@@ -96,8 +96,22 @@ function PersonCard({
 }) {
   const { isUserOnline, registerPresenceUsers } = usePresence(),
     friendRequestMutation = useCreateFriendRequestMutation(),
-    unfollowMutation = useUnfollowArtistMutation(person.username ?? ""),
+    { unfollow } = useDbFollowActions(),
     isArtist = person.accountType === "artist",
+    unfollowPerson = async () => {
+      if (!person.username) {
+        return;
+      }
+      await unfollow({
+        accountType: person.accountType,
+        id: person.id,
+        username: person.username,
+      }).isPersisted.promise;
+      toast({
+        description: `You no longer follow @${person.username}.`,
+        title: "Unfollowed",
+      });
+    },
     sendFriendRequest = async () => {
       if (!person.username) {
         return;
@@ -177,10 +191,9 @@ function PersonCard({
               Add Friend
             </Button>
           )}
-          {direction === "following" && isArtist && person.isFollowing && (
+          {direction === "following" && person.isFollowing && (
             <Button
-              disabled={unfollowMutation.isPending}
-              onClick={() => void unfollowMutation.mutateAsync()}
+              onClick={() => void unfollowPerson()}
               size="sm"
               variant="outline"
             >

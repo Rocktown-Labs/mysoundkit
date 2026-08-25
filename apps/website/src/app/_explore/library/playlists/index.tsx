@@ -32,12 +32,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  useCreatePlaylistMutation,
-  useDeletePlaylistMutation,
-  useLibraryPlaylistsQuery,
-  useMeQuery,
-} from "@/lib/soundkit-api-hooks";
+import { useDbPlaylistActions, useDbPlaylists } from "@/lib/data-db";
+import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
 import { createPlaylistColumns } from "./-columns";
 import type { Playlist } from "./-columns";
@@ -54,12 +50,12 @@ function PlaylistsPage() {
     [open, setOpen] = useState(false),
     [deleteCandidate, setDeleteCandidate] = useState<Playlist | null>(null),
     [deleteConfirmation, setDeleteConfirmation] = useState(""),
+    [isDeleting, setIsDeleting] = useState(false),
     [playlistName, setPlaylistName] = useState(""),
     [playlistDescription, setPlaylistDescription] = useState(""),
     { data: me } = useMeQuery(),
-    { data: playlists = [], isLoading } = useLibraryPlaylistsQuery(),
-    createPlaylistMutation = useCreatePlaylistMutation(),
-    deletePlaylistMutation = useDeletePlaylistMutation(),
+    { data: playlists = [], isLoading } = useDbPlaylists(),
+    { create, deletePlaylist } = useDbPlaylistActions(),
     isSignedIn = Boolean(me?.user),
     tableData = playlists.map((playlist) => ({
       description: playlist.description ?? "No description",
@@ -72,20 +68,22 @@ function PlaylistsPage() {
         return;
       }
       try {
-        const playlist = await createPlaylistMutation.mutateAsync({
-          description: playlistDescription,
-          title: playlistName,
-        });
+        const playlistInput = {
+            description: playlistDescription,
+            title: playlistName,
+          },
+          { id, transaction } = create(playlistInput);
+        await transaction.isPersisted.promise;
         setOpen(false);
         setPlaylistName("");
         setPlaylistDescription("");
         toast({
-          description: `Created playlist "${playlist.title}".`,
+          description: `Created playlist "${playlistInput.title}".`,
           title: "Playlist Created",
         });
         await router.invalidate();
         navigate({
-          params: { id: playlist.id },
+          params: { id },
           to: "/library/playlists/$id",
         });
       } catch {
@@ -101,8 +99,9 @@ function PlaylistsPage() {
         return;
       }
 
+      setIsDeleting(true);
       try {
-        await deletePlaylistMutation.mutateAsync(deleteCandidate.id);
+        await deletePlaylist(deleteCandidate.id).isPersisted.promise;
         toast({
           description: `"${deleteCandidate.name}" has been deleted.`,
           title: "Playlist deleted",
@@ -116,8 +115,10 @@ function PlaylistsPage() {
           title: "Delete failed",
           variant: "destructive",
         });
+      } finally {
+        setIsDeleting(false);
       }
-    }, [deleteCandidate, deletePlaylistMutation, router, toast]),
+    }, [deleteCandidate, deletePlaylist, router, toast]),
     columns = useMemo(
       () =>
         createPlaylistColumns({
@@ -229,7 +230,7 @@ function PlaylistsPage() {
 
       <AlertDialog
         onOpenChange={(isOpen) => {
-          if (!(isOpen || deletePlaylistMutation.isPending)) {
+          if (!(isOpen || isDeleting)) {
             setDeleteCandidate(null);
             setDeleteConfirmation("");
           }
@@ -247,21 +248,19 @@ function PlaylistsPage() {
           <div className="space-y-2">
             <p className="text-sm font-medium">{deleteCandidate?.name}</p>
             <Input
-              disabled={deletePlaylistMutation.isPending}
+              disabled={isDeleting}
               onChange={(event) => setDeleteConfirmation(event.target.value)}
               placeholder="Type the playlist name"
               value={deleteConfirmation}
             />
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletePlaylistMutation.isPending}>
-              Cancel
-            </AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={
                 !deleteCandidate ||
                 deleteConfirmation !== deleteCandidate.name ||
-                deletePlaylistMutation.isPending
+                isDeleting
               }
               onClick={(event) => {
                 event.preventDefault();

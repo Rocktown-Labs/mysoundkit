@@ -1,14 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { Play, Clock, Heart } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  useLibrarySavedQuery,
-  useToggleSaveTrackMutation,
-} from "@/lib/soundkit-api-hooks";
+import { useDbSavedTrackActions, useDbSavedTrackIds } from "@/lib/data-db";
 
 interface TrackCardProps {
   id: string;
@@ -34,32 +31,26 @@ export function TrackCard({
   slug,
 }: TrackCardProps) {
   const { toast } = useToast(),
-    { data: savedTracks = [] } = useLibrarySavedQuery(),
-    toggleSaveMutation = useToggleSaveTrackMutation(),
-    isSaved = savedTracks.some((t) => t.id === id),
-    [optimisticSaved, setOptimisticSaved] = useState(isSaved);
+    { data: savedTrackIds = [] } = useDbSavedTrackIds(),
+    { toggle } = useDbSavedTrackActions(),
+    isSaved = savedTrackIds.some((track) => track.id === id),
+    [isPending, setIsPending] = useState(false),
 
-  useEffect(() => {
-    setOptimisticSaved(isSaved);
-  }, [isSaved]);
-
-  const handleToggleSave = async (e: React.MouseEvent) => {
+   handleToggleSave = async (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (toggleSaveMutation.isPending) {
+      if (isPending) {
         return;
       }
 
-      setOptimisticSaved((current) => !current);
-
+      setIsPending(true);
       try {
-        const res = await toggleSaveMutation.mutateAsync(id);
-        setOptimisticSaved(res.saved);
+        await toggle(id).isPersisted.promise;
         toast({
-          description: res.saved
-            ? `Saved "${title}" to your Saved Tracks.`
-            : `Removed "${title}" from your Saved Tracks.`,
-          title: res.saved ? "Saved to Library" : "Removed from Library",
+          description: isSaved
+            ? `Removed "${title}" from your Saved Tracks.`
+            : `Saved "${title}" to your Saved Tracks.`,
+          title: isSaved ? "Removed from Library" : "Saved to Library",
         });
       } catch {
         toast({
@@ -67,7 +58,8 @@ export function TrackCard({
           title: "Sign in required",
           variant: "destructive",
         });
-        setOptimisticSaved(isSaved);
+      } finally {
+        setIsPending(false);
       }
     },
     trackLink =
@@ -101,12 +93,12 @@ export function TrackCard({
             type="button"
             onClick={handleToggleSave}
             className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-black/40 text-white transition-colors hover:bg-black/70 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={toggleSaveMutation.isPending}
-            title={optimisticSaved ? "Remove from Saved" : "Save Track"}
+            disabled={isPending}
+            title={isSaved ? "Remove from Saved" : "Save Track"}
           >
             <Heart
               className={`size-3.5 ${
-                optimisticSaved ? "fill-rose-500 text-rose-500" : ""
+                isSaved ? "fill-rose-500 text-rose-500" : ""
               }`}
             />
           </button>

@@ -2,6 +2,7 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  artistFollows,
   artistProfiles,
   genres,
   playbackSessions,
@@ -24,6 +25,7 @@ import {
   buildProjectSummary,
   buildTrackSummary,
 } from "@/lib/dashboard-mappers";
+import { isAuthenticatedUser } from "@/lib/entitlements";
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import {
   genreSlugFromExploreFilter,
@@ -311,7 +313,8 @@ app.openapi(
     tags: ["Artists"],
   }),
   async (c) => {
-    const { username } = c.req.valid("param");
+    const { username } = c.req.valid("param"),
+      viewer = c.get("user");
 
     if (isDatabaseConfigured()) {
       const db = createDb(),
@@ -358,7 +361,19 @@ app.openapi(
           .limit(1);
 
       if (artist) {
-        const links = await db
+        const [viewerFollow] = isAuthenticatedUser(viewer)
+            ? await db
+                .select({ id: artistFollows.followerUserId })
+                .from(artistFollows)
+                .where(
+                  and(
+                    eq(artistFollows.artistUserId, artist.id),
+                    eq(artistFollows.followerUserId, viewer.id)
+                  )
+                )
+                .limit(1)
+            : [],
+          links = await db
             .select({
               platform: profileLinks.platform,
               url: profileLinks.url,
@@ -416,6 +431,7 @@ app.openapi(
             followers: artist.followerCount,
             genre,
             id: artist.id,
+            isFollowing: Boolean(viewerFollow),
             joinedAt: artist.createdAt.toISOString(),
             links: platformLinks,
             location: locationLabel({ city: artist.city, state: artist.state }),

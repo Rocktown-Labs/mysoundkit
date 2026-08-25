@@ -719,7 +719,7 @@ app.openapi(
         .from(videoComments)
         .leftJoin(userProfiles, eq(userProfiles.userId, videoComments.userId))
         .where(eq(videoComments.videoId, videoId))
-        .orderBy(asc(videoComments.createdAt));
+        .orderBy(asc(videoComments.createdAt), asc(videoComments.id));
 
     return c.json(
       rows.map((row) => ({
@@ -749,6 +749,10 @@ app.openapi(
       }),
     },
     responses: {
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Comment could not be persisted"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
         "Authentication required"
@@ -772,14 +776,14 @@ app.openapi(
     }
 
     const { videoId } = c.req.valid("param"),
-      { body } = c.req.valid("json");
+      commentInput = c.req.valid("json");
 
     if (!isDatabaseConfigured()) {
       return c.json(
         {
           authorAvatarUrl: null,
           authorName: null,
-          body,
+          body: commentInput.body,
           createdAt: new Date().toISOString(),
           id: `comment_${Date.now()}`,
           userId: currentUser.id,
@@ -789,13 +793,35 @@ app.openapi(
     }
 
     const db = createDb(),
-      commentId = crypto.randomUUID();
-    await db.insert(videoComments).values({
-      body,
-      id: commentId,
-      userId: currentUser.id,
-      videoId,
-    });
+      commentId = commentInput.clientCommentId ?? crypto.randomUUID(),
+      [createdComment] = await db
+        .insert(videoComments)
+        .values({
+          body: commentInput.body,
+          id: commentId,
+          userId: currentUser.id,
+          videoId,
+        })
+        .onConflictDoNothing()
+        .returning(),
+      [storedComment] = await db
+        .select()
+        .from(videoComments)
+        .where(
+          and(
+            eq(videoComments.id, commentId),
+            eq(videoComments.userId, currentUser.id),
+            eq(videoComments.videoId, videoId)
+          )
+        )
+        .limit(1);
+
+    if (!storedComment) {
+      return c.json(
+        { message: "Unable to persist comment." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
 
     const [[author], [video]] = await Promise.all([
       db
@@ -817,7 +843,7 @@ app.openapi(
         .limit(1),
     ]);
 
-    if (video) {
+    if (video && createdComment) {
       await notify(
         {
           actorUserId: currentUser.id,
@@ -829,7 +855,7 @@ app.openapi(
               currentUser.name ??
               "Someone",
             commentId,
-            commentPreview: body,
+            commentPreview: storedComment.body,
             videoId,
             videoTitle: video.title,
           },
@@ -846,10 +872,10 @@ app.openapi(
       {
         authorAvatarUrl: author?.avatarUrl ?? null,
         authorName: author?.displayName ?? author?.username ?? null,
-        body,
-        createdAt: new Date().toISOString(),
-        id: commentId,
-        userId: currentUser.id,
+        body: storedComment.body,
+        createdAt: storedComment.createdAt.toISOString(),
+        id: storedComment.id,
+        userId: storedComment.userId,
       },
       HttpStatusCodes.CREATED
     );

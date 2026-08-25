@@ -15,12 +15,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
-  useClearNotificationsMutation,
-  useMarkNotificationReadMutation,
-  useMarkNotificationsReadMutation,
-  useNotificationsQuery,
-  useSearchQuery,
-} from "@/lib/soundkit-api-hooks";
+  useDbNotificationActions,
+  useDbNotificationUnreadCount,
+  useDbNotifications,
+} from "@/lib/data-db";
+import { useSearchQuery } from "@/lib/soundkit-api-hooks";
 
 const SEARCH_DEBOUNCE_MS = 250,
   resultLinkClassName =
@@ -31,11 +30,10 @@ export function DashboardHeader() {
     [debouncedSearchValue, setDebouncedSearchValue] = useState(""),
     searchInputRef = useRef<HTMLInputElement>(null),
     trimmedSearchValue = debouncedSearchValue.trim(),
-
-   isNaturalLanguage = (() => {
-    const words = trimmedSearchValue.split(/\s+/).filter(Boolean);
-    return words.length >= 3 && trimmedSearchValue.length >= 12;
-  })();
+    isNaturalLanguage = (() => {
+      const words = trimmedSearchValue.split(/\s+/).filter(Boolean);
+      return words.length >= 3 && trimmedSearchValue.length >= 12;
+    })();
 
   useHotkey("Mod+K", (event) => {
     event.preventDefault();
@@ -43,13 +41,10 @@ export function DashboardHeader() {
     searchInputRef.current?.select();
   });
 
-  const notificationsQuery = useNotificationsQuery(),
-    markNotificationReadMutation = useMarkNotificationReadMutation(),
-    markReadMutation = useMarkNotificationsReadMutation(),
-    clearNotificationsMutation = useClearNotificationsMutation(),
-    notificationPages = notificationsQuery.data?.pages ?? [],
-    notifications = notificationPages.flatMap((page) => page.items),
-    unreadCount = notificationPages[0]?.unreadCount ?? 0,
+  const notificationsQuery = useDbNotifications(),
+    { clearAll, markAllRead, markRead } = useDbNotificationActions(),
+    notifications = notificationsQuery.data ?? [],
+    unreadCount = useDbNotificationUnreadCount(),
     searchQuery = useSearchQuery({
       limit: "8",
       q: trimmedSearchValue,
@@ -405,20 +400,24 @@ export function DashboardHeader() {
                 {notifications.length > 0 ? (
                   <button
                     className="font-medium text-[10px] text-destructive hover:underline disabled:opacity-50"
-                    onClick={() => clearNotificationsMutation.mutate()}
-                    disabled={clearNotificationsMutation.isPending}
+                    onClick={() => {
+                      void clearAll().isPersisted.promise.catch(
+                        () => {}
+                      );
+                    }}
                     type="button"
                   >
-                    {clearNotificationsMutation.isPending
-                      ? "Clearing…"
-                      : "Clear all"}
+                    Clear all
                   </button>
                 ) : null}
                 {unreadCount > 0 ? (
                   <button
                     className="font-medium text-[10px] text-primary hover:underline disabled:opacity-50"
-                    onClick={() => markReadMutation.mutate()}
-                    disabled={markReadMutation.isPending}
+                    onClick={() => {
+                      void markAllRead().isPersisted.promise.catch(
+                        () => {}
+                      );
+                    }}
                     type="button"
                   >
                     Mark all read
@@ -458,7 +457,9 @@ export function DashboardHeader() {
                       {link ? (
                         <Link
                           onClick={() =>
-                            markNotificationReadMutation.mutate(item.id)
+                            void markRead(item.id).isPersisted.promise.catch(
+                              () => {}
+                            )
                           }
                           to={link}
                         >
@@ -468,7 +469,9 @@ export function DashboardHeader() {
                         <button
                           className="w-full text-left"
                           onClick={() =>
-                            markNotificationReadMutation.mutate(item.id)
+                            void markRead(item.id).isPersisted.promise.catch(
+                              () => {}
+                            )
                           }
                           type="button"
                         >
@@ -483,7 +486,7 @@ export function DashboardHeader() {
                   <Button
                     className="w-full"
                     disabled={notificationsQuery.isFetchingNextPage}
-                    onClick={() => notificationsQuery.fetchNextPage()}
+                    onClick={() => void notificationsQuery.fetchNextPage()}
                     size="sm"
                     variant="ghost"
                   >

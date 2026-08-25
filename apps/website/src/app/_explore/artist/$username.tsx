@@ -136,9 +136,11 @@ const formatCount = (value?: number) => {
       artist.bio ??
       `${artist.genre} artist${artist.location ? ` from ${artist.location}` : ""}.`,
     coverImage: artist.coverImageUrl ?? "/soundkit-default-banner.svg",
+    followerCount: artist.followers,
     followers: formatCount(artist.followers),
     following: "0",
     genre: artist.genre,
+    isFollowing: artist.isFollowing ?? false,
     joinedDate: formatJoinedDate(artist.joinedAt),
     links: {
       appleMusic: artist.links?.apple,

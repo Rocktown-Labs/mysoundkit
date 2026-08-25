@@ -15,13 +15,12 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
+import { useDbPlaylistTrackActions, useDbPlaylistTracks } from "@/lib/data-db";
 import {
-  useAddPlaylistTrackMutation,
   useLibraryRecentQuery,
   useLibrarySavedQuery,
   useLibraryWatchedQuery,
   usePlaylistQuery,
-  useRemovePlaylistTrackMutation,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 
@@ -43,17 +42,14 @@ function PlaylistDetailPage() {
     [searchQuery, setSearchQuery] = useState(""),
     [activeTab, setActiveTab] = useState("search"),
     { data: playlistData, isLoading } = usePlaylistQuery(id),
+    { data: playlistTracks = [] } = useDbPlaylistTracks(id),
+    { add, remove } = useDbPlaylistTrackActions(id),
     { data: publicTracks = [] } = useTracksQuery(),
     { data: savedTracks = [] } = useLibrarySavedQuery(),
     { data: recentPlays = [] } = useLibraryRecentQuery(),
     { data: watchedHistory = [] } = useLibraryWatchedQuery(),
-    addTrackMutation = useAddPlaylistTrackMutation(),
-    removeTrackMutation = useRemovePlaylistTrackMutation(),
     playlist = playlistData?.playlist,
-    currentTracks = useMemo(
-      () => playlistData?.tracks ?? [],
-      [playlistData?.tracks]
-    ),
+    currentTracks = useMemo(() => playlistTracks, [playlistTracks]),
     currentTrackIds = useMemo(
       () => new Set(currentTracks.map((track) => track.id)),
       [currentTracks]
@@ -71,10 +67,21 @@ function PlaylistDetailPage() {
       }
 
       try {
-        await addTrackMutation.mutateAsync({
-          playlistId: id,
-          trackId: track.id,
-        });
+        const sourceTrack = publicTracks.find((item) => item.id === track.id);
+        if (!sourceTrack) {
+          throw new Error("Track details are unavailable.");
+        }
+        await add({
+          artist: sourceTrack.artistName,
+          artistSlug: sourceTrack.artistUsername ?? "artist",
+          cover: sourceTrack.coverArtUrl ?? "/placeholder.svg",
+          duration: sourceTrack.duration ?? "0:00",
+          genre: sourceTrack.genre ?? null,
+          id: sourceTrack.id,
+          regionSlug: sourceTrack.regionSlug ?? null,
+          slug: sourceTrack.slug ?? null,
+          title: sourceTrack.title,
+        }).isPersisted.promise;
         setLocallyAddedTrackIds((trackIds) =>
           trackIds.includes(track.id) ? trackIds : [...trackIds, track.id]
         );
@@ -95,10 +102,7 @@ function PlaylistDetailPage() {
       async (track: PlaylistTrack) => {
         setRemovingTrackId(track.id);
         try {
-          await removeTrackMutation.mutateAsync({
-            playlistId: id,
-            trackId: track.id,
-          });
+          await remove(track.id).isPersisted.promise;
           setLocallyAddedTrackIds((trackIds) =>
             trackIds.filter((trackId) => trackId !== track.id)
           );
@@ -117,7 +121,7 @@ function PlaylistDetailPage() {
           setRemovingTrackId(undefined);
         }
       },
-      [id, removeTrackMutation, router, toast]
+      [id, remove, router, toast]
     ),
     filteredSearchTracks = publicTracks.filter(
       (t) =>
@@ -183,7 +187,7 @@ function PlaylistDetailPage() {
                 <Button
                   size="sm"
                   variant={isAlreadyInPlaylist ? "ghost" : "outline"}
-                  disabled={isAlreadyInPlaylist || addTrackMutation.isPending}
+                  disabled={isAlreadyInPlaylist}
                   onClick={() => handleAddSong(song)}
                 >
                   {isAlreadyInPlaylist ? "Added" : "Add"}

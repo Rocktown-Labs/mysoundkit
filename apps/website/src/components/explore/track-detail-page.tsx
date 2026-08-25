@@ -53,11 +53,13 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL, downloadFileFromApi } from "@/lib/api";
 import { absoluteSiteUrl } from "@/lib/seo";
+import {
+  useDbSavedTrackActions,
+  useDbSavedTrackIds,
+} from "@/lib/data-db";
 import { shareLink } from "@/lib/share";
 import {
-  useLibrarySavedQuery,
   usePreSaveTrackMutation,
-  useToggleSaveTrackMutation,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 import type { TrackSummary } from "@/lib/soundkit-api-hooks";
@@ -353,8 +355,8 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
     router = useRouter(),
     { setCurrentTrack, setQueue, addToQueue } = useAudioPlayer(),
     { addItem } = useCart(),
-    { data: savedTracks = [] } = useLibrarySavedQuery(),
-    toggleSaveMutation = useToggleSaveTrackMutation(),
+    { data: savedTrackIds = [] } = useDbSavedTrackIds(),
+    { toggle } = useDbSavedTrackActions(),
     preSaveMutation = usePreSaveTrackMutation(id),
     {
       data: item,
@@ -375,17 +377,13 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
       null
     ),
     isLiked = Boolean(
-      item?.id && savedTracks.some((track) => track.id === item.id)
+      item?.id && savedTrackIds.some((track) => track.id === item.id)
     ),
-    [optimisticLiked, setOptimisticLiked] = useState(isLiked);
+    [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setSelectedLicense(item?.licenseOptions?.[0] ?? null);
   }, [item?.id]);
-
-  useEffect(() => {
-    setOptimisticLiked(isLiked);
-  }, [isLiked]);
 
   if (isLoading) {
     return (
@@ -516,20 +514,18 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
       if (!item?.id) {
         return;
       }
-      if (toggleSaveMutation.isPending) {
+      if (isSaving) {
         return;
       }
 
-      setOptimisticLiked((current) => !current);
-
+      setIsSaving(true);
       try {
-        const res = await toggleSaveMutation.mutateAsync(item.id);
-        setOptimisticLiked(res.saved);
+        await toggle(item.id).isPersisted.promise;
         toast({
-          description: res.saved
-            ? `Saved "${item.title}" to your Saved Tracks.`
-            : `Removed "${item.title}" from your Saved Tracks.`,
-          title: res.saved ? "Saved to Library" : "Removed from Library",
+          description: isLiked
+            ? `Removed "${item.title}" from your Saved Tracks.`
+            : `Saved "${item.title}" to your Saved Tracks.`,
+          title: isLiked ? "Removed from Library" : "Saved to Library",
         });
       } catch {
         toast({
@@ -537,7 +533,8 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
           title: "Sign in required",
           variant: "destructive",
         });
-        setOptimisticLiked(isLiked);
+      } finally {
+        setIsSaving(false);
       }
     },
     handlePreSave = async () => {
@@ -632,11 +629,11 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
               size="icon"
               className="size-8"
               onClick={handleToggleLike}
-              disabled={toggleSaveMutation.isPending}
-              title={optimisticLiked ? "Remove from Saved" : "Save Track"}
+              disabled={isSaving}
+              title={isLiked ? "Remove from Saved" : "Save Track"}
             >
               <Heart
-                className={`size-4 ${optimisticLiked ? "fill-rose-500 text-rose-500" : ""}`}
+                className={`size-4 ${isLiked ? "fill-rose-500 text-rose-500" : ""}`}
               />
             </Button>
           </div>
@@ -755,11 +752,11 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                   variant="outline"
                   size="icon"
                   onClick={handleToggleLike}
-                  disabled={toggleSaveMutation.isPending}
-                  className={`size-12 rounded-lg border-border/40 hover:text-rose-500 hover:border-rose-500/40 ${optimisticLiked ? "text-rose-500 border-rose-500/50 bg-rose-500/10" : ""}`}
+                  disabled={isSaving}
+                  className={`size-12 rounded-lg border-border/40 hover:text-rose-500 hover:border-rose-500/40 ${isLiked ? "text-rose-500 border-rose-500/50 bg-rose-500/10" : ""}`}
                 >
                   <Heart
-                    className={`size-6 ${optimisticLiked ? "fill-current" : ""}`}
+                    className={`size-6 ${isLiked ? "fill-current" : ""}`}
                   />
                 </Button>
               </div>

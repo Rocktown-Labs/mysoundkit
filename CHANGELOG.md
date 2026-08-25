@@ -38,6 +38,7 @@
 ### Fixed
 
 - Fixed payout, billing, sale, and Open Verse notification/email links that pointed to removed dashboard routes; all now land on the corresponding live dashboard destinations.
+- Fixed eventually consistent interactive updates: notifications, video comments, messaging order, saved tracks, follows, and playlists now use scoped optimistic TanStack DB collections with rollback and canonical reconciliation; public artist and fan profiles now reflect follow state and follower counts immediately.
 - Fixed missing R2 media references by clearing confirmed-deleted profile, track, and project asset keys after a 404, preferring current cover assets across dashboard/public surfaces, and making shared images recover when asynchronous source URLs change.
 - Added focused track, project, and Open Verse detail actions for genre/status/visibility changes, clearer sell-track labeling, public-page navigation, and responsive action menus.
 - Fixed minor AAC true-peak overshoots blocking streaming derivatives: normalization still attempts the strict -1 dBTP target, but verified encoded copies up to +0.5 dBTP are now accepted while the original master remains unchanged.

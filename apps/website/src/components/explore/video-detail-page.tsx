@@ -17,20 +17,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SoundKitVideoPlayer } from "@/components/video/soundkit-video-player";
 import { toast } from "@/hooks/use-toast";
 import { authClient } from "@/lib/auth-client";
-import {
-  useCreateVideoCommentMutation,
-  useVideoCommentsQuery,
-  useVideoQuery,
-  useVideosQuery,
-} from "@/lib/soundkit-api-hooks";
+import { useCreateDbVideoComment, useDbVideoComments } from "@/lib/data-db";
+import { useVideoQuery, useVideosQuery } from "@/lib/soundkit-api-hooks";
 
 export function VideoDetailPage({ lookupId }: { lookupId: string }) {
   const id = lookupId,
     router = useRouter(),
     [isChatOpen, setIsChatOpen] = useState(true),
     { data: video, isPending: isVideoPending } = useVideoQuery(id),
-    { data: comments, isPending: isCommentsPending } =
-      useVideoCommentsQuery(id),
+    commentsQuery = useDbVideoComments(id),
+    comments = commentsQuery.data,
+    isCommentsPending = commentsQuery.isLoading,
     { data: videoList } = useVideosQuery({ limit: 12 }),
     { data: session } = authClient.useSession();
 
@@ -130,6 +127,11 @@ export function VideoDetailPage({ lookupId }: { lookupId: string }) {
         {/* Bottom Comment Form */}
         <div className="border-t border-border/40 p-3 shrink-0 bg-background/30">
           <VideoCommentForm
+            author={{
+              avatarUrl: session?.user.image,
+              id: session?.user.id ?? "",
+              name: session?.user.name,
+            }}
             sessionUserId={session?.user.id ?? null}
             videoId={video.id}
           />
@@ -243,14 +245,16 @@ export function VideoDetailPage({ lookupId }: { lookupId: string }) {
 }
 
 function VideoCommentForm({
+  author,
   sessionUserId,
   videoId,
 }: {
+  author: { avatarUrl?: string | null; id: string; name?: string | null };
   sessionUserId: string | null;
   videoId: string;
 }) {
   const [draft, setDraft] = useState(""),
-    createComment = useCreateVideoCommentMutation(),
+    createComment = useCreateDbVideoComment(videoId, author),
     submit = async (event: React.FormEvent) => {
       event.preventDefault();
       const body = draft.trim();
@@ -259,7 +263,11 @@ function VideoCommentForm({
       }
 
       try {
-        await createComment.mutateAsync({ body, videoId });
+        const transaction = createComment.mutate(body);
+        if (!transaction) {
+          throw new Error("Unable to queue comment.");
+        }
+        await transaction.isPersisted.promise;
       } catch (error) {
         toast({
           description:

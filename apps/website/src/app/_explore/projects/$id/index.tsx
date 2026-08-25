@@ -24,9 +24,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import {
-  usePublicProjectQuery,
-  useToggleSaveTrackMutation,
-} from "@/lib/soundkit-api-hooks";
+  useDbSavedTrackActions,
+  useDbSavedTrackIds,
+} from "@/lib/data-db";
+import { usePublicProjectQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/projects/$id/")({
   component: PublicProjectDetailPage,
@@ -37,8 +38,9 @@ function PublicProjectDetailPage() {
     { data: project, isLoading } = usePublicProjectQuery(id),
     { setCurrentTrack, setIsPlaying, setQueue } = useAudioPlayer(),
     { addItem } = useCart(),
-    saveTrackMutation = useToggleSaveTrackMutation(),
-    [savedTrackIds, setSavedTrackIds] = useState<Set<string>>(new Set()),
+    { data: savedTrackRows = [] } = useDbSavedTrackIds(),
+    { toggle } = useDbSavedTrackActions(),
+    savedTrackIds = new Set(savedTrackRows.map((track) => track.id)),
     [isProjectLiked, setIsProjectLiked] = useState(false);
 
   if (isLoading) {
@@ -97,23 +99,14 @@ function PublicProjectDetailPage() {
       setIsPlaying(true);
     },
     handleToggleSaveTrack = async (trackId: string, trackTitle: string) => {
-      setSavedTrackIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(trackId)) {
-          next.delete(trackId);
-        } else {
-          next.add(trackId);
-        }
-        return next;
-      });
-
+      const wasSaved = savedTrackIds.has(trackId);
       try {
-        const result = await saveTrackMutation.mutateAsync(trackId);
+        await toggle(trackId).isPersisted.promise;
         toast({
-          description: result.saved
-            ? `Saved "${trackTitle}" to your Library!`
-            : `Removed "${trackTitle}" from your Library.`,
-          title: result.saved ? "Track Saved" : "Track Removed",
+          description: wasSaved
+            ? `Removed "${trackTitle}" from your Library.`
+            : `Saved "${trackTitle}" to your Library!`,
+          title: wasSaved ? "Track Removed" : "Track Saved",
         });
       } catch {
         toast({

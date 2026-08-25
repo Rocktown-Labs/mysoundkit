@@ -681,12 +681,77 @@ export const useFriendRequestsQuery = () =>
     queryKey: soundkitQueryKeys.friendRequests,
   });
 
+type OptimisticRollback = {
+  previousNetwork?: NetworkResponse;
+  previousProject?: PublicProjectSummary;
+  previousProjects?: ProjectSummary[];
+  previousRequests?: FriendRequestSummary[];
+  previousTrack?: TrackDetail;
+  previousTracks?: Array<[readonly unknown[], TrackSummary[]]>;
+  previousVideos?: Array<[readonly unknown[], VideoSummary[]]>;
+};
+
 export const useCreateFriendRequestMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (body: { message?: string; username: string }) =>
       rpcJson(await friendRequestsPost({ json: body })),
+    onError: (_error, _variables, context) => {
+      const rollback = context as OptimisticRollback | undefined;
+      queryClient.setQueryData(
+        soundkitQueryKeys.friendRequests,
+        rollback?.previousRequests
+      );
+      queryClient.setQueryData(
+        soundkitQueryKeys.network,
+        rollback?.previousNetwork
+      );
+    },
+    onMutate: async ({ message, username }) => {
+      await Promise.all([
+        queryClient.cancelQueries({
+          queryKey: soundkitQueryKeys.friendRequests,
+        }),
+        queryClient.cancelQueries({ queryKey: soundkitQueryKeys.network }),
+      ]);
+      const previousRequests = queryClient.getQueryData<FriendRequestSummary[]>(
+          soundkitQueryKeys.friendRequests
+        ),
+        previousNetwork = queryClient.getQueryData<NetworkResponse>(
+          soundkitQueryKeys.network
+        ),
+        optimisticRequest: FriendRequestSummary = {
+          avatarUrl: null,
+          createdAt: new Date().toISOString(),
+          direction: "outgoing",
+          displayName: `@${username}`,
+          id: `local-${crypto.randomUUID()}`,
+          message: message ?? null,
+          status: "pending",
+          userId: `local-${username}`,
+          username,
+        };
+      queryClient.setQueryData<FriendRequestSummary[]>(
+        soundkitQueryKeys.friendRequests,
+        (requests = []) => [optimisticRequest, ...requests]
+      );
+      queryClient.setQueryData<NetworkResponse | undefined>(
+        soundkitQueryKeys.network,
+        (network) =>
+          network
+            ? {
+                ...network,
+                counts: {
+                  ...network.counts,
+                  pendingRequests: network.counts.pendingRequests + 1,
+                },
+                requests: [optimisticRequest, ...network.requests],
+              }
+            : network
+      );
+      return { previousNetwork, previousRequests };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.friendRequests,
@@ -713,6 +778,94 @@ export const useRespondFriendRequestMutation = () => {
           param: { requestId },
         })
       ),
+    onError: (_error, _variables, context) => {
+      const rollback = context as OptimisticRollback | undefined;
+      queryClient.setQueryData(
+        soundkitQueryKeys.friendRequests,
+        rollback?.previousRequests
+      );
+      queryClient.setQueryData(
+        soundkitQueryKeys.network,
+        rollback?.previousNetwork
+      );
+    },
+    onMutate: async ({ action, requestId }) => {
+      await Promise.all([
+        queryClient.cancelQueries({
+          queryKey: soundkitQueryKeys.friendRequests,
+        }),
+        queryClient.cancelQueries({ queryKey: soundkitQueryKeys.network }),
+      ]);
+      const previousRequests = queryClient.getQueryData<FriendRequestSummary[]>(
+          soundkitQueryKeys.friendRequests
+        ),
+        previousNetwork = queryClient.getQueryData<NetworkResponse>(
+          soundkitQueryKeys.network
+        ),
+        request = previousRequests?.find((item) => item.id === requestId);
+      const removeRequest = (requests: FriendRequestSummary[] = []) =>
+        requests.filter((item) => item.id !== requestId);
+      queryClient.setQueryData<FriendRequestSummary[]>(
+        soundkitQueryKeys.friendRequests,
+        (requests = []) =>
+          action === "accept"
+            ? removeRequest(requests)
+            : requests.map((item) =>
+                item.id === requestId
+                  ? {
+                      ...item,
+                      status: action === "cancel" ? "canceled" : "declined",
+                    }
+                  : item
+              )
+      );
+      queryClient.setQueryData<NetworkResponse | undefined>(
+        soundkitQueryKeys.network,
+        (network) => {
+          if (!network) {
+            return network;
+          }
+          const pendingRequests = Math.max(
+            0,
+            network.counts.pendingRequests -
+              (request?.status === "pending" ? 1 : 0)
+          );
+          if (action !== "accept" || !request) {
+            return {
+              ...network,
+              counts: { ...network.counts, pendingRequests },
+              requests:
+                action === "accept"
+                  ? network.requests
+                  : removeRequest(network.requests),
+            };
+          }
+          const friend = {
+            accountType: "artist" as const,
+            avatarUrl: request.avatarUrl,
+            canMessage: true,
+            email: null,
+            followsYou: false,
+            id: request.userId,
+            isFollowing: false,
+            isFriend: true,
+            name: request.displayName,
+            username: request.username,
+          };
+          return {
+            ...network,
+            counts: {
+              ...network.counts,
+              friends: network.counts.friends + 1,
+              pendingRequests,
+            },
+            friends: [friend, ...network.friends],
+            requests: removeRequest(network.requests),
+          };
+        }
+      );
+      return { previousNetwork, previousRequests };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.friendRequests,
@@ -1011,6 +1164,28 @@ export const useUpdateTrackMutation = (trackId: string) => {
   return useMutation({
     mutationFn: async (body: UpdateTrackBody) =>
       rpcJson(await trackPatch({ json: body, param: { trackId } })),
+    onError: (_error, _body, context) => {
+      const rollback = context as OptimisticRollback | undefined;
+      queryClient.setQueryData(
+        soundkitQueryKeys.track(trackId),
+        rollback?.previousTrack
+      );
+    },
+    onMutate: async (body) => {
+      await queryClient.cancelQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      });
+      const previousTrack = queryClient.getQueryData<TrackDetail>(
+        soundkitQueryKeys.track(trackId)
+      );
+      if (previousTrack) {
+        queryClient.setQueryData(soundkitQueryKeys.track(trackId), {
+          ...previousTrack,
+          ...body,
+        });
+      }
+      return { previousTrack };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.tracksPrefix,
@@ -1028,6 +1203,25 @@ export const useDeleteTrackMutation = () => {
   return useMutation({
     mutationFn: async (trackId: string) =>
       rpcJson(await trackDelete({ param: { trackId } })),
+    onError: (_error, _trackId, context) => {
+      const rollback = context as OptimisticRollback | undefined;
+      for (const [queryKey, tracks] of rollback?.previousTracks ?? []) {
+        queryClient.setQueryData(queryKey, tracks);
+      }
+    },
+    onMutate: async (trackId) => {
+      await queryClient.cancelQueries({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      });
+      const previousTracks = queryClient.getQueriesData<TrackSummary[]>({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      });
+      queryClient.setQueriesData<TrackSummary[]>(
+        { queryKey: soundkitQueryKeys.tracksPrefix },
+        (tracks) => tracks?.filter((track) => track.id !== trackId)
+      );
+      return { previousTracks };
+    },
     onSuccess: (_, trackId) => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.tracksPrefix,
@@ -1205,6 +1399,28 @@ export const useUpdateProjectMutation = (projectId: string) => {
   return useMutation({
     mutationFn: async (body: UpdateProjectBody) =>
       rpcJson(await projectPatch({ json: body, param: { projectId } })),
+    onError: (_error, _body, context) => {
+      const rollback = context as OptimisticRollback | undefined;
+      queryClient.setQueryData(
+        soundkitQueryKeys.project(projectId),
+        rollback?.previousProject
+      );
+    },
+    onMutate: async (body) => {
+      await queryClient.cancelQueries({
+        queryKey: soundkitQueryKeys.project(projectId),
+      });
+      const previousProject = queryClient.getQueryData<PublicProjectSummary>(
+        soundkitQueryKeys.project(projectId)
+      );
+      if (previousProject) {
+        queryClient.setQueryData(soundkitQueryKeys.project(projectId), {
+          ...previousProject,
+          ...body,
+        });
+      }
+      return { previousProject };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects });
       queryClient.invalidateQueries({
@@ -1236,6 +1452,25 @@ export const useDeleteProjectMutation = () => {
         payload?.message ?? `Project delete failed: ${response.status}`,
         response.status
       );
+    },
+    onError: (_error, _projectId, context) => {
+      const rollback = context as OptimisticRollback | undefined;
+      queryClient.setQueryData(
+        soundkitQueryKeys.projects,
+        rollback?.previousProjects
+      );
+    },
+    onMutate: async (projectId) => {
+      await queryClient.cancelQueries({ queryKey: soundkitQueryKeys.projects });
+      const previousProjects = queryClient.getQueryData<ProjectSummary[]>(
+        soundkitQueryKeys.projects
+      );
+      queryClient.setQueryData<ProjectSummary[]>(
+        soundkitQueryKeys.projects,
+        (projects = []) =>
+          projects.filter((project) => project.id !== projectId)
+      );
+      return { previousProjects };
     },
     onSuccess: (_, projectId) => {
       queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects });
@@ -2024,6 +2259,25 @@ export const useDeleteVideoMutation = () => {
   return useMutation({
     mutationFn: async (videoId: string) =>
       rpcJson(await videoDelete({ param: { videoId } })),
+    onError: (_error, _videoId, context) => {
+      const rollback = context as OptimisticRollback | undefined;
+      for (const [queryKey, videos] of rollback?.previousVideos ?? []) {
+        queryClient.setQueryData(queryKey, videos);
+      }
+    },
+    onMutate: async (videoId) => {
+      await queryClient.cancelQueries({
+        queryKey: soundkitQueryKeys.videosPrefix,
+      });
+      const previousVideos = queryClient.getQueriesData<VideoSummary[]>({
+        queryKey: soundkitQueryKeys.videosPrefix,
+      });
+      queryClient.setQueriesData<VideoSummary[]>(
+        { queryKey: soundkitQueryKeys.videosPrefix },
+        (videos) => videos?.filter((video) => video.id !== videoId)
+      );
+      return { previousVideos };
+    },
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.videosPrefix,
