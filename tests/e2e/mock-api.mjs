@@ -816,6 +816,23 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (url.pathname === "/v1/live/experiences/me") {
+      const user = mockUser(session);
+
+      if (!user) {
+        json(
+          response,
+          401,
+          { message: "Authentication is required." },
+          webOrigin
+        );
+        return;
+      }
+
+      json(response, 200, [], webOrigin);
+      return;
+    }
+
     const liveRoomMatch = url.pathname.match(/^\/v1\/live\/rooms\/([^/]+)$/);
 
     if (liveRoomMatch) {
