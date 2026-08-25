@@ -7,7 +7,10 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
-import { retryDurableObjectCall } from "@/lib/durable-object-retry";
+import {
+  isRetryableDurableObjectError,
+  retryDurableObjectCall,
+} from "@/lib/durable-object-retry";
 import { isAuthenticatedUser } from "@/lib/entitlements";
 import type { AppEnv } from "@/lib/types";
 
@@ -242,12 +245,27 @@ app.get("/ws", async (c) => {
     const durableObjectUrl = new URL(c.req.raw.url);
     durableObjectUrl.pathname = "/ws";
 
-    return c.env.PRESENCE.getByName(user.id).fetch(
-      new Request(durableObjectUrl, {
-        headers,
-        method: "GET",
-      })
-    );
+    const presence = c.env.PRESENCE;
+    try {
+      return await retryDurableObjectCall(
+        () =>
+          presence.getByName(user.id).fetch(
+            new Request(durableObjectUrl, {
+              headers,
+              method: "GET",
+            })
+          ),
+        { baseDelayMs: 50, maxAttempts: 3 }
+      );
+    } catch (error) {
+      if (!isRetryableDurableObjectError(error)) {
+        throw error;
+      }
+
+      return c.text("Presence service is temporarily unavailable", 503, {
+        "Retry-After": "1",
+      });
+    }
   }
 
   inMemoryPresence.set(user.id, {

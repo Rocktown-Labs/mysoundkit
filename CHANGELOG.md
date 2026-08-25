@@ -40,6 +40,7 @@
 - Replaced the white placeholder avatar with a branded SoundKit SK fallback across website and server fallback data.
 - Fixed Library account settings to read live Premium entitlements, route paid subscribers to billing management for upgrades/downgrades, and avoid treating admin-granted Premium access as unfinished checkout.
 - Fixed public Explore hover and list accents to use muted gray/purple styling while preserving dashboard dropdown accents, and expanded the sidebar wordmark to fill its branded frame.
+- Fixed transient inactive Durable Object connections on presence WebSocket upgrades by retrying the handoff and returning a retryable 503 instead of an uncaught 500.
 - Fixed the creator live dashboard E2E mock so authenticated live-experience requests return an empty list instead of a 404 payload.
 - Fixed payout, billing, sale, and Open Verse notification/email links that pointed to removed dashboard routes; all now land on the corresponding live dashboard destinations.
 - Fixed eventually consistent interactive updates: notifications, video comments, messaging order, saved tracks, follows, and playlists now use scoped optimistic TanStack DB collections with rollback and canonical reconciliation; public artist and fan profiles now reflect follow state and follower counts immediately.
