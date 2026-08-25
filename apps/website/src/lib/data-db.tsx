@@ -1,8 +1,8 @@
+/* eslint-disable one-var, sort-vars, react/preserve-manual-memoization, react/hook-use-state, typescript/no-invalid-void-type, promise/prefer-await-to-then, unicorn/prefer-ternary */
 import { queryCollectionOptions } from "@tanstack/query-db-collection";
 import {
   createCollection,
   createOptimisticAction,
-  eq,
   useLiveInfiniteQuery,
   useLiveQuery,
 } from "@tanstack/react-db";
@@ -34,13 +34,13 @@ const notificationsGet = apiClient.v1.notifications.index.$get,
   libraryPlaylistsPost = apiClient.v1.library.playlists.$post,
   libraryPlaylistDelete = apiClient.v1.library.playlists[":id"].$delete,
   libraryPlaylistGet = apiClient.v1.library.playlists[":id"].$get,
-  libraryPlaylistTracksPost = apiClient.v1.library.playlists[":id"].tracks.$post,
+  libraryPlaylistTracksPost =
+    apiClient.v1.library.playlists[":id"].tracks.$post,
   libraryPlaylistTrackDelete =
     apiClient.v1.library.playlists[":id"].tracks[":trackId"].$delete,
   artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post,
   artistFollowDelete = apiClient.v1.social.artists[":username"].follow.$delete,
-
- notificationSchema = z.object({
+  notificationSchema = z.object({
     createdAt: z.string(),
     id: z.string(),
     link: z.string().nullable(),
@@ -119,259 +119,249 @@ interface DataDbContextValue extends DataCollections {
 }
 
 const DataDbContext = createContext<DataDbContextValue | null>(null),
+  loadSubsetFromMeta = (meta: Record<string, unknown> | undefined) => {
+    const options = meta?.loadSubsetOptions;
+    if (!options || typeof options !== "object") {
+      return { limit: 20, offset: 0 };
+    }
 
- loadSubsetFromMeta = (meta: Record<string, unknown> | undefined) => {
-  const options = meta?.loadSubsetOptions;
-  if (!options || typeof options !== "object") {
-    return { limit: 20, offset: 0 };
-  }
-
-  const subset = options as { limit?: number; offset?: number };
-  return {
-    limit: subset.limit ?? 20,
-    offset: subset.offset ?? 0,
-  };
-},
-
- makeNotificationCollection = (
-  queryClient: QueryClient,
-  scopeKey: string
-) =>
-  createCollection(
-    queryCollectionOptions({
-      enabled: scopeKey !== "anonymous",
-      getKey: (notification) => notification.id,
-      id: `soundkit-db-notifications-${scopeKey}`,
-      queryClient,
-      queryFn: async ({ meta }) => {
-        const { limit, offset } = loadSubsetFromMeta(meta),
-          response = await rpcJson(
-            await notificationsGet({
-              query: {
-                limit,
-                offset,
-              },
-            })
-          );
-        return response.items;
-      },
-      queryKey: ["soundkit-db", scopeKey, "notifications"],
-      schema: notificationSchema,
-      syncMode: "on-demand",
-    })
-  ),
-
- makeNotificationStatsCollection = (
-  queryClient: QueryClient,
-  scopeKey: string
-) =>
-  createCollection(
-    queryCollectionOptions({
-      enabled: scopeKey !== "anonymous",
-      getKey: (summary) => summary.id,
-      id: `soundkit-db-notification-stats-${scopeKey}`,
-      queryClient,
-      queryFn: async () => {
-        const response = await fetch(`${API_V1_URL}/notifications/summary`, {
-          credentials: "include",
-        });
-        if (!response.ok) {
-          throw new Error(
-            `Unable to load notification summary: ${response.status}`
-          );
-        }
-        const summary = (await response.json()) as { unreadCount: number };
-        return [{ id: "summary" as const, unreadCount: summary.unreadCount }];
-      },
-      queryKey: ["soundkit-db", scopeKey, "notification-stats"],
-      schema: notificationStatsSchema,
-    })
-  ),
-
- makeVideoCommentsCollection = (
-  queryClient: QueryClient,
-  scopeKey: string,
-  videoId: string
-) =>
-  createCollection(
-    queryCollectionOptions({
-      enabled: videoId.length > 0,
-      getKey: (comment) => comment.id,
-      id: `soundkit-db-video-comments-${scopeKey}-${videoId}`,
-      onInsert: async ({ transaction, collection }) => {
-        for (const mutation of transaction.mutations) {
-          const comment = mutation.modified,
-           created = await rpcJson(
-            await videoCommentsPost({
-              json: {
-                body: comment.body,
-                clientCommentId: comment.id,
-              },
-              param: { videoId },
-            })
-          );
-          collection.utils.writeUpsert({
-            ...created,
-            authorAvatarUrl: created.authorAvatarUrl ?? null,
-            authorName: created.authorName ?? null,
-          });
-        }
-        return { refetch: false };
-      },
-      queryClient,
-      queryFn: async () => {
-        const comments = await rpcJson(
-          await videoCommentsGet({ param: { videoId } })
-        );
-        return comments.map((comment) => ({
-          ...comment,
-          authorAvatarUrl: comment.authorAvatarUrl ?? null,
-          authorName: comment.authorName ?? null,
-        }));
-      },
-      queryKey: ["soundkit-db", scopeKey, "video-comments", videoId],
-      schema: videoCommentSchema,
-    })
-  ),
-
- makeSavedTrackIdsCollection = (
-  queryClient: QueryClient,
-  scopeKey: string
-) =>
-  createCollection(
-    queryCollectionOptions({
-      enabled: scopeKey !== "anonymous",
-      getKey: (track) => track.id,
-      id: `soundkit-db-saved-track-ids-${scopeKey}`,
-      queryClient,
-      queryFn: async () => {
-        const tracks = await rpcJson(await librarySavedGet());
-        return tracks.map(({ id }) => ({ id }));
-      },
-      queryKey: ["soundkit-db", scopeKey, "saved-track-ids"],
-      schema: savedTrackIdSchema,
-    })
-  ),
-
- makePlaylistsCollection = (queryClient: QueryClient, scopeKey: string) =>
-  createCollection(
-    queryCollectionOptions({
-      enabled: scopeKey !== "anonymous",
-      getKey: (playlist) => playlist.id,
-      id: `soundkit-db-playlists-${scopeKey}`,
-      queryClient,
-      queryFn: async () => rpcJson(await libraryPlaylistsGet()),
-      queryKey: ["soundkit-db", scopeKey, "playlists"],
-      schema: playlistSchema,
-    })
-  ),
-
- makePlaylistTracksCollection = (
-  queryClient: QueryClient,
-  scopeKey: string,
-  playlistId: string
-) =>
-  createCollection(
-    queryCollectionOptions({
-      enabled: playlistId.length > 0,
-      getKey: (track) => track.id,
-      id: `soundkit-db-playlist-tracks-${scopeKey}-${playlistId}`,
-      queryClient,
-      queryFn: async () => {
-        const response = await rpcJson(
-          await libraryPlaylistGet({ param: { id: playlistId } })
-        );
-        return response.tracks;
-      },
-      queryKey: ["soundkit-db", scopeKey, "playlist-tracks", playlistId],
-      schema: playlistTrackSchema,
-    })
-  ),
-
- makeFollowingCollection = (queryClient: QueryClient, scopeKey: string) =>
-  createCollection(
-    queryCollectionOptions({
-      enabled: scopeKey !== "anonymous",
-      getKey: (person) => person.id,
-      id: `soundkit-db-following-${scopeKey}`,
-      queryClient,
-      queryFn: async () => {
-        const response = await rpcJson(await apiClient.v1.network.index.$get());
-        return response.following;
-      },
-      queryKey: ["soundkit-db", scopeKey, "following"],
-      schema: followingSchema,
-    })
-  ),
-
- createCollections = (
-  queryClient: QueryClient,
-  scopeKey: string
-): DataCollections => {
-  const comments = new Map<
-      string,
-      ReturnType<typeof makeVideoCommentsCollection>
-    >(),
-    playlistTracks = new Map<
-      string,
-      ReturnType<typeof makePlaylistTracksCollection>
-    >(),
-    notifications = makeNotificationCollection(queryClient, scopeKey),
-    notificationStats = makeNotificationStatsCollection(queryClient, scopeKey),
-    playlists = makePlaylistsCollection(queryClient, scopeKey),
-    following = makeFollowingCollection(queryClient, scopeKey),
-    savedTrackIds = makeSavedTrackIdsCollection(queryClient, scopeKey),
-    getComments = (videoId: string) => {
-      const existing = comments.get(videoId);
-      if (existing) {
-        return existing;
-      }
-      const collection = makeVideoCommentsCollection(
-        queryClient,
-        scopeKey,
-        videoId
-      );
-      comments.set(videoId, collection);
-      return collection;
-    },
-    getPlaylistTracks = (playlistId: string) => {
-      const existing = playlistTracks.get(playlistId);
-      if (existing) {
-        return existing;
-      }
-      const collection = makePlaylistTracksCollection(
-        queryClient,
-        scopeKey,
-        playlistId
-      );
-      playlistTracks.set(playlistId, collection);
-      return collection;
-    },
-    cleanup = () => {
-      notifications.cleanup();
-      notificationStats.cleanup();
-      following.cleanup();
-      playlists.cleanup();
-      savedTrackIds.cleanup();
-      for (const collection of comments.values()) {
-        collection.cleanup();
-      }
-      for (const collection of playlistTracks.values()) {
-        collection.cleanup();
-      }
+    const subset = options as { limit?: number; offset?: number };
+    return {
+      limit: subset.limit ?? 20,
+      offset: subset.offset ?? 0,
     };
+  },
+  makeNotificationCollection = (queryClient: QueryClient, scopeKey: string) =>
+    createCollection(
+      queryCollectionOptions({
+        enabled: scopeKey !== "anonymous",
+        getKey: (notification) => notification.id,
+        id: `soundkit-db-notifications-${scopeKey}`,
+        queryClient,
+        queryFn: async ({ meta }) => {
+          const { limit, offset } = loadSubsetFromMeta(meta),
+            response = await rpcJson(
+              await notificationsGet({
+                query: {
+                  limit,
+                  offset,
+                },
+              })
+            );
+          return response.items;
+        },
+        queryKey: ["soundkit-db", scopeKey, "notifications"],
+        schema: notificationSchema,
+        syncMode: "on-demand",
+      })
+    ),
+  makeNotificationStatsCollection = (
+    queryClient: QueryClient,
+    scopeKey: string
+  ) =>
+    createCollection(
+      queryCollectionOptions({
+        enabled: scopeKey !== "anonymous",
+        getKey: (summary) => summary.id,
+        id: `soundkit-db-notification-stats-${scopeKey}`,
+        queryClient,
+        queryFn: async () => {
+          const response = await fetch(`${API_V1_URL}/notifications/summary`, {
+            credentials: "include",
+          });
+          if (!response.ok) {
+            throw new Error(
+              `Unable to load notification summary: ${response.status}`
+            );
+          }
+          const summary = (await response.json()) as { unreadCount: number };
+          return [{ id: "summary" as const, unreadCount: summary.unreadCount }];
+        },
+        queryKey: ["soundkit-db", scopeKey, "notification-stats"],
+        schema: notificationStatsSchema,
+      })
+    ),
+  makeVideoCommentsCollection = (
+    queryClient: QueryClient,
+    scopeKey: string,
+    videoId: string
+  ) =>
+    createCollection(
+      queryCollectionOptions({
+        enabled: videoId.length > 0,
+        getKey: (comment) => comment.id,
+        id: `soundkit-db-video-comments-${scopeKey}-${videoId}`,
+        onInsert: async ({ transaction, collection }) => {
+          for (const mutation of transaction.mutations) {
+            const comment = mutation.modified,
+              created = await rpcJson(
+                await videoCommentsPost({
+                  json: {
+                    body: comment.body,
+                    clientCommentId: comment.id,
+                  },
+                  param: { videoId },
+                })
+              );
+            collection.utils.writeUpsert({
+              ...created,
+              authorAvatarUrl: created.authorAvatarUrl ?? null,
+              authorName: created.authorName ?? null,
+            });
+          }
+          return { refetch: false };
+        },
+        queryClient,
+        queryFn: async () => {
+          const comments = await rpcJson(
+            await videoCommentsGet({ param: { videoId } })
+          );
+          return comments.map((comment) => ({
+            ...comment,
+            authorAvatarUrl: comment.authorAvatarUrl ?? null,
+            authorName: comment.authorName ?? null,
+          }));
+        },
+        queryKey: ["soundkit-db", scopeKey, "video-comments", videoId],
+        schema: videoCommentSchema,
+      })
+    ),
+  makeSavedTrackIdsCollection = (queryClient: QueryClient, scopeKey: string) =>
+    createCollection(
+      queryCollectionOptions({
+        enabled: scopeKey !== "anonymous",
+        getKey: (track) => track.id,
+        id: `soundkit-db-saved-track-ids-${scopeKey}`,
+        queryClient,
+        queryFn: async () => {
+          const tracks = await rpcJson(await librarySavedGet());
+          return tracks.map(({ id }) => ({ id }));
+        },
+        queryKey: ["soundkit-db", scopeKey, "saved-track-ids"],
+        schema: savedTrackIdSchema,
+      })
+    ),
+  makePlaylistsCollection = (queryClient: QueryClient, scopeKey: string) =>
+    createCollection(
+      queryCollectionOptions({
+        enabled: scopeKey !== "anonymous",
+        getKey: (playlist) => playlist.id,
+        id: `soundkit-db-playlists-${scopeKey}`,
+        queryClient,
+        queryFn: async () => rpcJson(await libraryPlaylistsGet()),
+        queryKey: ["soundkit-db", scopeKey, "playlists"],
+        schema: playlistSchema,
+      })
+    ),
+  makePlaylistTracksCollection = (
+    queryClient: QueryClient,
+    scopeKey: string,
+    playlistId: string
+  ) =>
+    createCollection(
+      queryCollectionOptions({
+        enabled: playlistId.length > 0,
+        getKey: (track) => track.id,
+        id: `soundkit-db-playlist-tracks-${scopeKey}-${playlistId}`,
+        queryClient,
+        queryFn: async () => {
+          const response = await rpcJson(
+            await libraryPlaylistGet({ param: { id: playlistId } })
+          );
+          return response.tracks;
+        },
+        queryKey: ["soundkit-db", scopeKey, "playlist-tracks", playlistId],
+        schema: playlistTrackSchema,
+      })
+    ),
+  makeFollowingCollection = (queryClient: QueryClient, scopeKey: string) =>
+    createCollection(
+      queryCollectionOptions({
+        enabled: scopeKey !== "anonymous",
+        getKey: (person) => person.id,
+        id: `soundkit-db-following-${scopeKey}`,
+        queryClient,
+        queryFn: async () => {
+          const response = await rpcJson(
+            await apiClient.v1.network.index.$get()
+          );
+          return response.following;
+        },
+        queryKey: ["soundkit-db", scopeKey, "following"],
+        schema: followingSchema,
+      })
+    ),
+  createCollections = (
+    queryClient: QueryClient,
+    scopeKey: string
+  ): DataCollections => {
+    const comments = new Map<
+        string,
+        ReturnType<typeof makeVideoCommentsCollection>
+      >(),
+      playlistTracks = new Map<
+        string,
+        ReturnType<typeof makePlaylistTracksCollection>
+      >(),
+      notifications = makeNotificationCollection(queryClient, scopeKey),
+      notificationStats = makeNotificationStatsCollection(
+        queryClient,
+        scopeKey
+      ),
+      playlists = makePlaylistsCollection(queryClient, scopeKey),
+      following = makeFollowingCollection(queryClient, scopeKey),
+      savedTrackIds = makeSavedTrackIdsCollection(queryClient, scopeKey),
+      getComments = (videoId: string) => {
+        const existing = comments.get(videoId);
+        if (existing) {
+          return existing;
+        }
+        const collection = makeVideoCommentsCollection(
+          queryClient,
+          scopeKey,
+          videoId
+        );
+        comments.set(videoId, collection);
+        return collection;
+      },
+      getPlaylistTracks = (playlistId: string) => {
+        const existing = playlistTracks.get(playlistId);
+        if (existing) {
+          return existing;
+        }
+        const collection = makePlaylistTracksCollection(
+          queryClient,
+          scopeKey,
+          playlistId
+        );
+        playlistTracks.set(playlistId, collection);
+        return collection;
+      },
+      cleanup = () => {
+        notifications.cleanup();
+        notificationStats.cleanup();
+        following.cleanup();
+        playlists.cleanup();
+        savedTrackIds.cleanup();
+        for (const collection of comments.values()) {
+          collection.cleanup();
+        }
+        for (const collection of playlistTracks.values()) {
+          collection.cleanup();
+        }
+      };
 
-  return {
-    cleanup,
-    following,
-    getComments,
-    getNotifications: () => notifications,
-    getPlaylistTracks,
-    notificationStats,
-    playlists,
-    savedTrackIds,
+    return {
+      cleanup,
+      following,
+      getComments,
+      getNotifications: () => notifications,
+      getPlaylistTracks,
+      notificationStats,
+      playlists,
+      savedTrackIds,
+    };
   };
-};
 
 export function DataDbProvider({
   children,
@@ -420,79 +410,78 @@ export const useDbNotifications = () => {
 export const useDbNotificationActions = () => {
   const { getNotifications, notificationStats } = useDataDb(),
     collection = getNotifications(),
-
-   markRead = useMemo(
-    () =>
-      createOptimisticAction<string>({
-        mutationFn: async (notificationId) => {
-          await rpcJson(
-            await notificationReadPost({
-              param: { notificationId },
-            })
-          );
-        },
-        onMutate: (notificationId) => {
-          const notification = collection.toArray.find(
-            (item) => item.id === notificationId
-          );
-          collection.update(notificationId, (draft) => {
-            draft.read = true;
-          });
-          if (
-            notification &&
-            !notification.read &&
-            notificationStats.toArray.length > 0
-          ) {
-            notificationStats.update("summary", (draft) => {
-              draft.unreadCount = Math.max(0, draft.unreadCount - 1);
+    markRead = useMemo(
+      () =>
+        createOptimisticAction<string>({
+          mutationFn: async (notificationId) => {
+            await rpcJson(
+              await notificationReadPost({
+                param: { notificationId },
+              })
+            );
+          },
+          onMutate: (notificationId) => {
+            const notification = collection.toArray.find(
+              (item) => item.id === notificationId
+            );
+            collection.update(notificationId, (draft) => {
+              draft.read = true;
             });
-          }
-        },
-      }),
-    [collection, notificationStats]
-  ),
-   markAllRead = useMemo(
-    () =>
-      createOptimisticAction<void>({
-        mutationFn: async () => {
-          await rpcJson(await notificationsReadAllPost());
-        },
-        onMutate: () => {
-          for (const notification of collection.toArray) {
-            if (!notification.read) {
-              collection.update(notification.id, (draft) => {
-                draft.read = true;
+            if (
+              notification &&
+              !notification.read &&
+              notificationStats.toArray.length > 0
+            ) {
+              notificationStats.update("summary", (draft) => {
+                draft.unreadCount = Math.max(0, draft.unreadCount - 1);
               });
             }
-          }
-          if (notificationStats.toArray.length > 0) {
-            notificationStats.update("summary", (draft) => {
-              draft.unreadCount = 0;
-            });
-          }
-        },
-      }),
-    [collection, notificationStats]
-  ),
-   clearAll = useMemo(
-    () =>
-      createOptimisticAction<void>({
-        mutationFn: async () => {
-          await rpcJson(await notificationsClearPost());
-        },
-        onMutate: () => {
-          collection.delete(
-            collection.toArray.map((notification) => notification.id)
-          );
-          if (notificationStats.toArray.length > 0) {
-            notificationStats.update("summary", (draft) => {
-              draft.unreadCount = 0;
-            });
-          }
-        },
-      }),
-    [collection, notificationStats]
-  );
+          },
+        }),
+      [collection, notificationStats]
+    ),
+    markAllRead = useMemo(
+      () =>
+        createOptimisticAction<void>({
+          mutationFn: async () => {
+            await rpcJson(await notificationsReadAllPost());
+          },
+          onMutate: () => {
+            for (const notification of collection.toArray) {
+              if (!notification.read) {
+                collection.update(notification.id, (draft) => {
+                  draft.read = true;
+                });
+              }
+            }
+            if (notificationStats.toArray.length > 0) {
+              notificationStats.update("summary", (draft) => {
+                draft.unreadCount = 0;
+              });
+            }
+          },
+        }),
+      [collection, notificationStats]
+    ),
+    clearAll = useMemo(
+      () =>
+        createOptimisticAction<void>({
+          mutationFn: async () => {
+            await rpcJson(await notificationsClearPost());
+          },
+          onMutate: () => {
+            collection.delete(
+              collection.toArray.map((notification) => notification.id)
+            );
+            if (notificationStats.toArray.length > 0) {
+              notificationStats.update("summary", (draft) => {
+                draft.unreadCount = 0;
+              });
+            }
+          },
+        }),
+      [collection, notificationStats]
+    );
 
   return { clearAll, markAllRead, markRead };
 };
@@ -693,25 +682,25 @@ export const useDbSavedTrackIds = () => {
 
 export const useDbSavedTrackActions = () => {
   const collection = useDataDb().savedTrackIds,
-   toggle = useMemo(
-    () =>
-      createOptimisticAction<string>({
-        mutationFn: async (trackId) => {
-          await rpcJson(await librarySaveTrackPost({ param: { trackId } }));
-        },
-        onMutate: (trackId) => {
-          const existing = collection.toArray.some(
-            (track) => track.id === trackId
-          );
-          if (existing) {
-            collection.delete(trackId);
-          } else {
-            collection.insert({ id: trackId });
-          }
-        },
-      }),
-    [collection]
-  );
+    toggle = useMemo(
+      () =>
+        createOptimisticAction<string>({
+          mutationFn: async (trackId) => {
+            await rpcJson(await librarySaveTrackPost({ param: { trackId } }));
+          },
+          onMutate: (trackId) => {
+            const existing = collection.toArray.some(
+              (track) => track.id === trackId
+            );
+            if (existing) {
+              collection.delete(trackId);
+            } else {
+              collection.insert({ id: trackId });
+            }
+          },
+        }),
+      [collection]
+    );
   return { toggle };
 };
 
@@ -736,7 +725,7 @@ const requestProfileFollow = async (
 
 export const useDbFollowActions = () => {
   const { following: collection, queryClient } = useDataDb(),
-   follow = useMemo(
+    follow = useMemo(
       () =>
         createOptimisticAction<{
           accountType: "artist" | "fan";
@@ -751,7 +740,9 @@ export const useDbFollowActions = () => {
               await requestProfileFollow(username, "POST");
             }
             await Promise.all([
-              queryClient.invalidateQueries({ queryKey: ["artists", username] }),
+              queryClient.invalidateQueries({
+                queryKey: ["artists", username],
+              }),
               queryClient.invalidateQueries({
                 queryKey: ["public-profile", username],
               }),
@@ -759,7 +750,9 @@ export const useDbFollowActions = () => {
             ]);
           },
           onMutate: ({ accountType, id, name, username }) => {
-            const existing = collection.toArray.find((person) => person.id === id);
+            const existing = collection.toArray.find(
+              (person) => person.id === id
+            );
             if (existing) {
               collection.update(id, (draft) => {
                 draft.isFollowing = true;
@@ -796,7 +789,9 @@ export const useDbFollowActions = () => {
               await requestProfileFollow(username, "DELETE");
             }
             await Promise.all([
-              queryClient.invalidateQueries({ queryKey: ["artists", username] }),
+              queryClient.invalidateQueries({
+                queryKey: ["artists", username],
+              }),
               queryClient.invalidateQueries({
                 queryKey: ["public-profile", username],
               }),
