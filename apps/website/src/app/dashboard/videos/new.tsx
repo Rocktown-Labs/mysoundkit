@@ -122,7 +122,7 @@ function PremiumUploadUpsell() {
         </p>
       </div>
       <Button asChild className="shadow-md">
-        <Link to="/dashboard/billing">
+        <Link to="/library/settings">
           <Zap className="mr-2 size-4" />
           Upgrade Account
         </Link>

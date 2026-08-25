@@ -241,7 +241,7 @@ const messagePreview = (preview: string): string => {
       { data: { listingId: string; requestId: string } }
     >
   ): NotificationEventDefinition => {
-    const actionPath = `/dashboard/open-verses/all/${event.data.listingId}`;
+    const actionPath = "/dashboard/open-verses";
     if (event.type === "open_verse.access.requested") {
       return {
         channels: { email: "immediate", inApp: true },
@@ -456,7 +456,7 @@ export const defineNotificationEvent = (
           subject: `New Open Verse from ${event.data.actorName}`,
         },
         inApp: {
-          link: `/dashboard/open-verses/all/${event.data.listingId}`,
+          link: "/dashboard/open-verses",
           message: `${event.data.actorName} posted a new Open Verse: ${event.data.listingTitle}.`,
           title: "New Open Verse",
           type: "open_verse_published",
@@ -481,7 +481,7 @@ export const defineNotificationEvent = (
           subject: `New Open Verse submission for ${event.data.trackTitle}`,
         },
         inApp: {
-          link: `/dashboard/open-verses/all/${event.data.listingId}`,
+          link: "/dashboard/open-verses",
           message: `${event.data.actorName} submitted a verse for ${event.data.trackTitle}.`,
           title: "New Open Verse submission",
           type: "open_verse_submission",
@@ -501,7 +501,7 @@ export const defineNotificationEvent = (
           subject: `Your verse for ${event.data.trackTitle} was accepted`,
         },
         inApp: {
-          link: `/dashboard/open-verses/all/${event.data.listingId}`,
+          link: "/dashboard/open-verses",
           message: `Your verse for ${event.data.trackTitle} was accepted.`,
           title: "Open Verse accepted",
           type: "open_verse_accepted",

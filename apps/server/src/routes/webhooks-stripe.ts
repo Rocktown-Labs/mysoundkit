@@ -154,7 +154,7 @@ const processConnectAccountEvent = async ({
           .insert(userNotifications)
           .values({
             id: `payout_action_required:${accountId}`,
-            link: "/dashboard/settings/payouts",
+            link: "/dashboard/career/payments",
             message:
               "Your payout account has verification requirements due. Update your details to continue receiving payouts.",
             title: "Payout Details Needed",
@@ -311,7 +311,7 @@ const processConnectAccountEvent = async ({
           .insert(userNotifications)
           .values({
             id: `billing_issue:${object.id ?? object.subscription ?? targetUserId}`,
-            link: "/dashboard/billing",
+            link: "/library/settings",
             message:
               "A subscription payment could not be processed. Please update your payment method to keep your access active.",
             title: "Payment Issue",

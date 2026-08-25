@@ -433,7 +433,7 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
                                         SoundKit with Mux transcoding.
                                       </p>
                                       <Button asChild size="sm">
-                                        <Link to="/dashboard/billing">
+                                        <Link to="/library/settings">
                                           <Zap className="mr-2 size-3.5" />
                                           Upgrade Account
                                         </Link>

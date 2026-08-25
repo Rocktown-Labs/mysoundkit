@@ -21,7 +21,9 @@ import { Route as ExploreRouteImport } from './app/_explore'
 import { Route as DashboardIndexRouteImport } from './app/dashboard/index'
 import { Route as ExploreIndexRouteImport } from './app/_explore/index'
 import { Route as DashboardTeamRouteImport } from './app/dashboard/team'
+import { Route as DashboardSalesRouteImport } from './app/dashboard/sales'
 import { Route as DashboardProfileRouteImport } from './app/dashboard/profile'
+import { Route as DashboardPayoutsRouteImport } from './app/dashboard/payouts'
 import { Route as DashboardMusicRouteImport } from './app/dashboard/music'
 import { Route as DashboardMessagesRouteImport } from './app/dashboard/messages'
 import { Route as DashboardFinanceRouteImport } from './app/dashboard/finance'
@@ -53,6 +55,8 @@ import { Route as SignupArtistOnboardingRouteImport } from './app/signup/artist/
 import { Route as SignupArtistCredentialsRouteImport } from './app/signup/artist/credentials'
 import { Route as DashboardVideosNewRouteImport } from './app/dashboard/videos/new'
 import { Route as DashboardTracksNewRouteImport } from './app/dashboard/tracks/new'
+import { Route as DashboardSettingsPayoutsRouteImport } from './app/dashboard/settings/payouts'
+import { Route as DashboardSettingsBillingRouteImport } from './app/dashboard/settings/billing'
 import { Route as DashboardProjectsNewRouteImport } from './app/dashboard/projects/new'
 import { Route as DashboardProjectsIdRouteImport } from './app/dashboard/projects/$id'
 import { Route as DashboardOpenVersesNewRouteImport } from './app/dashboard/open-verses/new'
@@ -165,9 +169,19 @@ const DashboardTeamRoute = DashboardTeamRouteImport.update({
   path: '/team',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardSalesRoute = DashboardSalesRouteImport.update({
+  id: '/sales',
+  path: '/sales',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardProfileRoute = DashboardProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardPayoutsRoute = DashboardPayoutsRouteImport.update({
+  id: '/payouts',
+  path: '/payouts',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardMusicRoute = DashboardMusicRouteImport.update({
@@ -326,6 +340,18 @@ const DashboardTracksNewRoute = DashboardTracksNewRouteImport.update({
   path: '/tracks/new',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardSettingsPayoutsRoute =
+  DashboardSettingsPayoutsRouteImport.update({
+    id: '/settings/payouts',
+    path: '/settings/payouts',
+    getParentRoute: () => DashboardRoute,
+  } as any)
+const DashboardSettingsBillingRoute =
+  DashboardSettingsBillingRouteImport.update({
+    id: '/settings/billing',
+    path: '/settings/billing',
+    getParentRoute: () => DashboardRoute,
+  } as any)
 const DashboardProjectsNewRoute = DashboardProjectsNewRouteImport.update({
   id: '/projects/new',
   path: '/projects/new',
@@ -627,7 +653,9 @@ export interface FileRoutesByFullPath {
   '/dashboard/finance': typeof DashboardFinanceRoute
   '/dashboard/messages': typeof DashboardMessagesRoute
   '/dashboard/music': typeof DashboardMusicRoute
+  '/dashboard/payouts': typeof DashboardPayoutsRoute
   '/dashboard/profile': typeof DashboardProfileRoute
+  '/dashboard/sales': typeof DashboardSalesRoute
   '/dashboard/team': typeof DashboardTeamRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/artist/$username': typeof ExploreArtistUsernameRoute
@@ -657,6 +685,8 @@ export interface FileRoutesByFullPath {
   '/dashboard/open-verses/new': typeof DashboardOpenVersesNewRoute
   '/dashboard/projects/$id': typeof DashboardProjectsIdRouteWithChildren
   '/dashboard/projects/new': typeof DashboardProjectsNewRoute
+  '/dashboard/settings/billing': typeof DashboardSettingsBillingRoute
+  '/dashboard/settings/payouts': typeof DashboardSettingsPayoutsRoute
   '/dashboard/tracks/new': typeof DashboardTracksNewRoute
   '/dashboard/videos/new': typeof DashboardVideosNewRoute
   '/signup/artist/credentials': typeof SignupArtistCredentialsRoute
@@ -721,7 +751,9 @@ export interface FileRoutesByTo {
   '/dashboard/finance': typeof DashboardFinanceRoute
   '/dashboard/messages': typeof DashboardMessagesRoute
   '/dashboard/music': typeof DashboardMusicRoute
+  '/dashboard/payouts': typeof DashboardPayoutsRoute
   '/dashboard/profile': typeof DashboardProfileRoute
+  '/dashboard/sales': typeof DashboardSalesRoute
   '/dashboard/team': typeof DashboardTeamRoute
   '/': typeof ExploreIndexRoute
   '/dashboard': typeof DashboardIndexRoute
@@ -751,6 +783,8 @@ export interface FileRoutesByTo {
   '/dashboard/open-verses/new': typeof DashboardOpenVersesNewRoute
   '/dashboard/projects/$id': typeof DashboardProjectsIdRouteWithChildren
   '/dashboard/projects/new': typeof DashboardProjectsNewRoute
+  '/dashboard/settings/billing': typeof DashboardSettingsBillingRoute
+  '/dashboard/settings/payouts': typeof DashboardSettingsPayoutsRoute
   '/dashboard/tracks/new': typeof DashboardTracksNewRoute
   '/dashboard/videos/new': typeof DashboardVideosNewRoute
   '/signup/artist/credentials': typeof SignupArtistCredentialsRoute
@@ -819,7 +853,9 @@ export interface FileRoutesById {
   '/dashboard/finance': typeof DashboardFinanceRoute
   '/dashboard/messages': typeof DashboardMessagesRoute
   '/dashboard/music': typeof DashboardMusicRoute
+  '/dashboard/payouts': typeof DashboardPayoutsRoute
   '/dashboard/profile': typeof DashboardProfileRoute
+  '/dashboard/sales': typeof DashboardSalesRoute
   '/dashboard/team': typeof DashboardTeamRoute
   '/_explore/': typeof ExploreIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
@@ -850,6 +886,8 @@ export interface FileRoutesById {
   '/dashboard/open-verses/new': typeof DashboardOpenVersesNewRoute
   '/dashboard/projects/$id': typeof DashboardProjectsIdRouteWithChildren
   '/dashboard/projects/new': typeof DashboardProjectsNewRoute
+  '/dashboard/settings/billing': typeof DashboardSettingsBillingRoute
+  '/dashboard/settings/payouts': typeof DashboardSettingsPayoutsRoute
   '/dashboard/tracks/new': typeof DashboardTracksNewRoute
   '/dashboard/videos/new': typeof DashboardVideosNewRoute
   '/signup/artist/credentials': typeof SignupArtistCredentialsRoute
@@ -919,7 +957,9 @@ export interface FileRouteTypes {
     | '/dashboard/finance'
     | '/dashboard/messages'
     | '/dashboard/music'
+    | '/dashboard/payouts'
     | '/dashboard/profile'
+    | '/dashboard/sales'
     | '/dashboard/team'
     | '/dashboard/'
     | '/artist/$username'
@@ -949,6 +989,8 @@ export interface FileRouteTypes {
     | '/dashboard/open-verses/new'
     | '/dashboard/projects/$id'
     | '/dashboard/projects/new'
+    | '/dashboard/settings/billing'
+    | '/dashboard/settings/payouts'
     | '/dashboard/tracks/new'
     | '/dashboard/videos/new'
     | '/signup/artist/credentials'
@@ -1013,7 +1055,9 @@ export interface FileRouteTypes {
     | '/dashboard/finance'
     | '/dashboard/messages'
     | '/dashboard/music'
+    | '/dashboard/payouts'
     | '/dashboard/profile'
+    | '/dashboard/sales'
     | '/dashboard/team'
     | '/'
     | '/dashboard'
@@ -1043,6 +1087,8 @@ export interface FileRouteTypes {
     | '/dashboard/open-verses/new'
     | '/dashboard/projects/$id'
     | '/dashboard/projects/new'
+    | '/dashboard/settings/billing'
+    | '/dashboard/settings/payouts'
     | '/dashboard/tracks/new'
     | '/dashboard/videos/new'
     | '/signup/artist/credentials'
@@ -1110,7 +1156,9 @@ export interface FileRouteTypes {
     | '/dashboard/finance'
     | '/dashboard/messages'
     | '/dashboard/music'
+    | '/dashboard/payouts'
     | '/dashboard/profile'
+    | '/dashboard/sales'
     | '/dashboard/team'
     | '/_explore/'
     | '/dashboard/'
@@ -1141,6 +1189,8 @@ export interface FileRouteTypes {
     | '/dashboard/open-verses/new'
     | '/dashboard/projects/$id'
     | '/dashboard/projects/new'
+    | '/dashboard/settings/billing'
+    | '/dashboard/settings/payouts'
     | '/dashboard/tracks/new'
     | '/dashboard/videos/new'
     | '/signup/artist/credentials'
@@ -1285,11 +1335,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardTeamRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/sales': {
+      id: '/dashboard/sales'
+      path: '/sales'
+      fullPath: '/dashboard/sales'
+      preLoaderRoute: typeof DashboardSalesRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/profile': {
       id: '/dashboard/profile'
       path: '/profile'
       fullPath: '/dashboard/profile'
       preLoaderRoute: typeof DashboardProfileRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/payouts': {
+      id: '/dashboard/payouts'
+      path: '/payouts'
+      fullPath: '/dashboard/payouts'
+      preLoaderRoute: typeof DashboardPayoutsRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/dashboard/music': {
@@ -1507,6 +1571,20 @@ declare module '@tanstack/react-router' {
       path: '/tracks/new'
       fullPath: '/dashboard/tracks/new'
       preLoaderRoute: typeof DashboardTracksNewRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/settings/payouts': {
+      id: '/dashboard/settings/payouts'
+      path: '/settings/payouts'
+      fullPath: '/dashboard/settings/payouts'
+      preLoaderRoute: typeof DashboardSettingsPayoutsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/settings/billing': {
+      id: '/dashboard/settings/billing'
+      path: '/settings/billing'
+      fullPath: '/dashboard/settings/billing'
+      preLoaderRoute: typeof DashboardSettingsBillingRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/dashboard/projects/new': {
@@ -2024,7 +2102,9 @@ interface DashboardRouteChildren {
   DashboardFinanceRoute: typeof DashboardFinanceRoute
   DashboardMessagesRoute: typeof DashboardMessagesRoute
   DashboardMusicRoute: typeof DashboardMusicRoute
+  DashboardPayoutsRoute: typeof DashboardPayoutsRoute
   DashboardProfileRoute: typeof DashboardProfileRoute
+  DashboardSalesRoute: typeof DashboardSalesRoute
   DashboardTeamRoute: typeof DashboardTeamRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DashboardCareerAiStudioRoute: typeof DashboardCareerAiStudioRoute
@@ -2043,6 +2123,8 @@ interface DashboardRouteChildren {
   DashboardOpenVersesNewRoute: typeof DashboardOpenVersesNewRoute
   DashboardProjectsIdRoute: typeof DashboardProjectsIdRouteWithChildren
   DashboardProjectsNewRoute: typeof DashboardProjectsNewRoute
+  DashboardSettingsBillingRoute: typeof DashboardSettingsBillingRoute
+  DashboardSettingsPayoutsRoute: typeof DashboardSettingsPayoutsRoute
   DashboardTracksNewRoute: typeof DashboardTracksNewRoute
   DashboardVideosNewRoute: typeof DashboardVideosNewRoute
   DashboardLiveIndexRoute: typeof DashboardLiveIndexRoute
@@ -2066,7 +2148,9 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardFinanceRoute: DashboardFinanceRoute,
   DashboardMessagesRoute: DashboardMessagesRoute,
   DashboardMusicRoute: DashboardMusicRoute,
+  DashboardPayoutsRoute: DashboardPayoutsRoute,
   DashboardProfileRoute: DashboardProfileRoute,
+  DashboardSalesRoute: DashboardSalesRoute,
   DashboardTeamRoute: DashboardTeamRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardCareerAiStudioRoute: DashboardCareerAiStudioRoute,
@@ -2085,6 +2169,8 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardOpenVersesNewRoute: DashboardOpenVersesNewRoute,
   DashboardProjectsIdRoute: DashboardProjectsIdRouteWithChildren,
   DashboardProjectsNewRoute: DashboardProjectsNewRoute,
+  DashboardSettingsBillingRoute: DashboardSettingsBillingRoute,
+  DashboardSettingsPayoutsRoute: DashboardSettingsPayoutsRoute,
   DashboardTracksNewRoute: DashboardTracksNewRoute,
   DashboardVideosNewRoute: DashboardVideosNewRoute,
   DashboardLiveIndexRoute: DashboardLiveIndexRoute,

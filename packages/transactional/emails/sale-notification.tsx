@@ -7,7 +7,7 @@ const SaleNotificationEmail =
   };
 
 SaleNotificationEmail.PreviewProps = {
-  actionUrl: "https://mysoundkit.com/dashboard/sales",
+  actionUrl: "https://mysoundkit.com/dashboard/career/payments",
   assetBaseUrl: "https://mysoundkit.com",
   body: "Ava bought Midnight Bounce for $9.99. Open your dashboard to review the order and keep an eye on your sales activity.",
   ctaLabel: "View sale",

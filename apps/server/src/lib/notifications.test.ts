@@ -217,6 +217,34 @@ describe("notification product-event policy", () => {
     );
   });
 
+  it("uses live dashboard routes for account and Open Verse actions", () => {
+    const billing = defineNotificationEvent({
+        data: {
+          actionPath: "/library/settings",
+          body: "Your latest payment could not be completed.",
+          heading: "Your payment needs attention",
+          subject: "SoundKit payment issue",
+        },
+        eventId: "invoice_route",
+        recipientUserId: "billing_user",
+        type: "account.billing_issue",
+      }),
+      openVerse = defineNotificationEvent({
+        data: {
+          actorName: "Nova",
+          listingId: "listing_route",
+          listingTitle: "Open Mic",
+          requestId: "request_route",
+        },
+        eventId: "open_verse_route",
+        recipientUserId: "artist_route",
+        type: "open_verse.access.approved",
+      });
+
+    expect(billing.inApp.link).toBe("/library/settings");
+    expect(openVerse.inApp.link).toBe("/dashboard/open-verses");
+  });
+
   it("keeps account-critical email independent of activity preferences", async () => {
     const disabledPreferences = Object.fromEntries(
         Object.keys(enabledPreferences).map((key) => [key, false])
@@ -224,7 +252,7 @@ describe("notification product-event policy", () => {
       harness = createHarness(disabledPreferences),
       result = await harness.dispatch({
         data: {
-          actionPath: "/dashboard/settings/billing",
+          actionPath: "/library/settings",
           body: "Your latest payment could not be completed.",
           heading: "Your payment needs attention",
           subject: "SoundKit payment issue",

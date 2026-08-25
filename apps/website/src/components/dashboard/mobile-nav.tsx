@@ -104,7 +104,7 @@ const sectionRoutes: Record<
           description: "Plan, subscription, and payment settings",
           icon: WalletCards,
           name: "Billing",
-          to: "/dashboard/billing",
+          to: "/library/settings",
         },
         {
           description: "Account, notifications, and artist settings",
@@ -263,7 +263,7 @@ const sectionRoutes: Record<
         pathname.startsWith("/dashboard/ads") ||
         pathname.startsWith("/dashboard/community") ||
         pathname.startsWith("/dashboard/finance") ||
-        pathname.startsWith("/dashboard/billing")
+        pathname.startsWith("/library/settings")
       );
     }
 

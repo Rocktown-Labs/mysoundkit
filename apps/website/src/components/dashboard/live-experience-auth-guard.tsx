@@ -78,7 +78,7 @@ export function LiveExperienceAuthGuard({
             </div>
             <div className="flex justify-center sm:justify-end">
               <Button asChild size="lg" className="shadow-md">
-                <Link to={isAuthenticated ? "/dashboard/billing" : "/signup"}>
+                <Link to={isAuthenticated ? "/library/settings" : "/signup"}>
                   <Zap className="mr-2 size-4" />
                   {isAuthenticated ? "Upgrade Account" : "Get Started"}
                 </Link>

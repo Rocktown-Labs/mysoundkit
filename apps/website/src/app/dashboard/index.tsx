@@ -211,7 +211,7 @@ function PremiumStatusCard({
         className="w-full border-none bg-primary/10 text-primary shadow-none hover:bg-primary/20"
       >
         {isPremium ? (
-          <Link to="/dashboard/billing">Manage Premium</Link>
+          <Link to="/library/settings">Manage Premium</Link>
         ) : (
           <Link to="/pricing">Explore Premium</Link>
         )}

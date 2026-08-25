@@ -37,6 +37,7 @@
 
 ### Fixed
 
+- Fixed payout, billing, sale, and Open Verse notification/email links that pointed to removed dashboard routes; all now land on the corresponding live dashboard destinations.
 - Fixed missing R2 media references by clearing confirmed-deleted profile, track, and project asset keys after a 404, preferring current cover assets across dashboard/public surfaces, and making shared images recover when asynchronous source URLs change.
 - Added focused track, project, and Open Verse detail actions for genre/status/visibility changes, clearer sell-track labeling, public-page navigation, and responsive action menus.
 - Fixed minor AAC true-peak overshoots blocking streaming derivatives: normalization still attempts the strict -1 dBTP target, but verified encoded copies up to +0.5 dBTP are now accepted while the original master remains unchanged.

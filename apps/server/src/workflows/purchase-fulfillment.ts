@@ -180,7 +180,7 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
             ? [
                 {
                   id: `sale_notification:${orderId}:${order.sellerUserId}`,
-                  link: "/dashboard/sales",
+                  link: "/dashboard/career/payments",
                   message: "You made a new sale on SoundKit.",
                   title: "New Sale",
                   type: "sale_notification",

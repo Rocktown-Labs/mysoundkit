@@ -7,7 +7,7 @@ const BillingIssueEmail =
   };
 
 BillingIssueEmail.PreviewProps = {
-  actionUrl: "https://mysoundkit.com/dashboard/settings/billing",
+  actionUrl: "https://mysoundkit.com/library/settings",
   assetBaseUrl: "https://mysoundkit.com",
   body: "We could not complete your latest SoundKit payment. Update your billing details to keep your plan and account access current.",
   ctaLabel: "Update billing",
