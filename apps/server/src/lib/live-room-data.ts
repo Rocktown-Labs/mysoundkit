@@ -216,7 +216,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
     battle: {
       artists: [
         {
-          avatarUrl: "/placeholder-user.jpg",
+          avatarUrl: "/soundkit-default-avatar.svg",
           id: "artist-dj-nova",
           isMuted: false,
           name: "DJ Nova",
@@ -225,7 +225,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
           verified: true,
         },
         {
-          avatarUrl: "/placeholder-user.jpg",
+          avatarUrl: "/soundkit-default-avatar.svg",
           id: "artist-mc-rhythm",
           isMuted: true,
           name: "MC Rhythm",

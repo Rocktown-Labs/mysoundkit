@@ -134,15 +134,15 @@ export function LiveChatPanel({
                         userAvatar = isMe
                           ? (meProfile?.avatarUrl ??
                             meUser?.avatarUrl ??
-                            "/placeholder-user.jpg")
-                          : "/placeholder-user.jpg",
+                            "/soundkit-default-avatar.svg")
+                          : "/soundkit-default-avatar.svg",
                         handleOpenProfile = () => {
                           if (isMe && meUser) {
                             setPreviewUser({
                               avatarUrl:
                                 meProfile?.avatarUrl ??
                                 meUser.avatarUrl ??
-                                "/placeholder-user.jpg",
+                                "/soundkit-default-avatar.svg",
                               bio:
                                 meProfile?.bio ?? "SoundKit artist & creator.",
                               displayName:
@@ -162,7 +162,7 @@ export function LiveChatPanel({
                             });
                           } else {
                             setPreviewUser({
-                              avatarUrl: "/placeholder-user.jpg",
+                              avatarUrl: "/soundkit-default-avatar.svg",
                               displayName: chatMessage.userName,
                               role: isHost
                                 ? "Host & Creator"

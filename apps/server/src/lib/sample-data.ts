@@ -219,7 +219,7 @@ export const sampleTracks = [
 export const sampleCatalogItems = [
   {
     artist: {
-      avatarUrl: "/placeholder-user.jpg",
+      avatarUrl: "/soundkit-default-avatar.svg",
       followers: "124K",
       genre: "R&B / Soul",
       handle: "luna-eclipse",
@@ -265,7 +265,7 @@ export const sampleCatalogItems = [
   },
   {
     artist: {
-      avatarUrl: "/placeholder-user.jpg",
+      avatarUrl: "/soundkit-default-avatar.svg",
       followers: "124K",
       genre: "R&B / Soul",
       handle: "luna-eclipse",
@@ -336,7 +336,7 @@ export const sampleCatalogItems = [
   },
   {
     artist: {
-      avatarUrl: "/placeholder-user.jpg",
+      avatarUrl: "/soundkit-default-avatar.svg",
       battleRank: "#12",
       battleRecord: "18-4",
       followers: "8.2K",
@@ -425,7 +425,7 @@ export const sampleCatalogItems = [
   },
   {
     artist: {
-      avatarUrl: "/placeholder-user.jpg",
+      avatarUrl: "/soundkit-default-avatar.svg",
       followers: "12K",
       genre: "Electronic / Pop",
       handle: "alex-rivera",

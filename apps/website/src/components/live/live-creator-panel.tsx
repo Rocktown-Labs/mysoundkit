@@ -115,7 +115,7 @@ export function LiveCreatorPanel({
       creator.bio ||
       `${creator.displayName} is streaming live on SoundKit. Tune in to connect and collaborate.`,
     resolvedAvatar =
-      artistData?.avatarUrl || creator.avatarUrl || "/placeholder-user.jpg",
+      artistData?.avatarUrl || creator.avatarUrl || "/soundkit-default-avatar.svg",
     resolvedSocials = {
       instagram:
         artistData?.links?.instagram || creator.socials?.instagram || undefined,

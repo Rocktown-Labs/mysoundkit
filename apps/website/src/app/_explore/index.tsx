@@ -758,7 +758,7 @@ const formatCompactCount = (value?: number | null) => {
     index: number,
     activeRegion: string
   ): LeaderboardArtist => ({
-    avatar: artist.avatarUrl ?? "/placeholder-user.jpg",
+    avatar: artist.avatarUrl ?? "/soundkit-default-avatar.svg",
     genre: artist.genre,
     location: artist.location || artist.state || activeRegion,
     name: artist.name,
