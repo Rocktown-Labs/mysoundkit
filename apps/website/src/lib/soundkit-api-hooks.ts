@@ -681,6 +681,16 @@ export const useFriendRequestsQuery = () =>
     queryKey: soundkitQueryKeys.friendRequests,
   });
 
+type OptimisticRollback = {
+  previousNetwork?: NetworkResponse;
+  previousProject?: PublicProjectSummary;
+  previousProjects?: ProjectSummary[];
+  previousRequests?: FriendRequestSummary[];
+  previousTrack?: TrackDetail;
+  previousTracks?: Array<[readonly unknown[], TrackSummary[]]>;
+  previousVideos?: Array<[readonly unknown[], VideoSummary[]]>;
+};
+
 export const useCreateFriendRequestMutation = () => {
   const queryClient = useQueryClient();
 
@@ -688,13 +698,14 @@ export const useCreateFriendRequestMutation = () => {
     mutationFn: async (body: { message?: string; username: string }) =>
       rpcJson(await friendRequestsPost({ json: body })),
     onError: (_error, _variables, context) => {
+      const rollback = context as OptimisticRollback | undefined;
       queryClient.setQueryData(
         soundkitQueryKeys.friendRequests,
-        context?.previousRequests
+        rollback?.previousRequests
       );
       queryClient.setQueryData(
         soundkitQueryKeys.network,
-        context?.previousNetwork
+        rollback?.previousNetwork
       );
     },
     onMutate: async ({ message, username }) => {
@@ -768,13 +779,14 @@ export const useRespondFriendRequestMutation = () => {
         })
       ),
     onError: (_error, _variables, context) => {
+      const rollback = context as OptimisticRollback | undefined;
       queryClient.setQueryData(
         soundkitQueryKeys.friendRequests,
-        context?.previousRequests
+        rollback?.previousRequests
       );
       queryClient.setQueryData(
         soundkitQueryKeys.network,
-        context?.previousNetwork
+        rollback?.previousNetwork
       );
     },
     onMutate: async ({ action, requestId }) => {
@@ -1153,9 +1165,10 @@ export const useUpdateTrackMutation = (trackId: string) => {
     mutationFn: async (body: UpdateTrackBody) =>
       rpcJson(await trackPatch({ json: body, param: { trackId } })),
     onError: (_error, _body, context) => {
+      const rollback = context as OptimisticRollback | undefined;
       queryClient.setQueryData(
         soundkitQueryKeys.track(trackId),
-        context?.previousTrack
+        rollback?.previousTrack
       );
     },
     onMutate: async (body) => {
@@ -1191,7 +1204,8 @@ export const useDeleteTrackMutation = () => {
     mutationFn: async (trackId: string) =>
       rpcJson(await trackDelete({ param: { trackId } })),
     onError: (_error, _trackId, context) => {
-      for (const [queryKey, tracks] of context?.previousTracks ?? []) {
+      const rollback = context as OptimisticRollback | undefined;
+      for (const [queryKey, tracks] of rollback?.previousTracks ?? []) {
         queryClient.setQueryData(queryKey, tracks);
       }
     },
@@ -1386,9 +1400,10 @@ export const useUpdateProjectMutation = (projectId: string) => {
     mutationFn: async (body: UpdateProjectBody) =>
       rpcJson(await projectPatch({ json: body, param: { projectId } })),
     onError: (_error, _body, context) => {
+      const rollback = context as OptimisticRollback | undefined;
       queryClient.setQueryData(
         soundkitQueryKeys.project(projectId),
-        context?.previousProject
+        rollback?.previousProject
       );
     },
     onMutate: async (body) => {
@@ -1439,9 +1454,10 @@ export const useDeleteProjectMutation = () => {
       );
     },
     onError: (_error, _projectId, context) => {
+      const rollback = context as OptimisticRollback | undefined;
       queryClient.setQueryData(
         soundkitQueryKeys.projects,
-        context?.previousProjects
+        rollback?.previousProjects
       );
     },
     onMutate: async (projectId) => {
@@ -2244,7 +2260,8 @@ export const useDeleteVideoMutation = () => {
     mutationFn: async (videoId: string) =>
       rpcJson(await videoDelete({ param: { videoId } })),
     onError: (_error, _videoId, context) => {
-      for (const [queryKey, videos] of context?.previousVideos ?? []) {
+      const rollback = context as OptimisticRollback | undefined;
+      for (const [queryKey, videos] of rollback?.previousVideos ?? []) {
         queryClient.setQueryData(queryKey, videos);
       }
     },
