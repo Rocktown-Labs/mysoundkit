@@ -182,7 +182,7 @@ app.openapi(
       return c.json(
         sampleArtists.slice(offset, offset + limit).map((artist, index) => ({
           ...artist,
-          avatarUrl: "/placeholder-user.jpg",
+          avatarUrl: "/soundkit-default-avatar.svg",
           joinedAt: new Date(
             Date.now() - (index + offset) * 86_400_000
           ).toISOString(),

@@ -113,10 +113,20 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
     validator("json", (value) => schema.parse(value) as z.infer<Schema>),
   checkoutBodySchema = z.object({
     cancelUrl: z.url(),
+    customerType: z.enum(["organization", "user"]).default("organization"),
     planCode: z.string(),
     referenceId: z.string().optional(),
     seats: z.number().int().positive().optional(),
     successUrl: z.url(),
+  }),
+  billingPortalBodySchema = z.object({
+    customerType: z.enum(["organization", "user"]).default("user"),
+    referenceId: z.string().optional(),
+    returnUrl: z.url(),
+  }),
+  billingPortalResponseSchema = z.object({
+    portalUrl: z.string().url().nullable(),
+    setupRequired: z.boolean(),
   }),
   checkoutResponseSchema = onboardingResponseSchema.pick({
     checkoutUrl: true,
@@ -340,6 +350,11 @@ export const rpcContract = new Hono()
   )
   .post("/v1/billing/checkout", jsonValidator(checkoutBodySchema), (c) =>
     c.json({} as z.infer<typeof checkoutResponseSchema>)
+  )
+  .post(
+    "/v1/billing/portal",
+    jsonValidator(billingPortalBodySchema),
+    (c) => c.json({} as z.infer<typeof billingPortalResponseSchema>)
   )
   .get(
     "/v1/artists/",

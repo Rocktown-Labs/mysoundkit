@@ -88,7 +88,7 @@ export const partyDiscoveryItems: PartyDiscoveryItem[] = [
 export const streamDiscoveryItems: StreamDiscoveryItem[] = [
   {
     category: "Studio",
-    creatorAvatar: "/placeholder-user.jpg",
+    creatorAvatar: "/soundkit-default-avatar.svg",
     creatorName: "Metro Boomin",
     genre: "Hip-Hop/Rap",
     id: "stream-studio",
@@ -99,7 +99,7 @@ export const streamDiscoveryItems: StreamDiscoveryItem[] = [
   },
   {
     category: "Performance",
-    creatorAvatar: "/placeholder-user.jpg",
+    creatorAvatar: "/soundkit-default-avatar.svg",
     creatorName: "Ariana",
     genre: "Pop",
     id: "stream-performance",
@@ -110,7 +110,7 @@ export const streamDiscoveryItems: StreamDiscoveryItem[] = [
   },
   {
     category: "Talkback",
-    creatorAvatar: "/placeholder-user.jpg",
+    creatorAvatar: "/soundkit-default-avatar.svg",
     creatorName: "Mike Dean",
     genre: "R&B/Soul",
     id: "stream-breakdown",
@@ -120,7 +120,7 @@ export const streamDiscoveryItems: StreamDiscoveryItem[] = [
   },
   {
     category: "Production",
-    creatorAvatar: "/placeholder-user.jpg",
+    creatorAvatar: "/soundkit-default-avatar.svg",
     creatorName: "Voltage Dreams",
     genre: "Electronic",
     id: "stream-electronic",
@@ -130,7 +130,7 @@ export const streamDiscoveryItems: StreamDiscoveryItem[] = [
   },
   {
     category: "Performance",
-    creatorAvatar: "/placeholder-user.jpg",
+    creatorAvatar: "/soundkit-default-avatar.svg",
     creatorName: "Street Poet",
     genre: "Spoken Word",
     id: "stream-spoken-word",

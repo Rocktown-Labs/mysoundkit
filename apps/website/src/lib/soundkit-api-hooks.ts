@@ -14,6 +14,7 @@ const meGet = apiClient.v1.me.index.$get,
   meNotificationSettingsPatch = apiClient.v1.me["notification-settings"].$patch,
   meEntitlementsGet = apiClient.v1.me.entitlements.$get,
   billingCheckoutPost = apiClient.v1.billing.checkout.$post,
+  billingPortalPost = apiClient.v1.billing.portal.$post,
   billingPlansGet = apiClient.v1.billing.plans.$get,
   adminAccessGet = apiClient.v1.admin.access.$get,
   adminFinancePaymentsGet = apiClient.v1.admin.finance.payments.$get,
@@ -203,6 +204,8 @@ export type BillingCheckoutResponse = InferResponseType<
   typeof billingCheckoutPost,
   200
 >;
+type BillingPortalBody = InferRequestType<typeof billingPortalPost>["json"];
+type BillingPortalResponse = InferResponseType<typeof billingPortalPost, 200>;
 export type BillingPlan = InferResponseType<
   typeof billingPlansGet,
   200
@@ -656,6 +659,14 @@ export const useBillingCheckoutMutation = () => {
       }),
   });
 };
+
+export const useBillingPortalMutation = () =>
+  useMutation({
+    mutationFn: async (
+      body: BillingPortalBody
+    ): Promise<BillingPortalResponse> =>
+      rpcJson(await billingPortalPost({ json: body })),
+  });
 
 export const useFriendsQuery = () =>
   useQuery({

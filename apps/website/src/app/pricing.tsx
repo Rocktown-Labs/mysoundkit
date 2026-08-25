@@ -62,6 +62,7 @@ function PricingPage() {
         const { origin } = window.location,
           result = await checkout.mutateAsync({
             cancelUrl: `${origin}/pricing`,
+            customerType: "user",
             planCode: code,
             successUrl: `${origin}${premiumSuccessPathForAccount(accountType)}?upgraded=1`,
           });

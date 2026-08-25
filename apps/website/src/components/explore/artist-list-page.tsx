@@ -81,7 +81,7 @@ export function ArtistListPage({
                 key={artist.username}
                 slug={artist.username}
                 name={artist.name}
-                avatar={artist.avatarUrl ?? "/placeholder-user.jpg"}
+                avatar={artist.avatarUrl ?? "/soundkit-default-avatar.svg"}
                 genre={artist.genre}
                 followers={formatFollowers(artist.followers)}
                 verified={artist.verified}

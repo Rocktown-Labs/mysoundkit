@@ -674,7 +674,7 @@ function BattlePreviewSection({
                       : "border-border/60 opacity-80"
                   }`}
                 >
-                  <AvatarImage src="/placeholder-user.jpg" />
+                  <AvatarImage src="/soundkit-default-avatar.svg" />
                   <AvatarFallback className="font-bold">MK</AvatarFallback>
                 </Avatar>
                 <p className="font-bold text-sm sm:text-base text-white">
@@ -702,7 +702,7 @@ function BattlePreviewSection({
                       : "border-border/60 opacity-80"
                   }`}
                 >
-                  <AvatarImage src="/placeholder-user.jpg" />
+                  <AvatarImage src="/soundkit-default-avatar.svg" />
                   <AvatarFallback className="font-bold">NV</AvatarFallback>
                 </Avatar>
                 <p className="font-bold text-sm sm:text-base text-white">
@@ -841,7 +841,7 @@ function BattlePreviewSection({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Avatar className="size-11 border">
-                        <AvatarImage src="/placeholder-user.jpg" />
+                        <AvatarImage src="/soundkit-default-avatar.svg" />
                         <AvatarFallback>MK</AvatarFallback>
                       </Avatar>
                       <div>
@@ -900,7 +900,7 @@ function BattlePreviewSection({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Avatar className="size-11 border">
-                        <AvatarImage src="/placeholder-user.jpg" />
+                        <AvatarImage src="/soundkit-default-avatar.svg" />
                         <AvatarFallback>NV</AvatarFallback>
                       </Avatar>
                       <div>
@@ -1905,7 +1905,7 @@ function ChallengePreviewSection({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3.5">
                   <Avatar className="size-12 border">
-                    <AvatarImage src="/placeholder-user.jpg" />
+                    <AvatarImage src="/soundkit-default-avatar.svg" />
                     <AvatarFallback>NV</AvatarFallback>
                   </Avatar>
                   <div>
@@ -1931,7 +1931,7 @@ function ChallengePreviewSection({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3.5">
                   <Avatar className="size-12 border">
-                    <AvatarImage src="/placeholder-user.jpg" />
+                    <AvatarImage src="/soundkit-default-avatar.svg" />
                     <AvatarFallback>MK</AvatarFallback>
                   </Avatar>
                   <div>

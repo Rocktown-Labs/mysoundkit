@@ -79,6 +79,11 @@
   --sidebar-ring: oklch(0.75 0.15 280);
 }
 
+.public-pages {
+  --accent: oklch(0.18 0 0);
+  --accent-foreground: oklch(0.98 0 0);
+}
+
 @theme inline {
   --font-sans: "Geist Variable", "Geist Sans", sans-serif;
   --font-notable: "Notable", serif;

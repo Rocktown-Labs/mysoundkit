@@ -106,8 +106,8 @@ export function ExploreAppSidebar() {
     },
     resolvedLibraryLinks = [
       ...baseLibraryLinks,
-      ...(profileLink ? [profileLink] : []),
       settingsItem,
+      ...(profileLink ? [profileLink] : []),
     ];
 
   return (

@@ -32,7 +32,7 @@ export function SoundKitBrand({
     <div className={cn("flex w-full items-center justify-center", className)}>
       <span
         className={cn(
-          "flex h-8 min-w-24 shrink-0 items-center justify-center border border-white/45 px-2 font-notable text-xs leading-none text-white uppercase shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] group-data-[collapsible=icon]:hidden",
+          "flex h-9 w-full shrink-0 items-center justify-center border border-white/45 px-3 font-notable text-base leading-none text-white uppercase shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] group-data-[collapsible=icon]:hidden",
           wordmarkClassName
         )}
         data-soundkit-sidebar-wordmark

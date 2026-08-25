@@ -79,7 +79,7 @@ import {
 import type { FriendSummary } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
-const FALLBACK_AVATAR = "/placeholder-user.jpg",
+const FALLBACK_AVATAR = "/soundkit-default-avatar.svg",
   SLASH_COMMANDS = [
     {
       command: "/collab",

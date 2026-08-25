@@ -30,6 +30,8 @@ import {
 } from "@/lib/pricing-flow";
 import {
   useBillingCheckoutMutation,
+  useBillingPortalMutation,
+  useMeEntitlementsQuery,
   useMeQuery,
   useUpdateMeProfileMutation,
 } from "@/lib/soundkit-api-hooks";
@@ -42,6 +44,8 @@ function AccountSettingsPage() {
   const { data: me, isLoading } = useMeQuery(),
     updateProfile = useUpdateMeProfileMutation(),
     checkout = useBillingCheckoutMutation(),
+    billingPortal = useBillingPortalMutation(),
+    entitlementsQuery = useMeEntitlementsQuery(),
     [city, setCity] = useState(""),
     [checkoutMessage, setCheckoutMessage] = useState(""),
     [displayName, setDisplayName] = useState(""),
@@ -78,6 +82,7 @@ function AccountSettingsPage() {
         const { origin } = window.location,
           response = await checkout.mutateAsync({
             cancelUrl: `${origin}/library/settings`,
+            customerType: "user",
             planCode: premiumPlanCodeForAccount(me.user.accountType),
             successUrl: `${origin}${premiumSuccessPathForAccount(
               me.user.accountType
@@ -91,7 +96,7 @@ function AccountSettingsPage() {
 
         setCheckoutMessage(
           response.setupRequired
-            ? "Premium checkout is being connected. You can keep using Free while billing is finished."
+            ? "Premium checkout is not available right now. Please try again later."
             : "Your account is already set for this plan."
         );
       } catch {
@@ -99,7 +104,31 @@ function AccountSettingsPage() {
           "We could not open checkout right now. Please try again in a moment."
         );
       }
-    };
+    },
+    openBillingPortal = async () => {
+      try {
+        setCheckoutMessage("");
+        const response = await billingPortal.mutateAsync({
+          customerType: "user",
+          returnUrl: `${window.location.origin}/library/settings`,
+        });
+
+        if (response.portalUrl) {
+          window.location.assign(response.portalUrl);
+          return;
+        }
+
+        setCheckoutMessage(
+          "Premium is active on this account, but there is no recurring billing to manage."
+        );
+      } catch {
+        setCheckoutMessage(
+          "We could not open billing management right now. Please try again in a moment."
+        );
+      }
+    },
+    isPremium = entitlementsQuery.data?.isPremium === true,
+    billingPending = checkout.isPending || billingPortal.isPending;
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
@@ -300,19 +329,29 @@ function AccountSettingsPage() {
             <CardContent className="space-y-4">
               <div>
                 <p className="font-semibold">
-                  Current Account: {me?.user.accountType ?? "Free"}
+                  Current Plan: {isPremium ? "Premium" : "Free"}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Upgrade to unlock premium features
+                  {isPremium
+                    ? "Premium is active. Manage billing, payment methods, or cancellation in Stripe."
+                    : "Upgrade to unlock premium features."}
                 </p>
               </div>
               <Button
-                disabled={checkout.isPending}
-                onClick={startPremiumCheckout}
+                disabled={billingPending}
+                onClick={() =>
+                  void (isPremium
+                    ? openBillingPortal()
+                    : startPremiumCheckout())
+                }
               >
-                {checkout.isPending
-                  ? "Opening Checkout..."
-                  : "Upgrade to Premium"}
+                {billingPending
+                  ? isPremium
+                    ? "Opening Billing..."
+                    : "Opening Checkout..."
+                  : isPremium
+                    ? "Manage Premium"
+                    : "Upgrade to Premium"}
               </Button>
               {checkoutMessage ? (
                 <p className="text-sm text-muted-foreground">
