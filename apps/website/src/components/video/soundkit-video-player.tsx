@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable react/iframe-missing-sandbox */
+/* eslint-disable no-useless-return, one-var, sort-vars, react/iframe-missing-sandbox */
 import MuxPlayer from "@mux/mux-player-react";
 import {
   ExternalLink,
@@ -9,12 +9,18 @@ import {
   ShieldCheck,
   VideoOff,
 } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  createVideoViewSession,
+  updateVideoViewSession,
+} from "@/lib/soundkit-api-hooks";
 
-const YOUTUBE_PATTERNS = [
+const VIDEO_VIEWER_STORAGE_KEY = "soundkit.video-viewer-id.v1",
+  YOUTUBE_PATTERNS = [
     /youtu\.be\/(?<videoId>[A-Za-z0-9_-]{6,})/u,
     /youtube\.com\/watch\?v=(?<videoId>[A-Za-z0-9_-]{6,})/u,
     /youtube(?:-nocookie)?\.com\/(?:embed|live|shorts)\/(?<videoId>[A-Za-z0-9_-]{6,})/u,
@@ -29,7 +35,55 @@ const YOUTUBE_PATTERNS = [
     }
 
     return null;
+  },
+  getAnonymousViewerId = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const existingId = window.localStorage.getItem(VIDEO_VIEWER_STORAGE_KEY);
+      if (existingId) {
+        return existingId;
+      }
+
+      const newId = crypto.randomUUID();
+      window.localStorage.setItem(VIDEO_VIEWER_STORAGE_KEY, newId);
+      return newId;
+    } catch {
+      return;
+    }
+  },
+  playbackPositionFromEvent = (event: Event) => {
+    const target = event.currentTarget as HTMLMediaElement | null,
+      currentTime = Number(target?.currentTime),
+      duration = Number(target?.duration);
+
+    return {
+      durationSeconds:
+        Number.isFinite(duration) && duration > 0
+          ? Math.ceil(duration)
+          : undefined,
+      playedSeconds:
+        Number.isFinite(currentTime) && currentTime > 0
+          ? Math.floor(currentTime)
+          : 0,
+    };
   };
+
+interface VideoViewTelemetry {
+  id: string;
+  lastReportedSeconds: number;
+  token: string;
+}
+
+const reportAnalytics = async (request: Promise<unknown>) => {
+  try {
+    await request;
+  } catch {
+    // Analytics is best effort and must never interrupt playback.
+  }
+};
 
 export function SoundKitVideoPlayer({
   externalPlaybackUrl,
@@ -37,18 +91,97 @@ export function SoundKitVideoPlayer({
   posterUrl,
   title,
   verifiedOnPlatform,
+  videoId,
 }: {
   externalPlaybackUrl?: string | null;
   muxPlaybackId?: string | null;
   posterUrl: string;
   title: string;
   verifiedOnPlatform: boolean;
+  videoId?: string;
 }) {
   const { containerRef, isFullscreen, toggleFullscreen } =
       useBrowserFullscreen(),
+    telemetryRef = useRef<VideoViewTelemetry | null>(null),
+    startViewSession = async (event: Event) => {
+      if (telemetryRef.current || !videoId) {
+        return;
+      }
+
+      const position = playbackPositionFromEvent(event);
+      try {
+        const session = await createVideoViewSession(videoId, {
+          anonymousId: getAnonymousViewerId(),
+          durationSeconds: position.durationSeconds,
+        });
+        telemetryRef.current = {
+          id: session.id,
+          lastReportedSeconds: 0,
+          token: session.token,
+        };
+      } catch {
+        // Playback analytics must never interrupt video playback.
+      }
+    },
+    sendProgress = (event: Event, ended = false, force = false) => {
+      const telemetry = telemetryRef.current;
+      if (!telemetry || !videoId) {
+        return;
+      }
+
+      const position = playbackPositionFromEvent(event);
+      if (
+        !(
+          ended ||
+          force ||
+          position.playedSeconds - telemetry.lastReportedSeconds >= 10
+        )
+      ) {
+        return;
+      }
+
+      telemetry.lastReportedSeconds = position.playedSeconds;
+      void reportAnalytics(
+        updateVideoViewSession(
+          videoId,
+          telemetry.id,
+          {
+            durationSeconds: position.durationSeconds,
+            ended,
+            playedSeconds: position.playedSeconds,
+            token: telemetry.token,
+          },
+          ended
+        )
+      );
+    },
     externalEmbedUrl = externalPlaybackUrl
       ? getYouTubeEmbedUrl(externalPlaybackUrl)
       : null;
+
+  useEffect(
+    () => () => {
+      const telemetry = telemetryRef.current;
+      if (!telemetry || !videoId) {
+        return;
+      }
+
+      void reportAnalytics(
+        updateVideoViewSession(
+          videoId,
+          telemetry.id,
+          {
+            ended: true,
+            playedSeconds: telemetry.lastReportedSeconds,
+            token: telemetry.token,
+          },
+          true
+        )
+      );
+      telemetryRef.current = null;
+    },
+    [videoId]
+  );
 
   if (muxPlaybackId) {
     return (
@@ -60,8 +193,13 @@ export function SoundKitVideoPlayer({
           accentColor="#A798FF"
           className="aspect-video w-full"
           metadata={{
+            video_id: videoId,
             video_title: title,
           }}
+          onEnded={(event) => sendProgress(event, true, true)}
+          onPause={(event) => sendProgress(event, false, true)}
+          onPlay={startViewSession}
+          onTimeUpdate={(event) => sendProgress(event)}
           playbackId={muxPlaybackId}
           poster={posterUrl}
           streamType="on-demand"

@@ -50,7 +50,7 @@ function DashboardVideosPage() {
     [pendingDeleteVideo, setPendingDeleteVideo] = useState<VideoSummary | null>(
       null
     ),
-    videosQuery = useVideosQuery(),
+    videosQuery = useVideosQuery({ scope: "dashboard" }),
     meQuery = useMeQuery(),
     deleteVideoMutation = useDeleteVideoMutation(),
     videos = videosQuery.data ?? [],
@@ -188,7 +188,13 @@ function DashboardVideosPage() {
                     </div>
                     <div className="space-y-1.5 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold truncate">{video.title}</p>
+                        <Link
+                          className="truncate font-semibold hover:text-primary hover:underline"
+                          params={{ id: video.id }}
+                          to="/dashboard/videos/$id"
+                        >
+                          {video.title}
+                        </Link>
                         <Badge
                           variant={videoStatusVariant(video.status)}
                           className="text-[10px] uppercase tracking-wider h-5"
@@ -262,7 +268,14 @@ function DashboardVideosPage() {
                       <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuItem>Edit Details</DropdownMenuItem>
                         <DropdownMenuItem>Change Visibility</DropdownMenuItem>
-                        <DropdownMenuItem>View Analytics</DropdownMenuItem>
+                        <DropdownMenuItem asChild={true}>
+                          <Link
+                            params={{ id: video.id }}
+                            to="/dashboard/videos/$id"
+                          >
+                            View Analytics
+                          </Link>
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive"
                           onClick={() => setPendingDeleteVideo(video)}

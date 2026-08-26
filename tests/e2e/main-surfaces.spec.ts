@@ -275,6 +275,36 @@ test.describe("main application surfaces", () => {
     await expect(page.getByRole("heading", { name: "Country" })).toBeVisible();
   });
 
+  test("creator video titles open first-party analytics", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/videos");
+    await page
+      .getByRole("link", { exact: true, name: "Midnight Vibes" })
+      .click();
+
+    await expect(page).toHaveURL(
+      /\/dashboard\/videos\/video_midnight_vibes_mv$/
+    );
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Midnight Vibes" })
+    ).toBeVisible();
+    await expect(page.getByText("Views over time")).toBeVisible();
+    await expect(page.getByText("Arkansas, USA")).toBeVisible();
+  });
+
   test("explore collection routes support shared all-results views", async ({
     page,
   }) => {

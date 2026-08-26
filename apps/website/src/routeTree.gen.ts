@@ -54,6 +54,7 @@ import { Route as SignupFanCredentialsRouteImport } from './app/signup/fan/crede
 import { Route as SignupArtistOnboardingRouteImport } from './app/signup/artist/onboarding'
 import { Route as SignupArtistCredentialsRouteImport } from './app/signup/artist/credentials'
 import { Route as DashboardVideosNewRouteImport } from './app/dashboard/videos/new'
+import { Route as DashboardVideosIdRouteImport } from './app/dashboard/videos/$id'
 import { Route as DashboardTracksNewRouteImport } from './app/dashboard/tracks/new'
 import { Route as DashboardSettingsPayoutsRouteImport } from './app/dashboard/settings/payouts'
 import { Route as DashboardSettingsBillingRouteImport } from './app/dashboard/settings/billing'
@@ -337,6 +338,11 @@ const SignupArtistCredentialsRoute = SignupArtistCredentialsRouteImport.update({
 const DashboardVideosNewRoute = DashboardVideosNewRouteImport.update({
   id: '/videos/new',
   path: '/videos/new',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardVideosIdRoute = DashboardVideosIdRouteImport.update({
+  id: '/videos/$id',
+  path: '/videos/$id',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardTracksNewRoute = DashboardTracksNewRouteImport.update({
@@ -717,6 +723,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/settings/billing': typeof DashboardSettingsBillingRoute
   '/dashboard/settings/payouts': typeof DashboardSettingsPayoutsRoute
   '/dashboard/tracks/new': typeof DashboardTracksNewRoute
+  '/dashboard/videos/$id': typeof DashboardVideosIdRoute
   '/dashboard/videos/new': typeof DashboardVideosNewRoute
   '/signup/artist/credentials': typeof SignupArtistCredentialsRoute
   '/signup/artist/onboarding': typeof SignupArtistOnboardingRoute
@@ -819,6 +826,7 @@ export interface FileRoutesByTo {
   '/dashboard/settings/billing': typeof DashboardSettingsBillingRoute
   '/dashboard/settings/payouts': typeof DashboardSettingsPayoutsRoute
   '/dashboard/tracks/new': typeof DashboardTracksNewRoute
+  '/dashboard/videos/$id': typeof DashboardVideosIdRoute
   '/dashboard/videos/new': typeof DashboardVideosNewRoute
   '/signup/artist/credentials': typeof SignupArtistCredentialsRoute
   '/signup/artist/onboarding': typeof SignupArtistOnboardingRoute
@@ -926,6 +934,7 @@ export interface FileRoutesById {
   '/dashboard/settings/billing': typeof DashboardSettingsBillingRoute
   '/dashboard/settings/payouts': typeof DashboardSettingsPayoutsRoute
   '/dashboard/tracks/new': typeof DashboardTracksNewRoute
+  '/dashboard/videos/$id': typeof DashboardVideosIdRoute
   '/dashboard/videos/new': typeof DashboardVideosNewRoute
   '/signup/artist/credentials': typeof SignupArtistCredentialsRoute
   '/signup/artist/onboarding': typeof SignupArtistOnboardingRoute
@@ -1033,6 +1042,7 @@ export interface FileRouteTypes {
     | '/dashboard/settings/billing'
     | '/dashboard/settings/payouts'
     | '/dashboard/tracks/new'
+    | '/dashboard/videos/$id'
     | '/dashboard/videos/new'
     | '/signup/artist/credentials'
     | '/signup/artist/onboarding'
@@ -1135,6 +1145,7 @@ export interface FileRouteTypes {
     | '/dashboard/settings/billing'
     | '/dashboard/settings/payouts'
     | '/dashboard/tracks/new'
+    | '/dashboard/videos/$id'
     | '/dashboard/videos/new'
     | '/signup/artist/credentials'
     | '/signup/artist/onboarding'
@@ -1241,6 +1252,7 @@ export interface FileRouteTypes {
     | '/dashboard/settings/billing'
     | '/dashboard/settings/payouts'
     | '/dashboard/tracks/new'
+    | '/dashboard/videos/$id'
     | '/dashboard/videos/new'
     | '/signup/artist/credentials'
     | '/signup/artist/onboarding'
@@ -1613,6 +1625,13 @@ declare module '@tanstack/react-router' {
       path: '/videos/new'
       fullPath: '/dashboard/videos/new'
       preLoaderRoute: typeof DashboardVideosNewRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/videos/$id': {
+      id: '/dashboard/videos/$id'
+      path: '/videos/$id'
+      fullPath: '/dashboard/videos/$id'
+      preLoaderRoute: typeof DashboardVideosIdRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/dashboard/tracks/new': {
@@ -2208,6 +2227,7 @@ interface DashboardRouteChildren {
   DashboardSettingsBillingRoute: typeof DashboardSettingsBillingRoute
   DashboardSettingsPayoutsRoute: typeof DashboardSettingsPayoutsRoute
   DashboardTracksNewRoute: typeof DashboardTracksNewRoute
+  DashboardVideosIdRoute: typeof DashboardVideosIdRoute
   DashboardVideosNewRoute: typeof DashboardVideosNewRoute
   DashboardLiveIndexRoute: typeof DashboardLiveIndexRoute
   DashboardOpenVersesIndexRoute: typeof DashboardOpenVersesIndexRoute
@@ -2257,6 +2277,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardSettingsBillingRoute: DashboardSettingsBillingRoute,
   DashboardSettingsPayoutsRoute: DashboardSettingsPayoutsRoute,
   DashboardTracksNewRoute: DashboardTracksNewRoute,
+  DashboardVideosIdRoute: DashboardVideosIdRoute,
   DashboardVideosNewRoute: DashboardVideosNewRoute,
   DashboardLiveIndexRoute: DashboardLiveIndexRoute,
   DashboardOpenVersesIndexRoute: DashboardOpenVersesIndexRoute,

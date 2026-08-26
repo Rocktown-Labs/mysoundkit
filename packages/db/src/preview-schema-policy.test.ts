@@ -25,6 +25,18 @@ const alchemyConfigPath = fileURLToPath(
   genreIndexMigrationPath = fileURLToPath(
     new URL("migrations/0044_genre_lookup_indexes.sql", import.meta.url)
   ),
+  videoViewAnalyticsMigrationPath = fileURLToPath(
+    new URL("migrations/0047_video_view_analytics.sql", import.meta.url)
+  ),
+  videoRoutesPath = fileURLToPath(
+    new URL("../../../apps/server/src/routes/videos.ts", import.meta.url)
+  ),
+  videoSchemaCapabilitiesPath = fileURLToPath(
+    new URL(
+      "../../../apps/server/src/lib/video-schema-capabilities.ts",
+      import.meta.url
+    )
+  ),
   uploadIntentMigrationPath = fileURLToPath(
     new URL("migrations/0043_upload_intents.sql", import.meta.url)
   ),
@@ -93,6 +105,19 @@ describe("deployment safety policy", () => {
     expect(capabilities).toContain("to_regclass('public.community_bans')");
     expect(routes).toContain("capabilities.discovery");
     expect(routes).toContain("coverImageUrl: null");
+  });
+
+  it("keeps video analytics previews compatible with the deployed schema", async () => {
+    const migration = await readFile(videoViewAnalyticsMigrationPath, "utf-8"),
+      routes = await readFile(videoRoutesPath, "utf-8"),
+      capabilities = await readFile(videoSchemaCapabilitiesPath, "utf-8");
+
+    expect(migration).toContain('CREATE TABLE "video_view_sessions"');
+    expect(migration).not.toMatch(/DROP\s+(?:TABLE|COLUMN|TYPE)/iu);
+    expect(capabilities).toContain(
+      "to_regclass('public.video_view_sessions')"
+    );
+    expect(routes).toContain("capabilities.viewSessions");
   });
 
   it("keeps canonical production assets on the guarded media route", async () => {

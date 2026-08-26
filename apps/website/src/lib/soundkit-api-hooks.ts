@@ -126,6 +126,13 @@ const meGet = apiClient.v1.me.index.$get,
   videosGet = apiClient.v1.videos.index.$get,
   videosPost = apiClient.v1.videos.index.$post,
   videoGet = apiClient.v1.videos[":videoId"].$get,
+  videoAnalyticsGet = apiClient.v1.videos[":videoId"].analytics.$get,
+  videoViewSessionPost = apiClient.v1.videos[":videoId"]["view-sessions"].$post,
+  videoViewSessionProgressPost =
+    apiClient.v1.videos[":videoId"]["view-sessions"][":sessionId"].progress
+      .$post,
+  videoViewSessionEndPost =
+    apiClient.v1.videos[":videoId"]["view-sessions"][":sessionId"].end.$post,
   videoCommentsGet = apiClient.v1.videos[":videoId"].comments.$get,
   videoCommentsPost = apiClient.v1.videos[":videoId"].comments.$post,
   videoDelete = apiClient.v1.videos[":videoId"].$delete,
@@ -204,6 +211,13 @@ type CreateOpenVerseSubmissionBody = InferRequestType<
 type CreateVideoBody = InferRequestType<typeof videosPost>["json"];
 export type VideoSummary = InferResponseType<typeof videosGet, 200>[number];
 export type VideoDetail = InferResponseType<typeof videoGet, 200>;
+export type VideoAnalytics = InferResponseType<typeof videoAnalyticsGet, 200>;
+type VideoViewSessionStartBody = InferRequestType<
+  typeof videoViewSessionPost
+>["json"];
+type VideoViewSessionProgressBody = InferRequestType<
+  typeof videoViewSessionProgressPost
+>["json"];
 export type VideoComment = InferResponseType<
   typeof videoCommentsGet,
   200
@@ -2353,6 +2367,43 @@ export const useVideoQuery = (videoId: string) =>
       rpcJson(await videoGet({ param: { videoId } })),
     queryKey: [...soundkitQueryKeys.videosPrefix, "detail", videoId],
   });
+
+export const useVideoAnalyticsQuery = (
+  videoId: string,
+  range: "7d" | "28d" | "90d" | "12m" = "28d"
+) =>
+  useQuery({
+    enabled: videoId.length > 0,
+    queryFn: async (): Promise<VideoAnalytics> =>
+      rpcJson(
+        await videoAnalyticsGet({ param: { videoId }, query: { range } })
+      ),
+    queryKey: [...soundkitQueryKeys.videosPrefix, "analytics", videoId, range],
+  });
+
+export const createVideoViewSession = async (
+  videoId: string,
+  body: VideoViewSessionStartBody
+) =>
+  rpcJson(
+    await videoViewSessionPost({
+      json: body,
+      param: { videoId },
+    })
+  );
+
+export const updateVideoViewSession = async (
+  videoId: string,
+  sessionId: string,
+  body: VideoViewSessionProgressBody,
+  ended = false
+) =>
+  rpcJson(
+    await (ended ? videoViewSessionEndPost : videoViewSessionProgressPost)({
+      json: body,
+      param: { sessionId, videoId },
+    })
+  );
 
 export const useVideoCommentsQuery = (videoId: string) =>
   useQuery({

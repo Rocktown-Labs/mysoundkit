@@ -1569,6 +1569,47 @@ export const videos = pgTable(
   ]
 );
 
+export const videoViewSessions = pgTable(
+  "video_view_sessions",
+  {
+    city: text("city"),
+    countryCode: text("country_code"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    durationSeconds: integer("duration_seconds"),
+    endedAt: timestamp("ended_at"),
+    id: text("id").primaryKey(),
+    lastHeartbeatAt: timestamp("last_heartbeat_at"),
+    regionCode: text("region_code"),
+    regionName: text("region_name"),
+    sessionTokenHash: text("session_token_hash").notNull(),
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    status: playbackSessionStatusEnum("status").default("started").notNull(),
+    videoId: text("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+    viewerKey: text("viewer_key").notNull(),
+    viewerUserId: text("viewer_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    watchedSeconds: integer("watched_seconds").default(0).notNull(),
+  },
+  (table) => [
+    index("video_view_sessions_video_started_idx").on(
+      table.videoId,
+      table.startedAt
+    ),
+    index("video_view_sessions_video_viewer_idx").on(
+      table.videoId,
+      table.viewerKey
+    ),
+    index("video_view_sessions_video_location_idx").on(
+      table.videoId,
+      table.countryCode,
+      table.regionCode
+    ),
+  ]
+);
+
 export const videoComments = pgTable(
   "video_comments",
   {

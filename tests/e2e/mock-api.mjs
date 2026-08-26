@@ -728,6 +728,53 @@ export const createMockApiServer = async ({
       return;
     }
 
+    const videoAnalyticsMatch = url.pathname.match(
+      /^\/v1\/videos\/([^/]+)\/analytics$/
+    );
+    if (videoAnalyticsMatch) {
+      const premium = session === "complete" || session === "admin";
+      json(
+        response,
+        200,
+        {
+          geography: {
+            hasEnoughData: true,
+            level: premium ? "region" : "country",
+            locations: [
+              {
+                countryCode: "US",
+                label: premium ? "Arkansas, USA" : "USA",
+                percentage: 100,
+                regionCode: premium ? "AR" : null,
+                regionName: premium ? "Arkansas" : null,
+                viewers: 42,
+              },
+            ],
+            totalViewers: 42,
+          },
+          range: url.searchParams.get("range") ?? "28d",
+          summary: {
+            averageWatchPercent: 68,
+            completionRate: 54,
+            totalWatchedSeconds: 5400,
+            uniqueViewers: 42,
+            views: 56,
+          },
+          timeseries: [
+            {
+              date: "2026-06-01",
+              label: "Jun 1",
+              uniqueViewers: 42,
+              views: 56,
+              watchedSeconds: 5400,
+            },
+          ],
+        },
+        webOrigin
+      );
+      return;
+    }
+
     const videoCommentsMatch = url.pathname.match(
       /^\/v1\/videos\/([^/]+)\/comments$/
     );
