@@ -6,6 +6,7 @@ import {
   Library,
   MapPin,
   Music,
+  MessagesSquare,
   ShoppingBag,
   Tags,
   Trophy,
@@ -66,6 +67,12 @@ const navLinks = [
       href: "/shop",
       icon: ShoppingBag,
       label: "Shop",
+    },
+    {
+      description: "Artist-led spaces, posts, and member chat",
+      href: "/communities",
+      icon: MessagesSquare,
+      label: "Communities",
     },
   ] as const;
 

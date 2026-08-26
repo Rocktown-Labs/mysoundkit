@@ -1,8 +1,10 @@
+/* eslint-disable one-var, sort-vars, unicorn/max-nested-calls */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { sellerAccounts } from "@soundkit/db/schema/app";
 import {
   communities,
+  communityBans,
   communitySubscriptions,
 } from "@soundkit/db/schema/communities";
 import { platformFees, transactions } from "@soundkit/db/schema/payments";
@@ -40,6 +42,10 @@ app.openapi(
         z.object({ message: z.string() }),
         "Invalid community"
       ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        z.object({ message: z.string() }),
+        "Community access prohibited"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         z.object({ message: z.string() }),
         "Authentication required"
@@ -69,10 +75,32 @@ app.openapi(
         .where(eq(communities.id, body.communityId))
         .limit(1);
 
-    if (!community?.isActive || community.artistUserId === user.id) {
+    if (
+      !community?.isActive ||
+      community.monthlyPriceCents === 0 ||
+      community.artistUserId === user.id
+    ) {
       return c.json(
         { message: "Community is not available for subscription." },
         HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const [ban] = await db
+      .select({ userId: communityBans.userId })
+      .from(communityBans)
+      .where(
+        and(
+          eq(communityBans.communityId, community.id),
+          eq(communityBans.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (ban) {
+      return c.json(
+        { message: "You cannot subscribe to this community." },
+        HttpStatusCodes.FORBIDDEN
       );
     }
 

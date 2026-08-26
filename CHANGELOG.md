@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added canonical dashboard and Explore navigation with compatibility redirects, plus public community discovery and a TanStack DB-powered artist community experience with free/paid membership, chat, posts, member roles, bans, and creator moderation.
 - Added an Admin Open Verse catalog with raw legacy/media health, owner and track context, request/submission counts, and confirmed cleanup that preserves underlying tracks.
 - Added scoped Explore map geographies: continental views now render only their own countries, while North America retains detailed US states with clickable Canada and Mexico outlines.
 - Added global onboarding location autocomplete with Google Places (New), normalized city/region/country persistence, accessible custom suggestions, and a no-key manual fallback for local/test environments.

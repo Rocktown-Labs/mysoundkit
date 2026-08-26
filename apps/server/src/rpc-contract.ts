@@ -173,6 +173,75 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
     followed: z.boolean(),
     followerCount: z.number().int().nonnegative(),
   }),
+  communityAuthorSchema = z.object({
+    avatarUrl: z.string().nullable(),
+    name: z.string(),
+    username: z.string(),
+  }),
+  communitySchema = z.object({
+    artist: communityAuthorSchema,
+    artistUserId: z.string(),
+    coverImageUrl: z.string().nullable(),
+    currency: z.string(),
+    description: z.string().nullable(),
+    genre: z
+      .object({ id: z.string(), name: z.string(), slug: z.string() })
+      .nullable(),
+    id: z.string(),
+    isMember: z.boolean(),
+    isOwner: z.boolean(),
+    memberCount: z.number().int().nonnegative(),
+    monthlyPriceCents: z.number().int().nonnegative(),
+    name: z.string(),
+    slug: z.string(),
+    updatedAt: z.string(),
+  }),
+  communityInputSchema = z.object({
+    coverImageUrl: z.string().url().nullable().optional(),
+    description: z.string().max(2000).optional(),
+    genreId: z.string().nullable().optional(),
+    monthlyPriceCents: z.number().int().nonnegative(),
+    name: z.string().min(1).max(100),
+  }),
+  communityCheckoutSchema = z.object({
+    cancelUrl: z.string().url(),
+    communityId: z.string(),
+    successUrl: z.string().url(),
+  }),
+  communityPostSchema = z.object({
+    author: communityAuthorSchema,
+    body: z.string().nullable(),
+    createdAt: z.string(),
+    id: z.string(),
+    isPinned: z.boolean(),
+    mediaUrl: z.string().nullable(),
+    metadata: z.unknown().nullable(),
+    postType: z.enum(["text", "image", "audio", "video", "poll"]),
+    userId: z.string(),
+  }),
+  communityMessageSchema = z.object({
+    author: communityAuthorSchema,
+    body: z.string(),
+    createdAt: z.string(),
+    id: z.string(),
+    userId: z.string(),
+  }),
+  communityMemberSchema = z.object({
+    avatarUrl: z.string().nullable(),
+    joinedAt: z.string(),
+    name: z.string(),
+    role: z.enum(["owner", "moderator", "member"]),
+    userId: z.string(),
+    username: z.string(),
+  }),
+  communityBanSchema = z.object({
+    avatarUrl: z.string().nullable(),
+    bannedAt: z.string(),
+    name: z.string(),
+    reason: z.string().nullable(),
+    userId: z.string(),
+    username: z.string(),
+  }),
   liveExperienceSummarySchema = z
     .object({
       id: z.string(),
@@ -805,6 +874,97 @@ export const rpcContract = new Hono()
     "/v1/videos/:videoId/comments",
     jsonValidator(createVideoCommentBodySchema),
     (c) => c.json({} as z.infer<typeof videoCommentSchema>, 201)
+  )
+  .get(
+    "/v1/communities/",
+    validator("query", (value) =>
+      z
+        .object({
+          access: z.enum(["all", "free", "paid"]).optional(),
+          genre: z.string().optional(),
+          q: z.string().optional(),
+          sort: z
+            .enum(["activity-desc", "members-desc", "newest-desc", "name-asc"])
+            .optional(),
+        })
+        .parse(value)
+    ),
+    (c) => c.json([] as z.infer<typeof communitySchema>[])
+  )
+  .post("/v1/communities/", jsonValidator(communityInputSchema), (c) =>
+    c.json({} as z.infer<typeof communitySchema>, 201)
+  )
+  .get("/v1/communities/:communityId", (c) =>
+    c.json({} as z.infer<typeof communitySchema>)
+  )
+  .patch(
+    "/v1/communities/:communityId",
+    jsonValidator(communityInputSchema.partial()),
+    (c) => c.json({} as z.infer<typeof communitySchema>)
+  )
+  .post("/v1/communities/:communityId/join", (c) =>
+    c.json({ message: "" }, 201)
+  )
+  .get("/v1/communities/:communityId/posts", (c) =>
+    c.json([] as z.infer<typeof communityPostSchema>[])
+  )
+  .post(
+    "/v1/communities/:communityId/posts",
+    jsonValidator(
+      z.object({
+        body: z.string().optional(),
+        mediaUrl: z.string().url().optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+        postType: z.enum(["text", "image", "audio", "video", "poll"]),
+      })
+    ),
+    (c) => c.json({} as z.infer<typeof communityPostSchema>, 201)
+  )
+  .get("/v1/communities/:communityId/messages", (c) =>
+    c.json([] as z.infer<typeof communityMessageSchema>[])
+  )
+  .post(
+    "/v1/communities/:communityId/messages",
+    jsonValidator(
+      z.object({ body: z.string(), clientMessageId: z.string().optional() })
+    ),
+    (c) => c.json({} as z.infer<typeof communityMessageSchema>, 201)
+  )
+  .get("/v1/communities/:communityId/members", (c) =>
+    c.json([] as z.infer<typeof communityMemberSchema>[])
+  )
+  .get("/v1/communities/:communityId/bans", (c) =>
+    c.json([] as z.infer<typeof communityBanSchema>[])
+  )
+  .patch(
+    "/v1/communities/:communityId/members/:userId",
+    jsonValidator(z.object({ role: z.enum(["moderator", "member"]) })),
+    (c) => c.json({ message: "" })
+  )
+  .delete("/v1/communities/:communityId/members/:userId", (c) =>
+    c.json({ message: "" })
+  )
+  .post(
+    "/v1/communities/:communityId/members/:userId/ban",
+    jsonValidator(z.object({ reason: z.string().optional() })),
+    (c) => c.json({ message: "" })
+  )
+  .delete("/v1/communities/:communityId/bans/:userId", (c) =>
+    c.json({ message: "" })
+  )
+  .get("/v1/communities/:communityId/analytics", (c) =>
+    c.json({
+      activeSubscribers: 0,
+      canceledSubscribers: 0,
+      churnedSubscribers: 0,
+      memberCount: 0,
+      monthlyRecurringRevenueCents: 0,
+    })
+  )
+  .post(
+    "/v1/community-billing/checkout",
+    jsonValidator(communityCheckoutSchema),
+    (c) => c.json({ checkoutUrl: null as string | null, setupRequired: false })
   )
   .get("/v1/seller/status", (c) =>
     c.json({} as z.infer<typeof sellerStatusSchema>)

@@ -15,6 +15,7 @@ import {
   Swords,
   PartyPopper,
   Tags,
+  MessagesSquare,
 } from "lucide-react";
 
 import { SidebarNavGroup } from "@/components/sidebar-nav-group";
@@ -39,6 +40,11 @@ const discoverLinks: SidebarNavItem[] = [
     { href: "/artist", icon: Users, label: "Artists" },
     { href: "/genres", icon: Tags, label: "Genres" },
     { href: "/shop", icon: ShoppingBag, label: "Shop" },
+    {
+      href: "/communities",
+      icon: MessagesSquare,
+      label: "Communities",
+    },
   ].map(({ href, icon, label }) => ({ icon, title: label, url: href })),
   liveLinks: SidebarNavItem[] = [
     { href: "/live/battles", icon: Swords, label: "Battles" },

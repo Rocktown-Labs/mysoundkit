@@ -51,6 +51,7 @@ const myMusicNavigation: SidebarNavItem[] = [
     { href: "/dashboard/open-verses", icon: Mic2, name: "Open Verses" },
     { href: "/dashboard/messages", icon: MessageSquare, name: "Messages" },
     { href: "/dashboard/collaborators", icon: UserRoundPlus, name: "Network" },
+    { href: "/dashboard/community", icon: Users, name: "Community" },
   ].map(({ href, icon, name }) => ({ icon, title: name, url: href })),
   careerNavigation: SidebarNavItem[] = [
     { href: "/dashboard/career/profile", icon: User, name: "Profile" },
@@ -60,8 +61,8 @@ const myMusicNavigation: SidebarNavItem[] = [
       icon: CalendarDays,
       name: "Calendar",
     },
-    { href: "/dashboard/team", icon: Users, name: "Workspace" },
-    { href: "/dashboard/ads", icon: Megaphone, name: "Ads" },
+    { href: "/dashboard/career/team", icon: Users, name: "Workspace" },
+    { href: "/dashboard/career/ads", icon: Megaphone, name: "Ads" },
     { href: "/dashboard/career/settings", icon: Settings, name: "Settings" },
     {
       href: "/dashboard/career/payments",
@@ -94,9 +95,9 @@ export function AppSidebar() {
     liveNavigation: SidebarNavItem[] = [
       {
         icon: Trophy,
-        isActive: pathname === "/dashboard/live",
+        isActive: isRouteActive("/dashboard/live/battles"),
         title: "Battles",
-        url: "/dashboard/live",
+        url: "/dashboard/live/battles",
       },
       {
         icon: Users,

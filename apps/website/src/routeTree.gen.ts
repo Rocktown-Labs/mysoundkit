@@ -67,12 +67,15 @@ import { Route as DashboardLivePartiesRouteImport } from './app/dashboard/live/p
 import { Route as DashboardLiveMyKitRouteImport } from './app/dashboard/live/my-kit'
 import { Route as DashboardLiveFindRouteImport } from './app/dashboard/live/find'
 import { Route as DashboardLiveChallengeRouteImport } from './app/dashboard/live/challenge'
+import { Route as DashboardLiveBattlesRouteImport } from './app/dashboard/live/battles'
+import { Route as DashboardCareerTeamRouteImport } from './app/dashboard/career/team'
 import { Route as DashboardCareerSettingsRouteImport } from './app/dashboard/career/settings'
 import { Route as DashboardCareerProfileRouteImport } from './app/dashboard/career/profile'
 import { Route as DashboardCareerPaymentsRouteImport } from './app/dashboard/career/payments'
 import { Route as DashboardCareerCalendarRouteImport } from './app/dashboard/career/calendar'
 import { Route as DashboardCareerAnalyticsRouteImport } from './app/dashboard/career/analytics'
 import { Route as DashboardCareerAiStudioRouteImport } from './app/dashboard/career/ai-studio'
+import { Route as DashboardCareerAdsRouteImport } from './app/dashboard/career/ads'
 import { Route as ExploreVideosIdRouteImport } from './app/_explore/videos/$id'
 import { Route as ExploreTracksIdRouteImport } from './app/_explore/tracks/$id'
 import { Route as ExploreProjectsIdRouteImport } from './app/_explore/projects/$id'
@@ -80,6 +83,7 @@ import { Route as ExplorePeopleUsernameRouteImport } from './app/_explore/people
 import { Route as ExploreLivePreviewRouteImport } from './app/_explore/live/preview'
 import { Route as ExploreLibrarySettingsRouteImport } from './app/_explore/library/settings'
 import { Route as ExploreGenresIdRouteImport } from './app/_explore/genres/$id'
+import { Route as ExploreCommunitiesCommunityIdRouteImport } from './app/_explore/communities/$communityId'
 import { Route as ExploreArtistTopRouteImport } from './app/_explore/artist/top'
 import { Route as ExploreArtistRisingStarsRouteImport } from './app/_explore/artist/rising-stars'
 import { Route as ExploreArtistNewRouteImport } from './app/_explore/artist/new'
@@ -403,6 +407,16 @@ const DashboardLiveChallengeRoute = DashboardLiveChallengeRouteImport.update({
   path: '/live/challenge',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardLiveBattlesRoute = DashboardLiveBattlesRouteImport.update({
+  id: '/live/battles',
+  path: '/live/battles',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardCareerTeamRoute = DashboardCareerTeamRouteImport.update({
+  id: '/career/team',
+  path: '/career/team',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardCareerSettingsRoute = DashboardCareerSettingsRouteImport.update({
   id: '/career/settings',
   path: '/career/settings',
@@ -432,6 +446,11 @@ const DashboardCareerAnalyticsRoute =
 const DashboardCareerAiStudioRoute = DashboardCareerAiStudioRouteImport.update({
   id: '/career/ai-studio',
   path: '/career/ai-studio',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardCareerAdsRoute = DashboardCareerAdsRouteImport.update({
+  id: '/career/ads',
+  path: '/career/ads',
   getParentRoute: () => DashboardRoute,
 } as any)
 const ExploreVideosIdRoute = ExploreVideosIdRouteImport.update({
@@ -469,6 +488,12 @@ const ExploreGenresIdRoute = ExploreGenresIdRouteImport.update({
   path: '/genres/$id',
   getParentRoute: () => ExploreRoute,
 } as any)
+const ExploreCommunitiesCommunityIdRoute =
+  ExploreCommunitiesCommunityIdRouteImport.update({
+    id: '/communities/$communityId',
+    path: '/communities/$communityId',
+    getParentRoute: () => ExploreRoute,
+  } as any)
 const ExploreArtistTopRoute = ExploreArtistTopRouteImport.update({
   id: '/artist/top',
   path: '/artist/top',
@@ -662,6 +687,7 @@ export interface FileRoutesByFullPath {
   '/artist/new': typeof ExploreArtistNewRoute
   '/artist/rising-stars': typeof ExploreArtistRisingStarsRoute
   '/artist/top': typeof ExploreArtistTopRoute
+  '/communities/$communityId': typeof ExploreCommunitiesCommunityIdRoute
   '/genres/$id': typeof ExploreGenresIdRoute
   '/library/settings': typeof ExploreLibrarySettingsRoute
   '/live/preview': typeof ExploreLivePreviewRoute
@@ -669,12 +695,15 @@ export interface FileRoutesByFullPath {
   '/projects/$id': typeof ExploreProjectsIdRouteWithChildren
   '/tracks/$id': typeof ExploreTracksIdRoute
   '/videos/$id': typeof ExploreVideosIdRoute
+  '/dashboard/career/ads': typeof DashboardCareerAdsRoute
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
   '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
   '/dashboard/career/calendar': typeof DashboardCareerCalendarRoute
   '/dashboard/career/payments': typeof DashboardCareerPaymentsRoute
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
+  '/dashboard/career/team': typeof DashboardCareerTeamRoute
+  '/dashboard/live/battles': typeof DashboardLiveBattlesRoute
   '/dashboard/live/challenge': typeof DashboardLiveChallengeRoute
   '/dashboard/live/find': typeof DashboardLiveFindRoute
   '/dashboard/live/my-kit': typeof DashboardLiveMyKitRoute
@@ -761,18 +790,22 @@ export interface FileRoutesByTo {
   '/artist/new': typeof ExploreArtistNewRoute
   '/artist/rising-stars': typeof ExploreArtistRisingStarsRoute
   '/artist/top': typeof ExploreArtistTopRoute
+  '/communities/$communityId': typeof ExploreCommunitiesCommunityIdRoute
   '/genres/$id': typeof ExploreGenresIdRoute
   '/library/settings': typeof ExploreLibrarySettingsRoute
   '/live/preview': typeof ExploreLivePreviewRoute
   '/people/$username': typeof ExplorePeopleUsernameRoute
   '/tracks/$id': typeof ExploreTracksIdRoute
   '/videos/$id': typeof ExploreVideosIdRoute
+  '/dashboard/career/ads': typeof DashboardCareerAdsRoute
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
   '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
   '/dashboard/career/calendar': typeof DashboardCareerCalendarRoute
   '/dashboard/career/payments': typeof DashboardCareerPaymentsRoute
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
+  '/dashboard/career/team': typeof DashboardCareerTeamRoute
+  '/dashboard/live/battles': typeof DashboardLiveBattlesRoute
   '/dashboard/live/challenge': typeof DashboardLiveChallengeRoute
   '/dashboard/live/find': typeof DashboardLiveFindRoute
   '/dashboard/live/my-kit': typeof DashboardLiveMyKitRoute
@@ -863,6 +896,7 @@ export interface FileRoutesById {
   '/_explore/artist/new': typeof ExploreArtistNewRoute
   '/_explore/artist/rising-stars': typeof ExploreArtistRisingStarsRoute
   '/_explore/artist/top': typeof ExploreArtistTopRoute
+  '/_explore/communities/$communityId': typeof ExploreCommunitiesCommunityIdRoute
   '/_explore/genres/$id': typeof ExploreGenresIdRoute
   '/_explore/library/settings': typeof ExploreLibrarySettingsRoute
   '/_explore/live/preview': typeof ExploreLivePreviewRoute
@@ -870,12 +904,15 @@ export interface FileRoutesById {
   '/_explore/projects/$id': typeof ExploreProjectsIdRouteWithChildren
   '/_explore/tracks/$id': typeof ExploreTracksIdRoute
   '/_explore/videos/$id': typeof ExploreVideosIdRoute
+  '/dashboard/career/ads': typeof DashboardCareerAdsRoute
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
   '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
   '/dashboard/career/calendar': typeof DashboardCareerCalendarRoute
   '/dashboard/career/payments': typeof DashboardCareerPaymentsRoute
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
+  '/dashboard/career/team': typeof DashboardCareerTeamRoute
+  '/dashboard/live/battles': typeof DashboardLiveBattlesRoute
   '/dashboard/live/challenge': typeof DashboardLiveChallengeRoute
   '/dashboard/live/find': typeof DashboardLiveFindRoute
   '/dashboard/live/my-kit': typeof DashboardLiveMyKitRoute
@@ -966,6 +1003,7 @@ export interface FileRouteTypes {
     | '/artist/new'
     | '/artist/rising-stars'
     | '/artist/top'
+    | '/communities/$communityId'
     | '/genres/$id'
     | '/library/settings'
     | '/live/preview'
@@ -973,12 +1011,15 @@ export interface FileRouteTypes {
     | '/projects/$id'
     | '/tracks/$id'
     | '/videos/$id'
+    | '/dashboard/career/ads'
     | '/dashboard/career/ai-studio'
     | '/dashboard/career/analytics'
     | '/dashboard/career/calendar'
     | '/dashboard/career/payments'
     | '/dashboard/career/profile'
     | '/dashboard/career/settings'
+    | '/dashboard/career/team'
+    | '/dashboard/live/battles'
     | '/dashboard/live/challenge'
     | '/dashboard/live/find'
     | '/dashboard/live/my-kit'
@@ -1065,18 +1106,22 @@ export interface FileRouteTypes {
     | '/artist/new'
     | '/artist/rising-stars'
     | '/artist/top'
+    | '/communities/$communityId'
     | '/genres/$id'
     | '/library/settings'
     | '/live/preview'
     | '/people/$username'
     | '/tracks/$id'
     | '/videos/$id'
+    | '/dashboard/career/ads'
     | '/dashboard/career/ai-studio'
     | '/dashboard/career/analytics'
     | '/dashboard/career/calendar'
     | '/dashboard/career/payments'
     | '/dashboard/career/profile'
     | '/dashboard/career/settings'
+    | '/dashboard/career/team'
+    | '/dashboard/live/battles'
     | '/dashboard/live/challenge'
     | '/dashboard/live/find'
     | '/dashboard/live/my-kit'
@@ -1166,6 +1211,7 @@ export interface FileRouteTypes {
     | '/_explore/artist/new'
     | '/_explore/artist/rising-stars'
     | '/_explore/artist/top'
+    | '/_explore/communities/$communityId'
     | '/_explore/genres/$id'
     | '/_explore/library/settings'
     | '/_explore/live/preview'
@@ -1173,12 +1219,15 @@ export interface FileRouteTypes {
     | '/_explore/projects/$id'
     | '/_explore/tracks/$id'
     | '/_explore/videos/$id'
+    | '/dashboard/career/ads'
     | '/dashboard/career/ai-studio'
     | '/dashboard/career/analytics'
     | '/dashboard/career/calendar'
     | '/dashboard/career/payments'
     | '/dashboard/career/profile'
     | '/dashboard/career/settings'
+    | '/dashboard/career/team'
+    | '/dashboard/live/battles'
     | '/dashboard/live/challenge'
     | '/dashboard/live/find'
     | '/dashboard/live/my-kit'
@@ -1657,6 +1706,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardLiveChallengeRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/live/battles': {
+      id: '/dashboard/live/battles'
+      path: '/live/battles'
+      fullPath: '/dashboard/live/battles'
+      preLoaderRoute: typeof DashboardLiveBattlesRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/career/team': {
+      id: '/dashboard/career/team'
+      path: '/career/team'
+      fullPath: '/dashboard/career/team'
+      preLoaderRoute: typeof DashboardCareerTeamRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/career/settings': {
       id: '/dashboard/career/settings'
       path: '/career/settings'
@@ -1697,6 +1760,13 @@ declare module '@tanstack/react-router' {
       path: '/career/ai-studio'
       fullPath: '/dashboard/career/ai-studio'
       preLoaderRoute: typeof DashboardCareerAiStudioRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/career/ads': {
+      id: '/dashboard/career/ads'
+      path: '/career/ads'
+      fullPath: '/dashboard/career/ads'
+      preLoaderRoute: typeof DashboardCareerAdsRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/_explore/videos/$id': {
@@ -1746,6 +1816,13 @@ declare module '@tanstack/react-router' {
       path: '/genres/$id'
       fullPath: '/genres/$id'
       preLoaderRoute: typeof ExploreGenresIdRouteImport
+      parentRoute: typeof ExploreRoute
+    }
+    '/_explore/communities/$communityId': {
+      id: '/_explore/communities/$communityId'
+      path: '/communities/$communityId'
+      fullPath: '/communities/$communityId'
+      preLoaderRoute: typeof ExploreCommunitiesCommunityIdRouteImport
       parentRoute: typeof ExploreRoute
     }
     '/_explore/artist/top': {
@@ -2006,6 +2083,7 @@ interface ExploreRouteChildren {
   ExploreArtistNewRoute: typeof ExploreArtistNewRoute
   ExploreArtistRisingStarsRoute: typeof ExploreArtistRisingStarsRoute
   ExploreArtistTopRoute: typeof ExploreArtistTopRoute
+  ExploreCommunitiesCommunityIdRoute: typeof ExploreCommunitiesCommunityIdRoute
   ExploreGenresIdRoute: typeof ExploreGenresIdRoute
   ExploreLibrarySettingsRoute: typeof ExploreLibrarySettingsRoute
   ExplorePeopleUsernameRoute: typeof ExplorePeopleUsernameRoute
@@ -2039,6 +2117,7 @@ const ExploreRouteChildren: ExploreRouteChildren = {
   ExploreArtistNewRoute: ExploreArtistNewRoute,
   ExploreArtistRisingStarsRoute: ExploreArtistRisingStarsRoute,
   ExploreArtistTopRoute: ExploreArtistTopRoute,
+  ExploreCommunitiesCommunityIdRoute: ExploreCommunitiesCommunityIdRoute,
   ExploreGenresIdRoute: ExploreGenresIdRoute,
   ExploreLibrarySettingsRoute: ExploreLibrarySettingsRoute,
   ExplorePeopleUsernameRoute: ExplorePeopleUsernameRoute,
@@ -2107,12 +2186,15 @@ interface DashboardRouteChildren {
   DashboardSalesRoute: typeof DashboardSalesRoute
   DashboardTeamRoute: typeof DashboardTeamRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
+  DashboardCareerAdsRoute: typeof DashboardCareerAdsRoute
   DashboardCareerAiStudioRoute: typeof DashboardCareerAiStudioRoute
   DashboardCareerAnalyticsRoute: typeof DashboardCareerAnalyticsRoute
   DashboardCareerCalendarRoute: typeof DashboardCareerCalendarRoute
   DashboardCareerPaymentsRoute: typeof DashboardCareerPaymentsRoute
   DashboardCareerProfileRoute: typeof DashboardCareerProfileRoute
   DashboardCareerSettingsRoute: typeof DashboardCareerSettingsRoute
+  DashboardCareerTeamRoute: typeof DashboardCareerTeamRoute
+  DashboardLiveBattlesRoute: typeof DashboardLiveBattlesRoute
   DashboardLiveChallengeRoute: typeof DashboardLiveChallengeRoute
   DashboardLiveFindRoute: typeof DashboardLiveFindRoute
   DashboardLiveMyKitRoute: typeof DashboardLiveMyKitRoute
@@ -2153,12 +2235,15 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardSalesRoute: DashboardSalesRoute,
   DashboardTeamRoute: DashboardTeamRoute,
   DashboardIndexRoute: DashboardIndexRoute,
+  DashboardCareerAdsRoute: DashboardCareerAdsRoute,
   DashboardCareerAiStudioRoute: DashboardCareerAiStudioRoute,
   DashboardCareerAnalyticsRoute: DashboardCareerAnalyticsRoute,
   DashboardCareerCalendarRoute: DashboardCareerCalendarRoute,
   DashboardCareerPaymentsRoute: DashboardCareerPaymentsRoute,
   DashboardCareerProfileRoute: DashboardCareerProfileRoute,
   DashboardCareerSettingsRoute: DashboardCareerSettingsRoute,
+  DashboardCareerTeamRoute: DashboardCareerTeamRoute,
+  DashboardLiveBattlesRoute: DashboardLiveBattlesRoute,
   DashboardLiveChallengeRoute: DashboardLiveChallengeRoute,
   DashboardLiveFindRoute: DashboardLiveFindRoute,
   DashboardLiveMyKitRoute: DashboardLiveMyKitRoute,

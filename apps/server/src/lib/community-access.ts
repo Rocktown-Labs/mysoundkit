@@ -1,12 +1,14 @@
+/* eslint-disable one-var */
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   communities,
+  communityBans,
   communityMembers,
   communitySubscriptions,
 } from "@soundkit/db/schema/communities";
 import { and, eq, inArray } from "drizzle-orm";
 
-import { hasCommunitySubscriptionAccess } from "@/lib/community-subscriptions";
+import { hasCommunityAccess } from "@/lib/community-access-policy";
 
 export const canAccessCommunity = async ({
   communityId,
@@ -20,15 +22,22 @@ export const canAccessCommunity = async ({
   }
 
   const db = createDb(),
-    [community] = await db
-      .select({ artistUserId: communities.artistUserId })
-      .from(communities)
-      .where(eq(communities.id, communityId))
+    [ban] = await db
+      .select({ userId: communityBans.userId })
+      .from(communityBans)
+      .where(
+        and(
+          eq(communityBans.communityId, communityId),
+          eq(communityBans.userId, userId)
+        )
+      )
       .limit(1);
 
-  if (community?.artistUserId === userId) {
-    return true;
-  }
+  const [community] = await db
+    .select({ artistUserId: communities.artistUserId })
+    .from(communities)
+    .where(eq(communities.id, communityId))
+    .limit(1);
 
   const [membership] = await db
     .select({ userId: communityMembers.userId })
@@ -36,8 +45,7 @@ export const canAccessCommunity = async ({
     .where(
       and(
         eq(communityMembers.communityId, communityId),
-        eq(communityMembers.userId, userId),
-        inArray(communityMembers.role, ["owner", "moderator"])
+        eq(communityMembers.userId, userId)
       )
     )
     .limit(1);
@@ -60,5 +68,10 @@ export const canAccessCommunity = async ({
       )
     );
 
-  return subscriptions.some(hasCommunitySubscriptionAccess);
+  return hasCommunityAccess({
+    isBanned: Boolean(ban),
+    isMember: Boolean(membership),
+    isOwner: community?.artistUserId === userId,
+    subscriptions,
+  });
 };

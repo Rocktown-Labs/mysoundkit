@@ -1,17 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
-
-import { BattleViewAll } from "@/components/explore/battle-view-all";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_explore/live/battles/leaderboard")({
-  component: LeaderboardPage,
+  beforeLoad: () => {
+    throw redirect({
+      search: {
+        genre: undefined,
+        region: undefined,
+        regionType: "north-america",
+        sort: undefined,
+      },
+      to: "/live/battles",
+    });
+  },
 });
-
-function LeaderboardPage() {
-  return (
-    <BattleViewAll
-      type="leaderboard"
-      title="Battle Leaderboard"
-      description="Top 100 battle champions ranked by performance"
-    />
-  );
-}

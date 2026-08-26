@@ -1,3 +1,4 @@
+/* eslint-disable one-var */
 import {
   boolean,
   index,
@@ -10,6 +11,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { genres } from "./app";
 import { user } from "./auth";
 
 export const communityMemberRoleEnum = pgEnum("community_member_role", [
@@ -35,9 +37,13 @@ export const communities = pgTable(
     artistUserId: text("artist_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    coverImageUrl: text("cover_image_url"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     currency: text("currency").default("USD").notNull(),
     description: text("description"),
+    genreId: text("genre_id").references(() => genres.id, {
+      onDelete: "set null",
+    }),
     id: text("id").primaryKey(),
     isActive: boolean("is_active").default(true).notNull(),
     monthlyPriceCents: integer("monthly_price_cents").notNull(),
@@ -51,6 +57,7 @@ export const communities = pgTable(
   },
   (table) => [
     uniqueIndex("communities_artist_user_id_idx").on(table.artistUserId),
+    index("communities_genre_id_idx").on(table.genreId),
     uniqueIndex("communities_slug_idx").on(table.slug),
   ]
 );
@@ -126,6 +133,29 @@ export const communityPosts = pgTable(
   (table) => [index("community_posts_community_id_idx").on(table.communityId)]
 );
 
+export const communityBans = pgTable(
+  "community_bans",
+  {
+    bannedAt: timestamp("banned_at").defaultNow().notNull(),
+    bannedByUserId: text("banned_by_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    communityId: text("community_id")
+      .notNull()
+      .references(() => communities.id, { onDelete: "cascade" }),
+    reason: text("reason"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("community_bans_community_user_idx").on(
+      table.communityId,
+      table.userId
+    ),
+  ]
+);
+
 export const communityMessages = pgTable(
   "community_messages",
   {
@@ -140,6 +170,9 @@ export const communityMessages = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
   },
   (table) => [
-    index("community_messages_community_id_idx").on(table.communityId),
+    index("community_messages_community_created_idx").on(
+      table.communityId,
+      table.createdAt
+    ),
   ]
 );
