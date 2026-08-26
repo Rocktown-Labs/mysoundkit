@@ -186,6 +186,7 @@ function DashboardLivePartiesPage() {
   return (
     <LiveExperienceAuthGuard
       actionLabel="create live listening parties or premiere release rooms"
+      allowFreeArtist
       featureTitle="Live Listening Parties"
       requiredEntitlement="canHostLiveStreams"
     >

@@ -996,6 +996,60 @@ export const sellerOnboardingResponseSchema = z.object({
   ]),
 });
 
+export const artistSetupGuideSchema = z.object({
+  battleKits: z.object({
+    canStart: z.boolean(),
+    count: z.number().int().nonnegative(),
+    minimumReleasedTracks: z.number().int().positive(),
+  }),
+  capabilities: entitlementSummarySchema.pick({
+    canCreateLiveBattles: true,
+    canHostLiveStreams: true,
+    canOperatePaidCommunity: true,
+    canReceivePayouts: true,
+    canSellProducts: true,
+    isPremium: true,
+  }),
+  catalog: z.object({
+    hasPlayablePublicRelease: z.boolean(),
+    hasProject: z.boolean(),
+    hasSellableItem: z.boolean(),
+    hasTrack: z.boolean(),
+    releasedPlayableTrackCount: z.number().int().nonnegative(),
+    trackCount: z.number().int().nonnegative(),
+  }),
+  community: z.object({
+    hasOwnedCommunity: z.boolean(),
+  }),
+  creatorTools: z.object({
+    hasLiveExperience: z.boolean(),
+    hasOpenVerse: z.boolean(),
+    hasVideo: z.boolean(),
+  }),
+  monetization: z.object({
+    chargesEnabled: z.boolean(),
+    detailsSubmitted: z.boolean(),
+    onboardingStatus: sellerStatusSchema.shape.onboardingStatus,
+    payoutsEnabled: z.boolean(),
+  }),
+  profile: z.object({
+    isPublicReady: z.boolean(),
+  }),
+  referrals: z.object({
+    inviteSent: z.boolean(),
+  }),
+});
+
+export const platformInviteBodySchema = z.object({
+  email: z.string().trim().email().max(320),
+});
+
+export const platformInviteResponseSchema = z.object({
+  alreadyInvited: z.boolean(),
+  message: z.string(),
+  sent: z.boolean(),
+});
+
 export const createSellerAccountLinkBodySchema = z.object({
   refreshUrl: z.url().optional(),
   returnUrl: z.url().optional(),

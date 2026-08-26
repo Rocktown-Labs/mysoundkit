@@ -103,8 +103,9 @@ export function InviteMemberDialog({
             Invite Team Member
           </DialogTitle>
           <DialogDescription>
-            Add a new member to your professional team to help manage your
-            career.
+            Add a manager, engineer, or social media teammate to help run your
+            artist workspace. Use the dashboard guide to invite friends to
+            SoundKit.
           </DialogDescription>
         </DialogHeader>
 

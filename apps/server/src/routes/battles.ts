@@ -1337,6 +1337,19 @@ app.openapi(
       );
     }
 
+    const entitlements = await resolveEntitlements({
+      session: isAuthenticatedSession(c.get("session"))
+        ? c.get("session")
+        : null,
+      user,
+    });
+    if (!entitlements.canCreateLiveBattles) {
+      return c.json(
+        { message: "Artist Premium is required to create Battle Kits." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
     const body = c.req.valid("json"),
       validationMessage = validateBattleKitTracks({
         format: body.format,
@@ -1473,6 +1486,19 @@ app.openapi(
       return c.json(
         { message: "Battle Kit not found." },
         HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const entitlements = await resolveEntitlements({
+      session: isAuthenticatedSession(c.get("session"))
+        ? c.get("session")
+        : null,
+      user,
+    });
+    if (!entitlements.canCreateLiveBattles) {
+      return c.json(
+        { message: "Artist Premium is required to update Battle Kits." },
+        HttpStatusCodes.FORBIDDEN
       );
     }
 

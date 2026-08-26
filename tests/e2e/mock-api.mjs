@@ -759,6 +759,70 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (
+      url.pathname === "/v1/artist-setup-guide" ||
+      url.pathname === "/v1/artist-setup-guide/"
+    ) {
+      const complete = session === "complete" || session === "admin";
+      json(
+        response,
+        200,
+        {
+          battleKits: {
+            canStart: complete,
+            count: complete ? 1 : 0,
+            minimumReleasedTracks: 4,
+          },
+          capabilities: {
+            canCreateLiveBattles: complete,
+            canHostLiveStreams: complete,
+            canOperatePaidCommunity: complete,
+            canReceivePayouts: complete,
+            canSellProducts: complete,
+            isPremium: complete,
+          },
+          catalog: {
+            hasPlayablePublicRelease: complete,
+            hasProject: complete,
+            hasSellableItem: complete,
+            hasTrack: complete,
+            releasedPlayableTrackCount: complete ? 4 : 0,
+            trackCount: complete ? 4 : 0,
+          },
+          community: { hasOwnedCommunity: complete },
+          creatorTools: {
+            hasLiveExperience: complete,
+            hasOpenVerse: complete,
+            hasVideo: complete,
+          },
+          monetization: {
+            chargesEnabled: complete,
+            detailsSubmitted: complete,
+            onboardingStatus: complete ? "enabled" : "not_started",
+            payoutsEnabled: complete,
+          },
+          profile: { isPublicReady: true },
+          referrals: { inviteSent: complete },
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/referrals/invite") {
+      json(
+        response,
+        200,
+        {
+          alreadyInvited: false,
+          message: "Invitation sent.",
+          sent: true,
+        },
+        webOrigin
+      );
+      return;
+    }
+
     if (url.pathname === "/v1/me" || url.pathname === "/v1/me/") {
       const user = mockUser(session);
 

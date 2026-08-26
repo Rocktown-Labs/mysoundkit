@@ -416,6 +416,7 @@ function DashboardLiveStreamsPage() {
   return (
     <LiveExperienceAuthGuard
       actionLabel="create live streams, get RTMP keys, or host broadcasts"
+      allowFreeArtist
       featureTitle="Live Streams Control Room"
       requiredEntitlement="canHostLiveStreams"
     >
@@ -868,9 +869,9 @@ function ControlRoom({
             variant={
               statusLabel === "Live"
                 ? "destructive"
-                : (statusLabel === "Error"
+                : statusLabel === "Error"
                   ? "destructive"
-                  : "outline")
+                  : "outline"
             }
           >
             {statusLabel}
@@ -899,9 +900,9 @@ function ControlRoom({
                   {statusLabel === "Error"
                     ? activeStream.errorMessage ||
                       "Cloudflare rejected the ingest. Check your encoder settings and try again."
-                    : (statusLabel === "Reconnecting"
+                    : statusLabel === "Reconnecting"
                       ? "OBS disconnected briefly. The room is holding your broadcast open while you reconnect."
-                      : "Connect OBS to begin the broadcast. You will not appear as live until Cloudflare confirms the input is connected.")}
+                      : "Connect OBS to begin the broadcast. You will not appear as live until Cloudflare confirms the input is connected."}
                 </p>
               </>
             )}

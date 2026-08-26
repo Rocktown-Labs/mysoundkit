@@ -1,18 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BadgeCheck, FolderOpen, Music, Sparkles, Users } from "lucide-react";
 
 import { PremiumActivationCard } from "@/components/billing/premium-activation-card";
+import { ArtistSetupGuide } from "@/components/dashboard/artist-setup-guide";
 import { ProjectsOverview } from "@/components/dashboard/projects-overview";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { StatsGrid } from "@/components/dashboard/stats-grid";
 import { UpcomingReleases } from "@/components/dashboard/upcoming-releases";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { API_V1_URL } from "@/lib/api";
 import {
+  useArtistSetupGuideQuery,
   useMeEntitlementsQuery,
   useMeQuery,
   useProjectsQuery,
@@ -35,23 +34,9 @@ function DashboardPage() {
     entitlementsQuery = useMeEntitlementsQuery(),
     tracksQuery = useTracksQuery(),
     projectsQuery = useProjectsQuery(),
+    setupGuideQuery = useArtistSetupGuideQuery(),
     entitlements = entitlementsQuery.data,
     isPremium = Boolean(entitlements?.isPremium),
-    sellerStatusQuery = useQuery({
-      enabled: isPremium,
-      queryFn: async () => {
-        const response = await fetch(`${API_V1_URL}/seller/status`, {
-          credentials: "include",
-        });
-        if (!response.ok) {
-          return null;
-        }
-        return (await response.json()) as { onboardingStatus: string };
-      },
-      queryKey: ["seller", "status"],
-    }),
-    needsPaymentsSetup =
-      isPremium && sellerStatusQuery.data?.onboardingStatus !== "enabled",
     activePlanLabel = entitlements?.activePlanCode
       ? entitlements.activePlanCode.replaceAll("_", " ")
       : "SoundKit Free",
@@ -111,21 +96,6 @@ function DashboardPage() {
   return (
     <div className="space-y-8 pb-8">
       {upgraded ? <PremiumActivationCard accountType="artist" /> : null}
-      {needsPaymentsSetup ? (
-        <Alert className="border-primary/30 bg-primary/5">
-          <BadgeCheck className="size-4" />
-          <AlertTitle>Finish setting up artist payments</AlertTitle>
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-            <span>
-              Connect with Stripe before fans can purchase your releases or send
-              tips.
-            </span>
-            <Button asChild size="sm">
-              <Link to="/dashboard/career/payments">Set up payments</Link>
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : null}
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
@@ -178,6 +148,12 @@ function DashboardPage() {
           />
         </div>
       </div>
+      {setupGuideQuery.data && meQuery.data?.user.id ? (
+        <ArtistSetupGuide
+          state={setupGuideQuery.data}
+          userId={meQuery.data.user.id}
+        />
+      ) : null}
     </div>
   );
 }

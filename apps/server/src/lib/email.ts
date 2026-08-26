@@ -25,6 +25,7 @@ export type TransactionalEmailTemplate =
   | "open_verse_closing"
   | "open_verse_submitted"
   | "org_invite"
+  | "platform_invite"
   | "purchase_receipt"
   | "sale_notification"
   | "track_ready"

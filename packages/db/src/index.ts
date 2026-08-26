@@ -8,6 +8,7 @@ import * as commerceSchema from "./schema/commerce";
 import * as communitiesSchema from "./schema/communities";
 import * as paymentsSchema from "./schema/payments";
 import * as plansSchema from "./schema/plans";
+import * as referralsSchema from "./schema/referrals";
 
 const schema = {
   ...appSchema,
@@ -16,6 +17,7 @@ const schema = {
   ...communitiesSchema,
   ...paymentsSchema,
   ...plansSchema,
+  ...referralsSchema,
 };
 
 let db: ReturnType<typeof drizzle> | null = null,

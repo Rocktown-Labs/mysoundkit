@@ -56,6 +56,7 @@ import adminRoutes from "@/routes/admin";
 import adminFinanceRoutes from "@/routes/admin-finance";
 import adsRoutes from "@/routes/ads";
 import analyticsRoutes from "@/routes/analytics";
+import artistSetupGuideRoutes from "@/routes/artist-setup-guide";
 import artistsRoutes from "@/routes/artists";
 import authRoutes from "@/routes/auth";
 import battlesRoutes from "@/routes/battles";
@@ -77,6 +78,7 @@ import openVersesRoutes from "@/routes/open-verses";
 import paymentsRoutes from "@/routes/payments";
 import presenceRoutes from "@/routes/presence";
 import projectsRoutes from "@/routes/projects";
+import referralsRoutes from "@/routes/referrals";
 import searchRoutes from "@/routes/search";
 import sellerRoutes from "@/routes/seller";
 import socialRoutes from "@/routes/social";
@@ -231,6 +233,7 @@ app
   .route("/v1/artists", artistsRoutes)
   .route("/v1/tracks", tracksRoutes)
   .route("/v1/projects", projectsRoutes)
+  .route("/v1/referrals", referralsRoutes)
   .route("/v1/search", searchRoutes)
   .route("/v1/videos", videosRoutes)
   .route("/v1/library", libraryRoutes)
@@ -250,6 +253,7 @@ app
   .route("/v1/admin/finance", adminFinanceRoutes)
   .route("/v1/ads", adsRoutes)
   .route("/v1/analytics", analyticsRoutes)
+  .route("/v1/artist-setup-guide", artistSetupGuideRoutes)
   .route("/v1/billing", billingRoutes)
   .route("/v1/seller", sellerRoutes)
   .route("/v1/battles", battlesRoutes)

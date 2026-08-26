@@ -13,12 +13,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { authClient } from "@/lib/auth-client";
-import { useMeEntitlementsQuery } from "@/lib/soundkit-api-hooks";
+import { useMeEntitlementsQuery, useMeQuery } from "@/lib/soundkit-api-hooks";
 
 interface LiveExperienceAuthGuardProps {
   actionLabel?: string;
   children: React.ReactNode;
   featureTitle?: string;
+  allowFreeArtist?: boolean;
   requiredEntitlement?:
     | "canCreateLiveBattles"
     | "canHostLiveStreams"
@@ -27,26 +28,30 @@ interface LiveExperienceAuthGuardProps {
 
 export function LiveExperienceAuthGuard({
   actionLabel = "access live experience features",
+  allowFreeArtist = false,
   children,
   featureTitle = "SoundKit Live Studio",
   requiredEntitlement = "isPremium",
 }: LiveExperienceAuthGuardProps) {
   const { data: session, isPending: isSessionLoading } =
       authClient.useSession(),
+    meQuery = useMeQuery(),
     entitlementsQuery = useMeEntitlementsQuery(),
     user = session?.user,
     entitlements = entitlementsQuery.data;
 
   // While loading session, show children or fallback
-  if (isSessionLoading || entitlementsQuery.isLoading) {
+  if (isSessionLoading || entitlementsQuery.isLoading || meQuery.isLoading) {
     return <>{children}</>;
   }
 
   const isAuthenticated = Boolean(user),
+    isArtist = meQuery.data?.user.accountType === "artist",
     hasEntitlement = Boolean(
-      entitlements && requiredEntitlement in entitlements
+      (entitlements && requiredEntitlement in entitlements
         ? entitlements[requiredEntitlement]
-        : entitlements?.isPremium
+        : entitlements?.isPremium) ||
+      (allowFreeArtist && isArtist)
     );
 
   // If authenticated and has entitlement, render children
