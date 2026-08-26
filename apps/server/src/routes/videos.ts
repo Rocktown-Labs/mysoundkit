@@ -365,20 +365,7 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-      session = c.get("session"),
-      entitlements = await resolveEntitlements({
-        session: isAuthenticatedSession(session) ? session : null,
-        user,
-      });
-
-    if (body.sourceProvider === "mux" && !entitlements.isPremium) {
-      return c.json(
-        forbiddenMessage(
-          "A premium artist subscription is required to upload official music videos."
-        ),
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
+      session = c.get("session");
 
     if (!isDatabaseConfigured()) {
       return c.json(

@@ -140,6 +140,8 @@ const meGet = apiClient.v1.me.index.$get,
   sellerAccountLinkPost = apiClient.v1.seller["account-link"].$post,
   sellerAccountSessionPost = apiClient.v1.seller["account-session"].$post,
   sellerStatusGet = apiClient.v1.seller.status.$get,
+  artistSetupGuideGet = apiClient.v1["artist-setup-guide"].index.$get,
+  platformInvitePost = apiClient.v1.referrals.invite.$post,
   battleStatsGet = apiClient.v1.battles.stats.$get,
   trackBattleHistoryGet =
     apiClient.v1.battles["track-history"][":trackId"].$get,
@@ -223,6 +225,14 @@ export type SellerAccountSession = InferResponseType<
   200
 >;
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
+export type ArtistSetupGuide = InferResponseType<
+  typeof artistSetupGuideGet,
+  200
+>;
+export type PlatformInviteResponse = InferResponseType<
+  typeof platformInvitePost,
+  200
+>;
 export type MeSummary = InferResponseType<typeof meGet, 200>;
 type EntitlementSummary = InferResponseType<typeof meEntitlementsGet, 200>;
 type BillingCheckoutBody = InferRequestType<typeof billingCheckoutPost>["json"];
@@ -440,6 +450,7 @@ export const soundkitQueryKeys = {
     ["projects", "public", query ?? {}] as const,
   search: (query: SearchQuery) => ["search", query] as const,
   sellerStatus: ["seller", "status"] as const,
+  artistSetupGuide: ["artist-setup-guide"] as const,
   track: (id: string) => ["tracks", id] as const,
   trackBattleHistory: (trackId: string) =>
     ["battles", "track-history", trackId] as const,
@@ -868,8 +879,8 @@ export const useRespondFriendRequestMutation = () => {
           soundkitQueryKeys.network
         ),
         request = previousRequests?.find((item) => item.id === requestId),
-       removeRequest = (requests: FriendRequestSummary[] = []) =>
-        requests.filter((item) => item.id !== requestId);
+        removeRequest = (requests: FriendRequestSummary[] = []) =>
+          requests.filter((item) => item.id !== requestId);
       queryClient.setQueryData<FriendRequestSummary[]>(
         soundkitQueryKeys.friendRequests,
         (requests = []) =>
@@ -2396,6 +2407,26 @@ export const useSellerAccountLinkMutation = () =>
     ): Promise<SellerAccountLinkResponse> =>
       rpcJson(await sellerAccountLinkPost({ json: body })),
   });
+
+export const useArtistSetupGuideQuery = () =>
+  useQuery<ArtistSetupGuide>({
+    queryFn: async () => rpcJson(await artistSetupGuideGet()),
+    queryKey: soundkitQueryKeys.artistSetupGuide,
+    staleTime: 30_000,
+  });
+
+export const usePlatformInviteMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (email: string): Promise<PlatformInviteResponse> =>
+      rpcJson(await platformInvitePost({ json: { email } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.artistSetupGuide,
+      }),
+  });
+};
 
 export const useBattleStatsQuery = () =>
   useQuery({

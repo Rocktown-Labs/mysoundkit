@@ -1,7 +1,6 @@
 import { usePostHog } from "@posthog/react";
 import { useEffect, useRef, useState } from "react";
 
-import { PremiumWorkspaceInviteCard } from "@/components/billing/premium-workspace-invite-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
@@ -54,7 +53,15 @@ export function PremiumActivationCard({
   }, [attempt, isSettled, refetch]);
 
   if (isPremium) {
-    return <PremiumWorkspaceInviteCard accountType={accountType} />;
+    return (
+      <Alert className="border-emerald-500/30 bg-emerald-500/10">
+        <AlertTitle>SoundKit Premium is active</AlertTitle>
+        <AlertDescription>
+          Your Premium creator tools are ready. Continue building your catalog
+          and audience from the dashboard.
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   if (isSettled) {

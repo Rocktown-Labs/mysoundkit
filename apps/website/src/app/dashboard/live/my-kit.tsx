@@ -40,6 +40,7 @@ import {
   useBattleKitsQuery,
   useCreateBattleKitMutation,
   useDeleteBattleKitMutation,
+  useMeEntitlementsQuery,
   useTracksQuery,
   useUpdateBattleKitMutation,
 } from "@/lib/soundkit-api-hooks";
@@ -67,12 +68,14 @@ function MyKitPage() {
     createKit = useCreateBattleKitMutation(),
     updateKit = useUpdateBattleKitMutation(),
     deleteKit = useDeleteBattleKitMutation(),
+    entitlementsQuery = useMeEntitlementsQuery(),
     [editingKitId, setEditingKitId] = useState<string | null>(null),
     editingKit = kitsQuery.data?.find((kit) => kit.id === editingKitId),
     releasedTracks = useMemo(
       () => (tracksQuery.data ?? []).filter(isReleasedTrack),
       [tracksQuery.data]
-    );
+    ),
+    canCreateBattleKits = entitlementsQuery.data?.canCreateLiveBattles === true;
 
   if (editingKitId !== null) {
     return (
@@ -137,7 +140,7 @@ function MyKitPage() {
             </Link>
           </Button>
           <Button
-            disabled={tracksQuery.data?.length === 0}
+            disabled={!canCreateBattleKits || releasedTracks.length < 4}
             onClick={() => setEditingKitId("new")}
           >
             <Plus data-icon="inline-start" />
@@ -170,13 +173,15 @@ function MyKitPage() {
               Build your first Battle Kit
             </h2>
             <p className="max-w-lg text-sm text-muted-foreground">
-              {tracks.length === 0
-                ? "Upload and release music before creating a Battle Kit."
-                : releasedTracks.length < 4
-                  ? `You currently have ${releasedTracks.length} eligible track${releasedTracks.length === 1 ? "" : "s"}. A BO3 kit requires 4 including the tiebreaker.`
-                  : "Give a named set of songs a home, then take it into your next battle."}
+              {!canCreateBattleKits
+                ? "Battle Kits are available with Artist Premium. You can keep building your catalog on the Free plan."
+                : tracks.length === 0
+                  ? "Upload and release music before creating a Battle Kit."
+                  : releasedTracks.length < 4
+                    ? `You currently have ${releasedTracks.length} eligible track${releasedTracks.length === 1 ? "" : "s"}. A BO3 kit requires 4 released, playable tracks.`
+                    : "Give a named set of songs a home, then take it into your next battle."}
             </p>
-            {releasedTracks.length > 0 && (
+            {releasedTracks.length >= 4 && canCreateBattleKits && (
               <Button onClick={() => setEditingKitId("new")}>
                 <Plus data-icon="inline-start" />
                 Create your first kit

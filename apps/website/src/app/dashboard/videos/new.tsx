@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import {
   ChevronLeft,
   ChevronRight,
@@ -7,7 +7,6 @@ import {
   FolderOpen,
   Info,
   LoaderCircle,
-  Lock,
   Music,
   Search,
   Settings,
@@ -15,7 +14,6 @@ import {
   Upload,
   X,
   Youtube,
-  Zap,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
@@ -56,7 +54,6 @@ import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
 import {
   useGenresQuery,
-  useMeEntitlementsQuery,
   useProjectsQuery,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
@@ -108,29 +105,6 @@ export const Route = createFileRoute("/dashboard/videos/new")({
   component: NewVideoPage,
 });
 
-function PremiumUploadUpsell() {
-  return (
-    <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-card via-card/90 to-primary/5 p-6 text-center space-y-4">
-      <div className="mx-auto size-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-        <Zap className="size-6" />
-      </div>
-      <div className="space-y-1">
-        <h3 className="font-bold text-lg">Verified uploads require Premium</h3>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto">
-          Upgrade to a Premium Artist subscription to upload music videos hosted
-          on SoundKit with Mux transcoding and verified badges.
-        </p>
-      </div>
-      <Button asChild className="shadow-md">
-        <Link to="/library/settings">
-          <Zap className="mr-2 size-4" />
-          Upgrade Account
-        </Link>
-      </Button>
-    </div>
-  );
-}
-
 function SelectedVideoFile({
   onClearFile,
   videoFile,
@@ -181,20 +155,12 @@ function SelectedVideoFile({
 }
 
 function VideoSourcePanel({
-  isEntitlementsLoading,
-  isPremium,
   onFileSelected,
   videoFile,
 }: {
-  isEntitlementsLoading: boolean;
-  isPremium: boolean;
   onFileSelected: (file: File | null) => void;
   videoFile: File | null;
 }) {
-  if (isPremium === false && !isEntitlementsLoading) {
-    return <PremiumUploadUpsell />;
-  }
-
   if (videoFile) {
     return (
       <SelectedVideoFile
@@ -337,12 +303,9 @@ function NewVideoPage() {
     [uploadProgress, setUploadProgress] = useState<number | null>(null),
     [videoFile, setVideoFile] = useState<File | null>(null),
     [historySearch, setHistorySearch] = useState(""),
-    { data: entitlements, isLoading: isEntitlementsLoading } =
-      useMeEntitlementsQuery(),
     projectsQuery = useProjectsQuery(),
     tracksQuery = useTracksQuery(undefined, { scope: "dashboard" }),
     genresQuery = useGenresQuery(),
-    isPremium = entitlements?.isPremium ?? true,
     form = useForm<VideoFormValues>({
       defaultValues: {
         description: "",
@@ -364,9 +327,9 @@ function NewVideoPage() {
           .map((genre) =>
             typeof genre === "string"
               ? genre
-              : (typeof genre === "object" && genre && "name" in genre
+              : typeof genre === "object" && genre && "name" in genre
                 ? String(genre.name)
-                : null)
+                : null
           )
           .filter((genre): genre is string => Boolean(genre))
       : [...SUPPORTED_GENRES],
@@ -426,15 +389,6 @@ function NewVideoPage() {
         toast({
           description: "Please select a video file to upload.",
           title: "File Required",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (values.sourceType === "upload" && !isPremium) {
-        toast({
-          description: "A premium artist subscription is required to upload.",
-          title: "Premium Required",
           variant: "destructive",
         });
         return;
@@ -797,16 +751,9 @@ function NewVideoPage() {
                           <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 h-12 mb-6">
                             <TabsTrigger
                               value="upload"
-                              disabled={
-                                isPremium === false && !isEntitlementsLoading
-                              }
                               className="flex items-center gap-2 data-[state=active]:bg-background"
                             >
-                              {isPremium === false && !isEntitlementsLoading ? (
-                                <Lock className="size-4" />
-                              ) : (
-                                <Upload className="size-4" />
-                              )}
+                              <Upload className="size-4" />
                               Direct Upload
                             </TabsTrigger>
                             <TabsTrigger
@@ -823,8 +770,6 @@ function NewVideoPage() {
                             className="space-y-6 mt-0"
                           >
                             <VideoSourcePanel
-                              isEntitlementsLoading={isEntitlementsLoading}
-                              isPremium={isPremium}
                               onFileSelected={onFileSelected}
                               videoFile={videoFile}
                             />

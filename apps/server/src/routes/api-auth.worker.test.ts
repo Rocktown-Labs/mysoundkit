@@ -20,6 +20,10 @@ const API_ORIGIN = "http://soundkit.test",
     path: string;
   }[] = [
     {
+      label: "artist setup guide",
+      path: "/v1/artist-setup-guide",
+    },
+    {
       label: "current profile",
       path: "/v1/me",
     },
@@ -128,6 +132,11 @@ const API_ORIGIN = "http://soundkit.test",
       }),
       label: "community creation",
       path: "/v1/communities",
+    },
+    {
+      init: jsonRequest({ email: "friend@example.com" }),
+      label: "platform friend invitation",
+      path: "/v1/referrals/invite",
     },
     {
       init: jsonRequest({}),

@@ -18,5 +18,6 @@ export default defineConfig({
     "./src/schema/communities.ts",
     "./src/schema/payments.ts",
     "./src/schema/plans.ts",
+    "./src/schema/referrals.ts",
   ],
 });

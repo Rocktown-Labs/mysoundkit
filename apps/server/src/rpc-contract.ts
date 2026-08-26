@@ -39,6 +39,7 @@ import {
   updateOnboardingStateBodySchema,
   openVerseQuerySchema,
   playbackProgressBodySchema,
+  platformInviteBodySchema,
   artistRankingQuerySchema,
   profileUpdateBodySchema,
   publicExploreQuerySchema,
@@ -103,6 +104,7 @@ import type {
   planSchema,
   projectDashboardDetailSchema,
   publicSearchResultSchema,
+  artistSetupGuideSchema,
   projectSummarySchema,
   purchasedCatalogDetailSchema,
   purchasedCatalogItemSchema,
@@ -118,6 +120,7 @@ import type {
   workspaceDetailSchema,
   workspaceSummarySchema,
   onboardingStateSchema,
+  platformInviteResponseSchema,
 } from "./lib/schemas";
 
 const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
@@ -1287,6 +1290,12 @@ export const rpcContract = new Hono()
   )
   .post("/v1/seller/account-session", (c) =>
     c.json({} as z.infer<typeof sellerAccountSessionSchema>)
+  )
+  .get("/v1/artist-setup-guide/", (c) =>
+    c.json({} as z.infer<typeof artistSetupGuideSchema>)
+  )
+  .post("/v1/referrals/invite", jsonValidator(platformInviteBodySchema), (c) =>
+    c.json({} as z.infer<typeof platformInviteResponseSchema>)
   )
   .get("/v1/seller/status", (c) =>
     c.json({} as z.infer<typeof sellerStatusSchema>)

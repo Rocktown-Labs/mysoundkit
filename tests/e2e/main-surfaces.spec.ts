@@ -298,6 +298,10 @@ test.describe("main application surfaces", () => {
     context,
     page,
   }) => {
+    // The dashboard shell and live route are code-split; on a cold Vite server,
+    // dependency discovery can take longer than the suite's default timeout.
+    test.setTimeout(90_000);
+
     await context.addCookies([
       {
         domain: cookieDomain,
@@ -307,13 +311,14 @@ test.describe("main application surfaces", () => {
       },
     ]);
 
-    await gotoWithViteRetry(page, "/dashboard/live/challenge");
+    await gotoWithViteRetry(page, "/dashboard/live/battles");
 
     await expect(
-      page.getByRole("heading", { name: "Battle Requests" })
+      page.getByText(/Battle Requests & Challenges/i).first()
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(
+      page.getByText(/Review incoming challenge requests/i)
     ).toBeVisible();
-    await expect(page.getByText("BattleBot handoff")).toBeVisible();
-    await expect(page.getByText("Next-round lobby")).toBeVisible();
 
     await gotoWithViteRetry(page, "/dashboard/live/parties");
     await expect(
