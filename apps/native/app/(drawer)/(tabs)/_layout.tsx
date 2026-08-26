@@ -1,7 +1,9 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { Tabs } from "expo-router";
 
 import { TabBarIcon } from "@/components/tabbar-icon";
 import { NAV_THEME } from "@/lib/constants";
+import { NATIVE_TAB_ROUTES } from "@/lib/route-manifest";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 export default function TabLayout() {
@@ -20,22 +22,18 @@ export default function TabLayout() {
         },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
-          title: "Home",
-        }}
-      />
-      <Tabs.Screen
-        name="two"
-        options={{
-          tabBarIcon: ({ color }) => (
-            <TabBarIcon name="compass" color={color} />
-          ),
-          title: "Explore",
-        }}
-      />
+      {NATIVE_TAB_ROUTES.map((route) => (
+        <Tabs.Screen
+          key={route.id}
+          name={route.id === "explore" ? "index" : route.id}
+          options={{
+            tabBarIcon: ({ color }) => (
+              <TabBarIcon color={color} name={route.icon} />
+            ),
+            title: route.title,
+          }}
+        />
+      ))}
     </Tabs>
   );
 }

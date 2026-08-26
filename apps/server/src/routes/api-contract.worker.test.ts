@@ -4,6 +4,12 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 
+import { rpcContract } from "@/rpc-contract";
+import {
+  additionalClientRpcOperations,
+  rpcTransportExclusions,
+} from "@/rpc-contract-policy";
+
 const API_ORIGIN = "http://soundkit.test",
   jsonRequest = (body: unknown, method = "POST"): RequestInit => ({
     body: JSON.stringify(body),
@@ -18,6 +24,12 @@ const API_ORIGIN = "http://soundkit.test",
 
     return { body, response };
   },
+  normalizeOperationPath = (path: string) =>
+    path
+      .replaceAll(/\{(?<parameter>[^}]+)\}/gu, ":$<parameter>")
+      .replace(/\/$/u, ""),
+  operationKey = (method: string, path: string) =>
+    `${method.toUpperCase()} ${normalizeOperationPath(path)}`,
   publicReadCases = [
     ["/v1/artists", "array"],
     ["/v1/artists/luna-eclipse", "object"],
@@ -29,8 +41,6 @@ const API_ORIGIN = "http://soundkit.test",
     ["/v1/projects/project_after_dark", "object"],
     ["/v1/videos", "array"],
     ["/v1/videos/video_midnight_vibes_mv", "object"],
-    ["/v1/playlists", "array"],
-    ["/v1/playlists/playlist_after_hours", "object"],
     ["/v1/battles", "array"],
     ["/v1/battles/battle_west_coast_showdown", "object"],
     ["/v1/library/recent", "array"],
@@ -38,7 +48,6 @@ const API_ORIGIN = "http://soundkit.test",
     ["/v1/library/watched", "array"],
     ["/v1/library/playlists", "array"],
     ["/v1/library/purchases", "array"],
-    ["/v1/social/posts/post_1/comments", "array"],
     ["/v1/analytics/overview", "object"],
   ] as const,
   expectedOpenApiOperations = [
@@ -113,11 +122,8 @@ const API_ORIGIN = "http://soundkit.test",
     ["post", "/v1/onboarding/fan"],
     ["get", "/v1/onboarding/username-availability"],
     ["delete", "/v1/open-verses/{listingId}"],
-    ["get", "/v1/playlists"],
-    ["post", "/v1/playlists"],
     ["post", "/v1/payments/checkout"],
     ["post", "/v1/payments/tips"],
-    ["get", "/v1/playlists/{playlistId}"],
     ["get", "/v1/projects"],
     ["post", "/v1/projects"],
     ["delete", "/v1/projects/{projectId}"],
@@ -125,9 +131,6 @@ const API_ORIGIN = "http://soundkit.test",
     ["patch", "/v1/projects/{projectId}"],
     ["post", "/v1/seller/account-link"],
     ["get", "/v1/seller/status"],
-    ["get", "/v1/social/posts/{postId}/comments"],
-    ["post", "/v1/social/posts/{postId}/comments"],
-    ["post", "/v1/social/posts/{postId}/likes"],
     ["delete", "/v1/social/artists/{username}/follow"],
     ["delete", "/v1/social/profiles/{username}/follow"],
     ["get", "/v1/tracks"],
@@ -206,6 +209,40 @@ describe("SoundKit API HTTP contracts", () => {
     }
   });
 
+  it("keeps the typed RPC contract aligned with client-facing routes", async () => {
+    const { body, response } = await fetchJson<{
+        paths: Record<string, Record<string, unknown>>;
+      }>("/api/openapi.json"),
+      excludedOperations = new Set(Object.keys(rpcTransportExclusions)),
+      openApiOperations = Object.entries(body.paths).flatMap(
+        ([path, methods]) =>
+          Object.keys(methods).map((method) => operationKey(method, path))
+      ),
+      expectedOperations = new Set([
+        ...openApiOperations.filter(
+          (operation) => !excludedOperations.has(operation)
+        ),
+        ...additionalClientRpcOperations,
+      ]),
+      contractOperations = new Set(
+        rpcContract.routes
+          .filter((route) =>
+            ["DELETE", "GET", "PATCH", "POST", "PUT"].includes(route.method)
+          )
+          .map((route) => operationKey(route.method, route.path))
+      ),
+      missingOperations = [...expectedOperations].filter(
+        (operation) => !contractOperations.has(operation)
+      ),
+      staleOperations = [...contractOperations].filter(
+        (operation) => !expectedOperations.has(operation)
+      );
+
+    expect(response.status).toBe(200);
+    expect(missingOperations).toEqual([]);
+    expect(staleOperations).toEqual([]);
+  });
+
   it("returns an honest empty notification feed without authentication", async () => {
     const { body, response } = await fetchJson<{
       items: unknown[];
@@ -237,7 +274,7 @@ describe("SoundKit API HTTP contracts", () => {
         fetchJson<{ requestId: string }>("/health", {
           headers: { "x-request-id": "rid_success" },
         }),
-        fetchJson<{ requestId: string }>("/v1/playlists", {
+        fetchJson<{ requestId: string }>("/v1/library/playlists", {
           body: "not-json",
           headers: {
             "content-type": "application/json",
@@ -482,42 +519,20 @@ describe("SoundKit public read API", () => {
 });
 
 describe("SoundKit public write API", () => {
-  it("creates a playlist from a validated JSON request", async () => {
-    const { body, response } = await fetchJson<{
-      description: string | null;
-      id: string;
-      isPublic: boolean;
-      title: string;
-      trackCount: number;
-    }>(
-      "/v1/playlists",
-      jsonRequest({
-        isPublic: true,
-        title: "Test Listening Queue",
-      })
-    );
+  it("retires legacy playlist and social-post writes", async () => {
+    const [playlistResult, socialPostResult] = await Promise.all([
+      fetchJson<{ message: string }>(
+        "/v1/playlists",
+        jsonRequest({ isPublic: true, title: "Legacy playlist" })
+      ),
+      fetchJson<{ message: string }>(
+        "/v1/social/posts/post_1/comments",
+        jsonRequest({ body: "Legacy comment" })
+      ),
+    ]);
 
-    expect(response.status).toBe(201);
-    expect(body).toEqual({
-      description: null,
-      id: "playlist_new",
-      isPublic: true,
-      title: "Test Listening Queue",
-      trackCount: 0,
-    });
-  });
-
-  it("creates social comments from a validated JSON request", async () => {
-    const commentResult = await fetchJson<{ body: string; id: string }>(
-      "/v1/social/posts/post_1/comments",
-      jsonRequest({ body: "Strong hook." })
-    );
-
-    expect(commentResult.response.status).toBe(201);
-    expect(commentResult.body).toMatchObject({
-      body: "Strong hook.",
-      id: "comment_new",
-    });
+    expect(playlistResult.response.status).toBe(404);
+    expect(socialPostResult.response.status).toBe(404);
   });
 
   it("accepts onboarding payloads in the storage-free development environment", async () => {
@@ -656,8 +671,6 @@ describe("SoundKit public write API", () => {
 
 describe("SoundKit API input validation", () => {
   it.each([
-    ["/v1/playlists", { title: "" }],
-    ["/v1/social/posts/post_1/comments", { body: "" }],
     ["/v1/messages/conversations", { participantUserIds: [] }],
     ["/v1/onboarding/fan", { username: "x" }],
     ["/v1/onboarding/artist", { username: "bad-name" }],
@@ -676,7 +689,7 @@ describe("SoundKit API input validation", () => {
       code: string;
       message: string;
       requestId: string;
-    }>("/v1/playlists", {
+    }>("/v1/library/playlists", {
       body: "not json",
       headers: {
         "content-type": "application/json",

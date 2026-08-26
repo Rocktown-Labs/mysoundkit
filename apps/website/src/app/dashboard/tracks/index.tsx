@@ -11,6 +11,7 @@ import {
   PlayCircle,
   Plus,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -47,6 +48,7 @@ import { privatePreviewQueue } from "@/lib/player-queue";
 import {
   useDeleteTrackMutation,
   useMeQuery,
+  useRecoverTrackMutation,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 import { getDashboardTracks } from "@/lib/soundkit.functions";
@@ -77,6 +79,7 @@ function TracksPage() {
   const initialTracks = Route.useLoaderData(),
     { data: tracks = [], error, isLoading } = useTracksQuery(initialTracks),
     deleteTrackMutation = useDeleteTrackMutation(),
+    recoverTrackMutation = useRecoverTrackMutation(),
     meQuery = useMeQuery(),
     { setCurrentTrack, setQueue } = useAudioPlayer(),
     [deleteCandidate, setDeleteCandidate] = useState<{
@@ -84,6 +87,10 @@ function TracksPage() {
       title: string;
     } | null>(null),
     [deleteConfirmation, setDeleteConfirmation] = useState(""),
+    [recentlyDeleted, setRecentlyDeleted] = useState<{
+      id: string;
+      title: string;
+    } | null>(null),
     [quickAction, setQuickAction] = useState<{
       action: "cover" | "credits" | "genre" | "status" | "swap";
       trackId: string;
@@ -192,6 +199,38 @@ function TracksPage() {
       </div>
 
       <StatsGrid stats={trackStats} />
+
+      {recentlyDeleted ? (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex items-center justify-between gap-4 p-4">
+            <p className="text-sm">
+              <span className="font-medium">{recentlyDeleted.title}</span> was
+              moved out of your catalog.
+            </p>
+            <Button
+              disabled={recoverTrackMutation.isPending}
+              onClick={async () => {
+                try {
+                  await recoverTrackMutation.mutateAsync(recentlyDeleted.id);
+                  toast({ title: "Track restored" });
+                  setRecentlyDeleted(null);
+                } catch {
+                  toast({
+                    description: "The track could not be restored.",
+                    title: "Recovery failed",
+                    variant: "destructive",
+                  });
+                }
+              }}
+              size="sm"
+              variant="outline"
+            >
+              <Undo2 className="size-4" data-icon="inline-start" />
+              Undo delete
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {isLoading && (
         <Card className="border-border/40 bg-card/50">
@@ -400,8 +439,8 @@ function TracksPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete track?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes the track and its dashboard record. Type
-              the track title to confirm.
+              This removes the track from your catalog. You can recover it
+              immediately after deletion. Type the track title to confirm.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2">
@@ -430,6 +469,7 @@ function TracksPage() {
                 }
                 try {
                   await deleteTrackMutation.mutateAsync(deleteCandidate.id);
+                  setRecentlyDeleted(deleteCandidate);
                   toast({
                     description: `"${deleteCandidate.title}" has been deleted.`,
                     title: "Track Deleted",

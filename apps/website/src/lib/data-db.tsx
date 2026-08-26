@@ -1,8 +1,10 @@
 /* eslint-disable one-var, sort-vars, react/preserve-manual-memoization, react/hook-use-state, typescript/no-invalid-void-type, promise/prefer-await-to-then, unicorn/prefer-ternary */
+import { BasicIndex } from "@tanstack/db";
 import { queryCollectionOptions } from "@tanstack/query-db-collection";
 import {
   createCollection,
   createOptimisticAction,
+  eq,
   useLiveInfiniteQuery,
   useLiveQuery,
 } from "@tanstack/react-db";
@@ -38,6 +40,25 @@ const notificationsGet = apiClient.v1.notifications.index.$get,
     apiClient.v1.library.playlists[":id"].tracks.$post,
   libraryPlaylistTrackDelete =
     apiClient.v1.library.playlists[":id"].tracks[":trackId"].$delete,
+  communitiesGet = apiClient.v1.communities.index.$get,
+  communityPost = apiClient.v1.communities.index.$post,
+  communityPatch = apiClient.v1.communities[":communityId"].$patch,
+  communityJoinPost = apiClient.v1.communities[":communityId"].join.$post,
+  communityPostsGet = apiClient.v1.communities[":communityId"].posts.$get,
+  communityPostsPost = apiClient.v1.communities[":communityId"].posts.$post,
+  communityMessagesGet = apiClient.v1.communities[":communityId"].messages.$get,
+  communityMessagesPost =
+    apiClient.v1.communities[":communityId"].messages.$post,
+  communityMembersGet = apiClient.v1.communities[":communityId"].members.$get,
+  communityBansGet = apiClient.v1.communities[":communityId"].bans.$get,
+  communityMemberPatch =
+    apiClient.v1.communities[":communityId"].members[":userId"].$patch,
+  communityMemberDelete =
+    apiClient.v1.communities[":communityId"].members[":userId"].$delete,
+  communityMemberBanPost =
+    apiClient.v1.communities[":communityId"].members[":userId"].ban.$post,
+  communityBanDelete =
+    apiClient.v1.communities[":communityId"].bans[":userId"].$delete,
   artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post,
   artistFollowDelete = apiClient.v1.social.artists[":username"].follow.$delete,
   notificationSchema = z.object({
@@ -77,6 +98,63 @@ const notificationsGet = apiClient.v1.notifications.index.$get,
     title: z.string(),
     trackCount: z.number(),
   }),
+  communityAuthorSchema = z.object({
+    avatarUrl: z.string().nullable(),
+    name: z.string(),
+    username: z.string(),
+  }),
+  communitySchema = z.object({
+    artist: communityAuthorSchema,
+    artistUserId: z.string(),
+    coverImageUrl: z.string().nullable(),
+    currency: z.string(),
+    description: z.string().nullable(),
+    genre: z
+      .object({ id: z.string(), name: z.string(), slug: z.string() })
+      .nullable(),
+    id: z.string(),
+    isMember: z.boolean(),
+    isOwner: z.boolean(),
+    memberCount: z.number().int().nonnegative(),
+    monthlyPriceCents: z.number().int().nonnegative(),
+    name: z.string(),
+    slug: z.string(),
+    updatedAt: z.string(),
+  }),
+  communityPostSchema = z.object({
+    author: communityAuthorSchema,
+    body: z.string().nullable(),
+    createdAt: z.string(),
+    id: z.string(),
+    isPinned: z.boolean(),
+    mediaUrl: z.string().nullable(),
+    metadata: z.unknown().nullable(),
+    postType: z.enum(["text", "image", "audio", "video", "poll"]),
+    userId: z.string(),
+  }),
+  communityMessageSchema = z.object({
+    author: communityAuthorSchema,
+    body: z.string(),
+    createdAt: z.string(),
+    id: z.string(),
+    userId: z.string(),
+  }),
+  communityMemberSchema = z.object({
+    avatarUrl: z.string().nullable(),
+    joinedAt: z.string(),
+    name: z.string(),
+    role: z.enum(["owner", "moderator", "member"]),
+    userId: z.string(),
+    username: z.string(),
+  }),
+  communityBanSchema = z.object({
+    avatarUrl: z.string().nullable(),
+    bannedAt: z.string(),
+    name: z.string(),
+    reason: z.string().nullable(),
+    userId: z.string(),
+    username: z.string(),
+  }),
   playlistTrackSchema = z.object({
     artist: z.string(),
     artistSlug: z.string(),
@@ -92,6 +170,11 @@ const notificationsGet = apiClient.v1.notifications.index.$get,
 export type DbNotification = z.infer<typeof notificationSchema>;
 export type DbVideoComment = z.infer<typeof videoCommentSchema>;
 export type DbFollowing = z.infer<typeof followingSchema>;
+export type DbCommunity = z.infer<typeof communitySchema>;
+export type DbCommunityPost = z.infer<typeof communityPostSchema>;
+export type DbCommunityMessage = z.infer<typeof communityMessageSchema>;
+export type DbCommunityMember = z.infer<typeof communityMemberSchema>;
+export type DbCommunityBan = z.infer<typeof communityBanSchema>;
 
 const notificationStatsSchema = z.object({
   id: z.literal("summary"),
@@ -99,7 +182,20 @@ const notificationStatsSchema = z.object({
 });
 
 interface DataCollections {
+  communities: ReturnType<typeof makeCommunitiesCollection>;
   following: ReturnType<typeof makeFollowingCollection>;
+  getCommunityBans: (
+    communityId: string
+  ) => ReturnType<typeof makeCommunityBansCollection>;
+  getCommunityMembers: (
+    communityId: string
+  ) => ReturnType<typeof makeCommunityMembersCollection>;
+  getCommunityMessages: (
+    communityId: string
+  ) => ReturnType<typeof makeCommunityMessagesCollection>;
+  getCommunityPosts: (
+    communityId: string
+  ) => ReturnType<typeof makeCommunityPostsCollection>;
   getComments: (
     videoId: string
   ) => ReturnType<typeof makeVideoCommentsCollection>;
@@ -131,8 +227,8 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
       offset: subset.offset ?? 0,
     };
   },
-  makeNotificationCollection = (queryClient: QueryClient, scopeKey: string) =>
-    createCollection(
+  makeNotificationCollection = (queryClient: QueryClient, scopeKey: string) => {
+    const collection = createCollection(
       queryCollectionOptions({
         enabled: scopeKey !== "anonymous",
         getKey: (notification) => notification.id,
@@ -154,7 +250,14 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         schema: notificationSchema,
         syncMode: "on-demand",
       })
-    ),
+    );
+
+    collection.createIndex((notification) => notification.createdAt, {
+      indexType: BasicIndex,
+      name: "notifications-created-at",
+    });
+    return collection;
+  },
   makeNotificationStatsCollection = (
     queryClient: QueryClient,
     scopeKey: string
@@ -274,6 +377,96 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         schema: playlistTrackSchema,
       })
     ),
+  makeCommunitiesCollection = (queryClient: QueryClient, scopeKey: string) =>
+    createCollection(
+      queryCollectionOptions({
+        getKey: (community) => community.id,
+        id: `soundkit-db-communities-${scopeKey}`,
+        queryClient,
+        queryFn: async () =>
+          rpcJson(
+            await communitiesGet({
+              query: {
+                access: "all",
+                genre: "all",
+                q: "",
+                sort: "activity-desc",
+              },
+            })
+          ),
+        queryKey: ["soundkit-db", scopeKey, "communities"],
+        schema: communitySchema,
+      })
+    ),
+  makeCommunityPostsCollection = (
+    queryClient: QueryClient,
+    scopeKey: string,
+    communityId: string
+  ) =>
+    createCollection(
+      queryCollectionOptions({
+        enabled: scopeKey !== "anonymous" && communityId.length > 0,
+        getKey: (post) => post.id,
+        id: `soundkit-db-community-posts-${scopeKey}-${communityId}`,
+        queryClient,
+        queryFn: async () =>
+          rpcJson(await communityPostsGet({ param: { communityId } })),
+        queryKey: ["soundkit-db", scopeKey, "community-posts", communityId],
+        schema: communityPostSchema,
+      })
+    ),
+  makeCommunityMessagesCollection = (
+    queryClient: QueryClient,
+    scopeKey: string,
+    communityId: string
+  ) =>
+    createCollection(
+      queryCollectionOptions({
+        enabled: scopeKey !== "anonymous" && communityId.length > 0,
+        getKey: (message) => message.id,
+        id: `soundkit-db-community-messages-${scopeKey}-${communityId}`,
+        queryClient,
+        queryFn: async () =>
+          rpcJson(await communityMessagesGet({ param: { communityId } })),
+        queryKey: ["soundkit-db", scopeKey, "community-messages", communityId],
+        refetchInterval: 3000,
+        schema: communityMessageSchema,
+      })
+    ),
+  makeCommunityMembersCollection = (
+    queryClient: QueryClient,
+    scopeKey: string,
+    communityId: string
+  ) =>
+    createCollection(
+      queryCollectionOptions({
+        enabled: scopeKey !== "anonymous" && communityId.length > 0,
+        getKey: (member) => member.userId,
+        id: `soundkit-db-community-members-${scopeKey}-${communityId}`,
+        queryClient,
+        queryFn: async () =>
+          rpcJson(await communityMembersGet({ param: { communityId } })),
+        queryKey: ["soundkit-db", scopeKey, "community-members", communityId],
+        schema: communityMemberSchema,
+      })
+    ),
+  makeCommunityBansCollection = (
+    queryClient: QueryClient,
+    scopeKey: string,
+    communityId: string
+  ) =>
+    createCollection(
+      queryCollectionOptions({
+        enabled: scopeKey !== "anonymous" && communityId.length > 0,
+        getKey: (ban) => ban.userId,
+        id: `soundkit-db-community-bans-${scopeKey}-${communityId}`,
+        queryClient,
+        queryFn: async () =>
+          rpcJson(await communityBansGet({ param: { communityId } })),
+        queryKey: ["soundkit-db", scopeKey, "community-bans", communityId],
+        schema: communityBanSchema,
+      })
+    ),
   makeFollowingCollection = (queryClient: QueryClient, scopeKey: string) =>
     createCollection(
       queryCollectionOptions({
@@ -299,10 +492,27 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         string,
         ReturnType<typeof makeVideoCommentsCollection>
       >(),
+      communityPosts = new Map<
+        string,
+        ReturnType<typeof makeCommunityPostsCollection>
+      >(),
+      communityMessages = new Map<
+        string,
+        ReturnType<typeof makeCommunityMessagesCollection>
+      >(),
+      communityMembers = new Map<
+        string,
+        ReturnType<typeof makeCommunityMembersCollection>
+      >(),
+      communityBans = new Map<
+        string,
+        ReturnType<typeof makeCommunityBansCollection>
+      >(),
       playlistTracks = new Map<
         string,
         ReturnType<typeof makePlaylistTracksCollection>
       >(),
+      communities = makeCommunitiesCollection(queryClient, scopeKey),
       notifications = makeNotificationCollection(queryClient, scopeKey),
       notificationStats = makeNotificationStatsCollection(
         queryClient,
@@ -324,6 +534,58 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         comments.set(videoId, collection);
         return collection;
       },
+      getCommunityPosts = (communityId: string) => {
+        const existing = communityPosts.get(communityId);
+        if (existing) {
+          return existing;
+        }
+        const collection = makeCommunityPostsCollection(
+          queryClient,
+          scopeKey,
+          communityId
+        );
+        communityPosts.set(communityId, collection);
+        return collection;
+      },
+      getCommunityMessages = (communityId: string) => {
+        const existing = communityMessages.get(communityId);
+        if (existing) {
+          return existing;
+        }
+        const collection = makeCommunityMessagesCollection(
+          queryClient,
+          scopeKey,
+          communityId
+        );
+        communityMessages.set(communityId, collection);
+        return collection;
+      },
+      getCommunityMembers = (communityId: string) => {
+        const existing = communityMembers.get(communityId);
+        if (existing) {
+          return existing;
+        }
+        const collection = makeCommunityMembersCollection(
+          queryClient,
+          scopeKey,
+          communityId
+        );
+        communityMembers.set(communityId, collection);
+        return collection;
+      },
+      getCommunityBans = (communityId: string) => {
+        const existing = communityBans.get(communityId);
+        if (existing) {
+          return existing;
+        }
+        const collection = makeCommunityBansCollection(
+          queryClient,
+          scopeKey,
+          communityId
+        );
+        communityBans.set(communityId, collection);
+        return collection;
+      },
       getPlaylistTracks = (playlistId: string) => {
         const existing = playlistTracks.get(playlistId);
         if (existing) {
@@ -338,6 +600,7 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         return collection;
       },
       cleanup = () => {
+        communities.cleanup();
         notifications.cleanup();
         notificationStats.cleanup();
         following.cleanup();
@@ -349,12 +612,27 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         for (const collection of playlistTracks.values()) {
           collection.cleanup();
         }
+        for (const collectionMap of [
+          communityPosts,
+          communityMessages,
+          communityMembers,
+          communityBans,
+        ]) {
+          for (const collection of collectionMap.values()) {
+            collection.cleanup();
+          }
+        }
       };
 
     return {
       cleanup,
+      communities,
       following,
       getComments,
+      getCommunityBans,
+      getCommunityMembers,
+      getCommunityMessages,
+      getCommunityPosts,
       getNotifications: () => notifications,
       getPlaylistTracks,
       notificationStats,
@@ -805,6 +1083,375 @@ export const useDbFollowActions = () => {
       [collection, queryClient]
     );
   return { follow, unfollow };
+};
+
+export const useDbCommunities = () => {
+  const collection = useDataDb().communities,
+    result = useLiveQuery((q) =>
+      q
+        .from({ community: collection })
+        .orderBy(({ community }) => community.updatedAt, "desc")
+        .orderBy(({ community }) => community.id, "asc")
+    );
+  return { ...result, collection, data: result.data ?? [] };
+};
+
+export const useDbCommunity = (communityId: string) => {
+  const collection = useDataDb().communities,
+    result = useLiveQuery(
+      (q) =>
+        q
+          .from({ community: collection })
+          .where(({ community }) => eq(community.id, communityId)),
+      [communityId]
+    );
+  return { ...result, community: result.data?.[0] ?? null };
+};
+
+export const useDbCommunityActions = () => {
+  const { communities: collection } = useDataDb(),
+    create = useCallback(
+      async (input: {
+        coverImageUrl?: string | null;
+        description?: string;
+        genreId?: string | null;
+        monthlyPriceCents: number;
+        name: string;
+      }) => {
+        const created = await rpcJson(await communityPost({ json: input }));
+        collection.utils.writeUpsert(created);
+        return created;
+      },
+      [collection]
+    ),
+    joinFree = useMemo(
+      () =>
+        createOptimisticAction<string>({
+          mutationFn: async (communityId) => {
+            await rpcJson(await communityJoinPost({ param: { communityId } }));
+          },
+          onMutate: (communityId) => {
+            collection.update(communityId, (draft) => {
+              if (!draft.isMember) {
+                draft.isMember = true;
+                draft.memberCount += 1;
+              }
+            });
+          },
+        }),
+      [collection]
+    ),
+    update = useMemo(
+      () =>
+        createOptimisticAction<{
+          communityId: string;
+          coverImageUrl?: string | null;
+          description?: string;
+          genreId?: string | null;
+          monthlyPriceCents?: number;
+          name?: string;
+        }>({
+          mutationFn: async ({ communityId, ...json }) => {
+            await rpcJson(
+              await communityPatch({ json, param: { communityId } })
+            );
+          },
+          onMutate: ({ communityId, ...changes }) => {
+            collection.update(communityId, (draft) => {
+              Object.assign(draft, changes);
+              draft.updatedAt = new Date().toISOString();
+            });
+          },
+        }),
+      [collection]
+    );
+  return { create, joinFree, update };
+};
+
+export const useDbCommunityPosts = (communityId: string) => {
+  const { getCommunityPosts } = useDataDb(),
+    collection = useMemo(
+      () => getCommunityPosts(communityId),
+      [communityId, getCommunityPosts]
+    ),
+    result = useLiveQuery((q) =>
+      q
+        .from({ post: collection })
+        .orderBy(({ post }) => post.isPinned, "desc")
+        .orderBy(({ post }) => post.createdAt, "desc")
+    );
+  return { ...result, collection, data: result.data ?? [] };
+};
+
+export const useCreateDbCommunityPost = (
+  communityId: string,
+  author: {
+    avatarUrl?: string | null;
+    id: string;
+    name: string;
+    username: string;
+  }
+) => {
+  const { getCommunityPosts } = useDataDb(),
+    collection = useMemo(
+      () => getCommunityPosts(communityId),
+      [communityId, getCommunityPosts]
+    ),
+    create = useMemo(
+      () =>
+        createOptimisticAction<{
+          body: string;
+          id: string;
+          postType: "text" | "image" | "audio" | "video" | "poll";
+        }>({
+          mutationFn: async ({ body, postType }) => {
+            await rpcJson(
+              await communityPostsPost({
+                json: { body, postType },
+                param: { communityId },
+              })
+            );
+            await collection.utils.refetch();
+          },
+          onMutate: ({ body, id, postType }) => {
+            collection.insert({
+              author: {
+                avatarUrl: author.avatarUrl ?? null,
+                name: author.name,
+                username: author.username,
+              },
+              body,
+              createdAt: new Date().toISOString(),
+              id,
+              isPinned: false,
+              mediaUrl: null,
+              metadata: null,
+              postType,
+              userId: author.id,
+            });
+          },
+        }),
+      [
+        author.avatarUrl,
+        author.id,
+        author.name,
+        author.username,
+        collection,
+        communityId,
+      ]
+    );
+  return (body: string) =>
+    create({ body, id: crypto.randomUUID(), postType: "text" });
+};
+
+const communityMessageQueues = new Map<string, Promise<void>>();
+
+export const useDbCommunityMessages = (communityId: string) => {
+  const { getCommunityMessages } = useDataDb(),
+    collection = useMemo(
+      () => getCommunityMessages(communityId),
+      [communityId, getCommunityMessages]
+    ),
+    result = useLiveQuery((q) =>
+      q
+        .from({ message: collection })
+        .orderBy(({ message }) => message.createdAt, "asc")
+        .orderBy(({ message }) => message.id, "asc")
+    );
+  return { ...result, collection, data: result.data ?? [] };
+};
+
+export const useSendDbCommunityMessage = (
+  communityId: string,
+  author: {
+    avatarUrl?: string | null;
+    id: string;
+    name: string;
+    username: string;
+  }
+) => {
+  const { getCommunityMessages } = useDataDb(),
+    collection = useMemo(
+      () => getCommunityMessages(communityId),
+      [communityId, getCommunityMessages]
+    ),
+    send = useMemo(
+      () =>
+        createOptimisticAction<{ body: string; id: string }>({
+          mutationFn: async ({ body, id }) => {
+            const previous =
+                communityMessageQueues.get(communityId) ?? Promise.resolve(),
+              persistMessage = async () => {
+                await rpcJson(
+                  await communityMessagesPost({
+                    json: { body, clientMessageId: id },
+                    param: { communityId },
+                  })
+                );
+              },
+              queued = previous.then(persistMessage, persistMessage);
+            communityMessageQueues.set(communityId, queued);
+            const outcome = await queued.then(
+              () => ({ error: null }),
+              (error: unknown) => ({ error })
+            );
+            if (communityMessageQueues.get(communityId) === queued) {
+              communityMessageQueues.delete(communityId);
+            }
+            if (outcome.error) {
+              throw outcome.error;
+            }
+          },
+          onMutate: ({ body, id }) => {
+            collection.insert({
+              author: {
+                avatarUrl: author.avatarUrl ?? null,
+                name: author.name,
+                username: author.username,
+              },
+              body,
+              createdAt: new Date().toISOString(),
+              id,
+              userId: author.id,
+            });
+          },
+        }),
+      [
+        author.avatarUrl,
+        author.id,
+        author.name,
+        author.username,
+        collection,
+        communityId,
+      ]
+    );
+  return (body: string) => send({ body, id: crypto.randomUUID() });
+};
+
+export const useDbCommunityMembers = (communityId: string) => {
+  const { getCommunityMembers } = useDataDb(),
+    collection = useMemo(
+      () => getCommunityMembers(communityId),
+      [communityId, getCommunityMembers]
+    ),
+    result = useLiveQuery((q) =>
+      q
+        .from({ member: collection })
+        .orderBy(({ member }) => member.role, "asc")
+        .orderBy(({ member }) => member.name, "asc")
+    );
+  return { ...result, collection, data: result.data ?? [] };
+};
+
+export const useDbCommunityBans = (communityId: string) => {
+  const { getCommunityBans } = useDataDb(),
+    collection = useMemo(
+      () => getCommunityBans(communityId),
+      [communityId, getCommunityBans]
+    ),
+    result = useLiveQuery((q) =>
+      q.from({ ban: collection }).orderBy(({ ban }) => ban.bannedAt, "desc")
+    );
+  return { ...result, collection, data: result.data ?? [] };
+};
+
+export const useDbCommunityModeration = (communityId: string) => {
+  const { communities, getCommunityBans, getCommunityMembers } = useDataDb(),
+    members = useMemo(
+      () => getCommunityMembers(communityId),
+      [communityId, getCommunityMembers]
+    ),
+    bans = useMemo(
+      () => getCommunityBans(communityId),
+      [communityId, getCommunityBans]
+    ),
+    setRole = useMemo(
+      () =>
+        createOptimisticAction<{
+          role: "moderator" | "member";
+          userId: string;
+        }>({
+          mutationFn: async ({ role, userId }) => {
+            await rpcJson(
+              await communityMemberPatch({
+                json: { role },
+                param: { communityId, userId },
+              })
+            );
+          },
+          onMutate: ({ role, userId }) => {
+            members.update(userId, (draft) => {
+              draft.role = role;
+            });
+          },
+        }),
+      [communityId, members]
+    ),
+    remove = useMemo(
+      () =>
+        createOptimisticAction<string>({
+          mutationFn: async (userId) => {
+            await rpcJson(
+              await communityMemberDelete({
+                param: { communityId, userId },
+              })
+            );
+          },
+          onMutate: (userId) => {
+            members.delete(userId);
+            communities.update(communityId, (draft) => {
+              draft.memberCount = Math.max(0, draft.memberCount - 1);
+            });
+          },
+        }),
+      [communities, communityId, members]
+    ),
+    ban = useMemo(
+      () =>
+        createOptimisticAction<{
+          member: DbCommunityMember;
+          reason?: string;
+        }>({
+          mutationFn: async ({ member, reason }) => {
+            await rpcJson(
+              await communityMemberBanPost({
+                json: { reason },
+                param: { communityId, userId: member.userId },
+              })
+            );
+          },
+          onMutate: ({ member, reason }) => {
+            members.delete(member.userId);
+            bans.insert({
+              avatarUrl: member.avatarUrl,
+              bannedAt: new Date().toISOString(),
+              name: member.name,
+              reason: reason ?? null,
+              userId: member.userId,
+              username: member.username,
+            });
+            communities.update(communityId, (draft) => {
+              draft.memberCount = Math.max(0, draft.memberCount - 1);
+            });
+          },
+        }),
+      [bans, communities, communityId, members]
+    ),
+    unban = useMemo(
+      () =>
+        createOptimisticAction<string>({
+          mutationFn: async (userId) => {
+            await rpcJson(
+              await communityBanDelete({ param: { communityId, userId } })
+            );
+          },
+          onMutate: (userId) => {
+            bans.delete(userId);
+          },
+        }),
+      [bans, communityId]
+    );
+  return { ban, remove, setRole, unban };
 };
 
 export const savedTrackIdFromTrack = (track: LibrarySavedTrack) => track.id;

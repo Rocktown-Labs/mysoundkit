@@ -18,6 +18,9 @@ const meGet = apiClient.v1.me.index.$get,
   billingPlansGet = apiClient.v1.billing.plans.$get,
   adminAccessGet = apiClient.v1.admin.access.$get,
   adminFinancePaymentsGet = apiClient.v1.admin.finance.payments.$get,
+  adminFinanceSummaryGet = apiClient.v1.admin.finance.summary.$get,
+  adminEmbeddingStatusGet = apiClient.v1.admin.embeddings.status.$get,
+  adminEmbeddingBackfillPost = apiClient.v1.admin.embeddings.backfill.$post,
   adminImportStripePlanPost =
     apiClient.v1.admin.finance.payments["import-plan"].$post,
   adminOverviewGet = apiClient.v1.admin.overview.$get,
@@ -34,11 +37,13 @@ const meGet = apiClient.v1.me.index.$get,
   fanOnboardingPost = apiClient.v1.onboarding.fan.$post,
   genresGet = apiClient.v1.discover.genres.$get,
   searchGet = apiClient.v1.search.$get,
+  semanticSearchGet = apiClient.v1.search.semantic.$get,
   tracksGet = apiClient.v1.tracks.index.$get,
   tracksPost = apiClient.v1.tracks.index.$post,
   trackGet = apiClient.v1.tracks[":trackId"].$get,
   trackPatch = apiClient.v1.tracks[":trackId"].$patch,
   trackDelete = apiClient.v1.tracks[":trackId"].$delete,
+  trackRecoverPost = apiClient.v1.tracks[":trackId"].recover.$post,
   trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post,
   trackSettlePost = apiClient.v1.tracks[":trackId"].settle.$post,
   trackMediaProcessingGet = apiClient.v1.tracks[":trackId"].processing.$get,
@@ -57,6 +62,7 @@ const meGet = apiClient.v1.me.index.$get,
   listeningPartyPost = apiClient.v1["listening-parties"].index.$post,
   listeningPartiesGet = apiClient.v1["listening-parties"].index.$get,
   battlesGet = apiClient.v1.battles.index.$get,
+  battleOpponentsGet = apiClient.v1.battles.opponents.$get,
   battleChallengesGet = apiClient.v1.battles.challenges.$get,
   battleKitsGet = apiClient.v1.battles.kits.$get,
   battleKitGet = apiClient.v1.battles.kits[":kitId"].$get,
@@ -131,11 +137,20 @@ const meGet = apiClient.v1.me.index.$get,
   trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post,
   artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post,
   artistFollowDelete = apiClient.v1.social.artists[":username"].follow.$delete,
+  sellerAccountLinkPost = apiClient.v1.seller["account-link"].$post,
+  sellerAccountSessionPost = apiClient.v1.seller["account-session"].$post,
   sellerStatusGet = apiClient.v1.seller.status.$get,
   battleStatsGet = apiClient.v1.battles.stats.$get,
   trackBattleHistoryGet =
     apiClient.v1.battles["track-history"][":trackId"].$get,
-  analyticsOverviewGet = apiClient.v1.analytics.overview.$get;
+  analyticsOverviewGet = apiClient.v1.analytics.overview.$get,
+  analyticsTimeseriesGet = apiClient.v1.analytics.timeseries.$get,
+  analyticsTracksGet = apiClient.v1.analytics.tracks.$get,
+  analyticsAudienceGet = apiClient.v1.analytics.audience.$get,
+  analyticsSourcesGet = apiClient.v1.analytics.sources.$get,
+  analyticsLocationsGet = apiClient.v1.analytics.locations.$get,
+  analyticsLiveImpactGet = apiClient.v1.analytics["live-impact"].$get,
+  analyticsEarningsGet = apiClient.v1.analytics.earnings.$get;
 
 type ArtistOnboardingBody = InferRequestType<
   typeof artistOnboardingPost
@@ -196,6 +211,17 @@ export type ArtistSummary = InferResponseType<typeof artistsGet, 200>[number];
 export type ArtistProfileMedia = InferResponseType<typeof artistMediaGet, 200>;
 export type ArtistProfileCredit = ArtistProfileMedia["credits"][number];
 type ArtistFollowResponse = InferResponseType<typeof artistFollowPost, 200>;
+type SellerAccountLinkBody = InferRequestType<
+  typeof sellerAccountLinkPost
+>["json"];
+type SellerAccountLinkResponse = InferResponseType<
+  typeof sellerAccountLinkPost,
+  200
+>;
+export type SellerAccountSession = InferResponseType<
+  typeof sellerAccountSessionPost,
+  200
+>;
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
 export type MeSummary = InferResponseType<typeof meGet, 200>;
 type EntitlementSummary = InferResponseType<typeof meEntitlementsGet, 200>;
@@ -515,6 +541,34 @@ export const useAdminPaymentsQuery = (enabled = true) =>
     queryKey: soundkitQueryKeys.adminPayments,
   });
 
+export const useAdminFinanceSummaryQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () => rpcJson(await adminFinanceSummaryGet()),
+    queryKey: ["admin", "finance", "summary"],
+  });
+
+export const useAdminEmbeddingStatusQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () => rpcJson(await adminEmbeddingStatusGet()),
+    queryKey: ["admin", "embeddings", "status"],
+  });
+
+export const useAdminEmbeddingBackfillMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (limit: number) =>
+      rpcJson(
+        await adminEmbeddingBackfillPost({ query: { limit: `${limit}` } })
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "embeddings", "status"],
+      }),
+  });
+};
+
 export const useImportStripePlanMutation = () => {
   const queryClient = useQueryClient();
 
@@ -692,7 +746,7 @@ export const useFriendRequestsQuery = () =>
     queryKey: soundkitQueryKeys.friendRequests,
   });
 
-type OptimisticRollback = {
+interface OptimisticRollback {
   previousNetwork?: NetworkResponse;
   previousProject?: PublicProjectSummary;
   previousProjects?: ProjectSummary[];
@@ -700,7 +754,7 @@ type OptimisticRollback = {
   previousTrack?: TrackDetail;
   previousTracks?: Array<[readonly unknown[], TrackSummary[]]>;
   previousVideos?: Array<[readonly unknown[], VideoSummary[]]>;
-};
+}
 
 export const useCreateFriendRequestMutation = () => {
   const queryClient = useQueryClient();
@@ -813,8 +867,8 @@ export const useRespondFriendRequestMutation = () => {
         previousNetwork = queryClient.getQueryData<NetworkResponse>(
           soundkitQueryKeys.network
         ),
-        request = previousRequests?.find((item) => item.id === requestId);
-      const removeRequest = (requests: FriendRequestSummary[] = []) =>
+        request = previousRequests?.find((item) => item.id === requestId),
+       removeRequest = (requests: FriendRequestSummary[] = []) =>
         requests.filter((item) => item.id !== requestId);
       queryClient.setQueryData<FriendRequestSummary[]>(
         soundkitQueryKeys.friendRequests,
@@ -1112,6 +1166,14 @@ export const useSearchQuery = (query: SearchQuery) =>
     queryKey: soundkitQueryKeys.search(query),
   });
 
+export const useSemanticSearchQuery = (q: string, enabled = true) =>
+  useQuery({
+    enabled: enabled && q.trim().length >= 3,
+    queryFn: async () =>
+      rpcJson(await semanticSearchGet({ query: { limit: "6", q: q.trim() } })),
+    queryKey: ["search", "semantic", q.trim()],
+  });
+
 export const useTracksQuery = (
   initialData?: TrackSummary[],
   query: PublicExploreQuery = {}
@@ -1203,6 +1265,19 @@ export const useUpdateTrackMutation = (trackId: string) => {
       });
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.track(trackId),
+      });
+    },
+  });
+};
+
+export const useRecoverTrackMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (trackId: string) =>
+      rpcJson(await trackRecoverPost({ param: { trackId } })),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.tracks(),
       });
     },
   });
@@ -1521,6 +1596,20 @@ export const useBattlesQuery = (query: PublicRegionQuery = {}) =>
   useQuery({
     queryFn: async () => rpcJson(await battlesGet({ query })),
     queryKey: [...soundkitQueryKeys.battles, query],
+  });
+
+export const useBattleOpponentsQuery = ({
+  genre,
+  q,
+}: {
+  genre: string;
+  q: string;
+}) =>
+  useQuery({
+    enabled: q.trim().length > 0,
+    queryFn: async () =>
+      rpcJson(await battleOpponentsGet({ query: { genre, q: q.trim() } })),
+    queryKey: ["battle-opponents", genre, q.trim()],
   });
 
 export const usePublicLiveExperiencesQuery = (
@@ -2061,100 +2150,50 @@ export const useAnalyticsTimeseriesQuery = (
   range: "7d" | "28d" | "90d" | "12m"
 ) =>
   useQuery({
-    queryFn: async (): Promise<AnalyticsTimeseries> => {
-      const response = await fetch(
-        `${API_V1_URL}/analytics/timeseries?metric=${metric}&range=${range}`,
-        { credentials: "include" }
-      );
-      if (!response.ok) {
-        throw new Error("Unable to load timeseries data.");
-      }
-      return (await response.json()) as AnalyticsTimeseries;
-    },
+    queryFn: async (): Promise<AnalyticsTimeseries> =>
+      rpcJson(await analyticsTimeseriesGet({ query: { metric, range } })),
     queryKey: ["analytics", "timeseries", metric, range],
   });
 
 export const useAnalyticsTracksQuery = () =>
   useQuery({
-    queryFn: async (): Promise<{ tracks: AnalyticsTrackItem[] }> => {
-      const response = await fetch(`${API_V1_URL}/analytics/tracks`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Unable to load track performance data.");
-      }
-      return (await response.json()) as { tracks: AnalyticsTrackItem[] };
-    },
+    queryFn: async (): Promise<{ tracks: AnalyticsTrackItem[] }> =>
+      rpcJson(await analyticsTracksGet()),
     queryKey: ["analytics", "tracks"],
   });
 
 export const useAnalyticsAudienceQuery = () =>
   useQuery({
-    queryFn: async (): Promise<AnalyticsAudience> => {
-      const response = await fetch(`${API_V1_URL}/analytics/audience`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Unable to load audience data.");
-      }
-      return (await response.json()) as AnalyticsAudience;
-    },
+    queryFn: async (): Promise<AnalyticsAudience> =>
+      rpcJson(await analyticsAudienceGet()),
     queryKey: ["analytics", "audience"],
   });
 
 export const useAnalyticsSourcesQuery = () =>
   useQuery({
-    queryFn: async (): Promise<AnalyticsSources> => {
-      const response = await fetch(`${API_V1_URL}/analytics/sources`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Unable to load sources data.");
-      }
-      return (await response.json()) as AnalyticsSources;
-    },
+    queryFn: async (): Promise<AnalyticsSources> =>
+      rpcJson(await analyticsSourcesGet()),
     queryKey: ["analytics", "sources"],
   });
 
 export const useAnalyticsLocationsQuery = () =>
   useQuery({
-    queryFn: async (): Promise<AnalyticsLocations> => {
-      const response = await fetch(`${API_V1_URL}/analytics/locations`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Unable to load location data.");
-      }
-      return (await response.json()) as AnalyticsLocations;
-    },
+    queryFn: async (): Promise<AnalyticsLocations> =>
+      rpcJson(await analyticsLocationsGet()),
     queryKey: ["analytics", "locations"],
   });
 
 export const useAnalyticsLiveImpactQuery = () =>
   useQuery({
-    queryFn: async (): Promise<AnalyticsLiveImpact> => {
-      const response = await fetch(`${API_V1_URL}/analytics/live-impact`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Unable to load live impact data.");
-      }
-      return (await response.json()) as AnalyticsLiveImpact;
-    },
+    queryFn: async (): Promise<AnalyticsLiveImpact> =>
+      rpcJson(await analyticsLiveImpactGet()),
     queryKey: ["analytics", "live-impact"],
   });
 
 export const useArtistEarningsQuery = () =>
   useQuery({
-    queryFn: async (): Promise<ArtistEarningsOverview> => {
-      const response = await fetch(`${API_V1_URL}/analytics/earnings`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Unable to load artist earnings.");
-      }
-      return (await response.json()) as ArtistEarningsOverview;
-    },
+    queryFn: async (): Promise<ArtistEarningsOverview> =>
+      rpcJson(await analyticsEarningsGet()),
     queryKey: ["analytics", "earnings"],
   });
 
@@ -2330,11 +2369,32 @@ export const useCreateVideoCommentMutation = () => {
   });
 };
 
-export const useSellerStatusQuery = () =>
+export const useSellerStatusQuery = (enabled = true) =>
   useQuery({
+    enabled,
     queryFn: async (): Promise<SellerStatus> =>
       rpcJson(await sellerStatusGet()),
     queryKey: soundkitQueryKeys.sellerStatus,
+    refetchInterval: 15_000,
+  });
+
+export const useSellerAccountSessionQuery = (enabled = false) =>
+  useQuery({
+    enabled,
+    queryFn: async (): Promise<SellerAccountSession> =>
+      rpcJson(await sellerAccountSessionPost()),
+    queryKey: ["seller", "account-session"],
+    refetchOnWindowFocus: false,
+    retry: false,
+    staleTime: 4 * 60 * 1000,
+  });
+
+export const useSellerAccountLinkMutation = () =>
+  useMutation({
+    mutationFn: async (
+      body: SellerAccountLinkBody
+    ): Promise<SellerAccountLinkResponse> =>
+      rpcJson(await sellerAccountLinkPost({ json: body })),
   });
 
 export const useBattleStatsQuery = () =>

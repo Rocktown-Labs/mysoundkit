@@ -227,7 +227,7 @@ function UpcomingSection({ events }: { events: UpcomingEvent[] }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">
-            <Link to="/dashboard/live">
+            <Link to="/dashboard/live/battles">
               <Swords data-icon="inline-start" /> Find Battle
             </Link>
           </Button>

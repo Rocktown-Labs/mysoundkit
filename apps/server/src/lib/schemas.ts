@@ -1207,6 +1207,7 @@ export const battleChallengeSummarySchema = z.object({
   challengerUsername: z.string().nullable(),
   createdAt: z.string(),
   direction: z.enum(["incoming", "outgoing"]),
+  expiresAt: z.string(),
   format: z.enum(["best_of_3", "best_of_5", "best_of_7"]),
   genre: z.string(),
   id: z.string(),

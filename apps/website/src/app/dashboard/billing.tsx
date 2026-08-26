@@ -1,7 +1,7 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
-
-const LegacyBillingRedirect = () => <Navigate to="/library/settings" />;
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/dashboard/billing")({
-  component: LegacyBillingRedirect,
+  beforeLoad: () => {
+    throw redirect({ to: "/library/settings" });
+  },
 });

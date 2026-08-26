@@ -19,11 +19,67 @@ import {
   useDbNotificationUnreadCount,
   useDbNotifications,
 } from "@/lib/data-db";
-import { useSearchQuery } from "@/lib/soundkit-api-hooks";
+import {
+  useSearchQuery,
+  useSemanticSearchQuery,
+} from "@/lib/soundkit-api-hooks";
 
 const SEARCH_DEBOUNCE_MS = 250,
   resultLinkClassName =
     "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-primary/10 hover:text-primary focus:bg-primary/10";
+
+function SemanticResultLink({
+  entityId,
+  entityType,
+  onSelect,
+}: {
+  entityId: string;
+  entityType: "artist" | "lyrics" | "project" | "track" | "video";
+  onSelect: () => void;
+}) {
+  const label = `${entityType === "lyrics" ? "track lyrics" : entityType} · ${entityId.slice(0, 12)}`;
+  if (entityType === "track" || entityType === "lyrics") {
+    return (
+      <Link
+        className={resultLinkClassName}
+        onClick={onSelect}
+        params={{ id: entityId }}
+        to="/tracks/$id"
+      >
+        <Sparkles className="size-4 text-primary" /> {label}
+      </Link>
+    );
+  }
+  if (entityType === "project") {
+    return (
+      <Link
+        className={resultLinkClassName}
+        onClick={onSelect}
+        params={{ id: entityId }}
+        to="/projects/$id"
+      >
+        <Sparkles className="size-4 text-primary" /> {label}
+      </Link>
+    );
+  }
+  if (entityType === "video") {
+    return (
+      <Link
+        className={resultLinkClassName}
+        onClick={onSelect}
+        params={{ id: entityId }}
+        to="/videos/$id"
+      >
+        <Sparkles className="size-4 text-primary" /> {label}
+      </Link>
+    );
+  }
+  return (
+    <div className={resultLinkClassName}>
+      <Sparkles className="size-4 text-primary" /> {label}
+    </div>
+  );
+}
 
 export function DashboardHeader() {
   const [searchValue, setSearchValue] = useState(""),
@@ -50,6 +106,11 @@ export function DashboardHeader() {
       q: trimmedSearchValue,
       type: "all",
     }),
+    semanticQuery = useSemanticSearchQuery(
+      trimmedSearchValue,
+      isNaturalLanguage
+    ),
+    semanticResults = semanticQuery.data ?? [],
     results = searchQuery.data,
     resultCount =
       (results?.artists.length ?? 0) +
@@ -104,8 +165,10 @@ export function DashboardHeader() {
                 </p>
               )}
               {!searchQuery.isLoading &&
+                !semanticQuery.isLoading &&
                 !searchQuery.error &&
-                resultCount === 0 && (
+                resultCount === 0 &&
+                semanticResults.length === 0 && (
                   <p className="px-3 py-2 text-sm text-muted-foreground">
                     No real results found.
                   </p>
@@ -376,6 +439,21 @@ export function DashboardHeader() {
                   )}
                 </div>
               )}
+              {isNaturalLanguage && semanticResults.length > 0 ? (
+                <div className="mt-2 border-t pt-2">
+                  <div className="flex items-center gap-2 px-3 py-1 font-semibold text-[11px] text-primary tracking-widest">
+                    <Sparkles className="size-3" /> AI MATCHES
+                  </div>
+                  {semanticResults.map((result) => (
+                    <SemanticResultLink
+                      entityId={result.entityId}
+                      entityType={result.entityType}
+                      key={`${result.entityType}-${result.entityId}`}
+                      onSelect={() => setSearchValue("")}
+                    />
+                  ))}
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -401,9 +479,7 @@ export function DashboardHeader() {
                   <button
                     className="font-medium text-[10px] text-destructive hover:underline disabled:opacity-50"
                     onClick={() => {
-                      void clearAll().isPersisted.promise.catch(
-                        () => {}
-                      );
+                      void clearAll().isPersisted.promise.catch(() => {});
                     }}
                     type="button"
                   >
@@ -414,9 +490,7 @@ export function DashboardHeader() {
                   <button
                     className="font-medium text-[10px] text-primary hover:underline disabled:opacity-50"
                     onClick={() => {
-                      void markAllRead().isPersisted.promise.catch(
-                        () => {}
-                      );
+                      void markAllRead().isPersisted.promise.catch(() => {});
                     }}
                     type="button"
                   >

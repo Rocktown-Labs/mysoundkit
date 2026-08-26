@@ -210,7 +210,7 @@ export function KeyboardShortcutsProvider({
               <span>Open Verse Arena & Submissions</span>
             </CommandItem>
             <CommandItem
-              onSelect={() => handleSelectRoute("/dashboard/live/challenge")}
+              onSelect={() => handleSelectRoute("/dashboard/live/battles")}
             >
               <Trophy className="mr-2 size-4 text-amber-400" />
               <span>Live Battle Challenges</span>

@@ -95,7 +95,17 @@ export const columns: ColumnDef<WatchedItem>[] = [
               {title}
             </Link>
           ) : item.type === "community" ? (
-            <Link to="/communities" className={linkClassName}>
+            <Link
+              className={linkClassName}
+              search={{
+                access: "all",
+                genre: "all",
+                q: "",
+                sort: "activity-desc",
+                view: "sections",
+              }}
+              to="/communities"
+            >
               {title}
             </Link>
           ) : (
@@ -200,7 +210,18 @@ export const columns: ColumnDef<WatchedItem>[] = [
                 Watch Again
               </Link>
             ) : row.original.type === "community" ? (
-              <Link to="/communities">Open Community</Link>
+              <Link
+                search={{
+                  access: "all",
+                  genre: "all",
+                  q: "",
+                  sort: "activity-desc",
+                  view: "sections",
+                }}
+                to="/communities"
+              >
+                Open Community
+              </Link>
             ) : (
               <Link
                 params={

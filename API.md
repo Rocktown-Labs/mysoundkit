@@ -77,7 +77,7 @@ Useful starter requests:
 - `GET /v1/projects`
 - `GET /v1/videos`
 - `GET /v1/library/overview`
-- `GET /v1/playlists`
+- `GET /v1/library/playlists`
 - `GET /v1/messages/conversations`
 - `GET /v1/analytics/overview`
 - `GET /v1/billing/plans`
@@ -152,18 +152,15 @@ Base path for domain APIs:
 - `GET /v1/library/recent`
 - `GET /v1/library/saved`
 - `GET /v1/library/purchases`
-
-### Playlists
-
-- `GET /v1/playlists`
-- `POST /v1/playlists`
-- `GET /v1/playlists/{playlistId}`
+- `GET /v1/library/playlists`
+- `POST /v1/library/playlists`
+- `GET /v1/library/playlists/{playlistId}`
 
 ### Social
 
-- `POST /v1/social/posts/{postId}/likes`
-- `GET /v1/social/posts/{postId}/comments`
-- `POST /v1/social/posts/{postId}/comments`
+- `GET /v1/social/profiles/{username}`
+- `POST /v1/social/profiles/{username}/follow`
+- `DELETE /v1/social/profiles/{username}/follow`
 
 ### Messages
 
@@ -194,7 +191,9 @@ Set `ADMIN_EMAILS` to a comma-separated email allowlist. Allowlisted accounts re
 
 - `GET /v1/battles`
 - `GET /v1/battles/{battleId}`
+- `GET /v1/battles/challenges`
 - `POST /v1/battles/challenge`
+- `PATCH /v1/battles/challenges/{challengeId}` (accept, decline, or cancel a pending challenge)
 
 ### Uploads
 

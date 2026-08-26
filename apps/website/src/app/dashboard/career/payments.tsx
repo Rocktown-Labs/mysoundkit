@@ -7,10 +7,8 @@ import {
   ConnectPayments,
   ConnectPayouts,
 } from "@stripe/react-connect-js";
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import {
-  ArrowUpRight,
   BadgeDollarSign,
   Calendar,
   CheckCircle2,
@@ -19,9 +17,7 @@ import {
   Crown,
   ExternalLink,
   FileText,
-  HelpCircle,
   Info,
-  Lock,
   Music,
   PiggyBank,
   ShieldCheck,
@@ -29,7 +25,7 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { PremiumWorkspaceInviteCard } from "@/components/billing/premium-workspace-invite-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -45,51 +41,38 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { API_V1_URL } from "@/lib/api";
-import { useArtistEarningsQuery } from "@/lib/soundkit-api-hooks";
+import {
+  useArtistEarningsQuery,
+  useSellerAccountLinkMutation,
+  useSellerAccountSessionQuery,
+  useSellerStatusQuery,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/career/payments")({
   component: CareerPaymentsPage,
 });
 
-interface SellerStatus {
-  chargesEnabled: boolean;
-  detailsSubmitted: boolean;
-  onboardingStatus:
-    | "enabled"
-    | "not_started"
-    | "pending"
-    | "rejected"
-    | "restricted";
-  payoutsEnabled: boolean;
-  stripeAccountId: string | null;
-}
-
-const fetchSellerStatus = async (): Promise<SellerStatus> => {
-  const response = await fetch(`${API_V1_URL}/seller/status`, {
-    credentials: "include",
-  });
-  if (!response.ok) {
-    throw new Error("Unable to load your payments status.");
-  }
-  return response.json() as Promise<SellerStatus>;
-};
-
 function CareerPaymentsPage() {
   const [activeTab, setActiveTab] = useState<
       "overview" | "statements" | "stripe_account"
     >("overview"),
-    statusQuery = useQuery({
-      queryFn: fetchSellerStatus,
-      queryKey: ["seller", "status"],
-      refetchInterval: 15_000,
-    }),
-    earningsQuery = useArtistEarningsQuery(),
-    [isStartingOnboarding, setIsStartingOnboarding] = useState(false),
-    [stripeConnect] = useState(() => {
-      if (!env.VITE_STRIPE_PUBLISHABLE_KEY) {
+    statusQuery = useSellerStatusQuery(),
+    status = statusQuery.data,
+    paymentsReady = Boolean(
+      status?.onboardingStatus === "enabled" &&
+      status.chargesEnabled &&
+      status.payoutsEnabled
+    ),
+    accountSessionQuery = useSellerAccountSessionQuery(
+      paymentsReady && Boolean(env.VITE_STRIPE_PUBLISHABLE_KEY)
+    ),
+    accountSessionClientSecret = accountSessionQuery.data?.clientSecret,
+    refetchAccountSession = accountSessionQuery.refetch,
+    stripeConnect = useMemo(() => {
+      if (!env.VITE_STRIPE_PUBLISHABLE_KEY || !accountSessionClientSecret) {
         return null;
       }
+
       return loadConnectAndInitialize({
         appearance: {
           overlays: "dialog",
@@ -100,36 +83,24 @@ function CareerPaymentsPage() {
           },
         },
         fetchClientSecret: async () => {
-          const response = await fetch(`${API_V1_URL}/seller/account-session`, {
-            credentials: "include",
-            method: "POST",
-          });
-          if (!response.ok) {
-            throw new Error("Unable to initialize Stripe Connect.");
+          const result = await refetchAccountSession();
+          if (result.data?.clientSecret) {
+            return result.data.clientSecret;
           }
-          const body = (await response.json()) as { clientSecret: string };
-          return body.clientSecret;
+          throw new Error("Unable to refresh Stripe Connect.");
         },
         publishableKey: env.VITE_STRIPE_PUBLISHABLE_KEY,
       });
-    }),
+    }, [accountSessionClientSecret, refetchAccountSession]),
+    earningsQuery = useArtistEarningsQuery(),
+    accountLinkMutation = useSellerAccountLinkMutation(),
     startOnboarding = async () => {
-      setIsStartingOnboarding(true);
       try {
         const pageUrl = `${window.location.origin}/dashboard/career/payments`,
-          response = await fetch(`${API_V1_URL}/seller/account-link`, {
-            body: JSON.stringify({ refreshUrl: pageUrl, returnUrl: pageUrl }),
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          }),
-          body = (await response.json().catch(() => ({}))) as {
-            accountLinkUrl?: string;
-            message?: string;
-          };
-        if (!(response.ok && body.accountLinkUrl)) {
-          throw new Error(body.message ?? "Unable to start Stripe onboarding.");
-        }
+          body = await accountLinkMutation.mutateAsync({
+            refreshUrl: pageUrl,
+            returnUrl: pageUrl,
+          });
         window.location.assign(body.accountLinkUrl);
       } catch (error) {
         toast({
@@ -138,12 +109,10 @@ function CareerPaymentsPage() {
           title: "Payments setup unavailable",
           variant: "destructive",
         });
-        setIsStartingOnboarding(false);
       }
     },
-    status = statusQuery.data,
-    earnings = earningsQuery.data,
-    paymentsReady = status?.onboardingStatus === "enabled";
+    statusError = statusQuery.error,
+    earnings = earningsQuery.data;
 
   return (
     <div className="space-y-8">
@@ -167,7 +136,7 @@ function CareerPaymentsPage() {
         {!paymentsReady && (
           <Button
             onClick={startOnboarding}
-            disabled={isStartingOnboarding}
+            disabled={accountLinkMutation.isPending}
             className="gap-2 font-bold"
           >
             <ShieldCheck className="size-4" />
@@ -177,6 +146,20 @@ function CareerPaymentsPage() {
           </Button>
         )}
       </div>
+
+      {statusError ? (
+        <Alert
+          className="border-destructive/30 bg-destructive/10"
+          variant="destructive"
+        >
+          <AlertTitle>Unable to load payout status</AlertTitle>
+          <AlertDescription>
+            {statusError instanceof Error
+              ? statusError.message
+              : "Refresh the page and try again."}
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {/* Top 4 SoundKit Balance Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -551,13 +534,13 @@ function CareerPaymentsPage() {
                     : "Setup incomplete"}
                 </Badge>
                 <Button
-                  disabled={isStartingOnboarding}
+                  disabled={accountLinkMutation.isPending}
                   onClick={startOnboarding}
                   size="sm"
                   className="font-bold gap-1.5"
                 >
                   <ExternalLink className="size-3.5" />
-                  {isStartingOnboarding
+                  {accountLinkMutation.isPending
                     ? "Opening Stripe..."
                     : "Begin Stripe Verification"}
                 </Button>
@@ -565,7 +548,39 @@ function CareerPaymentsPage() {
             </Card>
           )}
 
-          {stripeConnect && (
+          {paymentsReady && !env.VITE_STRIPE_PUBLISHABLE_KEY ? (
+            <Alert className="border-amber-500/30 bg-amber-500/10">
+              <Info className="size-4 text-amber-400" />
+              <AlertTitle className="text-amber-400">
+                Stripe Connect is not configured
+              </AlertTitle>
+              <AlertDescription>
+                The payout account is active, but the embedded payout dashboard
+                is unavailable in this environment.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {paymentsReady && accountSessionQuery.isLoading ? (
+            <Card>
+              <CardContent className="p-6 text-sm text-muted-foreground">
+                Loading your Stripe payout dashboard…
+              </CardContent>
+            </Card>
+          ) : null}
+          {paymentsReady && accountSessionQuery.error ? (
+            <Alert
+              className="border-destructive/30 bg-destructive/10"
+              variant="destructive"
+            >
+              <AlertTitle>Stripe payout dashboard unavailable</AlertTitle>
+              <AlertDescription>
+                {accountSessionQuery.error instanceof Error
+                  ? accountSessionQuery.error.message
+                  : "Refresh the page and try again."}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {stripeConnect ? (
             <ConnectComponentsProvider connectInstance={stripeConnect}>
               <div className="space-y-4">
                 <ConnectNotificationBanner />
@@ -574,7 +589,7 @@ function CareerPaymentsPage() {
                 <ConnectPayments />
               </div>
             </ConnectComponentsProvider>
-          )}
+          ) : null}
         </TabsContent>
       </Tabs>
     </div>

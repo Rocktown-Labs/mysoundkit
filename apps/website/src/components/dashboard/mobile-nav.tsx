@@ -1,3 +1,4 @@
+/* eslint-disable sort-vars */
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   BarChart3,
@@ -80,25 +81,19 @@ const sectionRoutes: Record<
           description: "Members, roles, and workspace access",
           icon: Users,
           name: "Workspace",
-          to: "/dashboard/team",
+          to: "/dashboard/career/team",
         },
         {
           description: "Campaigns, wallet, and audience targeting",
           icon: Megaphone,
           name: "Ads",
-          to: "/dashboard/ads",
-        },
-        {
-          description: "Community posts, fan movement, and updates",
-          icon: Users,
-          name: "Community",
-          to: "/dashboard/community",
+          to: "/dashboard/career/ads",
         },
         {
           description: "Revenue, payouts, and financial snapshot",
           icon: Landmark,
           name: "Finance",
-          to: "/dashboard/finance",
+          to: "/dashboard/career/payments",
         },
         {
           description: "Plan, subscription, and payment settings",
@@ -119,22 +114,10 @@ const sectionRoutes: Record<
       name: "Live",
       routes: [
         {
-          description: "Battle requests, kits, and live matchups",
+          description: "Battle requests, discovery, challenges, and matchups",
           icon: Trophy,
           name: "Battles",
-          to: "/dashboard/live",
-        },
-        {
-          description: "Find artists and rooms to battle",
-          icon: Users,
-          name: "Find",
-          to: "/dashboard/live/find",
-        },
-        {
-          description: "Respond to incoming battle challenges",
-          icon: UserRoundPlus,
-          name: "Challenges",
-          to: "/dashboard/live/challenge",
+          to: "/dashboard/live/battles",
         },
         {
           description: "Listening parties for releases and fans",
@@ -147,12 +130,6 @@ const sectionRoutes: Record<
           icon: Radio,
           name: "Streams",
           to: "/dashboard/live/streams",
-        },
-        {
-          description: "Scheduled live moments and reminders",
-          icon: CalendarDays,
-          name: "Upcoming",
-          to: "/dashboard/live/upcoming",
         },
         {
           description: "Battle kits, format slots, and track picks",
@@ -208,6 +185,12 @@ const sectionRoutes: Record<
           name: "Network",
           to: "/dashboard/collaborators",
         },
+        {
+          description: "Community posts, fan movement, and updates",
+          icon: Users,
+          name: "Community",
+          to: "/dashboard/community",
+        },
       ],
     },
   },
@@ -259,10 +242,7 @@ const sectionRoutes: Record<
       return (
         pathname.startsWith("/dashboard/career") ||
         pathname.startsWith("/dashboard/profile") ||
-        pathname.startsWith("/dashboard/team") ||
-        pathname.startsWith("/dashboard/ads") ||
         pathname.startsWith("/dashboard/community") ||
-        pathname.startsWith("/dashboard/finance") ||
         pathname.startsWith("/library/settings")
       );
     }

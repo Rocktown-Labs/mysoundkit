@@ -54,11 +54,23 @@ app.post("/account-session", async (c) => {
     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    }),
+    });
+  let accountSession: Awaited<ReturnType<typeof createSellerAccountSession>>;
+  try {
     accountSession = await createSellerAccountSession({
       organizationId,
       userId: user.id,
     });
+  } catch (error) {
+    console.error("Stripe Connect account session creation failed", {
+      error: error instanceof Error ? error.message : String(error),
+      userId: user.id,
+    });
+    return c.json(
+      { message: "Stripe Connect is temporarily unavailable." },
+      503
+    );
+  }
   if (!accountSession?.client_secret) {
     return c.json({ message: "Complete Stripe onboarding first." }, 409);
   }

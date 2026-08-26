@@ -367,7 +367,11 @@ export const createSellerAccountSession = async ({
   userId: string;
 }) => {
   const seller = await refreshSellerAccount({ organizationId, userId });
-  if (!seller?.stripeAccountId) {
+  if (
+    !seller?.stripeAccountId ||
+    seller.onboardingStatus !== "enabled" ||
+    !seller.chargesEnabled
+  ) {
     return null;
   }
 

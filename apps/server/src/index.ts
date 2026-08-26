@@ -75,7 +75,6 @@ import notificationsRoutes from "@/routes/notifications";
 import onboardingRoutes from "@/routes/onboarding";
 import openVersesRoutes from "@/routes/open-verses";
 import paymentsRoutes from "@/routes/payments";
-import playlistsRoutes from "@/routes/playlists";
 import presenceRoutes from "@/routes/presence";
 import projectsRoutes from "@/routes/projects";
 import searchRoutes from "@/routes/search";
@@ -237,7 +236,6 @@ app
   .route("/v1/library", libraryRoutes)
   .route("/v1/listening-parties", listeningPartiesRoutes)
   .route("/v1/live", liveRoutes)
-  .route("/v1/playlists", playlistsRoutes)
   .route("/v1/social", socialRoutes)
   .route("/v1/presence", presenceRoutes)
   .route("/v1/messages", messagesRoutes)

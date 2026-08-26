@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added canonical dashboard and Explore navigation with compatibility redirects, plus public community discovery and a TanStack DB-powered artist community experience with free/paid membership, chat, posts, member roles, bans, and creator moderation.
+- Added mechanical OpenAPI-to-Hono RPC parity checks, typed website/native API consumers, semantic-search and embedding operations, track recovery, and a validated Expo route manifest with explicit Explore, Library, Live, and Dashboard tab ownership.
 - Added an Admin Open Verse catalog with raw legacy/media health, owner and track context, request/submission counts, and confirmed cleanup that preserves underlying tracks.
 - Added scoped Explore map geographies: continental views now render only their own countries, while North America retains detailed US states with clickable Canada and Mexico outlines.
 - Added global onboarding location autocomplete with Google Places (New), normalized city/region/country persistence, accessible custom suggestions, and a no-key manual fallback for local/test environments.
@@ -37,6 +39,9 @@
 
 ### Fixed
 
+- Fixed battle challenge lifecycle handling: pending requests now expire after seven days, stale requests are reconciled by reads and the scheduled sweep, and senders can cancel pending outgoing requests from the dashboard.
+- Fixed dashboard payments initialization by gating Stripe Connect embedded components on a fully enabled payout account, preflighting account sessions, returning controlled Stripe failures, and indexing notification timestamps for TanStack DB lazy loading.
+- Fixed community discovery and membership APIs in pull-request previews by detecting the deployed community schema and using legacy-safe reads until the additive community migration is applied during production deployment.
 - Replaced the white placeholder avatar with a branded SoundKit SK fallback across website and server fallback data.
 - Fixed Library account settings to read live Premium entitlements, route paid subscribers to billing management for upgrades/downgrades, and avoid treating admin-granted Premium access as unfinished checkout.
 - Fixed public Explore hover and list accents to use muted gray/purple styling while preserving dashboard dropdown accents, and expanded the sidebar wordmark to fill its branded frame.

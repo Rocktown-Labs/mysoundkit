@@ -10,6 +10,18 @@ const alchemyConfigPath = fileURLToPath(
   deployWorkflowPath = fileURLToPath(
     new URL("../../../.github/workflows/deploy.yml", import.meta.url)
   ),
+  communityMigrationPath = fileURLToPath(
+    new URL("migrations/0045_community_experience.sql", import.meta.url)
+  ),
+  communityRoutesPath = fileURLToPath(
+    new URL("../../../apps/server/src/routes/communities.ts", import.meta.url)
+  ),
+  communitySchemaCapabilitiesPath = fileURLToPath(
+    new URL(
+      "../../../apps/server/src/lib/community-schema-capabilities.ts",
+      import.meta.url
+    )
+  ),
   genreIndexMigrationPath = fileURLToPath(
     new URL("migrations/0044_genre_lookup_indexes.sql", import.meta.url)
   ),
@@ -63,6 +75,24 @@ describe("deployment safety policy", () => {
     expect(migration).toContain('CREATE INDEX "tracks_genre_id_idx"');
     expect(migration).toContain('CREATE INDEX "videos_genre_id_idx"');
     expect(migration).not.toMatch(/(?:ALTER|DROP|DELETE|UPDATE)\s/iu);
+  });
+
+  it("keeps community previews compatible with the deployed schema", async () => {
+    const migration = await readFile(communityMigrationPath, "utf-8"),
+      routes = await readFile(communityRoutesPath, "utf-8"),
+      capabilities = await readFile(communitySchemaCapabilitiesPath, "utf-8");
+
+    expect(migration).toContain(
+      'ALTER TABLE "communities" ADD COLUMN "cover_image_url" text'
+    );
+    expect(migration).toContain(
+      'ALTER TABLE "communities" ADD COLUMN "genre_id" text'
+    );
+    expect(migration).not.toMatch(/DROP\s+(?:TABLE|COLUMN|TYPE)/iu);
+    expect(capabilities).toContain("information_schema.columns");
+    expect(capabilities).toContain("to_regclass('public.community_bans')");
+    expect(routes).toContain("capabilities.discovery");
+    expect(routes).toContain("coverImageUrl: null");
   });
 
   it("keeps canonical production assets on the guarded media route", async () => {

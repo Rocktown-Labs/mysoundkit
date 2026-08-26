@@ -374,7 +374,7 @@ export function ProfileShell({
                             onClick={() =>
                               router.navigate({
                                 search: { opponent: user.username } as never,
-                                to: "/dashboard/live/challenge" as any,
+                                to: "/dashboard/live/battles" as any,
                               })
                             }
                           >

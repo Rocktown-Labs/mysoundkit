@@ -131,7 +131,7 @@ function MyKitPage() {
             </Link>
           </Button>
           <Button asChild>
-            <Link to="/dashboard/live">
+            <Link to="/dashboard/live/battles">
               <Trophy data-icon="inline-start" />
               Find Battles
             </Link>
@@ -283,7 +283,7 @@ function BattleKitCard({
             disabled={!kit.isBattleReady}
             variant={kit.isBattleReady ? "default" : "outline"}
           >
-            <Link to="/dashboard/live">
+            <Link to="/dashboard/live/battles">
               <Swords data-icon="inline-start" />
               Use Kit
             </Link>

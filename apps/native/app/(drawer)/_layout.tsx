@@ -1,12 +1,13 @@
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { Link } from "expo-router";
+/* eslint-disable react/no-unstable-nested-components */
+import { Ionicons } from "@expo/vector-icons";
 import { Drawer } from "expo-router/drawer";
 
-import { HeaderButton } from "@/components/header-button";
 import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
-const DrawerLayout = () => {
+export const unstable_settings = { initialRouteName: "(tabs)" };
+
+function DrawerLayout() {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
@@ -14,62 +15,35 @@ const DrawerLayout = () => {
     <Drawer
       screenOptions={{
         drawerInactiveTintColor: theme.text,
-        drawerLabelStyle: {
-          color: theme.text,
-        },
-        drawerStyle: {
-          backgroundColor: theme.background,
-        },
-        headerStyle: {
-          backgroundColor: theme.background,
-        },
+        drawerLabelStyle: { color: theme.text },
+        drawerStyle: { backgroundColor: theme.background },
+        headerStyle: { backgroundColor: theme.background },
         headerTintColor: theme.text,
-        headerTitleStyle: {
-          color: theme.text,
-        },
+        headerTitleStyle: { color: theme.text },
       }}
     >
       <Drawer.Screen
-        name="index"
-        options={{
-          drawerIcon: ({ size, color }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
-          ),
-          drawerLabel: "Home",
-          headerTitle: "Home",
-        }}
-      />
-      <Drawer.Screen
         name="(tabs)"
         options={{
-          drawerIcon: ({ size, color }) => (
-            <MaterialIcons name="border-bottom" size={size} color={color} />
+          drawerIcon: ({ color, size }) => (
+            <Ionicons color={color} name="musical-notes-outline" size={size} />
           ),
-          drawerLabel: "Tabs",
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <HeaderButton />
-            </Link>
-          ),
-          headerTitle: "Tabs",
+          drawerLabel: "SoundKit",
+          headerTitle: "SoundKit",
         }}
       />
       <Drawer.Screen
-        name="ai"
+        name="index"
         options={{
-          drawerIcon: ({ size, color }) => (
-            <Ionicons
-              name="chatbubble-ellipses-outline"
-              size={size}
-              color={color}
-            />
+          drawerIcon: ({ color, size }) => (
+            <Ionicons color={color} name="person-outline" size={size} />
           ),
-          drawerLabel: "AI",
-          headerTitle: "AI",
+          drawerLabel: "Account",
+          headerTitle: "Account",
         }}
       />
     </Drawer>
   );
-};
+}
 
 export default DrawerLayout;
