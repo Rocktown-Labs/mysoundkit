@@ -326,6 +326,123 @@ app.openapi(
 
 app.openapi(
   createRoute({
+    method: "delete",
+    path: "/{battleId}",
+    request: {
+      params: z.object({
+        battleId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        messageResponseSchema,
+        "Scheduled battle deleted"
+      ),
+      [HttpStatusCodes.CONFLICT]: jsonContent(
+        messageResponseSchema,
+        "Battle cannot be deleted"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Battle not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Battles"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Battle not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const { battleId } = c.req.valid("param"),
+      db = createDb(),
+      [battle] = await db
+        .select({
+          challengerArtistUserId: battles.challengerArtistUserId,
+          externalBattleId: battles.externalBattleId,
+          opponentArtistUserId: battles.opponentArtistUserId,
+          status: battles.status,
+        })
+        .from(battles)
+        .where(eq(battles.id, battleId))
+        .limit(1);
+
+    if (
+      !battle ||
+      (battle.challengerArtistUserId !== user.id &&
+        battle.opponentArtistUserId !== user.id)
+    ) {
+      return c.json(
+        { message: "Battle not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    if (battle.status !== "scheduled") {
+      return c.json(
+        { message: "Only scheduled battles can be deleted." },
+        HttpStatusCodes.CONFLICT
+      );
+    }
+
+    const [deletedBattle] = await db
+      .delete(battles)
+      .where(
+        and(
+          eq(battles.id, battleId),
+          eq(battles.status, "scheduled"),
+          or(
+            eq(battles.challengerArtistUserId, user.id),
+            eq(battles.opponentArtistUserId, user.id)
+          )
+        )
+      )
+      .returning({ externalBattleId: battles.externalBattleId });
+
+    if (!deletedBattle) {
+      return c.json(
+        { message: "Battle is no longer scheduled." },
+        HttpStatusCodes.CONFLICT
+      );
+    }
+
+    const challengeId = deletedBattle.externalBattleId?.startsWith("challenge:")
+      ? deletedBattle.externalBattleId.slice("challenge:".length)
+      : null;
+    if (challengeId) {
+      await db
+        .update(battleChallenges)
+        .set({
+          status: "canceled",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(battleChallenges.id, challengeId),
+            eq(battleChallenges.status, "accepted")
+          )
+        );
+    }
+
+    return c.json({ message: "Scheduled battle deleted." }, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
     method: "post",
     path: "/eligibility",
     request: {
@@ -883,6 +1000,108 @@ app.openapi(
 
     return c.json(
       { message: `Battle challenge ${status}.` },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "delete",
+    path: "/challenges/{challengeId}",
+    request: {
+      params: z.object({
+        challengeId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        messageResponseSchema,
+        "Battle challenge dismissed"
+      ),
+      [HttpStatusCodes.CONFLICT]: jsonContent(
+        messageResponseSchema,
+        "Battle challenge cannot be dismissed"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Battle challenge not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Battles"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Battle challenge not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const { challengeId } = c.req.valid("param"),
+      db = createDb(),
+      [challenge] = await db
+        .select({
+          challengerUserId: battleChallenges.challengerUserId,
+          opponentArtistUserId: battleChallenges.opponentArtistUserId,
+          status: battleChallenges.status,
+        })
+        .from(battleChallenges)
+        .where(eq(battleChallenges.id, challengeId))
+        .limit(1);
+
+    if (
+      !challenge ||
+      (challenge.challengerUserId !== user.id &&
+        challenge.opponentArtistUserId !== user.id)
+    ) {
+      return c.json(
+        { message: "Battle challenge not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const dismissibleStatuses = ["canceled", "declined", "expired"] as const;
+    if (!dismissibleStatuses.some((status) => status === challenge.status)) {
+      return c.json(
+        { message: "Only completed challenge requests can be dismissed." },
+        HttpStatusCodes.CONFLICT
+      );
+    }
+
+    const [deletedChallenge] = await db
+      .delete(battleChallenges)
+      .where(
+        and(
+          eq(battleChallenges.id, challengeId),
+          inArray(battleChallenges.status, dismissibleStatuses),
+          or(
+            eq(battleChallenges.challengerUserId, user.id),
+            eq(battleChallenges.opponentArtistUserId, user.id)
+          )
+        )
+      )
+      .returning({ id: battleChallenges.id });
+
+    if (!deletedChallenge) {
+      return c.json(
+        { message: "Battle challenge is no longer dismissible." },
+        HttpStatusCodes.CONFLICT
+      );
+    }
+
+    return c.json(
+      { message: "Battle challenge dismissed." },
       HttpStatusCodes.OK
     );
   }
