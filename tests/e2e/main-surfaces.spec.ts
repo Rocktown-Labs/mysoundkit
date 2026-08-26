@@ -337,6 +337,44 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("RealtimeKit Layer").first()).toBeVisible();
   });
 
+  test("artist setup guide keeps optional actions in a compact accordion", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard");
+    await expect(page.getByText("Artist setup")).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page.getByText("Publish an Open Verse")).toHaveCount(0);
+
+    await page
+      .getByRole("button", {
+        name: /Explore what.s next.*Keep building beyond the essentials/i,
+      })
+      .click();
+    await expect(page.getByText("Publish an Open Verse")).toBeVisible();
+
+    await page.getByRole("button", { name: "Minimize setup guide" }).click();
+    await expect(
+      page.getByRole("button", { name: /Next: Explore/ })
+    ).toBeVisible();
+    await expect(page.getByText("Publish an Open Verse")).toHaveCount(0);
+
+    await page.getByRole("button", { name: /Next: Explore/ }).click();
+    await expect(page.getByText("Publish an Open Verse")).toBeVisible();
+  });
+
   test("live room detail pages expose chat, lyrics, and battle voting", async ({
     page,
   }) => {

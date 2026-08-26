@@ -3,6 +3,7 @@ import {
   Check,
   ChevronRight,
   Lock,
+  Maximize2,
   Minus,
   Pencil,
   Send,
@@ -54,6 +55,7 @@ export function ArtistSetupGuide({
     [expandedTask, setExpandedTask] = useState<string | undefined>(
       () => tasks.find((task) => task.status === "available")?.id
     ),
+    [isExploreExpanded, setIsExploreExpanded] = useState(false),
     [friendEmail, setFriendEmail] = useState(""),
     inviteMutation = usePlatformInviteMutation();
 
@@ -75,6 +77,10 @@ export function ArtistSetupGuide({
   const restore = () => {
     window.localStorage.removeItem(dismissedKey);
     setIsDismissed(false);
+  };
+  const openExplore = () => {
+    setIsMinimized(false);
+    setIsExploreExpanded(true);
   };
   const inviteFriend = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -116,7 +122,9 @@ export function ArtistSetupGuide({
   }
 
   return (
-    <Card className="fixed right-4 bottom-24 z-40 w-[min( calc(100vw-2rem),380px)] overflow-hidden border-border/70 bg-card/95 shadow-2xl backdrop-blur-xl md:right-6 md:bottom-6">
+    <Card
+      className={`fixed right-4 bottom-24 z-40 w-[calc(100vw-2rem)] overflow-hidden border-border/70 bg-card/95 shadow-2xl backdrop-blur-xl md:right-6 md:bottom-6 ${isMinimized ? "max-w-[320px]" : "max-w-[380px]"}`}
+    >
       <CardHeader className="gap-3 border-b border-border/50 px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
@@ -124,10 +132,14 @@ export function ArtistSetupGuide({
               <Sparkles className="size-4" />
             </div>
             <div className="min-w-0">
-              <p className="truncate font-semibold text-sm">Artist setup</p>
-              <p className="text-xs text-muted-foreground">
-                Build your SoundKit presence
+              <p className="truncate font-semibold text-sm">
+                {isMinimized ? "Setup guide" : "Artist setup"}
               </p>
+              {!isMinimized ? (
+                <p className="text-xs text-muted-foreground">
+                  Build your SoundKit presence
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
@@ -149,7 +161,7 @@ export function ArtistSetupGuide({
               title={isMinimized ? "Expand" : "Minimize"}
               variant="ghost"
             >
-              <Minus />
+              {isMinimized ? <Maximize2 /> : <Minus />}
             </Button>
             <Button
               aria-label="Hide setup guide"
@@ -162,25 +174,38 @@ export function ArtistSetupGuide({
             </Button>
           </div>
         </div>
-        {!isMinimized ? (
-          <div className="space-y-1.5">
+        <div className="space-y-1.5">
+          {!isMinimized ? (
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Your progress</span>
               <span className="font-medium">
                 {progress.completed} of {progress.total} complete
               </span>
             </div>
-            <Progress
-              aria-label={`${progress.percent}% setup complete`}
-              value={progress.percent}
-            />
-          </div>
+          ) : null}
+          <Progress
+            aria-label={`${progress.percent}% setup complete`}
+            value={progress.percent}
+          />
+        </div>
+        {isMinimized ? (
+          <Button
+            className="h-auto justify-start gap-1 px-0 text-xs"
+            onClick={openExplore}
+            variant="ghost"
+          >
+            <span className="text-muted-foreground">Next:</span>
+            <span className="font-medium text-primary">
+              Explore what&apos;s next
+            </span>
+            <ChevronRight className="size-3.5" />
+          </Button>
         ) : null}
       </CardHeader>
 
       {!isMinimized ? (
         <>
-          <CardContent className="max-h-[min(55vh,520px)] overflow-y-auto p-0">
+          <CardContent className="max-h-[min(48vh,460px)] overflow-y-auto p-0">
             <Accordion
               collapsible
               onValueChange={setExpandedTask}
@@ -211,7 +236,7 @@ export function ArtistSetupGuide({
                 if (task.status === "completed") {
                   return (
                     <div
-                      className="flex items-center gap-3 border-b border-border/40 px-4 py-3 last:border-b-0"
+                      className="flex items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0"
                       key={task.id}
                     >
                       <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
@@ -235,7 +260,7 @@ export function ArtistSetupGuide({
                 if (task.status === "locked") {
                   return (
                     <div
-                      className="flex items-start gap-3 border-b border-border/40 px-4 py-3 opacity-70 last:border-b-0"
+                      className="flex items-start gap-3 border-b border-border/40 px-4 py-2.5 opacity-70 last:border-b-0"
                       key={task.id}
                     >
                       <div className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground">
@@ -257,7 +282,7 @@ export function ArtistSetupGuide({
                     key={task.id}
                     value={task.id}
                   >
-                    <AccordionTrigger className="gap-3 px-4 py-3 hover:no-underline [&>svg]:text-muted-foreground">
+                    <AccordionTrigger className="gap-3 px-4 py-2.5 hover:no-underline [&>svg]:text-muted-foreground">
                       <div className="flex min-w-0 items-center gap-3 text-left">
                         <div className="flex size-6 shrink-0 items-center justify-center rounded-full border border-primary/50 text-primary">
                           <span className="text-xs font-semibold">
@@ -274,8 +299,8 @@ export function ArtistSetupGuide({
                         </div>
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-4 pl-[52px]">
-                      <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+                    <AccordionContent className="px-4 pb-3 pl-[52px]">
+                      <p className="mb-2 text-xs leading-relaxed text-muted-foreground">
                         {task.description}
                       </p>
                       {isReferral ? (
@@ -313,25 +338,53 @@ export function ArtistSetupGuide({
                 );
               })}
             </Accordion>
-            <div className="border-t border-border/50 bg-muted/20 px-4 py-3">
-              <p className="mb-2 font-medium text-xs">
-                Explore what&apos;s next
-              </p>
-              <div className="grid gap-1">
-                {exploratoryArtistSetupTasks.map((item) => (
-                  <Link
-                    className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                    key={item.href}
-                    to={item.href as never}
-                  >
-                    <span>{item.title}</span>
-                    <ChevronRight className="size-3.5" />
-                  </Link>
-                ))}
-              </div>
-            </div>
+            <Accordion
+              collapsible
+              onValueChange={(value) =>
+                setIsExploreExpanded(value === "explore")
+              }
+              type="single"
+              value={isExploreExpanded ? "explore" : ""}
+            >
+              <AccordionItem
+                className="border-t border-border/50 last:border-b-0"
+                value="explore"
+              >
+                <AccordionTrigger className="gap-3 bg-muted/20 px-4 py-2.5 hover:no-underline [&>svg]:text-muted-foreground">
+                  <div className="min-w-0 text-left">
+                    <p className="font-medium text-xs">
+                      Explore what&apos;s next
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      Keep building beyond the essentials.
+                    </p>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="bg-muted/20 px-4 pb-3">
+                  <div className="grid gap-1">
+                    {exploratoryArtistSetupTasks.map((item) => (
+                      <Link
+                        className="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-xs transition-colors hover:bg-accent hover:text-foreground"
+                        key={item.href}
+                        to={item.href as never}
+                      >
+                        <span className="min-w-0">
+                          <span className="block text-foreground">
+                            {item.title}
+                          </span>
+                          <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
+                            {item.description}
+                          </span>
+                        </span>
+                        <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+                      </Link>
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </CardContent>
-          <CardFooter className="flex flex-col items-stretch gap-2 border-t border-border/50 px-4 py-3">
+          <CardFooter className="flex flex-col items-stretch gap-2 border-t border-border/50 px-4 py-2.5">
             <p className="text-center text-xs text-muted-foreground">
               Need a hand?{" "}
               <a
