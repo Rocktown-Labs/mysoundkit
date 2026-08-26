@@ -80,8 +80,8 @@ export function UserProfilePreviewModal({
     ? (artistData?.avatarUrl ??
       meProfile?.avatarUrl ??
       meUser?.avatarUrl ??
-      "/placeholder-user.jpg")
-    : (artistData?.avatarUrl ?? user.avatarUrl ?? "/placeholder-user.jpg");
+      "/soundkit-default-avatar.svg")
+    : (artistData?.avatarUrl ?? user.avatarUrl ?? "/soundkit-default-avatar.svg");
   const bio = isCurrentUser
     ? (artistData?.bio ?? meProfile?.bio ?? "SoundKit artist & creator.")
     : (artistData?.bio ??

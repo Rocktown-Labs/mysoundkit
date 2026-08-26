@@ -62,7 +62,7 @@ const libraryCategories = [
     title: "Recently Watched",
   },
   {
-    color: "text-orange-500",
+    color: "text-muted-foreground",
     countKey: null,
     description: "Manage your settings",
     href: "/library/settings",

@@ -30,7 +30,7 @@ const fetchPosts = async ({ pageParam = 0 }) => {
 
   return Array.from({ length: 9 }, (_, i) => ({
     artist: {
-      avatar: "/placeholder-user.jpg",
+      avatar: "/soundkit-default-avatar.svg",
       name: "John Doe",
       username: "johndoe",
     },
@@ -53,7 +53,7 @@ function DashboardProfilePage() {
     meQuery = useMeQuery(),
     profile = meQuery.data?.user,
     user = {
-      avatar: profile?.avatarUrl ?? "/placeholder-user.jpg",
+      avatar: profile?.avatarUrl ?? "/soundkit-default-avatar.svg",
       battleRecord: "0",
       bio: profile?.bio ?? "No public bio yet.",
       coverImage: profile?.headerUrl ?? "",

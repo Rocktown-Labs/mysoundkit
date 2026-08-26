@@ -57,7 +57,7 @@ import { claimUploadIntent, completeUploadIntent } from "@/lib/upload-intents";
 const app = new OpenAPIHono<AppEnv>(),
   sampleFriends = [
     {
-      avatarUrl: "/placeholder-user.jpg",
+      avatarUrl: "/soundkit-default-avatar.svg",
       email: "alex@soundkit.app",
       id: "sample-alex",
       lastInteractionAt: new Date().toISOString(),
@@ -67,7 +67,7 @@ const app = new OpenAPIHono<AppEnv>(),
       username: "alex",
     },
     {
-      avatarUrl: "/placeholder-user.jpg",
+      avatarUrl: "/soundkit-default-avatar.svg",
       email: "sam@soundkit.app",
       id: "sample-sam",
       lastInteractionAt: new Date().toISOString(),

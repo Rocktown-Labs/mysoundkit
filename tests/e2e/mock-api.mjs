@@ -96,7 +96,7 @@ const json = (response, status, body, origin) => {
         ? {
             artists: [
               {
-                avatarUrl: "/placeholder-user.jpg",
+                avatarUrl: "/soundkit-default-avatar.svg",
                 id: "artist-dj-nova",
                 isMuted: false,
                 name: "DJ Nova",
@@ -105,7 +105,7 @@ const json = (response, status, body, origin) => {
                 verified: true,
               },
               {
-                avatarUrl: "/placeholder-user.jpg",
+                avatarUrl: "/soundkit-default-avatar.svg",
                 id: "artist-mc-rhythm",
                 isMuted: true,
                 name: "MC Rhythm",
@@ -190,7 +190,7 @@ const json = (response, status, body, origin) => {
   ],
   mockArtists = [
     {
-      avatarUrl: "/placeholder-user.jpg",
+      avatarUrl: "/soundkit-default-avatar.svg",
       battleCount: 12,
       followers: 124_000,
       genre: "R&B/Soul",
@@ -204,7 +204,7 @@ const json = (response, status, body, origin) => {
       weeklyPlays: 2_400_000,
     },
     {
-      avatarUrl: "/placeholder-user.jpg",
+      avatarUrl: "/soundkit-default-avatar.svg",
       battleCount: 9,
       followers: 89_000,
       genre: "Electronic",
@@ -710,7 +710,7 @@ export const createMockApiServer = async ({
         200,
         [
           {
-            authorAvatarUrl: "/placeholder-user.jpg",
+            authorAvatarUrl: "/soundkit-default-avatar.svg",
             authorName: "MusicFan99",
             body: "Incredible production quality!",
             createdAt: "2026-05-26T12:00:00.000Z",

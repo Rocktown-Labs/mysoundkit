@@ -122,7 +122,7 @@ export function StreamCard({
           <Avatar className="size-9 shrink-0">
             <AvatarImage
               alt={displayName}
-              src={creatorAvatar ?? "/placeholder-user.jpg"}
+              src={creatorAvatar ?? "/soundkit-default-avatar.svg"}
             />
             <AvatarFallback>
               {displayName.slice(0, 2).toUpperCase()}

@@ -22,7 +22,7 @@ function ExploreLayout() {
   return (
     <SidebarProvider defaultOpen={true}>
       <div
-        className={`flex w-full overflow-hidden ${
+        className={`public-pages flex w-full overflow-hidden ${
           isImmersive ? "h-svh max-h-svh" : "min-h-screen"
         }`}
       >

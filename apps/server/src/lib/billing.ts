@@ -67,6 +67,7 @@ export const getConfiguredPlanCodes = () => CONFIGURED_PAID_PLAN_CODES;
 
 export const createPlanCheckout = async ({
   cancelUrl,
+  customerType = "organization",
   planCode,
   referenceId,
   request,
@@ -74,6 +75,7 @@ export const createPlanCheckout = async ({
   successUrl,
 }: {
   cancelUrl: string;
+  customerType?: "organization" | "user";
   planCode: string;
   referenceId: string;
   request: Request;
@@ -110,7 +112,7 @@ export const createPlanCheckout = async ({
     const upgradeSubscription = auth.api.upgradeSubscription as (input: {
         body: {
           cancelUrl: string;
-          customerType: "organization";
+          customerType: "organization" | "user";
           disableRedirect: boolean;
           plan: string;
           referenceId: string;
@@ -122,7 +124,7 @@ export const createPlanCheckout = async ({
       result = await upgradeSubscription({
         body: {
           cancelUrl,
-          customerType: "organization",
+          customerType,
           disableRedirect: true,
           plan: planCode,
           referenceId,

@@ -276,6 +276,7 @@ function DashboardAdsPage() {
       try {
         const result = await checkoutMutation.mutateAsync({
           cancelUrl: window.location.href,
+          customerType: "organization",
           planCode: "artist_pro",
           successUrl: window.location.href,
         });

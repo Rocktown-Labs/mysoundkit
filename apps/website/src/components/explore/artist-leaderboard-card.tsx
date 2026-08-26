@@ -40,7 +40,7 @@ export function ArtistLeaderboardCard({
           return <Users className="size-3 text-green-500" />;
         }
         case "top": {
-          return <Trophy className="size-3 text-amber-500" />;
+          return <Trophy className="size-3 text-primary" />;
         }
       }
     },
@@ -73,9 +73,9 @@ export function ArtistLeaderboardCard({
           <div
             className={cn(
               "flex items-center justify-center size-8 rounded-full font-bold text-sm flex-shrink-0",
-              artist.rank === 1 && "bg-amber-500/20 text-amber-500",
+              artist.rank === 1 && "bg-primary/15 text-primary",
               artist.rank === 2 && "bg-zinc-400/20 text-zinc-400",
-              artist.rank === 3 && "bg-orange-600/20 text-orange-600",
+              artist.rank === 3 && "bg-muted text-muted-foreground",
               artist.rank > 3 && "bg-muted text-muted-foreground"
             )}
           >

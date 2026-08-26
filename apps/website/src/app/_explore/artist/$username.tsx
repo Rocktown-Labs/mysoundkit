@@ -129,7 +129,7 @@ const formatCount = (value?: number) => {
     trackCountOverride?: number,
     totalPlaysOverride?: number
   ) => ({
-    avatar: artist.avatarUrl ?? "/placeholder-user.jpg",
+    avatar: artist.avatarUrl ?? "/soundkit-default-avatar.svg",
     battleRank: artist.battleCount ? `#${artist.battleCount}` : "#NR",
     battleRecord: artist.battleCount ? `${artist.battleCount}-0` : "0-0",
     bio:
