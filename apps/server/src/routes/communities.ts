@@ -16,6 +16,7 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { canAccessCommunity } from "@/lib/community-access";
+import { loadCommunitySchemaCapabilities } from "@/lib/community-schema-capabilities";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
@@ -186,23 +187,62 @@ const requireCommunityOwner = async ({
     filters: CommunityListQuery;
   }) => {
     const db = createDb(),
-      rows = await db
-        .select({
-          artistAvatarUrl: userProfiles.avatarUrl,
-          artistName: userProfiles.displayName,
-          artistUsername: userProfiles.username,
-          community: communities,
-          genreId: genres.id,
-          genreName: genres.name,
-          genreSlug: genres.slug,
-        })
-        .from(communities)
-        .innerJoin(
-          userProfiles,
-          eq(userProfiles.userId, communities.artistUserId)
-        )
-        .leftJoin(genres, eq(genres.id, communities.genreId))
-        .where(eq(communities.isActive, true)),
+      capabilities = await loadCommunitySchemaCapabilities(),
+      rows = capabilities.discovery
+        ? await db
+            .select({
+              artistAvatarUrl: userProfiles.avatarUrl,
+              artistName: userProfiles.displayName,
+              artistUsername: userProfiles.username,
+              community: communities,
+              genreId: genres.id,
+              genreName: genres.name,
+              genreSlug: genres.slug,
+            })
+            .from(communities)
+            .innerJoin(
+              userProfiles,
+              eq(userProfiles.userId, communities.artistUserId)
+            )
+            .leftJoin(genres, eq(genres.id, communities.genreId))
+            .where(eq(communities.isActive, true))
+        : (
+            await db
+              .select({
+                artistAvatarUrl: userProfiles.avatarUrl,
+                artistName: userProfiles.displayName,
+                artistUsername: userProfiles.username,
+                community: {
+                  artistUserId: communities.artistUserId,
+                  createdAt: communities.createdAt,
+                  currency: communities.currency,
+                  description: communities.description,
+                  id: communities.id,
+                  isActive: communities.isActive,
+                  monthlyPriceCents: communities.monthlyPriceCents,
+                  name: communities.name,
+                  slug: communities.slug,
+                  stripePriceId: communities.stripePriceId,
+                  updatedAt: communities.updatedAt,
+                },
+              })
+              .from(communities)
+              .innerJoin(
+                userProfiles,
+                eq(userProfiles.userId, communities.artistUserId)
+              )
+              .where(eq(communities.isActive, true))
+          ).map((row) => ({
+            ...row,
+            community: {
+              ...row.community,
+              coverImageUrl: null,
+              genreId: null,
+            },
+            genreId: null,
+            genreName: null,
+            genreSlug: null,
+          })),
       communityIds = rows.map(({ community }) => community.id),
       memberRows =
         communityIds.length === 0
@@ -407,7 +447,8 @@ app.openapi(
         )
         .where(eq(userProfiles.userId, user.id))
         .limit(1),
-      body = c.req.valid("json");
+      body = c.req.valid("json"),
+      capabilities = await loadCommunitySchemaCapabilities();
     if (profile?.accountType !== "artist") {
       return c.json(
         { message: "Complete artist onboarding before creating a community." },
@@ -439,8 +480,18 @@ app.openapi(
       name: body.name,
       slug: `${slugify(body.name)}-${user.id.slice(0, 6)}`,
     };
+    const communityInsert = capabilities.discovery
+      ? row
+      : {
+          artistUserId: row.artistUserId,
+          description: row.description,
+          id: row.id,
+          monthlyPriceCents: row.monthlyPriceCents,
+          name: row.name,
+          slug: row.slug,
+        };
     await db.transaction(async (transaction) => {
-      await transaction.insert(communities).values(row);
+      await transaction.insert(communities).values(communityInsert);
       await transaction.insert(communityMembers).values({
         communityId: row.id,
         role: "owner",
@@ -542,9 +593,17 @@ app.openapi(
         HttpStatusCodes.FORBIDDEN
       );
     }
+    const capabilities = await loadCommunitySchemaCapabilities(),
+      communityUpdate = capabilities.discovery
+        ? body
+        : {
+            description: body.description,
+            monthlyPriceCents: body.monthlyPriceCents,
+            name: body.name,
+          };
     await createDb()
       .update(communities)
-      .set({ ...body, updatedAt: new Date() })
+      .set({ ...communityUpdate, updatedAt: new Date() })
       .where(eq(communities.id, communityId));
     const updated = (
       await loadCommunities({
@@ -590,23 +649,28 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
     const db = createDb(),
+      capabilities = await loadCommunitySchemaCapabilities(),
       [community] = await db
-        .select()
+        .select({
+          monthlyPriceCents: communities.monthlyPriceCents,
+        })
         .from(communities)
         .where(
           and(eq(communities.id, communityId), eq(communities.isActive, true))
         )
         .limit(1),
-      [ban] = await db
-        .select({ userId: communityBans.userId })
-        .from(communityBans)
-        .where(
-          and(
-            eq(communityBans.communityId, communityId),
-            eq(communityBans.userId, user.id)
-          )
-        )
-        .limit(1);
+      [ban] = capabilities.bans
+        ? await db
+            .select({ userId: communityBans.userId })
+            .from(communityBans)
+            .where(
+              and(
+                eq(communityBans.communityId, communityId),
+                eq(communityBans.userId, user.id)
+              )
+            )
+            .limit(1)
+        : [];
     if (ban) {
       return c.json(
         { message: "You cannot join this community." },
@@ -923,6 +987,10 @@ app.openapi(
         HttpStatusCodes.FORBIDDEN
       );
     }
+    const capabilities = await loadCommunitySchemaCapabilities();
+    if (!capabilities.bans) {
+      return c.json([], HttpStatusCodes.OK);
+    }
     const rows = await createDb()
       .select({
         avatarUrl: userProfiles.avatarUrl,
@@ -961,6 +1029,10 @@ app.openapi(
     responses: {
       [HttpStatusCodes.OK]: jsonContent(messageSchema, "Member banned"),
       [HttpStatusCodes.FORBIDDEN]: jsonContent(messageSchema, "Owner required"),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageSchema,
+        "Moderation schema unavailable"
+      ),
     },
     tags: ["Communities"],
   }),
@@ -975,6 +1047,13 @@ app.openapi(
       return c.json(
         { message: "Community owner access is required." },
         HttpStatusCodes.FORBIDDEN
+      );
+    }
+    const capabilities = await loadCommunitySchemaCapabilities();
+    if (!capabilities.bans) {
+      return c.json(
+        { message: "Community moderation is not available in this preview." },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
       );
     }
     const db = createDb();
@@ -1015,6 +1094,10 @@ app.openapi(
     responses: {
       [HttpStatusCodes.OK]: jsonContent(messageSchema, "Ban removed"),
       [HttpStatusCodes.FORBIDDEN]: jsonContent(messageSchema, "Owner required"),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageSchema,
+        "Moderation schema unavailable"
+      ),
     },
     tags: ["Communities"],
   }),
@@ -1028,6 +1111,13 @@ app.openapi(
       return c.json(
         { message: "Community owner access is required." },
         HttpStatusCodes.FORBIDDEN
+      );
+    }
+    const capabilities = await loadCommunitySchemaCapabilities();
+    if (!capabilities.bans) {
+      return c.json(
+        { message: "Community moderation is not available in this preview." },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
       );
     }
     await createDb()

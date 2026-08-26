@@ -13,6 +13,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { loadCommunitySchemaCapabilities } from "@/lib/community-schema-capabilities";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import { calculateFeeCents, COMMUNITY_PLATFORM_FEE_BPS } from "@/lib/fees";
 import { createConnectedSubscriptionCheckout } from "@/lib/stripe";
@@ -69,8 +70,16 @@ app.openapi(
 
     const body = c.req.valid("json"),
       db = createDb(),
+      capabilities = await loadCommunitySchemaCapabilities(),
       [community] = await db
-        .select()
+        .select({
+          artistUserId: communities.artistUserId,
+          currency: communities.currency,
+          id: communities.id,
+          isActive: communities.isActive,
+          monthlyPriceCents: communities.monthlyPriceCents,
+          name: communities.name,
+        })
         .from(communities)
         .where(eq(communities.id, body.communityId))
         .limit(1);
@@ -86,16 +95,18 @@ app.openapi(
       );
     }
 
-    const [ban] = await db
-      .select({ userId: communityBans.userId })
-      .from(communityBans)
-      .where(
-        and(
-          eq(communityBans.communityId, community.id),
-          eq(communityBans.userId, user.id)
-        )
-      )
-      .limit(1);
+    const [ban] = capabilities.bans
+      ? await db
+          .select({ userId: communityBans.userId })
+          .from(communityBans)
+          .where(
+            and(
+              eq(communityBans.communityId, community.id),
+              eq(communityBans.userId, user.id)
+            )
+          )
+          .limit(1)
+      : [];
 
     if (ban) {
       return c.json(

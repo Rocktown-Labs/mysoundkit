@@ -39,6 +39,7 @@
 
 ### Fixed
 
+- Fixed community discovery and membership APIs in pull-request previews by detecting the deployed community schema and using legacy-safe reads until the additive community migration is applied during production deployment.
 - Replaced the white placeholder avatar with a branded SoundKit SK fallback across website and server fallback data.
 - Fixed Library account settings to read live Premium entitlements, route paid subscribers to billing management for upgrades/downgrades, and avoid treating admin-granted Premium access as unfinished checkout.
 - Fixed public Explore hover and list accents to use muted gray/purple styling while preserving dashboard dropdown accents, and expanded the sidebar wordmark to fill its branded frame.

@@ -1,4 +1,4 @@
-/* eslint-disable one-var */
+/* eslint-disable one-var, sort-vars */
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   communities,
@@ -9,6 +9,7 @@ import {
 import { and, eq, inArray } from "drizzle-orm";
 
 import { hasCommunityAccess } from "@/lib/community-access-policy";
+import { loadCommunitySchemaCapabilities } from "@/lib/community-schema-capabilities";
 
 export const canAccessCommunity = async ({
   communityId,
@@ -22,16 +23,19 @@ export const canAccessCommunity = async ({
   }
 
   const db = createDb(),
-    [ban] = await db
-      .select({ userId: communityBans.userId })
-      .from(communityBans)
-      .where(
-        and(
-          eq(communityBans.communityId, communityId),
-          eq(communityBans.userId, userId)
-        )
-      )
-      .limit(1);
+    capabilities = await loadCommunitySchemaCapabilities(),
+    [ban] = capabilities.bans
+      ? await db
+          .select({ userId: communityBans.userId })
+          .from(communityBans)
+          .where(
+            and(
+              eq(communityBans.communityId, communityId),
+              eq(communityBans.userId, userId)
+            )
+          )
+          .limit(1)
+      : [];
 
   const [community] = await db
     .select({ artistUserId: communities.artistUserId })
