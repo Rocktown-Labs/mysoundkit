@@ -298,6 +298,10 @@ test.describe("main application surfaces", () => {
     context,
     page,
   }) => {
+    // The dashboard shell and live route are code-split; on a cold Vite server,
+    // dependency discovery can take longer than the suite's default timeout.
+    test.setTimeout(90_000);
+
     await context.addCookies([
       {
         domain: cookieDomain,
@@ -311,7 +315,7 @@ test.describe("main application surfaces", () => {
 
     await expect(
       page.getByText(/Battle Requests & Challenges/i).first()
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 60_000 });
     await expect(
       page.getByText(/Review incoming challenge requests/i)
     ).toBeVisible();
