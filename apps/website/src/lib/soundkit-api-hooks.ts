@@ -285,10 +285,10 @@ export type LibraryWatchedItem = InferResponseType<
   typeof libraryWatchedGet,
   200
 >[number];
-type CreateBattleChallengeBody = InferRequestType<
+export type CreateBattleChallengeBody = InferRequestType<
   typeof battleChallengePost
 >["json"];
-type UpdateBattleChallengeBody = InferRequestType<
+export type UpdateBattleChallengeBody = InferRequestType<
   typeof battleChallengePatch
 >["json"];
 type CreateLiveExperienceBody = InferRequestType<

@@ -650,6 +650,7 @@ export const rpcContract = new Hono()
   .get("/v1/battles/challenges", (c) =>
     c.json({} as z.infer<typeof battleChallengesResponseSchema>)
   )
+  .delete("/v1/battles/:battleId", (c) => c.json({ message: "" }))
   .get(
     "/v1/battles/kits",
     validator("query", (value) => battleKitQuerySchema.parse(value)),
@@ -727,6 +728,9 @@ export const rpcContract = new Hono()
     "/v1/battles/challenges/:challengeId",
     jsonValidator(updateBattleChallengeBodySchema),
     (c) => c.json({} as z.infer<typeof messageResponseSchema>)
+  )
+  .delete("/v1/battles/challenges/:challengeId", (c) =>
+    c.json({} as z.infer<typeof messageResponseSchema>)
   )
   .get("/v1/battles/stats", (c) =>
     c.json(

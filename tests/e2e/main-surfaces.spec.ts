@@ -319,6 +319,16 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByText(/Review incoming challenge requests/i)
     ).toBeVisible();
+    await page.getByRole("tab", { name: /outgoing/i }).click();
+    await expect(page.getByText("To: @stale-artist")).toBeVisible();
+    await page.getByRole("button", { name: "Clear" }).click();
+    await expect(page.getByText("To: @stale-artist")).toHaveCount(0);
+
+    await page.getByLabel("Opponent").fill("new-opponent");
+    await page.getByLabel("Date").fill("2026-09-30");
+    await page.getByLabel("Time").fill("20:00");
+    await page.getByRole("button", { name: "Send Battle Request" }).click();
+    await expect(page.getByText("To: @new-opponent")).toBeVisible();
 
     await gotoWithViteRetry(page, "/dashboard/live/parties");
     await expect(

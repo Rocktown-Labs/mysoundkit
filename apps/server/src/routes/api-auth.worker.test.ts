@@ -85,6 +85,16 @@ const API_ORIGIN = "http://soundkit.test",
       path: "/v1/battles/challenge",
     },
     {
+      init: { method: "DELETE" },
+      label: "battle deletion",
+      path: "/v1/battles/battle_123",
+    },
+    {
+      init: { method: "DELETE" },
+      label: "battle challenge dismissal",
+      path: "/v1/battles/challenges/challenge_123",
+    },
+    {
       init: jsonRequest({ trackIds: ["track_one"] }),
       label: "battle eligibility checks",
       path: "/v1/battles/eligibility",

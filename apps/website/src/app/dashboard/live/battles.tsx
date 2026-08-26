@@ -49,17 +49,18 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
+import {
+  useDbBattleActions,
+  useDbBattleChallenges,
+  useDbBattles,
+} from "@/lib/data-db";
 import { musicGenres } from "@/lib/music-genres";
 import {
-  useBattleChallengesQuery,
   useBattleOpponentsQuery,
-  useBattlesQuery,
-  useCreateBattleChallengeMutation,
   useDeleteLiveExperienceMutation,
   useGenresQuery,
   useMeQuery,
   useTracksQuery,
-  useUpdateBattleChallengeMutation,
 } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/live/battles")({
@@ -69,16 +70,19 @@ export const Route = createFileRoute("/dashboard/live/battles")({
 function BattleHubPage() {
   const meQuery = useMeQuery(),
     tracksQuery = useTracksQuery(),
-    battlesQuery = useBattlesQuery(),
-    battleChallengesQuery = useBattleChallengesQuery(),
+    battlesDb = useDbBattles(),
+    battleChallengesDb = useDbBattleChallenges(),
     genresQuery = useGenresQuery(),
-    createChallenge = useCreateBattleChallengeMutation(),
-    updateChallenge = useUpdateBattleChallengeMutation(),
     deleteExperience = useDeleteLiveExperienceMutation(),
+    { clearChallenge, createChallenge, deleteBattle, updateChallenge } =
+      useDbBattleActions(),
     [cancellingBattleId, setCancellingBattleId] = useState<string | null>(null),
     [confirmText, setConfirmText] = useState(""),
-    battles = battlesQuery.data ?? [],
-    targetBattle = battles.find((b) => b.id === cancellingBattleId),
+    [deletingBattleId, setDeletingBattleId] = useState<string | null>(null),
+    [pendingChallengeId, setPendingChallengeId] = useState<string | null>(null),
+    [creatingChallenge, setCreatingChallenge] = useState(false),
+    battles = battlesDb.data,
+    targetBattle = battles.find((battle) => battle.id === cancellingBattleId),
     availableGenres =
       genresQuery.data && genresQuery.data.length > 0
         ? genresQuery.data.map((g) => ({ label: g.name, value: g.slug }))
@@ -94,8 +98,18 @@ function BattleHubPage() {
       q: targetUsername,
     }),
     handleCancelBattle = async (id: string) => {
+      const battle = battles.find((candidate) => candidate.id === id);
+      if (!battle) {
+        return;
+      }
+
+      setDeletingBattleId(id);
       try {
-        await deleteExperience.mutateAsync(id);
+        if (battle.status === "live") {
+          await deleteExperience.mutateAsync(id);
+        } else {
+          await deleteBattle(id).isPersisted.promise;
+        }
         toast({
           description: "Battle matchup has been removed.",
           title: "Battle cancelled",
@@ -107,69 +121,93 @@ function BattleHubPage() {
           variant: "destructive",
         });
       }
+      setDeletingBattleId(null);
     };
 
   useEffect(() => {
     setSelectedGenre((current) => current || defaultGenre);
   }, [defaultGenre]);
 
-  const incomingRequests = battleChallengesQuery.data?.incoming ?? [],
-    outgoingRequests = battleChallengesQuery.data?.outgoing ?? [],
+  const incomingRequests = battleChallengesDb.data.filter(
+      (challenge) => challenge.direction === "incoming"
+    ),
+    outgoingRequests = battleChallengesDb.data.filter(
+      (challenge) => challenge.direction === "outgoing"
+    ),
     candidateArtists = artistsQuery.data ?? [],
     liveBattles = battles.filter((battle) => battle.status === "live"),
     scheduledBattles = battles.filter(
       (battle) => battle.status === "scheduled"
     ),
+    runChallengeUpdate = async ({
+      challengeId,
+      description,
+      status,
+      title,
+    }: {
+      challengeId: string;
+      description: string;
+      status: "accepted" | "canceled" | "declined";
+      title: string;
+    }) => {
+      setPendingChallengeId(challengeId);
+      try {
+        await updateChallenge({ challengeId, status }).isPersisted.promise;
+        toast({ description, title });
+      } catch {
+        toast({
+          description: "The request could not be updated. Please try again.",
+          title: "Request update failed",
+          variant: "destructive",
+        });
+      }
+      setPendingChallengeId(null);
+    },
     handleConfirmRequest = (id: string) => {
-      updateChallenge.mutate(
-        { challengeId: id, status: "accepted" },
-        {
-          onSuccess: () => {
-            toast({
-              description: "Battle challenge accepted.",
-              title: "Challenge Accepted",
-            });
-          },
-        }
-      );
+      void runChallengeUpdate({
+        challengeId: id,
+        description: "Battle challenge accepted.",
+        status: "accepted",
+        title: "Challenge Accepted",
+      });
     },
     handleDenyRequest = (id: string) => {
-      updateChallenge.mutate(
-        { challengeId: id, status: "declined" },
-        {
-          onSuccess: () => {
-            toast({
-              description: "Battle challenge request declined.",
-              title: "Challenge Declined",
-            });
-          },
-        }
-      );
+      void runChallengeUpdate({
+        challengeId: id,
+        description: "Battle challenge request declined.",
+        status: "declined",
+        title: "Challenge Declined",
+      });
     },
     handleCancelRequest = (id: string) => {
-      updateChallenge.mutate(
-        { challengeId: id, status: "canceled" },
-        {
-          onError: () => {
-            toast({
-              description:
-                "The request could not be canceled. Please try again.",
-              title: "Cancellation failed",
-              variant: "destructive",
-            });
-          },
-          onSuccess: () => {
-            toast({
-              description: "The outgoing battle request was canceled.",
-              title: "Request Canceled",
-            });
-          },
-        }
-      );
+      void runChallengeUpdate({
+        challengeId: id,
+        description: "The outgoing battle request was canceled.",
+        status: "canceled",
+        title: "Request Canceled",
+      });
+    },
+    handleClearRequest = async (id: string) => {
+      setPendingChallengeId(id);
+      try {
+        await clearChallenge(id).isPersisted.promise;
+        toast({
+          description: "The old battle request was cleared.",
+          title: "Request Cleared",
+        });
+      } catch {
+        toast({
+          description: "The request could not be cleared. Please try again.",
+          title: "Clear failed",
+          variant: "destructive",
+        });
+      }
+      setPendingChallengeId(null);
     },
     submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      const form = new FormData(event.currentTarget),
+      const formElement = event.currentTarget,
+        form = new FormData(formElement),
         opponent =
           targetUsername.trim() ||
           String(form.get("opponentUsername") ?? "").trim();
@@ -199,28 +237,55 @@ function BattleHubPage() {
               timeStyle: "short",
             })
           : "",
-        message = String(form.get("message") ?? "");
-
-      createChallenge.mutate(
-        {
-          format: selectedFormat as "best_of_3" | "best_of_5" | "best_of_7",
+        message = String(form.get("message") ?? ""),
+        format = selectedFormat as "best_of_3" | "best_of_5" | "best_of_7",
+        createdAt = new Date().toISOString(),
+        optimistic = {
+          challengerUsername: meQuery.data?.user.username ?? null,
+          createdAt,
+          direction: "outgoing" as const,
+          expiresAt: new Date(
+            Date.parse(createdAt) + 7 * 24 * 60 * 60 * 1000
+          ).toISOString(),
+          format,
           genre: selectedGenre,
-          message,
-          opponentUsername: opponent,
-          proposedDate,
-          proposedTimeLabel,
-        },
-        {
-          onSuccess: () => {
-            toast({
-              description: `Battle challenge request sent to @${opponent}.`,
-              title: "Challenge Sent",
-            });
-            setTargetUsername("");
-            event.currentTarget.reset();
-          },
+          id: crypto.randomUUID(),
+          message: message || null,
+          opponentUsername: opponent.replace(/^@/u, ""),
+          proposedDate: proposedDate || null,
+          proposedTimeLabel: proposedTimeLabel || null,
+          status: "pending" as const,
+        };
+
+      void (async () => {
+        setCreatingChallenge(true);
+        try {
+          await createChallenge({
+            body: {
+              format,
+              genre: selectedGenre,
+              message,
+              opponentUsername: opponent,
+              proposedDate,
+              proposedTimeLabel,
+            },
+            optimistic,
+          }).isPersisted.promise;
+          toast({
+            description: `Battle challenge request sent to @${opponent}.`,
+            title: "Challenge Sent",
+          });
+          setTargetUsername("");
+          formElement.reset();
+        } catch {
+          toast({
+            description: "The challenge could not be sent. Please try again.",
+            title: "Challenge failed",
+            variant: "destructive",
+          });
         }
-      );
+        setCreatingChallenge(false);
+      })();
     };
 
   return (
@@ -348,9 +413,9 @@ function BattleHubPage() {
                                 variant={
                                   req.status === "accepted"
                                     ? "default"
-                                    : req.status === "declined"
+                                    : (req.status === "declined"
                                       ? "destructive"
-                                      : "outline"
+                                      : "outline")
                                 }
                               >
                                 {req.status}
@@ -372,7 +437,7 @@ function BattleHubPage() {
                           {req.status === "pending" ? (
                             <div className="flex gap-2">
                               <Button
-                                disabled={updateChallenge.isPending}
+                                disabled={pendingChallengeId === req.id}
                                 size="sm"
                                 onClick={() => handleConfirmRequest(req.id)}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -380,7 +445,7 @@ function BattleHubPage() {
                                 <UserCheck className="mr-1.5 size-4" /> Confirm
                               </Button>
                               <Button
-                                disabled={updateChallenge.isPending}
+                                disabled={pendingChallengeId === req.id}
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleDenyRequest(req.id)}
@@ -389,19 +454,32 @@ function BattleHubPage() {
                               </Button>
                             </div>
                           ) : (
-                            <Button asChild size="sm" variant="outline">
-                              <Link
-                                search={{
-                                  genre: undefined,
-                                  region: undefined,
-                                  regionType: "north-america",
-                                  sort: undefined,
-                                }}
-                                to="/live/battles"
-                              >
-                                View Details
-                              </Link>
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button asChild size="sm" variant="outline">
+                                <Link
+                                  search={{
+                                    genre: undefined,
+                                    region: undefined,
+                                    regionType: "north-america",
+                                    sort: undefined,
+                                  }}
+                                  to="/live/battles"
+                                >
+                                  View Details
+                                </Link>
+                              </Button>
+                              {req.status === "accepted" ? null : (
+                                <Button
+                                  disabled={pendingChallengeId === req.id}
+                                  onClick={() => handleClearRequest(req.id)}
+                                  size="sm"
+                                  variant="outline"
+                                >
+                                  <Trash2 className="mr-1.5 size-4" />
+                                  Clear
+                                </Button>
+                              )}
+                            </div>
                           )}
                         </div>
                       ))
@@ -439,7 +517,7 @@ function BattleHubPage() {
                           {req.status === "pending" ? (
                             <Button
                               className="shrink-0"
-                              disabled={updateChallenge.isPending}
+                              disabled={pendingChallengeId === req.id}
                               onClick={() => handleCancelRequest(req.id)}
                               size="sm"
                               variant="outline"
@@ -447,7 +525,18 @@ function BattleHubPage() {
                               <Trash2 className="mr-1.5 size-4" />
                               Cancel Request
                             </Button>
-                          ) : null}
+                          ) : (req.status !== "accepted" ? (
+                            <Button
+                              className="shrink-0"
+                              disabled={pendingChallengeId === req.id}
+                              onClick={() => handleClearRequest(req.id)}
+                              size="sm"
+                              variant="outline"
+                            >
+                              <Trash2 className="mr-1.5 size-4" />
+                              Clear
+                            </Button>
+                          ) : null)}
                         </div>
                       ))
                     )}
@@ -468,13 +557,13 @@ function BattleHubPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {battlesQuery.isLoading && (
+                {battlesDb.isLoading && (
                   <p className="text-sm text-muted-foreground">
                     Loading battles...
                   </p>
                 )}
 
-                {!battlesQuery.isLoading && battles.length === 0 && (
+                {!battlesDb.isLoading && battles.length === 0 && (
                   <div className="rounded-lg border border-dashed p-8 text-center">
                     <p className="font-semibold">No battles yet</p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -521,7 +610,10 @@ function BattleHubPage() {
                           </Button>
                           <Button
                             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            disabled={deleteExperience.isPending}
+                            disabled={
+                              deletingBattleId === battle.id ||
+                              deleteExperience.isPending
+                            }
                             onClick={() => {
                               setCancellingBattleId(battle.id);
                               setConfirmText("");
@@ -590,7 +682,9 @@ function BattleHubPage() {
                       confirmText.trim() !==
                         (targetBattle?.status === "live"
                           ? "FORFEIT"
-                          : "CANCEL") || deleteExperience.isPending
+                          : "CANCEL") ||
+                      deletingBattleId !== null ||
+                      deleteExperience.isPending
                     }
                     onClick={() => {
                       if (cancellingBattleId) {
@@ -600,11 +694,11 @@ function BattleHubPage() {
                       }
                     }}
                   >
-                    {deleteExperience.isPending
+                    {deletingBattleId !== null || deleteExperience.isPending
                       ? "Processing..."
-                      : targetBattle?.status === "live"
+                      : (targetBattle?.status === "live"
                         ? "Confirm Forfeit"
-                        : "Confirm Cancellation"}
+                        : "Confirm Cancellation")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -754,12 +848,9 @@ function BattleHubPage() {
                     />
                   </div>
 
-                  <Button
-                    className="w-full"
-                    disabled={createChallenge.isPending}
-                  >
+                  <Button className="w-full" disabled={creatingChallenge}>
                     <Trophy className="mr-2 size-4" />
-                    {createChallenge.isPending
+                    {creatingChallenge
                       ? "Sending Request..."
                       : "Send Battle Request"}
                   </Button>

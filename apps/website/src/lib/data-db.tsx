@@ -21,7 +21,10 @@ import type { ReactNode } from "react";
 import { z } from "zod";
 
 import { API_V1_URL, apiClient, rpcJson } from "./api";
-import type { LibrarySavedTrack } from "./soundkit-api-hooks";
+import type {
+  CreateBattleChallengeBody,
+  LibrarySavedTrack,
+} from "./soundkit-api-hooks";
 
 const notificationsGet = apiClient.v1.notifications.index.$get,
   notificationReadPost =
@@ -61,6 +64,13 @@ const notificationsGet = apiClient.v1.notifications.index.$get,
     apiClient.v1.communities[":communityId"].bans[":userId"].$delete,
   artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post,
   artistFollowDelete = apiClient.v1.social.artists[":username"].follow.$delete,
+  battlesGet = apiClient.v1.battles.index.$get,
+  battleDelete = apiClient.v1.battles[":battleId"].$delete,
+  battleChallengesGet = apiClient.v1.battles.challenges.$get,
+  battleChallengePost = apiClient.v1.battles.challenge.$post,
+  battleChallengePatch = apiClient.v1.battles.challenges[":challengeId"].$patch,
+  battleChallengeDelete =
+    apiClient.v1.battles.challenges[":challengeId"].$delete,
   notificationSchema = z.object({
     createdAt: z.string(),
     id: z.string(),
@@ -165,8 +175,59 @@ const notificationsGet = apiClient.v1.notifications.index.$get,
     regionSlug: z.string().nullable(),
     slug: z.string().nullable(),
     title: z.string(),
+  }),
+  battleChallengeSchema = z.object({
+    challengerUsername: z.string().nullable(),
+    createdAt: z.string(),
+    direction: z.enum(["incoming", "outgoing"]),
+    expiresAt: z.string(),
+    format: z.enum(["best_of_3", "best_of_5", "best_of_7"]),
+    genre: z.string(),
+    id: z.string(),
+    message: z.string().nullable(),
+    opponentUsername: z.string().nullable(),
+    proposedDate: z.string().nullable(),
+    proposedTimeLabel: z.string().nullable(),
+    status: z.enum(["pending", "accepted", "declined", "canceled", "expired"]),
+  }),
+  battleSummarySchema = z.object({
+    featuredRank: z.number().int().positive().nullable().optional(),
+    format: z.enum(["best_of_3", "best_of_5", "best_of_7"]),
+    genre: z.string(),
+    id: z.string(),
+    isFeatured: z.boolean(),
+    joinMode: z.enum(["watch_now", "waiting_room"]),
+    phaseEndsAt: z.string().nullable().optional(),
+    queueSize: z.number().int().nonnegative(),
+    round: z
+      .object({
+        current: z.number().int().positive(),
+        id: z.string(),
+        isVoting: z.boolean(),
+        status: z.enum(["upcoming", "active", "completed"]),
+        total: z.number().int().positive(),
+      })
+      .nullable()
+      .optional(),
+    startsAt: z.string().nullable().optional(),
+    status: z.enum(["scheduled", "live", "completed", "archived"]),
+    title: z.string(),
+    tracks: z
+      .object({
+        artist: z.string(),
+        cover: z.string().nullable(),
+        id: z.string(),
+        title: z.string(),
+        votes: z.number().int().nonnegative(),
+      })
+      .array()
+      .max(2),
+    viewerCount: z.number(),
+    visibility: z.enum(["public", "premium_only"]),
   });
 
+export type DbBattleChallenge = z.infer<typeof battleChallengeSchema>;
+export type DbBattleSummary = z.infer<typeof battleSummarySchema>;
 export type DbNotification = z.infer<typeof notificationSchema>;
 export type DbVideoComment = z.infer<typeof videoCommentSchema>;
 export type DbFollowing = z.infer<typeof followingSchema>;
@@ -182,6 +243,8 @@ const notificationStatsSchema = z.object({
 });
 
 interface DataCollections {
+  battleChallenges: ReturnType<typeof makeBattleChallengesCollection>;
+  battles: ReturnType<typeof makeBattlesCollection>;
   communities: ReturnType<typeof makeCommunitiesCollection>;
   following: ReturnType<typeof makeFollowingCollection>;
   getCommunityBans: (
@@ -484,6 +547,38 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         schema: followingSchema,
       })
     ),
+  makeBattleChallengesCollection = (
+    queryClient: QueryClient,
+    scopeKey: string
+  ) =>
+    createCollection(
+      queryCollectionOptions({
+        enabled: scopeKey !== "anonymous",
+        getKey: (challenge) => challenge.id,
+        id: `soundkit-db-battle-challenges-${scopeKey}`,
+        queryClient,
+        queryFn: async () => {
+          const response = await rpcJson(await battleChallengesGet());
+          return [...response.incoming, ...response.outgoing];
+        },
+        queryKey: ["soundkit-db", scopeKey, "battle-challenges"],
+        refetchInterval: 10_000,
+        schema: battleChallengeSchema,
+      })
+    ),
+  makeBattlesCollection = (queryClient: QueryClient, scopeKey: string) =>
+    createCollection(
+      queryCollectionOptions({
+        enabled: scopeKey !== "anonymous",
+        getKey: (battle) => battle.id,
+        id: `soundkit-db-battles-${scopeKey}`,
+        queryClient,
+        queryFn: async () => rpcJson(await battlesGet({ query: {} })),
+        queryKey: ["soundkit-db", scopeKey, "battles"],
+        refetchInterval: 10_000,
+        schema: battleSummarySchema,
+      })
+    ),
   createCollections = (
     queryClient: QueryClient,
     scopeKey: string
@@ -508,6 +603,8 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         string,
         ReturnType<typeof makeCommunityBansCollection>
       >(),
+      battleChallenges = makeBattleChallengesCollection(queryClient, scopeKey),
+      battles = makeBattlesCollection(queryClient, scopeKey),
       playlistTracks = new Map<
         string,
         ReturnType<typeof makePlaylistTracksCollection>
@@ -600,6 +697,8 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         return collection;
       },
       cleanup = () => {
+        battleChallenges.cleanup();
+        battles.cleanup();
         communities.cleanup();
         notifications.cleanup();
         notificationStats.cleanup();
@@ -625,6 +724,8 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
       };
 
     return {
+      battleChallenges,
+      battles,
       cleanup,
       communities,
       following,
@@ -671,6 +772,97 @@ const useDataDb = () => {
     throw new Error("DataDbProvider is required for data collections");
   }
   return context;
+};
+
+export const useDbBattleChallenges = () => {
+  const collection = useDataDb().battleChallenges,
+    result = useLiveQuery(collection);
+  return { ...result, collection, data: result.data ?? [] };
+};
+
+export const useDbBattles = () => {
+  const collection = useDataDb().battles,
+    result = useLiveQuery(collection);
+  return { ...result, collection, data: result.data ?? [] };
+};
+
+export const useDbBattleActions = () => {
+  const { battleChallenges, battles } = useDataDb(),
+    createChallenge = useMemo(
+      () =>
+        createOptimisticAction<{
+          body: CreateBattleChallengeBody;
+          optimistic: DbBattleChallenge;
+        }>({
+          mutationFn: async ({ body }) => {
+            await rpcJson(await battleChallengePost({ json: body }));
+            await battleChallenges.utils.refetch();
+          },
+          onMutate: ({ optimistic }) => {
+            battleChallenges.insert(optimistic);
+          },
+        }),
+      [battleChallenges]
+    ),
+    updateChallenge = useMemo(
+      () =>
+        createOptimisticAction<{
+          challengeId: string;
+          status: "accepted" | "canceled" | "declined";
+        }>({
+          mutationFn: async ({ challengeId, status }) => {
+            await rpcJson(
+              await battleChallengePatch({
+                json: { status },
+                param: { challengeId },
+              })
+            );
+            await Promise.all([
+              battleChallenges.utils.refetch(),
+              battles.utils.refetch(),
+            ]);
+          },
+          onMutate: ({ challengeId, status }) => {
+            battleChallenges.update(challengeId, (draft) => {
+              draft.status = status;
+            });
+          },
+        }),
+      [battleChallenges, battles]
+    ),
+    clearChallenge = useMemo(
+      () =>
+        createOptimisticAction<string>({
+          mutationFn: async (challengeId) => {
+            await rpcJson(
+              await battleChallengeDelete({ param: { challengeId } })
+            );
+            await battleChallenges.utils.refetch();
+          },
+          onMutate: (challengeId) => {
+            battleChallenges.delete(challengeId);
+          },
+        }),
+      [battleChallenges]
+    ),
+    deleteBattle = useMemo(
+      () =>
+        createOptimisticAction<string>({
+          mutationFn: async (battleId) => {
+            await rpcJson(await battleDelete({ param: { battleId } }));
+            await Promise.all([
+              battles.utils.refetch(),
+              battleChallenges.utils.refetch(),
+            ]);
+          },
+          onMutate: (battleId) => {
+            battles.delete(battleId);
+          },
+        }),
+      [battleChallenges, battles]
+    );
+
+  return { clearChallenge, createChallenge, deleteBattle, updateChallenge };
 };
 
 export const useDbNotifications = () => {

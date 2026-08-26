@@ -317,7 +317,34 @@ export const createMockApiServer = async ({
   port = 3000,
   webOrigin = "http://127.0.0.1:4311",
 } = {}) => {
-  const server = createServer((request, response) => {
+  const mockBattleChallengesByClient = new Map(),
+    getMockBattleChallenges = (request) => {
+      const clientKey = request.headers["user-agent"] ?? "default",
+        existing = mockBattleChallengesByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const challenges = [
+        {
+          challengerUsername: "complete_artist",
+          createdAt: "2026-07-01T12:00:00.000Z",
+          direction: "outgoing",
+          expiresAt: "2026-07-08T12:00:00.000Z",
+          format: "best_of_3",
+          genre: "Hip-Hop",
+          id: "mock-expired-challenge",
+          message: null,
+          opponentUsername: "stale-artist",
+          proposedDate: null,
+          proposedTimeLabel: null,
+          status: "expired",
+        },
+      ];
+      mockBattleChallengesByClient.set(clientKey, challenges);
+      return challenges;
+    },
+    server = createServer((request, response) => {
     const effectiveOrigin = request.headers.origin || webOrigin;
     response.setHeader("access-control-allow-origin", effectiveOrigin);
     response.setHeader("access-control-allow-credentials", "true");
@@ -729,6 +756,145 @@ export const createMockApiServer = async ({
         id: videoDetailMatch[1],
       };
       json(response, 200, video, webOrigin);
+      return;
+    }
+
+    const battleChallengeMatch = url.pathname.match(
+      /^\/v1\/battles\/challenges\/([^/]+)$/
+    );
+    if (battleChallengeMatch) {
+      const user = mockUser(session);
+      if (!user) {
+        json(
+          response,
+          401,
+          { message: "Authentication is required." },
+          webOrigin
+        );
+        return;
+      }
+
+      const mockBattleChallenges = getMockBattleChallenges(request),
+        challengeId = battleChallengeMatch[1],
+        challengeIndex = mockBattleChallenges.findIndex(
+          (challenge) => challenge.id === challengeId
+        );
+      if (challengeIndex < 0) {
+        json(
+          response,
+          404,
+          { message: "Battle challenge not found." },
+          webOrigin
+        );
+        return;
+      }
+
+      if (request.method === "DELETE") {
+        mockBattleChallenges.splice(challengeIndex, 1);
+        json(
+          response,
+          200,
+          { message: "Battle challenge dismissed." },
+          webOrigin
+        );
+        return;
+      }
+
+      if (request.method === "PATCH") {
+        mockBattleChallenges[challengeIndex].status = "canceled";
+        json(
+          response,
+          200,
+          { message: "Battle challenge canceled." },
+          webOrigin
+        );
+        return;
+      }
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/battles/challenges"
+    ) {
+      const user = mockUser(session);
+      if (!user) {
+        json(
+          response,
+          401,
+          { message: "Authentication is required." },
+          webOrigin
+        );
+        return;
+      }
+
+      const mockBattleChallenges = getMockBattleChallenges(request);
+      json(
+        response,
+        200,
+        {
+          incoming: mockBattleChallenges.filter(
+            (challenge) => challenge.direction === "incoming"
+          ),
+          outgoing: mockBattleChallenges.filter(
+            (challenge) => challenge.direction === "outgoing"
+          ),
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/battles/challenge"
+    ) {
+      const user = mockUser(session);
+      if (!user) {
+        json(
+          response,
+          401,
+          { message: "Authentication is required." },
+          webOrigin
+        );
+        return;
+      }
+
+      const mockBattleChallenges = getMockBattleChallenges(request),
+        createdAt = new Date().toISOString();
+      mockBattleChallenges.push({
+        challengerUsername: user.username,
+        createdAt,
+        direction: "outgoing",
+        expiresAt: new Date(
+          Date.parse(createdAt) + 7 * 24 * 60 * 60 * 1000
+        ).toISOString(),
+        format: "best_of_5",
+        genre: "Hip-Hop",
+        id: `mock-challenge-${Date.now()}`,
+        message: null,
+        opponentUsername: "new-opponent",
+        proposedDate: null,
+        proposedTimeLabel: null,
+        status: "pending",
+      });
+      json(response, 201, { message: "Challenge created." }, webOrigin);
+      return;
+    }
+
+    const battleDeleteMatch = url.pathname.match(/^\/v1\/battles\/([^/]+)$/);
+    if (request.method === "DELETE" && battleDeleteMatch) {
+      const battleIndex = mockBattles.findIndex(
+        (battle) => battle.id === battleDeleteMatch[1]
+      );
+      if (battleIndex >= 0) {
+        mockBattles.splice(battleIndex, 1);
+      }
+      json(
+        response,
+        200,
+        { message: "Scheduled battle deleted." },
+        webOrigin
+      );
       return;
     }
 

@@ -39,7 +39,7 @@
 
 ### Fixed
 
-- Fixed battle challenge lifecycle handling: pending requests now expire after seven days, stale requests are reconciled by reads and the scheduled sweep, and senders can cancel pending outgoing requests from the dashboard.
+- Fixed battle challenge lifecycle handling: pending requests now expire after seven days, stale requests are reconciled by reads and the scheduled sweep, and senders can cancel pending outgoing requests from the dashboard. Battle requests now use optimistic TanStack DB state, while expired/declined/canceled requests and stale scheduled battles can be cleared safely.
 - Removed duplicate payout/workspace prompts from the dashboard and payments page; payout setup now lives in the artist activation guide while Stripe account controls remain on Payments.
 - Fixed Battle Kit creation affordances to require Artist Premium and four released, playable tracks before setup.
 - Fixed dashboard payments initialization by gating Stripe Connect embedded components on a fully enabled payout account, preflighting account sessions, returning controlled Stripe failures, and indexing notification timestamps for TanStack DB lazy loading.
