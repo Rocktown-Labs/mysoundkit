@@ -23,6 +23,7 @@ import {
   ilike,
   inArray,
   isNull,
+  lte,
   or,
   sql,
 } from "drizzle-orm";
@@ -31,6 +32,11 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { publicAssetUrlFromParts } from "@/lib/asset-urls";
+import {
+  getBattleChallengeExpiresAt,
+  getBattleChallengeExpiryCutoff,
+  hasBattleChallengeExpired,
+} from "@/lib/battle-challenge-lifecycle";
 import {
   evaluateBattleKitReadiness,
   validateBattleKitTracks,
@@ -598,7 +604,22 @@ app.openapi(
     }
 
     const db = createDb(),
-      rows = await db
+      now = new Date();
+
+    await db
+      .update(battleChallenges)
+      .set({
+        status: "expired",
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(battleChallenges.status, "pending"),
+          lte(battleChallenges.createdAt, getBattleChallengeExpiryCutoff(now))
+        )
+      );
+
+    const rows = await db
         .select({
           challengerUserId: battleChallenges.challengerUserId,
           createdAt: battleChallenges.createdAt,
@@ -652,6 +673,7 @@ app.openapi(
             usernameByUserId.get(row.challengerUserId) ?? null,
           createdAt: row.createdAt.toISOString(),
           direction,
+          expiresAt: getBattleChallengeExpiresAt(row.createdAt).toISOString(),
           format: row.format,
           genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
           id: row.id,
@@ -703,6 +725,10 @@ app.openapi(
         messageResponseSchema,
         "Battle challenge not found"
       ),
+      [HttpStatusCodes.CONFLICT]: jsonContent(
+        messageResponseSchema,
+        "Battle challenge is no longer pending"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
         "Authentication required"
@@ -730,6 +756,7 @@ app.openapi(
       [challenge] = await db
         .select({
           challengerUserId: battleChallenges.challengerUserId,
+          createdAt: battleChallenges.createdAt,
           format: battleChallenges.format,
           genreId: battleChallenges.genreId,
           opponentArtistUserId: battleChallenges.opponentArtistUserId,
@@ -739,22 +766,72 @@ app.openapi(
         .from(battleChallenges)
         .where(eq(battleChallenges.id, challengeId))
         .limit(1),
-      canUpdate =
-        challenge &&
-        (challenge.opponentArtistUserId === user.id ||
-          (status === "canceled" && challenge.challengerUserId === user.id));
+      now = new Date();
 
-    if (!canUpdate) {
+    if (!challenge) {
       return c.json(
         { message: "Battle challenge not found." },
         HttpStatusCodes.NOT_FOUND
       );
     }
 
-    await db
+    if (
+      challenge.status === "pending" &&
+      hasBattleChallengeExpired({ createdAt: challenge.createdAt, now })
+    ) {
+      await db
+        .update(battleChallenges)
+        .set({
+          status: "expired",
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(battleChallenges.id, challengeId),
+            eq(battleChallenges.status, "pending")
+          )
+        );
+
+      return c.json(
+        { message: "This battle challenge has expired." },
+        HttpStatusCodes.CONFLICT
+      );
+    }
+
+    const isPending = challenge.status === "pending",
+      isIncomingResponse =
+        challenge.opponentArtistUserId === user.id &&
+        (status === "accepted" || status === "declined"),
+      isOutgoingCancellation =
+        challenge.challengerUserId === user.id && status === "canceled";
+
+    if (!isPending || (!isIncomingResponse && !isOutgoingCancellation)) {
+      return c.json(
+        { message: "Battle challenge is no longer pending." },
+        HttpStatusCodes.CONFLICT
+      );
+    }
+
+    const [updatedChallenge] = await db
       .update(battleChallenges)
-      .set({ status })
-      .where(eq(battleChallenges.id, challengeId));
+      .set({
+        status,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(battleChallenges.id, challengeId),
+          eq(battleChallenges.status, "pending")
+        )
+      )
+      .returning({ id: battleChallenges.id });
+
+    if (!updatedChallenge) {
+      return c.json(
+        { message: "Battle challenge is no longer pending." },
+        HttpStatusCodes.CONFLICT
+      );
+    }
 
     if (status === "accepted" || status === "declined") {
       await notify(

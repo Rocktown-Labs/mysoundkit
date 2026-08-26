@@ -146,6 +146,27 @@ function BattleHubPage() {
         }
       );
     },
+    handleCancelRequest = (id: string) => {
+      updateChallenge.mutate(
+        { challengeId: id, status: "canceled" },
+        {
+          onError: () => {
+            toast({
+              description:
+                "The request could not be canceled. Please try again.",
+              title: "Cancellation failed",
+              variant: "destructive",
+            });
+          },
+          onSuccess: () => {
+            toast({
+              description: "The outgoing battle request was canceled.",
+              title: "Request Canceled",
+            });
+          },
+        }
+      );
+    },
     submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget),
@@ -327,9 +348,9 @@ function BattleHubPage() {
                                 variant={
                                   req.status === "accepted"
                                     ? "default"
-                                    : (req.status === "declined"
+                                    : req.status === "declined"
                                       ? "destructive"
-                                      : "outline")
+                                      : "outline"
                                 }
                               >
                                 {req.status}
@@ -396,18 +417,37 @@ function BattleHubPage() {
                       outgoingRequests.map((req) => (
                         <div
                           key={req.id}
-                          className="flex items-center justify-between gap-4 rounded-lg border p-4"
+                          className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
                         >
-                          <div>
-                            <p className="font-semibold">
-                              To: @{req.opponentUsername ?? "artist"}
-                            </p>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-semibold">
+                                To: @{req.opponentUsername ?? "artist"}
+                              </p>
+                              <Badge variant="outline">{req.status}</Badge>
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               {req.genre} &bull;{" "}
                               {req.format.replaceAll("_", " ")}
                             </p>
+                            <p className="text-xs text-muted-foreground">
+                              {req.status === "pending"
+                                ? `Expires ${new Date(req.expiresAt).toLocaleDateString()}`
+                                : `Sent ${new Date(req.createdAt).toLocaleDateString()}`}
+                            </p>
                           </div>
-                          <Badge variant="outline">{req.status}</Badge>
+                          {req.status === "pending" ? (
+                            <Button
+                              className="shrink-0"
+                              disabled={updateChallenge.isPending}
+                              onClick={() => handleCancelRequest(req.id)}
+                              size="sm"
+                              variant="outline"
+                            >
+                              <Trash2 className="mr-1.5 size-4" />
+                              Cancel Request
+                            </Button>
+                          ) : null}
                         </div>
                       ))
                     )}
@@ -562,9 +602,9 @@ function BattleHubPage() {
                   >
                     {deleteExperience.isPending
                       ? "Processing..."
-                      : (targetBattle?.status === "live"
+                      : targetBattle?.status === "live"
                         ? "Confirm Forfeit"
-                        : "Confirm Cancellation")}
+                        : "Confirm Cancellation"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

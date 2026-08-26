@@ -1,12 +1,14 @@
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   battles,
+  battleChallenges,
   battleQueueEntries,
   userNotifications,
   webhookEvents,
 } from "@soundkit/db/schema/app";
 import { and, eq, gte, lte, or } from "drizzle-orm";
 
+import { getBattleChallengeExpiryCutoff } from "@/lib/battle-challenge-lifecycle";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import {
   notifyBattleReminderEmailsForBattle,
@@ -323,6 +325,7 @@ export const runBattleServiceSweep = async ({
 }) => {
   if (!isDatabaseConfigured()) {
     return {
+      expiredChallenges: 0,
       live: 0,
       reminders: 0,
       results: 0,
@@ -331,53 +334,68 @@ export const runBattleServiceSweep = async ({
   }
 
   const db = createDb(),
+    challengeExpiryCutoff = getBattleChallengeExpiryCutoff(now),
     reminderHorizon = new Date(now.getTime() + reminderLookaheadMs),
     liveFloor = new Date(now.getTime() - liveTransitionLookbackMs),
     resultsFloor = new Date(now.getTime() - resultsLookbackMs),
-    [reminderBattles, liveBattles, resultBattles] = await Promise.all([
-      db
-        .select({
-          id: battles.id,
-          startsAt: battles.startsAt,
-        })
-        .from(battles)
-        .where(
-          and(
-            eq(battles.status, "scheduled"),
-            gte(battles.startsAt, now),
-            lte(battles.startsAt, reminderHorizon)
+    [expiredChallenges, reminderBattles, liveBattles, resultBattles] =
+      await Promise.all([
+        db
+          .update(battleChallenges)
+          .set({
+            status: "expired",
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(battleChallenges.status, "pending"),
+              lte(battleChallenges.createdAt, challengeExpiryCutoff)
+            )
           )
-        )
-        .limit(sweepLimit),
-      db
-        .select({
-          id: battles.id,
-          startsAt: battles.startsAt,
-        })
-        .from(battles)
-        .where(
-          and(
-            eq(battles.status, "scheduled"),
-            gte(battles.startsAt, liveFloor),
-            lte(battles.startsAt, now)
+          .returning({ id: battleChallenges.id }),
+        db
+          .select({
+            id: battles.id,
+            startsAt: battles.startsAt,
+          })
+          .from(battles)
+          .where(
+            and(
+              eq(battles.status, "scheduled"),
+              gte(battles.startsAt, now),
+              lte(battles.startsAt, reminderHorizon)
+            )
           )
-        )
-        .limit(sweepLimit),
-      db
-        .select({
-          endedAt: battles.endedAt,
-          id: battles.id,
-        })
-        .from(battles)
-        .where(
-          and(
-            eq(battles.status, "completed"),
-            gte(battles.endedAt, resultsFloor),
-            lte(battles.endedAt, now)
+          .limit(sweepLimit),
+        db
+          .select({
+            id: battles.id,
+            startsAt: battles.startsAt,
+          })
+          .from(battles)
+          .where(
+            and(
+              eq(battles.status, "scheduled"),
+              gte(battles.startsAt, liveFloor),
+              lte(battles.startsAt, now)
+            )
           )
-        )
-        .limit(sweepLimit),
-    ]);
+          .limit(sweepLimit),
+        db
+          .select({
+            endedAt: battles.endedAt,
+            id: battles.id,
+          })
+          .from(battles)
+          .where(
+            and(
+              eq(battles.status, "completed"),
+              gte(battles.endedAt, resultsFloor),
+              lte(battles.endedAt, now)
+            )
+          )
+          .limit(sweepLimit),
+      ]);
 
   let live = 0,
     reminders = 0,
@@ -444,6 +462,7 @@ export const runBattleServiceSweep = async ({
   }
 
   return {
+    expiredChallenges: expiredChallenges.length,
     live,
     reminders,
     results,

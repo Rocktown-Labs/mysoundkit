@@ -191,7 +191,9 @@ Set `ADMIN_EMAILS` to a comma-separated email allowlist. Allowlisted accounts re
 
 - `GET /v1/battles`
 - `GET /v1/battles/{battleId}`
+- `GET /v1/battles/challenges`
 - `POST /v1/battles/challenge`
+- `PATCH /v1/battles/challenges/{challengeId}` (accept, decline, or cancel a pending challenge)
 
 ### Uploads
 
