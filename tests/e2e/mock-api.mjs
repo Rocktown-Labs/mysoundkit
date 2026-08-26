@@ -351,7 +351,7 @@ export const createMockApiServer = async ({
     }
 
     if (url.pathname === "/auth/get-session") {
-      if (session !== "admin") {
+      if (session !== "admin" && session !== "complete") {
         json(response, 200, null, webOrigin);
         return;
       }
@@ -817,6 +817,31 @@ export const createMockApiServer = async ({
           alreadyInvited: false,
           message: "Invitation sent.",
           sent: true,
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (url.pathname === "/v1/me/entitlements") {
+      const complete = session === "complete" || session === "admin";
+      json(
+        response,
+        200,
+        {
+          activePlanCode: complete ? "soundkit_premium_artist" : null,
+          canCreateLiveBattles: complete,
+          canHostLiveStreams: complete,
+          canOperatePaidCommunity: complete,
+          canReceivePayouts: complete,
+          canSellProducts: complete,
+          canViewLiveBattles: complete,
+          canVoteLiveBattles: complete,
+          canWatchCreatorStreams: complete,
+          canWatchVod: complete,
+          isPremium: complete,
+          referenceId: complete ? "workspace_complete" : null,
+          status: complete ? "active" : null,
         },
         webOrigin
       );

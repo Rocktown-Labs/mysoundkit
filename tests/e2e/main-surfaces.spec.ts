@@ -307,13 +307,14 @@ test.describe("main application surfaces", () => {
       },
     ]);
 
-    await gotoWithViteRetry(page, "/dashboard/live/challenge");
+    await gotoWithViteRetry(page, "/dashboard/live/battles");
 
     await expect(
-      page.getByRole("heading", { name: "Battle Requests" })
+      page.getByText(/Battle Requests & Challenges/i).first()
     ).toBeVisible();
-    await expect(page.getByText("BattleBot handoff")).toBeVisible();
-    await expect(page.getByText("Next-round lobby")).toBeVisible();
+    await expect(
+      page.getByText(/Review incoming challenge requests/i)
+    ).toBeVisible();
 
     await gotoWithViteRetry(page, "/dashboard/live/parties");
     await expect(

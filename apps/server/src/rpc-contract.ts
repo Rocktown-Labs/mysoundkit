@@ -5,7 +5,6 @@ import { z } from "zod";
 
 import {
   analyticsTimeseriesQuerySchema,
-  artistSetupGuideSchema,
   battleEligibilityBodySchema,
   createFriendRequestBodySchema,
   createWorkspaceInvitationBodySchema,
@@ -105,6 +104,7 @@ import type {
   planSchema,
   projectDashboardDetailSchema,
   publicSearchResultSchema,
+  artistSetupGuideSchema,
   projectSummarySchema,
   purchasedCatalogDetailSchema,
   purchasedCatalogItemSchema,

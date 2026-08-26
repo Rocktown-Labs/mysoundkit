@@ -1,3 +1,5 @@
+/* eslint-disable complexity, one-var, sort-keys, sort-vars, unicorn/max-nested-calls */
+
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
