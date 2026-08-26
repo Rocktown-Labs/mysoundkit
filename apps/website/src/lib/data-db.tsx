@@ -1,4 +1,5 @@
 /* eslint-disable one-var, sort-vars, react/preserve-manual-memoization, react/hook-use-state, typescript/no-invalid-void-type, promise/prefer-await-to-then, unicorn/prefer-ternary */
+import { BasicIndex } from "@tanstack/db";
 import { queryCollectionOptions } from "@tanstack/query-db-collection";
 import {
   createCollection,
@@ -226,8 +227,8 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
       offset: subset.offset ?? 0,
     };
   },
-  makeNotificationCollection = (queryClient: QueryClient, scopeKey: string) =>
-    createCollection(
+  makeNotificationCollection = (queryClient: QueryClient, scopeKey: string) => {
+    const collection = createCollection(
       queryCollectionOptions({
         enabled: scopeKey !== "anonymous",
         getKey: (notification) => notification.id,
@@ -249,7 +250,14 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         schema: notificationSchema,
         syncMode: "on-demand",
       })
-    ),
+    );
+
+    collection.createIndex((notification) => notification.createdAt, {
+      indexType: BasicIndex,
+      name: "notifications-created-at",
+    });
+    return collection;
+  },
   makeNotificationStatsCollection = (
     queryClient: QueryClient,
     scopeKey: string

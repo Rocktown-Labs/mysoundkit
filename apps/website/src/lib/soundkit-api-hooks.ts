@@ -137,6 +137,8 @@ const meGet = apiClient.v1.me.index.$get,
   trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post,
   artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post,
   artistFollowDelete = apiClient.v1.social.artists[":username"].follow.$delete,
+  sellerAccountLinkPost = apiClient.v1.seller["account-link"].$post,
+  sellerAccountSessionPost = apiClient.v1.seller["account-session"].$post,
   sellerStatusGet = apiClient.v1.seller.status.$get,
   battleStatsGet = apiClient.v1.battles.stats.$get,
   trackBattleHistoryGet =
@@ -209,6 +211,17 @@ export type ArtistSummary = InferResponseType<typeof artistsGet, 200>[number];
 export type ArtistProfileMedia = InferResponseType<typeof artistMediaGet, 200>;
 export type ArtistProfileCredit = ArtistProfileMedia["credits"][number];
 type ArtistFollowResponse = InferResponseType<typeof artistFollowPost, 200>;
+type SellerAccountLinkBody = InferRequestType<
+  typeof sellerAccountLinkPost
+>["json"];
+type SellerAccountLinkResponse = InferResponseType<
+  typeof sellerAccountLinkPost,
+  200
+>;
+export type SellerAccountSession = InferResponseType<
+  typeof sellerAccountSessionPost,
+  200
+>;
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
 export type MeSummary = InferResponseType<typeof meGet, 200>;
 type EntitlementSummary = InferResponseType<typeof meEntitlementsGet, 200>;
@@ -2356,11 +2369,32 @@ export const useCreateVideoCommentMutation = () => {
   });
 };
 
-export const useSellerStatusQuery = () =>
+export const useSellerStatusQuery = (enabled = true) =>
   useQuery({
+    enabled,
     queryFn: async (): Promise<SellerStatus> =>
       rpcJson(await sellerStatusGet()),
     queryKey: soundkitQueryKeys.sellerStatus,
+    refetchInterval: 15_000,
+  });
+
+export const useSellerAccountSessionQuery = (enabled = false) =>
+  useQuery({
+    enabled,
+    queryFn: async (): Promise<SellerAccountSession> =>
+      rpcJson(await sellerAccountSessionPost()),
+    queryKey: ["seller", "account-session"],
+    refetchOnWindowFocus: false,
+    retry: false,
+    staleTime: 4 * 60 * 1000,
+  });
+
+export const useSellerAccountLinkMutation = () =>
+  useMutation({
+    mutationFn: async (
+      body: SellerAccountLinkBody
+    ): Promise<SellerAccountLinkResponse> =>
+      rpcJson(await sellerAccountLinkPost({ json: body })),
   });
 
 export const useBattleStatsQuery = () =>

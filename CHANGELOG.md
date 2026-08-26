@@ -39,6 +39,7 @@
 
 ### Fixed
 
+- Fixed dashboard payments initialization by gating Stripe Connect embedded components on a fully enabled payout account, preflighting account sessions, returning controlled Stripe failures, and indexing notification timestamps for TanStack DB lazy loading.
 - Fixed community discovery and membership APIs in pull-request previews by detecting the deployed community schema and using legacy-safe reads until the additive community migration is applied during production deployment.
 - Replaced the white placeholder avatar with a branded SoundKit SK fallback across website and server fallback data.
 - Fixed Library account settings to read live Premium entitlements, route paid subscribers to billing management for upgrades/downgrades, and avoid treating admin-granted Premium access as unfinished checkout.

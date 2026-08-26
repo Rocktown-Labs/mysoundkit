@@ -205,6 +205,7 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
     followed: z.boolean(),
     followerCount: z.number().int().nonnegative(),
   }),
+  sellerAccountSessionSchema = z.object({ clientSecret: z.string() }),
   embeddingBackfillSchema = z.object({ indexed: z.number().int() }),
   embeddingStatusSchema = z.object({
     byEntityType: z.record(z.string(), z.number()),
@@ -1285,7 +1286,7 @@ export const rpcContract = new Hono()
     (c) => c.json({} as Record<string, unknown>)
   )
   .post("/v1/seller/account-session", (c) =>
-    c.json({} as Record<string, unknown>)
+    c.json({} as z.infer<typeof sellerAccountSessionSchema>)
   )
   .get("/v1/seller/status", (c) =>
     c.json({} as z.infer<typeof sellerStatusSchema>)
