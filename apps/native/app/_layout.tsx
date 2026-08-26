@@ -5,6 +5,7 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import type { Theme } from "@react-navigation/native";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet } from "react-native";
@@ -26,29 +27,26 @@ export const unstable_settings = {
   initialRouteName: "(drawer)",
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
+const queryClient = new QueryClient(),
+  styles = StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+  });
 
 export default function RootLayout() {
   const { isDarkColorScheme } = useColorScheme();
 
   return (
-    <>
-      <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-        <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
-        <GestureHandlerRootView style={styles.container}>
-          <Stack>
-            <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="modal"
-              options={{ presentation: "modal", title: "Modal" }}
-            />
-          </Stack>
-        </GestureHandlerRootView>
-      </ThemeProvider>
-    </>
+    <QueryClientProvider client={queryClient}>
+        <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+          <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+          <GestureHandlerRootView style={styles.container}>
+            <Stack>
+              <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
+            </Stack>
+          </GestureHandlerRootView>
+        </ThemeProvider>
+    </QueryClientProvider>
   );
 }

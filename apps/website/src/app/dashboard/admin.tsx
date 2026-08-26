@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Ban,
+  BrainCircuit,
   Check,
   CheckCircle2,
   CircleDollarSign,
@@ -73,6 +74,9 @@ import { authClient } from "@/lib/auth-client";
 import {
   useAdminAccessQuery,
   useAdminAdCampaignsQuery,
+  useAdminEmbeddingBackfillMutation,
+  useAdminEmbeddingStatusQuery,
+  useAdminFinanceSummaryQuery,
   useAdminOverviewQuery,
   useAdminPaymentsQuery,
   useBackfillTrackDurationsMutation,
@@ -190,7 +194,7 @@ function AdminDashboard() {
       <Tabs defaultValue="overview">
         <div className="max-w-full pb-1">
           <TabsList
-            className="h-auto w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-8"
+            className="h-auto w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-9"
             style={{ display: "grid" }}
           >
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -198,6 +202,7 @@ function AdminDashboard() {
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="ads">Ads</TabsTrigger>
             <TabsTrigger value="coupons">Coupons</TabsTrigger>
+            <TabsTrigger value="operations">Operations</TabsTrigger>
             <TabsTrigger className="scroll-mt-20" value="genres">
               Genres
             </TabsTrigger>
@@ -224,6 +229,9 @@ function AdminDashboard() {
         <TabsContent value="coupons" className="mt-6">
           <CouponsPanel />
         </TabsContent>
+        <TabsContent value="operations" className="mt-6">
+          <PlatformOperationsPanel />
+        </TabsContent>
         <TabsContent value="genres" className="mt-6">
           <GenreCatalogPanel />
         </TabsContent>
@@ -234,6 +242,89 @@ function AdminDashboard() {
           <OpenVerseAdminPanel />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function PlatformOperationsPanel() {
+  const financeQuery = useAdminFinanceSummaryQuery(),
+    embeddingsQuery = useAdminEmbeddingStatusQuery(),
+    backfillEmbeddings = useAdminEmbeddingBackfillMutation(),
+    embeddingCounts = embeddingsQuery.data?.byEntityType ?? {};
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Finance summary</CardTitle>
+          <CardDescription>
+            Successful transaction volume and retained platform fees.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-3">
+          <AdminMetric
+            label="Transactions"
+            value={`${financeQuery.data?.transactionCount ?? 0}`}
+          />
+          <AdminMetric
+            label="Successful volume"
+            value={formatCurrency(
+              financeQuery.data?.successfulTransactionCents ?? 0
+            )}
+          />
+          <AdminMetric
+            label="Platform fees"
+            value={formatCurrency(financeQuery.data?.platformFeeCents ?? 0)}
+          />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BrainCircuit className="size-5 text-primary" /> Search embeddings
+          </CardTitle>
+          <CardDescription>
+            Monitor semantic-search coverage and backfill missing catalog
+            embeddings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="secondary">
+              {embeddingsQuery.data?.total ?? 0} indexed
+            </Badge>
+            {Object.entries(embeddingCounts).map(([entityType, count]) => (
+              <Badge key={entityType} variant="outline">
+                {entityType}: {count}
+              </Badge>
+            ))}
+          </div>
+          <Button
+            disabled={backfillEmbeddings.isPending}
+            onClick={() => backfillEmbeddings.mutate(100)}
+          >
+            <RefreshCw
+              className={cn(
+                "size-4",
+                backfillEmbeddings.isPending && "animate-spin"
+              )}
+              data-icon="inline-start"
+            />
+            {backfillEmbeddings.isPending
+              ? "Indexing catalog…"
+              : "Backfill 100 per type"}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function AdminMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border p-3">
+      <p className="text-muted-foreground text-xs">{label}</p>
+      <p className="mt-1 font-semibold text-lg tabular-nums">{value}</p>
     </div>
   );
 }

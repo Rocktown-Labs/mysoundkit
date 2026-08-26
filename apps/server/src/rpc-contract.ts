@@ -4,6 +4,8 @@ import { validator } from "hono/validator";
 import { z } from "zod";
 
 import {
+  analyticsTimeseriesQuerySchema,
+  battleEligibilityBodySchema,
   createFriendRequestBodySchema,
   createWorkspaceInvitationBodySchema,
   playlistSchema,
@@ -55,16 +57,25 @@ import {
 } from "./lib/schemas";
 import type {
   adminAccessSchema,
+  adminFinanceSummarySchema,
   adminGenreSchema,
   adminPaymentsOverviewSchema,
   adminOverviewSchema,
   adminSyncStripePlansResponseSchema,
+  analyticsAudienceSchema,
+  analyticsLiveImpactSchema,
+  analyticsLocationsSchema,
   analyticsOverviewSchema,
+  analyticsSourcesSchema,
+  analyticsTimeseriesSchema,
+  analyticsTracksResponseSchema,
+  artistEarningsOverviewSchema,
   backfillTrackDurationsResponseSchema,
   trackDurationBackfillStatusSchema,
   artistProfileMediaSchema,
   artistSummarySchema,
   battleChallengesResponseSchema,
+  battleEligibilitySchema,
   battleKitSchema,
   battleSummarySchema,
   conversationSummarySchema,
@@ -111,6 +122,17 @@ import type {
 
 const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
     validator("json", (value) => schema.parse(value) as z.infer<Schema>),
+  genericJsonBodySchema = z.record(z.string(), z.unknown()),
+  genericQueryValidator = validator("query", (value) =>
+    z
+      .record(z.string(), z.union([z.string(), z.array(z.string())]))
+      .parse(value)
+  ),
+  battleOpponentSchema = z.object({
+    genre: z.string().nullable(),
+    name: z.string(),
+    username: z.string(),
+  }),
   checkoutBodySchema = z.object({
     cancelUrl: z.url(),
     customerType: z.enum(["organization", "user"]).default("organization"),
@@ -182,6 +204,15 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
   followResponseSchema = z.object({
     followed: z.boolean(),
     followerCount: z.number().int().nonnegative(),
+  }),
+  embeddingBackfillSchema = z.object({ indexed: z.number().int() }),
+  embeddingStatusSchema = z.object({
+    byEntityType: z.record(z.string(), z.number()),
+    total: z.number(),
+  }),
+  semanticSearchResultSchema = z.object({
+    entityId: z.string(),
+    entityType: z.enum(["artist", "lyrics", "project", "track", "video"]),
   }),
   communityAuthorSchema = z.object({
     avatarUrl: z.string().nullable(),
@@ -420,10 +451,8 @@ export const rpcContract = new Hono()
   .post("/v1/billing/checkout", jsonValidator(checkoutBodySchema), (c) =>
     c.json({} as z.infer<typeof checkoutResponseSchema>)
   )
-  .post(
-    "/v1/billing/portal",
-    jsonValidator(billingPortalBodySchema),
-    (c) => c.json({} as z.infer<typeof billingPortalResponseSchema>)
+  .post("/v1/billing/portal", jsonValidator(billingPortalBodySchema), (c) =>
+    c.json({} as z.infer<typeof billingPortalResponseSchema>)
   )
   .get(
     "/v1/artists/",
@@ -980,6 +1009,283 @@ export const rpcContract = new Hono()
     "/v1/community-billing/checkout",
     jsonValidator(communityCheckoutSchema),
     (c) => c.json({ checkoutUrl: null as string | null, setupRequired: false })
+  )
+  .get("/v1/admin/finance/summary", (c) =>
+    c.json({} as z.infer<typeof adminFinanceSummarySchema>)
+  )
+  .get("/v1/admin/finance/payments/users", genericQueryValidator, (c) =>
+    c.json([] as Record<string, unknown>[])
+  )
+  .get("/v1/admin/finance/payments/coupons", (c) =>
+    c.json([] as Record<string, unknown>[])
+  )
+  .post(
+    "/v1/admin/finance/payments/coupons",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>, 201)
+  )
+  .delete("/v1/admin/finance/payments/coupons/:id", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .post(
+    "/v1/admin/finance/payments/grant-premium",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .get("/v1/admin/open-verses", genericQueryValidator, (c) =>
+    c.json([] as Record<string, unknown>[])
+  )
+  .get("/v1/admin/regions", (c) => c.json({} as Record<string, unknown>))
+  .post("/v1/admin/genres", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>, 201)
+  )
+  .get("/v1/admin/embeddings/status", (c) =>
+    c.json({} as z.infer<typeof embeddingStatusSchema>)
+  )
+  .post(
+    "/v1/admin/embeddings/backfill",
+    validator("query", (value) =>
+      z.object({ limit: z.string().optional() }).parse(value)
+    ),
+    (c) => c.json({} as z.infer<typeof embeddingBackfillSchema>)
+  )
+  .get("/v1/ads/admin/campaigns", genericQueryValidator, (c) =>
+    c.json([] as Record<string, unknown>[])
+  )
+  .post("/v1/ads/admin/campaigns", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>, 201)
+  )
+  .patch(
+    "/v1/ads/admin/campaigns/:campaignId/status",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .get("/v1/ads/campaigns", (c) => c.json([] as Record<string, unknown>[]))
+  .post("/v1/ads/campaigns", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>, 201)
+  )
+  .get("/v1/ads/serve", genericQueryValidator, (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .post("/v1/ads/event", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .get("/v1/ads/wallet", (c) => c.json({} as Record<string, unknown>))
+  .get(
+    "/v1/analytics/timeseries",
+    validator("query", (value) => analyticsTimeseriesQuerySchema.parse(value)),
+    (c) => c.json({} as z.infer<typeof analyticsTimeseriesSchema>)
+  )
+  .get("/v1/analytics/tracks", (c) =>
+    c.json({} as z.infer<typeof analyticsTracksResponseSchema>)
+  )
+  .get("/v1/analytics/audience", (c) =>
+    c.json({} as z.infer<typeof analyticsAudienceSchema>)
+  )
+  .get("/v1/analytics/sources", (c) =>
+    c.json({} as z.infer<typeof analyticsSourcesSchema>)
+  )
+  .get("/v1/analytics/locations", (c) =>
+    c.json({} as z.infer<typeof analyticsLocationsSchema>)
+  )
+  .get("/v1/analytics/live-impact", (c) =>
+    c.json({} as z.infer<typeof analyticsLiveImpactSchema>)
+  )
+  .get("/v1/analytics/earnings", (c) =>
+    c.json({} as z.infer<typeof artistEarningsOverviewSchema>)
+  )
+  .get("/v1/auth/capabilities", (c) => c.json({} as Record<string, unknown>))
+  .get("/v1/battles/:battleId", (c) =>
+    c.json({} as z.infer<typeof battleSummarySchema>)
+  )
+  .get(
+    "/v1/battles/opponents",
+    validator("query", (value) =>
+      z
+        .object({ genre: z.string().optional(), q: z.string().optional() })
+        .parse(value)
+    ),
+    (c) => c.json([] as z.infer<typeof battleOpponentSchema>[])
+  )
+  .post(
+    "/v1/battles/eligibility",
+    jsonValidator(battleEligibilityBodySchema),
+    (c) => c.json({} as z.infer<typeof battleEligibilitySchema>)
+  )
+  .get("/v1/billing/subscription", (c) => c.json({} as Record<string, unknown>))
+  .get("/v1/cart", (c) => c.json({} as Record<string, unknown>))
+  .delete("/v1/cart", (c) => c.json({} as Record<string, unknown>))
+  .post("/v1/cart/claim", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .post("/v1/cart/items", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>, 201)
+  )
+  .patch(
+    "/v1/cart/items/:cartItemId",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .delete("/v1/cart/items/:cartItemId", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .get("/v1/listening-parties/sources", (c) =>
+    c.json([] as Record<string, unknown>[])
+  )
+  .get("/v1/me/workspaces", (c) =>
+    c.json([] as z.infer<typeof workspaceSummarySchema>[])
+  )
+  .get("/v1/open-verses/:listingId/access-requests", (c) =>
+    c.json([] as Record<string, unknown>[])
+  )
+  .get("/v1/open-verses/:listingId/access-requests/me", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .post(
+    "/v1/open-verses/:listingId/access-requests",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>, 201)
+  )
+  .patch(
+    "/v1/open-verses/:listingId/access-requests/:requestId",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .get("/v1/open-verses/:listingId/submissions", (c) =>
+    c.json([] as z.infer<typeof openVerseSubmissionSchema>[])
+  )
+  .post(
+    "/v1/open-verses/:listingId/submissions/:submissionId/accept",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .post(
+    "/v1/open-verses/:listingId/final-master",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .delete("/v1/open-verses/:listingId", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .get("/v1/presence", genericQueryValidator, (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .post("/v1/presence/heartbeat", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .post("/v1/presence/query", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .delete("/v1/projects/:projectId", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .patch(
+    "/v1/projects/:projectId/tracks/order",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .post(
+    "/v1/projects/:projectId/tracks",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>, 201)
+  )
+  .get("/v1/projects/:projectId/export", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .post("/v1/projects/:projectId/export", (c) =>
+    c.json({} as Record<string, unknown>, 202)
+  )
+  .get("/v1/social/profiles/:username", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .get(
+    "/v1/search/semantic",
+    validator("query", (value) =>
+      z.object({ limit: z.string().optional(), q: z.string() }).parse(value)
+    ),
+    (c) => c.json([] as z.infer<typeof semanticSearchResultSchema>[])
+  )
+  .post("/v1/payments/checkout", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .post("/v1/payments/tips", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .get("/v1/tracks/:trackId/playback", genericQueryValidator, (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .post("/v1/tracks/:trackId/recover", (c) =>
+    c.json({} as z.infer<typeof messageResponseSchema>)
+  )
+  .get("/v1/uploads", (c) =>
+    c.json({} as z.infer<typeof messageResponseSchema>)
+  )
+  .post(
+    "/v1/videos/:videoId/playback-sessions",
+    jsonValidator(createPlaybackSessionBodySchema),
+    (c) => c.json({} as z.infer<typeof playbackSessionResponseSchema>, 201)
+  )
+  .post(
+    "/v1/messages/conversations/:conversationId/collaborations",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>, 201)
+  )
+  .post(
+    "/v1/messages/conversations/:conversationId/collaborations/:collaborationId/respond",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .post(
+    "/v1/onboarding/eligibility",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .post("/v1/onboarding/exit", (c) => c.json({} as Record<string, unknown>))
+  .post("/v1/projects/:projectId/pre-save", (c) =>
+    c.json({} as z.infer<typeof messageResponseSchema>)
+  )
+  .post("/v1/videos/:videoId/pre-save", (c) =>
+    c.json({} as z.infer<typeof messageResponseSchema>)
+  )
+  .get("/v1/live/rooms/queue", (c) => c.json({} as Record<string, unknown>))
+  .get("/v1/live/rooms/:roomId", (c) => c.json({} as Record<string, unknown>))
+  .post(
+    "/v1/live/rooms/:roomId/battle/kit",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .post(
+    "/v1/live/rooms/:roomId/battle/track",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .post(
+    "/v1/live/rooms/:roomId/party/playback",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .post(
+    "/v1/live/rooms/:roomId/chat",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .post(
+    "/v1/live/rooms/:roomId/vote",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .post(
+    "/v1/live/rooms/:roomId/queue",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .post(
+    "/v1/live/rooms/:roomId/leave",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .post("/v1/seller/account-session", (c) =>
+    c.json({} as Record<string, unknown>)
   )
   .get("/v1/seller/status", (c) =>
     c.json({} as z.infer<typeof sellerStatusSchema>)

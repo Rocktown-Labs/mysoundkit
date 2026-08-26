@@ -1,6 +1,5 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertCircle,
@@ -50,10 +49,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { API_V1_URL } from "@/lib/api";
 import { musicGenres } from "@/lib/music-genres";
 import {
   useBattleChallengesQuery,
+  useBattleOpponentsQuery,
   useBattlesQuery,
   useCreateBattleChallengeMutation,
   useDeleteLiveExperienceMutation,
@@ -90,6 +89,10 @@ function BattleHubPage() {
     [selectedGenre, setSelectedGenre] = useState<string>(defaultGenre),
     [selectedFormat, setSelectedFormat] = useState<string>("best_of_5"),
     [targetUsername, setTargetUsername] = useState<string>(""),
+    artistsQuery = useBattleOpponentsQuery({
+      genre: selectedGenre,
+      q: targetUsername,
+    }),
     handleCancelBattle = async (id: string) => {
       try {
         await deleteExperience.mutateAsync(id);
@@ -104,28 +107,7 @@ function BattleHubPage() {
           variant: "destructive",
         });
       }
-    },
-    artistsQuery = useQuery({
-      enabled: targetUsername.trim().length > 0,
-      queryFn: async () => {
-        const query = new URLSearchParams({
-            genre: selectedGenre,
-            q: targetUsername.trim(),
-          }),
-          response = await fetch(`${API_V1_URL}/battles/opponents?${query}`, {
-            credentials: "include",
-          });
-        if (!response.ok) {
-          throw new Error("Could not search battle opponents.");
-        }
-        return (await response.json()) as {
-          genre: string | null;
-          name: string;
-          username: string;
-        }[];
-      },
-      queryKey: ["battle-opponents", selectedGenre, targetUsername.trim()],
-    });
+    };
 
   useEffect(() => {
     setSelectedGenre((current) => current || defaultGenre);

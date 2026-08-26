@@ -8,7 +8,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "prebuild": "expo prebuild",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "check-types": "tsc --noEmit",
+    "check-routes": "bun scripts/validate-route-manifest.ts"
   },
   "dependencies": {
     "@ai-sdk/react": "catalog:",
@@ -37,6 +39,7 @@
     "expo-status-bar": "~55.0.4",
     "expo-system-ui": "~55.0.9",
     "expo-web-browser": "~55.0.9",
+    "hono": "^4.12.27",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.2",
