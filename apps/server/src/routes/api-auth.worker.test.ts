@@ -44,6 +44,10 @@ const API_ORIGIN = "http://soundkit.test",
       path: "/v1/seller/status",
     },
     {
+      label: "video analytics",
+      path: "/v1/videos/video_midnight_vibes_mv/analytics",
+    },
+    {
       init: jsonRequest({
         assetIds: [],
         genre: "House",

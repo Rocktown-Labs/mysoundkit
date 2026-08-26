@@ -200,6 +200,36 @@ describe("SoundKit Worker API", () => {
     ]);
   });
 
+  it("accepts first-party video telemetry without storage", async () => {
+    const sessionResponse = await SELF.fetch(
+        "http://soundkit.test/v1/videos/video_midnight_vibes_mv/view-sessions",
+        {
+          body: JSON.stringify({ anonymousId: "browser-test-viewer" }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }
+      ),
+      session = await readJson<{ id: string; token: string }>(sessionResponse),
+      progressResponse = await SELF.fetch(
+        `http://soundkit.test/v1/videos/video_midnight_vibes_mv/view-sessions/${session.id}/progress`,
+        {
+          body: JSON.stringify({
+            playedSeconds: 5,
+            token: session.token,
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }
+      ),
+      progress = await readJson<{ updated: boolean }>(progressResponse);
+
+    expect(sessionResponse.status).toBe(201);
+    expect(session.id).toEqual(expect.any(String));
+    expect(session.token).toEqual(expect.any(String));
+    expect(progressResponse.status).toBe(200);
+    expect(progress).toEqual({ updated: false });
+  });
+
   it("filters public projects by sale state in no-storage mode", async () => {
     const response = await SELF.fetch(
         "http://soundkit.test/v1/projects/public?forSale=true"

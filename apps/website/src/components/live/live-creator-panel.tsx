@@ -84,6 +84,7 @@ export interface LiveCreatorPanelProps {
   title: string;
   topTracks?: CreatorMusicTrack[];
   videos?: CreatorVideoItem[];
+  videoScope?: "dashboard" | "public";
   viewerCount?: number;
 }
 
@@ -96,6 +97,7 @@ export function LiveCreatorPanel({
   statusLabel,
   title,
   topTracks: explicitTracks,
+  videoScope = "dashboard",
   videos: explicitVideos,
   viewerCount = 0,
 }: LiveCreatorPanelProps) {
@@ -107,6 +109,7 @@ export function LiveCreatorPanel({
     }),
     videosQuery = useVideosQuery({
       q: creator.username || creator.displayName,
+      scope: videoScope,
     }),
     artistData = artistQuery.data,
     resolvedFollowers = artistData?.followers ?? creator.followersCount ?? 0,
@@ -115,7 +118,9 @@ export function LiveCreatorPanel({
       creator.bio ||
       `${creator.displayName} is streaming live on SoundKit. Tune in to connect and collaborate.`,
     resolvedAvatar =
-      artistData?.avatarUrl || creator.avatarUrl || "/soundkit-default-avatar.svg",
+      artistData?.avatarUrl ||
+      creator.avatarUrl ||
+      "/soundkit-default-avatar.svg",
     resolvedSocials = {
       instagram:
         artistData?.links?.instagram || creator.socials?.instagram || undefined,

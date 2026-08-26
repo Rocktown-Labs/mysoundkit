@@ -142,9 +142,13 @@ Base path for domain APIs:
 
 ### Videos
 
-- `GET /v1/videos`
+- `GET /v1/videos` — use `scope=dashboard` for the authenticated creator library or `scope=public` for discovery.
 - `POST /v1/videos`
 - `GET /v1/videos/{videoId}`
+- `GET /v1/videos/{videoId}/analytics` — owner-scoped views, watch depth, time series, and privacy-safe geography.
+- `POST /v1/videos/{videoId}/view-sessions`
+- `POST /v1/videos/{videoId}/view-sessions/{sessionId}/progress`
+- `POST /v1/videos/{videoId}/view-sessions/{sessionId}/end`
 
 ### Library
 

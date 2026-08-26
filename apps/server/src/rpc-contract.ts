@@ -29,6 +29,9 @@ import {
   createVideoBodySchema,
   createVideoCommentBodySchema,
   directVideoUploadBodySchema,
+  videoAnalyticsQuerySchema,
+  videoViewSessionProgressBodySchema,
+  videoViewSessionStartBodySchema,
   finalizeTrackUploadBodySchema,
   battleBotActionBodySchema,
   joinLiveExperienceBodySchema,
@@ -116,6 +119,9 @@ import type {
   usernameAvailabilityResponseSchema,
   videoCommentSchema,
   videoSummarySchema,
+  videoViewSessionProgressResponseSchema,
+  videoViewSessionResponseSchema,
+  videoAnalyticsSchema,
   messageResponseSchema,
   workspaceDetailSchema,
   workspaceSummarySchema,
@@ -1080,6 +1086,11 @@ export const rpcContract = new Hono()
     validator("query", (value) => analyticsTimeseriesQuerySchema.parse(value)),
     (c) => c.json({} as z.infer<typeof analyticsTimeseriesSchema>)
   )
+  .get(
+    "/v1/videos/:videoId/analytics",
+    validator("query", (value) => videoAnalyticsQuerySchema.parse(value)),
+    (c) => c.json({} as z.infer<typeof videoAnalyticsSchema>)
+  )
   .get("/v1/analytics/tracks", (c) =>
     c.json({} as z.infer<typeof analyticsTracksResponseSchema>)
   )
@@ -1228,6 +1239,21 @@ export const rpcContract = new Hono()
     "/v1/videos/:videoId/playback-sessions",
     jsonValidator(createPlaybackSessionBodySchema),
     (c) => c.json({} as z.infer<typeof playbackSessionResponseSchema>, 201)
+  )
+  .post(
+    "/v1/videos/:videoId/view-sessions",
+    jsonValidator(videoViewSessionStartBodySchema),
+    (c) => c.json({} as z.infer<typeof videoViewSessionResponseSchema>, 201)
+  )
+  .post(
+    "/v1/videos/:videoId/view-sessions/:sessionId/progress",
+    jsonValidator(videoViewSessionProgressBodySchema),
+    (c) => c.json({} as z.infer<typeof videoViewSessionProgressResponseSchema>)
+  )
+  .post(
+    "/v1/videos/:videoId/view-sessions/:sessionId/end",
+    jsonValidator(videoViewSessionProgressBodySchema),
+    (c) => c.json({} as z.infer<typeof videoViewSessionProgressResponseSchema>)
   )
   .post(
     "/v1/messages/conversations/:conversationId/collaborations",

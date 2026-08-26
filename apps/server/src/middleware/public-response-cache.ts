@@ -15,7 +15,11 @@ const PUBLIC_CACHE_STALE_SECONDS = 300,
     pathname.length > 1 ? pathname.replace(/\/+$/u, "") : pathname;
 
 export const isPublicCacheRequest = (request: Request): boolean => {
-  if (request.method !== "GET" || request.headers.has("authorization")) {
+  if (
+    request.method !== "GET" ||
+    request.headers.has("authorization") ||
+    request.headers.has("cookie")
+  ) {
     return false;
   }
 

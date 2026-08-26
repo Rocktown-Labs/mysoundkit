@@ -949,6 +949,66 @@ export const videoSummarySchema = z.object({
   viewCount: z.string().optional(),
 });
 
+export const videoViewSessionStartBodySchema = z.object({
+  anonymousId: z.string().trim().min(1).max(160).optional(),
+  durationSeconds: z.number().int().positive().optional(),
+});
+
+export const videoViewSessionResponseSchema = z.object({
+  id: z.string(),
+  token: z.string(),
+});
+
+export const videoViewSessionProgressBodySchema = z.object({
+  durationSeconds: z.number().int().positive().optional(),
+  ended: z.boolean().default(false),
+  playedSeconds: z.number().nonnegative(),
+  token: z.string().min(1).max(160),
+});
+
+export const videoViewSessionProgressResponseSchema = z.object({
+  updated: z.boolean(),
+});
+
+export const videoAnalyticsQuerySchema = z.object({
+  range: z.enum(["7d", "28d", "90d", "12m"]).default("28d"),
+});
+
+export const videoAnalyticsLocationSchema = z.object({
+  countryCode: z.string().nullable(),
+  label: z.string(),
+  percentage: z.number(),
+  regionCode: z.string().nullable(),
+  regionName: z.string().nullable(),
+  viewers: z.number().int().nonnegative(),
+});
+
+export const videoAnalyticsPointSchema = z.object({
+  date: z.string(),
+  label: z.string(),
+  uniqueViewers: z.number().int().nonnegative(),
+  views: z.number().int().nonnegative(),
+  watchedSeconds: z.number().int().nonnegative(),
+});
+
+export const videoAnalyticsSchema = z.object({
+  geography: z.object({
+    hasEnoughData: z.boolean(),
+    level: z.enum(["country", "region"]),
+    locations: videoAnalyticsLocationSchema.array(),
+    totalViewers: z.number().int().nonnegative(),
+  }),
+  range: z.string(),
+  summary: z.object({
+    averageWatchPercent: z.number().nonnegative(),
+    completionRate: z.number().nonnegative(),
+    totalWatchedSeconds: z.number().int().nonnegative(),
+    uniqueViewers: z.number().int().nonnegative(),
+    views: z.number().int().nonnegative(),
+  }),
+  timeseries: videoAnalyticsPointSchema.array(),
+});
+
 export const artistProfileCreditSchema = z.object({
   contentId: z.string(),
   contentType: z.enum(["track", "project"]),

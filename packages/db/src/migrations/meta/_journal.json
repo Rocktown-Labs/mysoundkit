@@ -330,6 +330,13 @@
       "when": 1787755633111,
       "tag": "0046_platform_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1787770213674,
+      "tag": "0047_video_view_analytics",
+      "breakpoints": true
     }
   ]
 }

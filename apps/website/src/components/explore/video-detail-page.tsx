@@ -28,7 +28,12 @@ export function VideoDetailPage({ lookupId }: { lookupId: string }) {
     commentsQuery = useDbVideoComments(id),
     comments = commentsQuery.data,
     isCommentsPending = commentsQuery.isLoading,
-    { data: videoList } = useVideosQuery({ limit: 12 }),
+    { data: videoList } = useVideosQuery({
+      limit: 12,
+      region: "all",
+      regionType: "global",
+      scope: "public",
+    }),
     { data: session } = authClient.useSession();
 
   if (isVideoPending || !video) {
@@ -190,6 +195,7 @@ export function VideoDetailPage({ lookupId }: { lookupId: string }) {
             posterUrl={video.thumbnailUrl || "/soundkit-default-banner.svg"}
             title={video.title}
             verifiedOnPlatform={video.verifiedOnPlatform}
+            videoId={video.id}
           />
         ) : (
           <div className="flex size-full items-center justify-center p-6 text-muted-foreground">
@@ -236,6 +242,7 @@ export function VideoDetailPage({ lookupId }: { lookupId: string }) {
                 : "Community Video"
             }
             title={video.title}
+            videoScope="public"
             viewerCount={Math.trunc(Number(video.viewCount ?? "0")) || 120}
           />
         </div>

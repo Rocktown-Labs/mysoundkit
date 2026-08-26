@@ -12,11 +12,12 @@ import {
   tracks,
   userProfiles,
   videoComments,
+  videoViewSessions,
   videos,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
-import { and, asc, desc, eq, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -48,15 +49,142 @@ import {
   messageResponseSchema,
   playbackSessionResponseSchema,
   publicExploreQuerySchema,
+  videoAnalyticsQuerySchema,
+  videoAnalyticsSchema,
+  videoViewSessionProgressBodySchema,
+  videoViewSessionProgressResponseSchema,
+  videoViewSessionResponseSchema,
+  videoViewSessionStartBodySchema,
   videoCommentSchema,
   videoSummarySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import {
+  canManageVideo,
+  filterSafeVideoLocations,
+  MIN_VIDEO_LOCATION_VIEWERS,
+  MIN_VIDEO_VIEW_SECONDS,
+} from "@/lib/video-analytics";
 import { videoPlaybackSourceType } from "@/lib/video-playback";
+import { loadVideoSchemaCapabilities } from "@/lib/video-schema-capabilities";
 import { resolveVideoThumbnailUrl } from "@/lib/video-thumbnails";
-import { uniqueSlug } from "@/lib/workspace";
+import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>(),
+  sha256Hex = async (value: string) => {
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(value)
+    );
+    return [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+  },
+  getRequestGeo = (request: Request) => {
+    const { cf } = request as unknown as {
+      cf?: {
+        city?: string;
+        country?: string;
+        region?: string;
+        regionCode?: string;
+      };
+    };
+
+    return {
+      city: cf?.city ?? request.headers.get("cf-ipcity"),
+      countryCode:
+        cf?.country ??
+        request.headers.get("cf-ipcountry") ??
+        request.headers.get("x-country-code"),
+      regionCode:
+        cf?.regionCode ??
+        request.headers.get("cf-region-code") ??
+        request.headers.get("x-region-code"),
+      regionName:
+        cf?.region ??
+        request.headers.get("cf-region") ??
+        request.headers.get("x-region"),
+    };
+  },
+  emptyVideoAnalytics = (range: string, level: "country" | "region") => ({
+    geography: {
+      hasEnoughData: false,
+      level,
+      locations: [],
+      totalViewers: 0,
+    },
+    range,
+    summary: {
+      averageWatchPercent: 0,
+      completionRate: 0,
+      totalWatchedSeconds: 0,
+      uniqueViewers: 0,
+      views: 0,
+    },
+    timeseries: [],
+  }),
+  getVideoRangeStart = (range: "7d" | "28d" | "90d" | "12m", now: Date) => {
+    const start = new Date(now);
+    if (range === "7d") {
+      start.setUTCDate(start.getUTCDate() - 7);
+    } else if (range === "28d") {
+      start.setUTCDate(start.getUTCDate() - 28);
+    } else if (range === "90d") {
+      start.setUTCDate(start.getUTCDate() - 90);
+    } else {
+      start.setUTCFullYear(start.getUTCFullYear() - 1);
+    }
+    return start;
+  };
+
+const updateVideoViewSession = async ({
+  db,
+  durationSeconds,
+  ended,
+  playedSeconds,
+  sessionId,
+  token,
+  videoId,
+}: {
+  db: ReturnType<typeof createDb>;
+  durationSeconds?: number;
+  ended: boolean;
+  playedSeconds: number;
+  sessionId: string;
+  token: string;
+  videoId: string;
+}) => {
+  const now = new Date(),
+    tokenHash = await sha256Hex(token),
+    updateSession = (includeDuration: boolean) =>
+      db
+        .update(videoViewSessions)
+        .set({
+          ...(includeDuration ? { durationSeconds } : {}),
+          endedAt: ended ? now : undefined,
+          lastHeartbeatAt: now,
+          status: ended ? "ended" : "active",
+          watchedSeconds: sql<number>`greatest(${videoViewSessions.watchedSeconds}, ${Math.floor(playedSeconds)})`,
+        })
+        .where(
+          and(
+            eq(videoViewSessions.id, sessionId),
+            eq(videoViewSessions.sessionTokenHash, tokenHash),
+            eq(videoViewSessions.videoId, videoId),
+            or(
+              eq(videoViewSessions.status, "started"),
+              eq(videoViewSessions.status, "active")
+            )
+          )
+        );
+
+  const result =
+    durationSeconds === undefined
+      ? await updateSession(false)
+      : await updateSession(true);
+
+  return (result.rowCount ?? 0) > 0;
+};
 
 app.post("/:videoId/pre-save", async (c) => {
   const user = c.get("user");
@@ -124,13 +252,24 @@ const hasPurchasedTrack = async ({
       tokenSecret: env.MUX_TOKEN_SECRET,
     });
   },
-  videoViewCount = sql<number>`(
+  legacyVideoViewCount = sql<number>`(
   select count(*)::int
   from ${playbackSessions}
   where ${playbackSessions.sourceType} = ${videoPlaybackSourceType}
     and ${playbackSessions.sourceId} = ${videos.id}
 )`,
-  publicVideoOrderBy = (sort?: string) => {
+  videoViewQualificationCondition = sql`
+  ${videoViewSessions.watchedSeconds} >= least(
+    ${MIN_VIDEO_VIEW_SECONDS},
+    coalesce(${videoViewSessions.durationSeconds}, ${MIN_VIDEO_VIEW_SECONDS})
+  )`,
+  videoViewSessionCount = sql<number>`(
+  select count(*)::int
+  from ${videoViewSessions}
+  where ${videoViewSessions.videoId} = ${videos.id}
+    and ${videoViewQualificationCondition}
+)`,
+  publicVideoOrderBy = (sort?: string, viewCount = legacyVideoViewCount) => {
     if (sort === "title-asc") {
       return asc(videos.title);
     }
@@ -140,10 +279,10 @@ const hasPurchasedTrack = async ({
     }
 
     if (sort === "views-asc") {
-      return asc(videoViewCount);
+      return asc(viewCount);
     }
 
-    return desc(videoViewCount);
+    return desc(viewCount);
   },
   getSampleVideoFallback = (
     videoId?: string
@@ -264,11 +403,18 @@ app.openapi(
         videoSummarySchema.array(),
         "Videos list"
       ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required for dashboard videos"
+      ),
     },
     tags: ["Videos"],
   }),
   async (c) => {
-    const query = c.req.valid("query");
+    const query = c.req.valid("query"),
+      user = c.get("user"),
+      scope =
+        query.scope ?? (isAuthenticatedUser(user) ? "dashboard" : "public");
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -277,16 +423,42 @@ app.openapi(
       );
     }
 
-    const db = createDb(),
-      genreSlug = genreSlugFromExploreFilter(query.genre),
-      regionCondition = profileRegionCondition(query),
-      publicVideoConditions = [
-        eq(videos.isPublic, true),
-        sql`(${videos.releaseAt} is null or ${videos.releaseAt} <= now())`,
-      ];
+    if (query.scope === "dashboard" && !isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const userId = isAuthenticatedUser(user) ? user.id : "",
+      db = createDb(),
+      capabilities = await loadVideoSchemaCapabilities(),
+      session = c.get("session"),
+      organizationId =
+        scope === "dashboard" && isAuthenticatedUser(user)
+          ? await resolveActiveOrganizationId({
+              session: isAuthenticatedSession(session) ? session : null,
+              user,
+            })
+          : null,
+      genreSlug =
+        scope === "public" ? genreSlugFromExploreFilter(query.genre) : null,
+      regionCondition =
+        scope === "public" ? profileRegionCondition(query) : undefined,
+      conditions =
+        scope === "dashboard"
+          ? [
+              organizationId
+                ? or(
+                    eq(videos.ownerUserId, userId),
+                    eq(videos.organizationId, organizationId)
+                  )
+                : eq(videos.ownerUserId, userId),
+            ]
+          : [
+              eq(videos.isPublic, true),
+              sql`(${videos.releaseAt} is null or ${videos.releaseAt} <= now())`,
+            ];
 
     if (genreSlug) {
-      publicVideoConditions.push(
+      conditions.push(
         sql`(${videos.genreId} in (
           select id from genres where slug = ${genreSlug}
         ) or ${videos.sourceTrackId} in (
@@ -297,13 +469,16 @@ app.openapi(
     }
 
     if (regionCondition) {
-      publicVideoConditions.push(regionCondition);
+      conditions.push(regionCondition);
     }
 
     const limit = query.limit ?? 24,
       page = query.page ?? 1,
       offset = (page - 1) * limit,
-      order = publicVideoOrderBy(query.sort),
+      viewCount = capabilities.viewSessions
+        ? videoViewSessionCount
+        : legacyVideoViewCount,
+      order = publicVideoOrderBy(query.sort, viewCount),
       rows = await db
         .select({
           avatarUrl: userProfiles.avatarUrl,
@@ -312,11 +487,12 @@ app.openapi(
           state: userProfiles.state,
           username: userProfiles.username,
           video: videos,
+          viewCount,
         })
         .from(videos)
         .leftJoin(userProfiles, eq(userProfiles.userId, videos.ownerUserId))
         .leftJoin(authUser, eq(authUser.id, videos.ownerUserId))
-        .where(and(...publicVideoConditions))
+        .where(and(...conditions))
         .orderBy(order)
         .limit(limit)
         .offset(offset);
@@ -328,6 +504,7 @@ app.openapi(
         creatorName: row.displayName ?? row.name ?? "SoundKit Artist",
         creatorUsername: row.username ?? null,
         regionSlug: regionSlugFromUser(row.state) ?? null,
+        viewCount: String(row.viewCount ?? 0),
       })),
       HttpStatusCodes.OK
     );
@@ -602,6 +779,448 @@ app.openapi(
 app.openapi(
   createRoute({
     method: "get",
+    path: "/{videoId}/analytics",
+    request: {
+      params: z.object({ videoId: z.string() }),
+      query: videoAnalyticsQuerySchema,
+    },
+    responses: {
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Video ownership required"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Video not found"
+      ),
+      [HttpStatusCodes.OK]: jsonContent(
+        videoAnalyticsSchema,
+        "Video analytics"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Videos"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { range } = c.req.valid("query"),
+      { videoId } = c.req.valid("param");
+
+    if (!isDatabaseConfigured()) {
+      return c.json(emptyVideoAnalytics(range, "country"), HttpStatusCodes.OK);
+    }
+
+    const db = createDb(),
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      [video] = await db
+        .select({
+          organizationId: videos.organizationId,
+          ownerUserId: videos.ownerUserId,
+        })
+        .from(videos)
+        .where(eq(videos.id, videoId))
+        .limit(1);
+
+    if (!video) {
+      return c.json({ message: "Video not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    if (
+      !canManageVideo({
+        activeOrganizationId: organizationId,
+        organizationId: video.organizationId,
+        ownerUserId: video.ownerUserId,
+        userId: user.id,
+      })
+    ) {
+      return c.json(
+        forbiddenMessage("You can only view analytics for your own videos."),
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
+    const entitlements = await resolveEntitlements({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      level: "region" | "country" = entitlements.isPremium
+        ? "region"
+        : "country",
+      capabilities = await loadVideoSchemaCapabilities();
+
+    if (!capabilities.viewSessions) {
+      return c.json(emptyVideoAnalytics(range, level), HttpStatusCodes.OK);
+    }
+
+    const now = new Date(),
+      startDate = getVideoRangeStart(range, now),
+      qualifiedViewCondition = videoViewQualificationCondition,
+      [summaryRow] = await db
+        .select({
+          averageWatchPercent: sql<number>`coalesce(avg(case when ${qualifiedViewCondition} and ${videoViewSessions.durationSeconds} > 0 then least((${videoViewSessions.watchedSeconds}::numeric / nullif(${videoViewSessions.durationSeconds}, 0)) * 100, 100) end), 0)::float`,
+          completionRate: sql<number>`coalesce((count(*) filter (where ${qualifiedViewCondition} and ${videoViewSessions.durationSeconds} > 0 and ${videoViewSessions.watchedSeconds} >= ${videoViewSessions.durationSeconds} * 0.9))::numeric / nullif(count(*) filter (where ${qualifiedViewCondition}), 0) * 100, 0)::float`,
+          totalWatchedSeconds: sql<number>`coalesce(sum(${videoViewSessions.watchedSeconds}) filter (where ${qualifiedViewCondition}), 0)::int`,
+          uniqueViewers: sql<number>`count(distinct ${videoViewSessions.viewerKey}) filter (where ${qualifiedViewCondition})::int`,
+          views: sql<number>`count(*) filter (where ${qualifiedViewCondition})::int`,
+        })
+        .from(videoViewSessions)
+        .where(
+          and(
+            eq(videoViewSessions.videoId, videoId),
+            gte(videoViewSessions.startedAt, startDate)
+          )
+        ),
+      uniqueViewers = Number(summaryRow?.uniqueViewers ?? 0),
+      dateFormat = range === "12m" ? "YYYY-MM" : "YYYY-MM-DD",
+      dateMap = new Map<
+        string,
+        { uniqueViewers: number; views: number; watchedSeconds: number }
+      >();
+
+    if (range === "12m") {
+      for (let index = 11; index >= 0; index -= 1) {
+        const date = new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - index, 1)
+        );
+        dateMap.set(date.toISOString().slice(0, 7), {
+          uniqueViewers: 0,
+          views: 0,
+          watchedSeconds: 0,
+        });
+      }
+    } else {
+      let days = 90;
+      if (range === "7d") {
+        days = 7;
+      } else if (range === "28d") {
+        days = 28;
+      }
+
+      for (let index = days - 1; index >= 0; index -= 1) {
+        const date = new Date(now);
+        date.setUTCDate(date.getUTCDate() - index);
+        dateMap.set(date.toISOString().slice(0, 10), {
+          uniqueViewers: 0,
+          views: 0,
+          watchedSeconds: 0,
+        });
+      }
+    }
+
+    const dateKey = sql<string>`to_char(${videoViewSessions.startedAt}, ${dateFormat})`,
+      timeseriesRows = await db
+        .select({
+          dateKey,
+          uniqueViewers: sql<number>`count(distinct ${videoViewSessions.viewerKey}) filter (where ${qualifiedViewCondition})::int`,
+          views: sql<number>`count(*) filter (where ${qualifiedViewCondition})::int`,
+          watchedSeconds: sql<number>`coalesce(sum(${videoViewSessions.watchedSeconds}) filter (where ${qualifiedViewCondition}), 0)::int`,
+        })
+        .from(videoViewSessions)
+        .where(
+          and(
+            eq(videoViewSessions.videoId, videoId),
+            gte(videoViewSessions.startedAt, startDate)
+          )
+        )
+        .groupBy(dateKey);
+
+    for (const row of timeseriesRows) {
+      if (dateMap.has(row.dateKey)) {
+        dateMap.set(row.dateKey, {
+          uniqueViewers: Number(row.uniqueViewers),
+          views: Number(row.views),
+          watchedSeconds: Number(row.watchedSeconds),
+        });
+      }
+    }
+
+    const timeseries = [...dateMap.entries()].map(([date, values]) => {
+      const dateValue =
+        range === "12m"
+          ? new Date(`${date}-01T00:00:00.000Z`)
+          : new Date(`${date}T00:00:00.000Z`);
+      return {
+        date,
+        label: dateValue.toLocaleDateString("en-US", {
+          day: range === "12m" ? undefined : "numeric",
+          month: "short",
+        }),
+        ...values,
+      };
+    });
+
+    const locationRows =
+        level === "region"
+          ? await db
+              .select({
+                countryCode: videoViewSessions.countryCode,
+                regionCode: videoViewSessions.regionCode,
+                regionName: videoViewSessions.regionName,
+                viewers: sql<number>`count(distinct ${videoViewSessions.viewerKey}) filter (where ${qualifiedViewCondition})::int`,
+              })
+              .from(videoViewSessions)
+              .where(
+                and(
+                  eq(videoViewSessions.videoId, videoId),
+                  gte(videoViewSessions.startedAt, startDate)
+                )
+              )
+              .groupBy(
+                videoViewSessions.countryCode,
+                videoViewSessions.regionCode,
+                videoViewSessions.regionName
+              )
+          : await db
+              .select({
+                countryCode: videoViewSessions.countryCode,
+                regionCode: sql<string | null>`null`,
+                regionName: sql<string | null>`null`,
+                viewers: sql<number>`count(distinct ${videoViewSessions.viewerKey}) filter (where ${qualifiedViewCondition})::int`,
+              })
+              .from(videoViewSessions)
+              .where(
+                and(
+                  eq(videoViewSessions.videoId, videoId),
+                  gte(videoViewSessions.startedAt, startDate)
+                )
+              )
+              .groupBy(videoViewSessions.countryCode),
+      safeLocations = filterSafeVideoLocations(
+        locationRows.map((row) => ({
+          countryCode: row.countryCode,
+          regionCode: row.regionCode,
+          regionName: row.regionName,
+          viewers: Number(row.viewers),
+        })),
+        uniqueViewers,
+        level,
+        MIN_VIDEO_LOCATION_VIEWERS
+      );
+
+    return c.json(
+      {
+        geography: {
+          hasEnoughData: safeLocations.hasEnoughData,
+          level,
+          locations: safeLocations.locations,
+          totalViewers: uniqueViewers,
+        },
+        range,
+        summary: {
+          averageWatchPercent: Number(summaryRow?.averageWatchPercent ?? 0),
+          completionRate: Number(summaryRow?.completionRate ?? 0),
+          totalWatchedSeconds: Number(summaryRow?.totalWatchedSeconds ?? 0),
+          uniqueViewers,
+          views: Number(summaryRow?.views ?? 0),
+        },
+        timeseries,
+      },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{videoId}/view-sessions",
+    request: {
+      body: jsonContentRequired(
+        videoViewSessionStartBodySchema,
+        "Video view session payload"
+      ),
+      params: z.object({ videoId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        videoViewSessionResponseSchema,
+        "Video view session"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Video not found"
+      ),
+    },
+    tags: ["Videos"],
+  }),
+  async (c) => {
+    const { videoId } = c.req.valid("param"),
+      body = c.req.valid("json"),
+      user = c.get("user");
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { id: crypto.randomUUID(), token: crypto.randomUUID() },
+        HttpStatusCodes.CREATED
+      );
+    }
+
+    const capabilities = await loadVideoSchemaCapabilities();
+    if (!capabilities.viewSessions) {
+      return c.json(
+        { id: crypto.randomUUID(), token: crypto.randomUUID() },
+        HttpStatusCodes.CREATED
+      );
+    }
+
+    const db = createDb(),
+      [video] = await db
+        .select({
+          isPublic: videos.isPublic,
+          ownerUserId: videos.ownerUserId,
+          releaseAt: videos.releaseAt,
+        })
+        .from(videos)
+        .where(eq(videos.id, videoId))
+        .limit(1);
+
+    if (!video) {
+      return c.json({ message: "Video not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    const isOwner = isAuthenticatedUser(user) && video.ownerUserId === user.id,
+      isReleased = Boolean(
+        video.isPublic && (!video.releaseAt || video.releaseAt <= new Date())
+      );
+
+    if (!(isReleased || isOwner)) {
+      return c.json({ message: "Video not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    const anonymousId = body.anonymousId ?? crypto.randomUUID(),
+      viewerKey = await sha256Hex(
+        `video:${videoId}:${isAuthenticatedUser(user) ? `user:${user.id}` : `anonymous:${anonymousId}`}`
+      ),
+      token = crypto.randomUUID(),
+      id = crypto.randomUUID(),
+      geo = getRequestGeo(c.req.raw);
+
+    await db.insert(videoViewSessions).values({
+      city: geo.city?.trim() || null,
+      countryCode: geo.countryCode?.trim().toUpperCase() || null,
+      durationSeconds: body.durationSeconds ?? null,
+      id,
+      lastHeartbeatAt: new Date(),
+      regionCode: geo.regionCode?.trim().toUpperCase() || null,
+      regionName: geo.regionName?.trim() || null,
+      sessionTokenHash: await sha256Hex(token),
+      startedAt: new Date(),
+      status: "started",
+      videoId,
+      viewerKey,
+      viewerUserId: isAuthenticatedUser(user) ? user.id : null,
+    });
+
+    return c.json({ id, token }, HttpStatusCodes.CREATED);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{videoId}/view-sessions/{sessionId}/progress",
+    request: {
+      body: jsonContentRequired(
+        videoViewSessionProgressBodySchema,
+        "Video view progress payload"
+      ),
+      params: z.object({ sessionId: z.string(), videoId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        videoViewSessionProgressResponseSchema,
+        "Video view progress"
+      ),
+    },
+    tags: ["Videos"],
+  }),
+  async (c) => {
+    const { sessionId, videoId } = c.req.valid("param"),
+      body = c.req.valid("json");
+
+    if (!isDatabaseConfigured()) {
+      return c.json({ updated: false }, HttpStatusCodes.OK);
+    }
+
+    const capabilities = await loadVideoSchemaCapabilities();
+    if (!capabilities.viewSessions) {
+      return c.json({ updated: false }, HttpStatusCodes.OK);
+    }
+
+    const updated = await updateVideoViewSession({
+      db: createDb(),
+      durationSeconds: body.durationSeconds,
+      ended: body.ended,
+      playedSeconds: body.playedSeconds,
+      sessionId,
+      token: body.token,
+      videoId,
+    });
+
+    return c.json({ updated }, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{videoId}/view-sessions/{sessionId}/end",
+    request: {
+      body: jsonContentRequired(
+        videoViewSessionProgressBodySchema,
+        "Video view end payload"
+      ),
+      params: z.object({ sessionId: z.string(), videoId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        videoViewSessionProgressResponseSchema,
+        "Video view end"
+      ),
+    },
+    tags: ["Videos"],
+  }),
+  async (c) => {
+    const { sessionId, videoId } = c.req.valid("param"),
+      body = c.req.valid("json");
+
+    if (!isDatabaseConfigured()) {
+      return c.json({ updated: false }, HttpStatusCodes.OK);
+    }
+
+    const capabilities = await loadVideoSchemaCapabilities();
+    if (!capabilities.viewSessions) {
+      return c.json({ updated: false }, HttpStatusCodes.OK);
+    }
+
+    const updated = await updateVideoViewSession({
+      db: createDb(),
+      durationSeconds: body.durationSeconds,
+      ended: true,
+      playedSeconds: body.playedSeconds,
+      sessionId,
+      token: body.token,
+      videoId,
+    });
+
+    return c.json({ updated }, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
     path: "/{videoId}",
     request: {
       params: z.object({
@@ -626,13 +1245,23 @@ app.openapi(
       );
     }
 
-    const db = createDb(),
+    const user = c.get("user"),
+      session = c.get("session"),
+      db = createDb(),
+      organizationId = isAuthenticatedUser(user)
+        ? await resolveActiveOrganizationId({
+            session: isAuthenticatedSession(session) ? session : null,
+            user,
+          })
+        : null,
       [video] = await db
         .select({
           avatarUrl: userProfiles.avatarUrl,
           displayName: userProfiles.displayName,
           genreName: genres.name,
           name: authUser.name,
+          organizationId: videos.organizationId,
+          ownerUserId: videos.ownerUserId,
           state: userProfiles.state,
           username: userProfiles.username,
           video: videos,
@@ -644,9 +1273,26 @@ app.openapi(
         .where(or(eq(videos.id, videoId), eq(videos.slug, videoId)))
         .limit(1);
 
+    if (!video) {
+      return c.json(
+        mapVideo(getSampleVideoFallback(videoId)),
+        HttpStatusCodes.OK
+      );
+    }
+
+    const ownerAccess =
+      isAuthenticatedUser(user) &&
+      canManageVideo({
+        activeOrganizationId: organizationId,
+        organizationId: video.organizationId,
+        ownerUserId: video.ownerUserId,
+        userId: user.id,
+      });
+
     if (
-      !video ||
-      (video.video.isPublic === false && video.video.releaseAt === null)
+      !ownerAccess &&
+      (video.video.isPublic === false ||
+        (video.video.releaseAt !== null && video.video.releaseAt > new Date()))
     ) {
       return c.json(
         mapVideo(getSampleVideoFallback(videoId)),
