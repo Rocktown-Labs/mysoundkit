@@ -14,7 +14,18 @@ import {
   tracks,
   userProfiles,
 } from "@soundkit/db/schema/app";
-import { and, asc, desc, eq, gte, inArray, isNull, ne, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import { Hono } from "hono";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import type { z } from "zod";
@@ -27,6 +38,7 @@ import type {
 } from "@/durable-objects/live-room";
 import { publicAssetUrlFromParts } from "@/lib/asset-urls";
 import { resolveArtistBattleTitle } from "@/lib/battle-display";
+import { loadBattleSchemaCapabilities } from "@/lib/battle-schema-capabilities";
 import { evaluateBattleKitReadiness } from "@/lib/battle-kits";
 import { buildBattleRoundSeeds } from "@/lib/battle-rounds";
 import { retryDurableObjectCall } from "@/lib/durable-object-retry";
@@ -39,7 +51,10 @@ import {
 } from "@/lib/entitlements";
 import { canonicalGenreSlug } from "@/lib/genre-catalog";
 import { createBattleCoordination } from "@/lib/live-battle-state";
-import type { BattleCancellationReason } from "@/lib/live-battle-state";
+import type {
+  BattleCancellationReason,
+  BattleOutcomeKind,
+} from "@/lib/live-battle-state";
 import {
   allowsMockRealtime,
   battleMediaPhase,
@@ -1133,6 +1148,7 @@ const badRequest = (message: string) => ({
     }
 
     const db = createDb(),
+      schemaCapabilities = await loadBattleSchemaCapabilities(),
       [battle] = await db
         .select({
           challengerArtistUserId: battles.challengerArtistUserId,
@@ -1142,15 +1158,23 @@ const badRequest = (message: string) => ({
           genre: genres.name,
           id: battles.id,
           opponentArtistUserId: battles.opponentArtistUserId,
-          outcome: battles.outcome,
-          outcomeReason: battles.outcomeReason,
-          outcomeUserId: battles.outcomeUserId,
+          outcome: schemaCapabilities.battleOutcome
+            ? battles.outcome
+            : sql<BattleOutcomeKind | null>`null`,
+          outcomeReason: schemaCapabilities.battleOutcomeReason
+            ? battles.outcomeReason
+            : sql<string | null>`null`,
+          outcomeUserId: schemaCapabilities.battleOutcomeUser
+            ? battles.outcomeUserId
+            : sql<string | null>`null`,
           startsAt: battles.startsAt,
           status: battles.status,
           title: battles.title,
           updatedAt: battles.updatedAt,
           viewerCount: battles.viewerCount,
-          winnerUserId: battles.winnerUserId,
+          winnerUserId: schemaCapabilities.battleWinner
+            ? battles.winnerUserId
+            : sql<string | null>`null`,
         })
         .from(battles)
         .leftJoin(genres, eq(genres.id, battles.genreId))

@@ -611,6 +611,35 @@ test.describe("main application surfaces", () => {
       },
     ]);
 
+    await page.addInitScript(() => {
+      const mediaDevices = navigator.mediaDevices;
+      if (!mediaDevices) {
+        return;
+      }
+
+      Object.defineProperty(mediaDevices, "getUserMedia", {
+        configurable: true,
+        value: async () => new MediaStream(),
+      });
+      Object.defineProperty(mediaDevices, "enumerateDevices", {
+        configurable: true,
+        value: async () => [
+          {
+            deviceId: "camera-1",
+            groupId: "group-1",
+            kind: "videoinput",
+            label: "Built-in camera",
+          },
+          {
+            deviceId: "microphone-1",
+            groupId: "group-1",
+            kind: "audioinput",
+            label: "Built-in microphone",
+          },
+        ],
+      });
+    });
+
     await gotoWithViteRetry(page, "/live/battles/battle-waiting-artist");
     await expect(page).toHaveURL(
       /\/dashboard\/live\/battles\/join\/battle-waiting-artist\/artistview$/,
@@ -621,6 +650,7 @@ test.describe("main application surfaces", () => {
     });
     await expect(page.getByText("Prepare your battle lineup")).toBeVisible();
     await expect(page.getByText("0/2 ready")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Help" })).toBeVisible();
     await expect(
       page.getByText("Best of 3 · 3 rounds + tiebreaker")
     ).toBeVisible();
@@ -637,6 +667,20 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("Kit locked", { exact: true })).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Locked for battle" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Enable camera & mic" })
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Enable camera & mic" }).click();
+    await expect(
+      page.getByRole("combobox", { name: "Battle camera" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "Battle microphone" })
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Save device setup" }).click();
+    await expect(
+      page.getByRole("button", { name: "Device setup saved" })
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "I’m ready" })).toBeVisible();
     await page.getByRole("button", { name: "I’m ready" }).click();
