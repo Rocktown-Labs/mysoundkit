@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "battle_rounds_battle_number_idx" ON "battle_rounds" USING btree ("battle_id","round_number");

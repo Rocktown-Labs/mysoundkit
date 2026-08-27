@@ -433,12 +433,42 @@ export class LiveRoomDurableObject extends DurableObject {
     this.requestedRoomId = roomId;
     const room = this.normalizeState(body),
       storedState =
-        await this.ctx.storage.get<LiveRoomState>(STATE_STORAGE_KEY),
-      shouldReplaceStoredState =
-        !storedState ||
-        storedState.id !== room.id ||
-        storedState.kind !== room.kind ||
-        storedState.title !== room.title;
+        await this.ctx.storage.get<LiveRoomState>(STATE_STORAGE_KEY);
+    let roomToPersist = room;
+    const shouldRepairBattleRounds =
+      storedState &&
+      room.kind === "battle" &&
+      room.battle &&
+      room.battle.rounds.length > 0 &&
+      (!storedState.battle || storedState.battle.rounds.length === 0);
+
+    if (
+      shouldRepairBattleRounds &&
+      storedState?.battle &&
+      room.kind === "battle" &&
+      room.battle
+    ) {
+      const incomingBattle = room.battle;
+      roomToPersist = {
+        ...room,
+        battle: {
+          ...incomingBattle,
+          ...storedState.battle,
+          coordination:
+            storedState.battle.coordination ?? incomingBattle.coordination,
+          currentRoundId:
+            storedState.battle.currentRoundId || incomingBattle.currentRoundId,
+          rounds: incomingBattle.rounds,
+        },
+      };
+    }
+
+    const shouldReplaceStoredState =
+      !storedState ||
+      storedState.id !== roomToPersist.id ||
+      storedState.kind !== roomToPersist.kind ||
+      storedState.title !== roomToPersist.title ||
+      shouldRepairBattleRounds;
 
     if (!shouldReplaceStoredState) {
       return {
@@ -447,12 +477,12 @@ export class LiveRoomDurableObject extends DurableObject {
       };
     }
 
-    await this.persist(room);
-    this.broadcast({ room: this.publicState(room), type: "state" });
-    if (room.kind === "battle") {
-      this.publishBattleDirectoryUpdate(room.id);
+    await this.persist(roomToPersist);
+    this.broadcast({ room: this.publicState(roomToPersist), type: "state" });
+    if (roomToPersist.kind === "battle") {
+      this.publishBattleDirectoryUpdate(roomToPersist.id);
     }
-    return { replaced: true, room: this.publicState(room) };
+    return { replaced: true, room: this.publicState(roomToPersist) };
   }
 
   async chat(
@@ -1122,7 +1152,7 @@ export class LiveRoomDurableObject extends DurableObject {
       directory
         .getByName("public")
         .publish(battleId)
-        .catch(() => undefined)
+        .catch(() => {})
     );
   }
 
