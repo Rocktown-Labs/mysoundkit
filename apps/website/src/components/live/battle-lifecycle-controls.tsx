@@ -5,6 +5,7 @@ import {
   Check,
   Flag,
   Hand,
+  HelpCircle,
   LogOut,
   ShieldAlert,
   Swords,
@@ -21,6 +22,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -72,6 +79,7 @@ interface Disposition {
 
 export function BattleLifecycleControls({
   artists,
+  compact = false,
   currentUserId,
   hasSelectedKit,
   isAdmin,
@@ -85,6 +93,7 @@ export function BattleLifecycleControls({
   roundNumber,
 }: {
   artists: [LiveRoomArtist, LiveRoomArtist];
+  compact?: boolean;
   currentUserId?: string;
   hasSelectedKit: boolean;
   isAdmin: boolean;
@@ -141,9 +150,9 @@ export function BattleLifecycleControls({
         await onDisposition({
           affectedUserId: isDuckedReport
             ? affectedUserId
-            : kind === "canceled"
+            : (kind === "canceled"
               ? null
-              : affectedUserId,
+              : affectedUserId),
           kind: isDuckedReport ? "ducked" : kind,
           reason,
         });
@@ -162,128 +171,206 @@ export function BattleLifecycleControls({
   return (
     <>
       <Card className="border-primary/30 bg-card/80 shadow-sm">
-        <CardContent className="flex flex-wrap items-center gap-3 p-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="rounded-md bg-primary/15 p-2 text-primary">
-              <Swords className="size-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="font-semibold text-sm">
-                  {isReadinessPhase
-                    ? phase === "between_rounds" && roundNumber
-                      ? `Round ${roundNumber} readiness`
-                      : "Battle readiness"
-                    : "Battle controls"}
-                </p>
+        <CardContent
+          className={
+            compact
+              ? "flex items-center justify-between gap-3 p-3"
+              : "flex flex-wrap items-center gap-3 p-3"
+          }
+        >
+          {compact ? (
+            <>
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="rounded-md bg-primary/15 p-2 text-primary">
+                  <HelpCircle className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm">Need help?</p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    BattleBot starts the match when both artists are ready. Use
+                    Help if you need to leave or report a no-show.
+                  </p>
+                </div>
               </div>
-              <p className="truncate text-[11px] text-muted-foreground">
-                {isReadinessPhase
-                  ? "Both artists can ready up, or the timer will start the next round."
-                  : "BattleBot controls the stage; use these controls only when you need to leave."}
-              </p>
-            </div>
-          </div>
-
-          {isReadinessPhase && (
-            <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
-              {artists.map((artist) => {
-                const ready = readyArtistUserIds.includes(artist.id);
-                return (
-                  <div
-                    className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-border/60 bg-background/40 px-2.5 py-1"
-                    key={artist.id}
-                  >
-                    {ready ? (
-                      <Check className="size-3.5 shrink-0 text-emerald-400" />
-                    ) : (
-                      <span className="size-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
-                    )}
-                    <span className="max-w-32 truncate font-semibold text-[11px]">
-                      {artist.name}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {ready ? "Ready" : "Preparing"}
-                    </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="shrink-0 gap-1.5" size="sm" type="button">
+                    <HelpCircle className="size-3.5" />
+                    Help
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  {canCancel && (
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        openDisposition("canceled", "technical_issue")
+                      }
+                    >
+                      <LogOut className="size-3.5" />
+                      Cancel battle
+                    </DropdownMenuItem>
+                  )}
+                  {canCancel && isPreStart && (
+                    <DropdownMenuItem
+                      onSelect={() => openDisposition("ducked", "ducked")}
+                    >
+                      <Flag className="size-3.5" />
+                      Mark ducked
+                    </DropdownMenuItem>
+                  )}
+                  {canQuit && (
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        openDisposition("quit", "artist_unavailable")
+                      }
+                    >
+                      <LogOut className="size-3.5" />
+                      Quit battle
+                    </DropdownMenuItem>
+                  )}
+                  {canForfeit && (
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onSelect={() =>
+                        openDisposition("forfeited", "artist_unavailable")
+                      }
+                    >
+                      <ShieldAlert className="size-3.5" />
+                      {isAdmin ? "Record forfeit" : "Forfeit battle"}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : (
+            <>
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="rounded-md bg-primary/15 p-2 text-primary">
+                  <Swords className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold text-sm">
+                      {isReadinessPhase
+                        ? (phase === "between_rounds" && roundNumber
+                          ? `Round ${roundNumber} readiness`
+                          : "Battle readiness")
+                        : "Battle controls"}
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {isReadinessPhase
+                      ? "Both artists can ready up, or the timer will start the next round."
+                      : "BattleBot controls the stage; use these controls only when you need to leave."}
+                  </p>
+                </div>
+              </div>
 
-          <div className="flex flex-wrap gap-2 sm:ml-auto">
-            {isArtist && isReadinessPhase && (
-              <Button
-                className="gap-1.5"
-                disabled={pending || (!hasSelectedKit && !isReady)}
-                onClick={() => void onReady(!isReady)}
-                size="sm"
-                type="button"
-                variant={isReady ? "secondary" : "default"}
-              >
-                <Hand className="size-3.5" />
-                {isReady
-                  ? "Not ready"
-                  : hasSelectedKit
-                    ? "I’m ready"
-                    : "Select kit first"}
-              </Button>
-            )}
-            {canCancel && (
-              <Button
-                className="gap-1.5"
-                disabled={pending}
-                onClick={() => openDisposition("canceled", "technical_issue")}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                <LogOut className="size-3.5" />
-                Cancel battle
-              </Button>
-            )}
-            {canCancel && isPreStart && (
-              <Button
-                className="gap-1.5"
-                disabled={pending}
-                onClick={() => openDisposition("ducked", "ducked")}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                <Flag className="size-3.5" />
-                Mark ducked
-              </Button>
-            )}
-            {canQuit && (
-              <Button
-                className="gap-1.5"
-                disabled={pending}
-                onClick={() => openDisposition("quit", "artist_unavailable")}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                <LogOut className="size-3.5" />
-                Quit battle
-              </Button>
-            )}
-            {canForfeit && (
-              <Button
-                className="gap-1.5"
-                disabled={pending}
-                onClick={() =>
-                  openDisposition("forfeited", "artist_unavailable")
-                }
-                size="sm"
-                type="button"
-                variant="destructive"
-              >
-                <ShieldAlert className="size-3.5" />
-                {isAdmin ? "Record forfeit" : "Forfeit battle"}
-              </Button>
-            )}
-          </div>
+              {isReadinessPhase && (
+                <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+                  {artists.map((artist) => {
+                    const ready = readyArtistUserIds.includes(artist.id);
+                    return (
+                      <div
+                        className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-border/60 bg-background/40 px-2.5 py-1"
+                        key={artist.id}
+                      >
+                        {ready ? (
+                          <Check className="size-3.5 shrink-0 text-emerald-400" />
+                        ) : (
+                          <span className="size-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
+                        )}
+                        <span className="max-w-32 truncate font-semibold text-[11px]">
+                          {artist.name}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {ready ? "Ready" : "Preparing"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 sm:ml-auto">
+                {isArtist && isReadinessPhase && (
+                  <Button
+                    className="gap-1.5"
+                    disabled={pending || (!hasSelectedKit && !isReady)}
+                    onClick={() => void onReady(!isReady)}
+                    size="sm"
+                    type="button"
+                    variant={isReady ? "secondary" : "default"}
+                  >
+                    <Hand className="size-3.5" />
+                    {isReady
+                      ? "Not ready"
+                      : (hasSelectedKit
+                        ? "I’m ready"
+                        : "Select kit first")}
+                  </Button>
+                )}
+                {canCancel && (
+                  <Button
+                    className="gap-1.5"
+                    disabled={pending}
+                    onClick={() =>
+                      openDisposition("canceled", "technical_issue")
+                    }
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <LogOut className="size-3.5" />
+                    Cancel battle
+                  </Button>
+                )}
+                {canCancel && isPreStart && (
+                  <Button
+                    className="gap-1.5"
+                    disabled={pending}
+                    onClick={() => openDisposition("ducked", "ducked")}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Flag className="size-3.5" />
+                    Mark ducked
+                  </Button>
+                )}
+                {canQuit && (
+                  <Button
+                    className="gap-1.5"
+                    disabled={pending}
+                    onClick={() =>
+                      openDisposition("quit", "artist_unavailable")
+                    }
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <LogOut className="size-3.5" />
+                    Quit battle
+                  </Button>
+                )}
+                {canForfeit && (
+                  <Button
+                    className="gap-1.5"
+                    disabled={pending}
+                    onClick={() =>
+                      openDisposition("forfeited", "artist_unavailable")
+                    }
+                    size="sm"
+                    type="button"
+                    variant="destructive"
+                  >
+                    <ShieldAlert className="size-3.5" />
+                    {isAdmin ? "Record forfeit" : "Forfeit battle"}
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

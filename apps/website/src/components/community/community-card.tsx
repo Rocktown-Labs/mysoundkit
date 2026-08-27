@@ -1,11 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import { LockKeyhole, MessageCircle, Users } from "lucide-react";
 
+import {
+  PublicCard,
+  PublicCardMeta,
+  PublicCardThumbnail,
+} from "@/components/explore/public-card";
 import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import type { DbCommunity } from "@/lib/data-db";
 
 const formatPrice = (monthlyPriceCents: number) =>
@@ -18,28 +22,38 @@ const formatPrice = (monthlyPriceCents: number) =>
 
 export function CommunityCard({ community }: { community: DbCommunity }) {
   return (
-    <Card className="group w-[280px] shrink-0 overflow-hidden border-border/50 bg-card/70 transition-colors hover:border-primary/50">
-      <div className="relative aspect-[16/8] overflow-hidden bg-gradient-to-br from-primary/25 via-accent/15 to-background">
+    <PublicCard className="w-[280px] shrink-0" framed>
+      <PublicCardThumbnail className="rounded-none">
         {community.coverImageUrl ? (
           <AppImage
             alt={`${community.name} community cover`}
-            className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            height={480}
+            layout="constrained"
+            loading="lazy"
             src={community.coverImageUrl}
+            width={960}
           />
         ) : (
-          <div className="flex size-full items-center justify-center">
-            <MessageCircle className="size-12 text-primary/60" />
+          <div className="flex size-full items-center justify-center bg-gradient-to-br from-primary/25 via-accent/15 to-background">
+            <MessageCircle
+              aria-hidden="true"
+              className="size-12 text-primary/60"
+            />
           </div>
         )}
-        <Badge className="absolute left-3 top-3" variant="secondary">
+        <Badge className="absolute top-3 left-3" variant="secondary">
           {formatPrice(community.monthlyPriceCents)}
         </Badge>
-      </div>
-      <CardContent className="space-y-4 p-4">
+      </PublicCardThumbnail>
+      <PublicCardMeta className="space-y-4 p-4">
         <div className="flex items-start gap-3">
-          <Avatar className="size-10 border">
-            <AvatarImage src={community.artist.avatarUrl ?? undefined} />
-            <AvatarFallback>
+          <Avatar className="size-10 shrink-0 rounded-md border">
+            <AvatarImage
+              alt={`${community.artist.name} profile photo`}
+              src={community.artist.avatarUrl ?? undefined}
+            />
+            <AvatarFallback className="rounded-md">
               {community.artist.name.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -58,16 +72,16 @@ export function CommunityCard({ community }: { community: DbCommunity }) {
         </div>
         <p className="line-clamp-2 min-h-10 text-muted-foreground text-sm">
           {community.description ??
-            "An artist-led space for updates, conversation, and community."}
+            "An artist-led space for updates, conversation, and shared listening moments."}
         </p>
         <div className="flex items-center justify-between text-muted-foreground text-xs">
           <span className="flex items-center gap-1">
-            <Users className="size-3.5" />
+            <Users aria-hidden="true" className="size-3.5" />
             {community.memberCount.toLocaleString()} members
           </span>
           <span className="flex items-center gap-1">
             {community.monthlyPriceCents > 0 ? (
-              <LockKeyhole className="size-3.5" />
+              <LockKeyhole aria-hidden="true" className="size-3.5" />
             ) : null}
             {community.genre?.name ?? "All genres"}
           </span>
@@ -84,7 +98,7 @@ export function CommunityCard({ community }: { community: DbCommunity }) {
             {community.isMember ? "Open Community" : "View Community"}
           </Link>
         </Button>
-      </CardContent>
-    </Card>
+      </PublicCardMeta>
+    </PublicCard>
   );
 }

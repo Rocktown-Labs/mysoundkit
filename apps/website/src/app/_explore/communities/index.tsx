@@ -9,7 +9,8 @@ import type { CommunityFilterValue } from "@/components/community/community-filt
 import { Button } from "@/components/ui/button";
 import type { DbCommunity } from "@/lib/data-db";
 import { useDbCommunities } from "@/lib/data-db";
-import { musicGenres } from "@/lib/music-genres";
+import { normalizeGenreValue } from "@/lib/live-collection";
+import { useGenresQuery } from "@/lib/soundkit-api-hooks";
 
 interface CommunitySearch extends CommunityFilterValue {
   view: "all" | "sections";
@@ -56,6 +57,8 @@ function CommunitiesPage() {
   const search = Route.useSearch(),
     navigate = Route.useNavigate(),
     { data: communities, isLoading } = useDbCommunities(),
+    genresQuery = useGenresQuery(),
+    genres = genresQuery.data ?? [],
     [searchInput, setSearchInput] = useState(search.q),
     [debouncedSearch, setDebouncedSearch] = useState(search.q),
     filters: CommunityFilterValue = {
@@ -91,7 +94,9 @@ function CommunitiesPage() {
             community.artist.name.toLocaleLowerCase().includes(query) ||
             community.description?.toLocaleLowerCase().includes(query);
           const matchesGenre =
-            search.genre === "all" || community.genre?.slug === search.genre;
+            search.genre === "all" ||
+            normalizeGenreValue(community.genre?.slug) ===
+              normalizeGenreValue(search.genre);
           const matchesAccess =
             search.access === "all" ||
             (search.access === "free"
@@ -125,8 +130,16 @@ function CommunitiesPage() {
     },
     visibleGenres =
       search.genre === "all"
-        ? musicGenres
-        : musicGenres.filter((genre) => genre.value === search.genre);
+        ? genres
+        : genres.filter(
+            (genre) =>
+              normalizeGenreValue(genre.slug) ===
+              normalizeGenreValue(search.genre)
+          ),
+    selectedGenre = genres.find(
+      (genre) =>
+        normalizeGenreValue(genre.slug) === normalizeGenreValue(search.genre)
+    );
 
   return (
     <main className="space-y-8 px-4 py-6 md:px-6 lg:px-8 lg:py-8">
@@ -155,7 +168,7 @@ function CommunitiesPage() {
             <h2 className="font-semibold text-xl">
               {search.genre === "all"
                 ? "All Communities"
-                : `${musicGenres.find((genre) => genre.value === search.genre)?.label ?? "Genre"} Communities`}
+                : `${selectedGenre?.name ?? "Genre"} Communities`}
             </h2>
             <Button
               onClick={() =>
@@ -189,18 +202,17 @@ function CommunitiesPage() {
           />
           {visibleGenres.map((genre) => {
             const items = filteredCommunities.filter(
-              (community) => community.genre?.slug === genre.value
+              (community) =>
+                normalizeGenreValue(community.genre?.slug) ===
+                normalizeGenreValue(genre.slug)
             );
-            if (items.length === 0 && !isLoading) {
-              return null;
-            }
             return (
               <CommunityRail
                 communities={items}
                 isLoading={isLoading}
-                key={genre.value}
-                onViewAll={() => openGenre(genre.value)}
-                title={genre.label}
+                key={genre.slug}
+                onViewAll={() => openGenre(genre.slug)}
+                title={genre.name}
               />
             );
           })}
@@ -221,6 +233,10 @@ function CommunityRail({
   onViewAll: () => void;
   title: string;
 }) {
+  if (!isLoading && communities.length === 0) {
+    return null;
+  }
+
   return (
     <section>
       <div className="mb-4 flex items-center justify-between gap-3">

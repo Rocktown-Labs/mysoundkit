@@ -1,9 +1,14 @@
+/* eslint-disable one-var, sort-vars, no-nested-ternary, unicorn/no-nested-ternary */
 import { Link } from "@tanstack/react-router";
 import { CalendarClock, CheckCircle2 } from "lucide-react";
 
+import {
+  PublicCard,
+  PublicCardMeta,
+  PublicCardThumbnail,
+} from "@/components/explore/public-card";
 import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 
 export interface StreamCardProps {
   category?: string;
@@ -23,10 +28,10 @@ export interface StreamCardProps {
 
 function formatViewerCount(count: number): string {
   if (count >= 1_000_000) {
-    return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+    return `${(count / 1_000_000).toFixed(1).replace(/\.0$/u, "")}M`;
   }
   if (count >= 1000) {
-    return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+    return `${(count / 1000).toFixed(1).replace(/\.0$/u, "")}K`;
   }
   return count.toLocaleString();
 }
@@ -70,9 +75,9 @@ export function StreamCard({
       params={{ id }}
       to="/live/streams/$id"
     >
-      <div className="flex flex-col gap-2.5">
+      <PublicCard>
         {/* 16:9 Thumbnail Poster with authentic Twitch overlays */}
-        <div className="relative aspect-video w-full overflow-hidden rounded-md bg-muted transition-transform duration-300 group-hover:scale-[1.02]">
+        <PublicCardThumbnail className="transition-transform duration-300 group-hover:scale-[1.02]">
           <AppImage
             alt={title}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -87,7 +92,7 @@ export function StreamCard({
               <div className="rounded-[4px] bg-red-600 px-1.5 py-0.5 font-bold text-[11px] uppercase tracking-wider text-white shadow-sm">
                 LIVE
               </div>
-            ) : (isScheduled ? (
+            ) : isScheduled ? (
               <div className="flex items-center gap-1 rounded-[4px] bg-black/75 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">
                 <CalendarClock className="size-3 text-primary" />
                 Scheduled
@@ -96,7 +101,7 @@ export function StreamCard({
               <div className="rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur">
                 Ended
               </div>
-            ))}
+            )}
           </div>
 
           {/* Bottom-Left Viewer Count / Scheduled Time */}
@@ -105,7 +110,7 @@ export function StreamCard({
               <div className="rounded-[4px] bg-black/70 px-1.5 py-0.5 text-xs font-semibold text-white backdrop-blur">
                 {formatViewerCount(viewerCount)} viewers
               </div>
-            ) : (startsAt ? (
+            ) : startsAt ? (
               <div className="flex items-center gap-1 rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">
                 <CalendarClock className="size-3 text-primary" />
                 {new Date(startsAt).toLocaleTimeString([], {
@@ -113,13 +118,13 @@ export function StreamCard({
                   minute: "2-digit",
                 })}
               </div>
-            ) : null)}
+            ) : null}
           </div>
-        </div>
+        </PublicCardThumbnail>
 
         {/* Stream Details under thumbnail */}
-        <div className="flex items-start gap-2.5 px-0.5">
-          <Avatar className="size-9 shrink-0">
+        <PublicCardMeta className="flex items-start gap-2.5">
+          <Avatar className="size-9 shrink-0 rounded-md">
             <AvatarImage
               alt={displayName}
               src={creatorAvatar ?? "/soundkit-default-avatar.svg"}
@@ -158,8 +163,8 @@ export function StreamCard({
               ))}
             </div>
           </div>
-        </div>
-      </div>
+        </PublicCardMeta>
+      </PublicCard>
     </Link>
   );
 }

@@ -228,6 +228,7 @@ export type VideoComment = InferResponseType<
 >[number];
 export type NotificationPage = InferResponseType<typeof notificationsGet, 200>;
 export type ArtistSummary = InferResponseType<typeof artistsGet, 200>[number];
+export type GenreSummary = InferResponseType<typeof genresGet, 200>[number];
 export type ArtistProfileMedia = InferResponseType<typeof artistMediaGet, 200>;
 export type ArtistProfileCredit = ArtistProfileMedia["credits"][number];
 type ArtistFollowResponse = InferResponseType<typeof artistFollowPost, 200>;
@@ -1630,9 +1631,16 @@ export const useListeningPartiesQuery = (query: PublicRegionQuery = {}) =>
     queryKey: [...soundkitQueryKeys.listeningParties, query],
   });
 
+interface BattleDirectorySubscription {
+  count: number;
+  reconnectTimer: number | null;
+  socket: WebSocket | null;
+  stopped: boolean;
+}
+
 const battleDirectorySubscriptions = new WeakMap<
     QueryClient,
-    { count: number; socket: WebSocket }
+    BattleDirectorySubscription
   >(),
   subscribeToBattleDirectory = (queryClient: QueryClient) => {
     if (typeof window === "undefined") {
@@ -1645,28 +1653,59 @@ const battleDirectorySubscriptions = new WeakMap<
       return () => {
         current.count -= 1;
         if (current.count === 0) {
-          current.socket.close();
+          current.stopped = true;
+          if (current.reconnectTimer !== null) {
+            window.clearTimeout(current.reconnectTimer);
+          }
+          current.socket?.close();
           battleDirectorySubscriptions.delete(queryClient);
         }
       };
     }
 
-    const url = new URL(`${API_V1_URL}/battles/directory/ws`);
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    const socket = new WebSocket(url.toString()),
-      subscription = { count: 1, socket };
-    socket.addEventListener("message", () => {
-      void queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.battles,
+    const connect = () => {
+      if (subscription.stopped) {
+        return;
+      }
+
+      const url = new URL(`${API_V1_URL}/battles/directory/ws`);
+      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      const socket = new WebSocket(url.toString());
+      subscription.socket = socket;
+      socket.addEventListener("message", () => {
+        void queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.battles,
+        });
       });
-    });
-    socket.addEventListener("error", () => socket.close());
+      socket.addEventListener("close", () => {
+        if (subscription.stopped || subscription.reconnectTimer !== null) {
+          return;
+        }
+        subscription.reconnectTimer = window.setTimeout(() => {
+          subscription.reconnectTimer = null;
+          connect();
+        }, 1000);
+      });
+      socket.addEventListener("error", () => socket.close(), { once: true });
+    },
+      subscription: BattleDirectorySubscription = {
+        count: 1,
+        reconnectTimer: null,
+        socket: null,
+        stopped: false,
+      };
+
     battleDirectorySubscriptions.set(queryClient, subscription);
+    connect();
 
     return () => {
       subscription.count -= 1;
       if (subscription.count === 0) {
-        socket.close();
+        subscription.stopped = true;
+        if (subscription.reconnectTimer !== null) {
+          window.clearTimeout(subscription.reconnectTimer);
+        }
+        subscription.socket?.close();
         battleDirectorySubscriptions.delete(queryClient);
       }
     };

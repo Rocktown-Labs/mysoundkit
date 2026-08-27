@@ -9,12 +9,18 @@ import {
 } from "@/components/explore/explore-collection";
 import { LiveCollectionFilters } from "@/components/explore/live-collection-filters";
 import {
+  PublicCard,
+  PublicCardMeta,
+  PublicCardThumbnail,
+} from "@/components/explore/public-card";
+import { AppImage } from "@/components/ui/app-image";
+import {
   filterAndSortLiveItems,
   normalizeGenreValue,
 } from "@/lib/live-collection";
-import { musicGenres } from "@/lib/music-genres";
 import {
   useBattlesQuery,
+  useGenresQuery,
   useListeningPartiesQuery,
   usePublicLiveExperiencesQuery,
 } from "@/lib/soundkit-api-hooks";
@@ -76,6 +82,7 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
       <div className="w-full min-w-0">
         <BattleCard
           currentRound={item.battle.round?.current ?? 1}
+          format={item.battle.format}
           genre={item.battle.genre}
           id={item.battle.id}
           isLive={item.battle.status === "live"}
@@ -89,7 +96,7 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
           startsAt={item.battle.startsAt}
           status={item.battle.status}
           title={item.battle.title}
-          totalRounds={item.battle.round?.total ?? 1}
+          totalRounds={item.battle.round?.total}
           track1={
             tracks[0]
               ? {
@@ -135,12 +142,14 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
       params={{ id: item.id }}
       to={item.href}
     >
-      <div className="flex flex-col gap-2.5">
-        <div className="relative aspect-video w-full overflow-hidden rounded-md bg-muted transition-transform duration-300 group-hover:scale-[1.02]">
-          <img
-            alt={item.title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+      <PublicCard>
+        <PublicCardThumbnail className="transition-transform duration-300 group-hover:scale-[1.02]">
+          <AppImage
+            alt={`${item.title} thumbnail`}
+            className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
             height={720}
+            layout="constrained"
+            loading="lazy"
             src={posterImage}
             width={1280}
           />
@@ -172,10 +181,10 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
               </div>
             ) : null}
           </div>
-        </div>
+        </PublicCardThumbnail>
 
         {/* Card info */}
-        <div className="space-y-0.5 px-0.5">
+        <PublicCardMeta className="space-y-0.5">
           <h3 className="line-clamp-1 font-bold text-sm leading-tight text-foreground transition-colors group-hover:text-primary">
             {item.title}
           </h3>
@@ -192,8 +201,8 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
               </span>
             ))}
           </div>
-        </div>
-      </div>
+        </PublicCardMeta>
+      </PublicCard>
     </Link>
   );
 }
@@ -202,6 +211,7 @@ function LiveHubPage() {
   const navigate = Route.useNavigate(),
     search = Route.useSearch(),
     battlesQuery = useBattlesQuery(),
+    genresQuery = useGenresQuery(),
     partiesQuery = useListeningPartiesQuery(),
     streamsQuery = usePublicLiveExperiencesQuery("stream"),
     genre = search.genre ?? "all",
@@ -246,6 +256,7 @@ function LiveHubPage() {
         viewerCount: stream.viewerCount,
       })),
     allItems = [...battleItems, ...partyItems, ...streamItems],
+    genres = genresQuery.data ?? [],
     filteredItems = filterAndSortLiveItems({
       genre,
       items: allItems,
@@ -324,26 +335,26 @@ function LiveHubPage() {
           >
             {(item) => <LiveHubCard item={item} />}
           </ExploreCollectionSection>
-          {musicGenres.map((sectionGenre) => {
-            const sectionSlug = normalizeGenreValue(sectionGenre.value),
-              sectionLabel = normalizeGenreValue(sectionGenre.label);
+          {genres.map((sectionGenre) => {
+            const sectionSlug = normalizeGenreValue(sectionGenre.slug),
+              sectionLabel = normalizeGenreValue(sectionGenre.name);
             return (
               <ExploreCollectionSection
-                empty={`No ${sectionGenre.label} live experiences yet.`}
+                empty={`No ${sectionGenre.name} live experiences yet.`}
+                hideWhenEmpty
                 items={allItems.filter((item) => {
                   const itemGenre = normalizeGenreValue(item.genre);
                   return (
-                    item.genre === sectionGenre.value ||
                     itemGenre === sectionSlug ||
                     itemGenre === sectionLabel ||
                     itemGenre.startsWith(sectionSlug) ||
                     sectionSlug.startsWith(itemGenre)
                   );
                 })}
-                key={sectionGenre.value}
+                key={sectionGenre.slug}
                 layout="landscape"
-                onViewAll={() => openCollection({ genre: sectionGenre.value })}
-                title={sectionGenre.label}
+                onViewAll={() => openCollection({ genre: sectionGenre.slug })}
+                title={sectionGenre.name}
               >
                 {(item) => <LiveHubCard item={item} />}
               </ExploreCollectionSection>

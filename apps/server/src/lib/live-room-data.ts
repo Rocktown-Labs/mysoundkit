@@ -43,6 +43,7 @@ export interface LiveRoomArtist {
   id: string;
   isMuted: boolean;
   name: string;
+  rank?: number | string | null;
   roundsWon: number;
   stagePosition: "left" | "right";
   verified: boolean;
@@ -230,6 +231,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
           id: "artist-dj-nova",
           isMuted: false,
           name: "DJ Nova",
+          rank: 1,
           roundsWon: 1,
           stagePosition: "left",
           verified: true,
@@ -239,6 +241,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
           id: "artist-mc-rhythm",
           isMuted: true,
           name: "MC Rhythm",
+          rank: 7,
           roundsWon: 1,
           stagePosition: "right",
           verified: false,
@@ -370,7 +373,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
     status: "live",
     summary:
       "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
-    title: "West Coast Showdown",
+    title: "Artist Battle - Hip-Hop",
     tracklist: [
       makeTrack(
         "battle-a-3",

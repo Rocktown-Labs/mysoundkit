@@ -8,7 +8,6 @@ import {
   LocateFixed,
   MapPin,
   Music,
-  Play,
   Radio,
   RotateCcw,
   ShoppingBag,
@@ -23,7 +22,14 @@ import { PremiumActivationCard } from "@/components/billing/premium-activation-c
 import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-card";
 import type { LeaderboardArtist } from "@/components/explore/artist-leaderboard-card";
 import { BattleCard } from "@/components/explore/battle-card";
+import { ProjectCard } from "@/components/explore/project-card";
+import {
+  PublicCard,
+  PublicCardMeta,
+  PublicCardThumbnail,
+} from "@/components/explore/public-card";
 import { SectionHeader } from "@/components/explore/section-header";
+import { StreamCard } from "@/components/explore/stream-card";
 import { TrackCard } from "@/components/explore/track-card";
 import { VideoCard } from "@/components/explore/video-card";
 import {
@@ -809,6 +815,7 @@ function BattleSummaryCard({ battle }: { battle: BattleSummary }) {
     <div className="w-[320px] shrink-0 md:w-[360px]">
       <BattleCard
         currentRound={battle.round?.current ?? 1}
+        format={battle.format}
         genre={battle.genre}
         id={battle.id}
         isLive={battle.status === "live"}
@@ -821,7 +828,7 @@ function BattleSummaryCard({ battle }: { battle: BattleSummary }) {
         startsAt={battle.startsAt}
         status={battle.status}
         title={battle.title}
-        totalRounds={battle.round?.total ?? 1}
+        totalRounds={battle.round?.total}
         track1={
           tracks[0]
             ? {
@@ -856,63 +863,23 @@ function LiveStreamSummaryCard({
     creatorName?: string | null;
     genre?: string | null;
     id: string;
-    kind: string;
     status: string;
     title: string;
     viewerCount: number;
   };
 }) {
-  const isLive = stream.status === "live";
-
   return (
-    <Link
-      className="block w-[320px] shrink-0 md:w-[360px]"
-      params={{ id: stream.id }}
-      to="/live/streams/$id"
-    >
-      <Card className="h-full border-border/40 bg-card/60 transition-colors hover:border-primary/50 overflow-hidden">
-        <div className="relative aspect-video w-full bg-black/60">
-          <AppImage
-            alt={stream.title}
-            className="size-full object-cover opacity-80"
-            src="/night-music-album-cover.webp"
-          />
-          <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5">
-            <Badge
-              className="font-bold text-[10px]"
-              variant={isLive ? "destructive" : "secondary"}
-            >
-              {isLive ? "LIVE" : "SCHEDULED"}
-            </Badge>
-            {stream.genre && (
-              <Badge
-                className="bg-black/60 backdrop-blur-md text-[10px]"
-                variant="outline"
-              >
-                {stream.genre}
-              </Badge>
-            )}
-          </div>
-          <div className="absolute right-2.5 bottom-2.5">
-            <Badge
-              className="bg-black/70 backdrop-blur-md text-[10px] gap-1"
-              variant="outline"
-            >
-              <Radio className="size-2.5 text-destructive animate-pulse" />
-              {stream.viewerCount.toLocaleString()}
-            </Badge>
-          </div>
-        </div>
-        <CardContent className="space-y-1.5 p-3.5">
-          <h4 className="line-clamp-1 font-semibold text-sm text-foreground">
-            {stream.title}
-          </h4>
-          <p className="line-clamp-1 text-xs text-muted-foreground">
-            {stream.creatorName ?? "SoundKit Creator"}
-          </p>
-        </CardContent>
-      </Card>
-    </Link>
+    <div className="w-[320px] shrink-0 md:w-[360px]">
+      <StreamCard
+        creatorAvatar={stream.creatorAvatar}
+        creatorName={stream.creatorName}
+        genre={stream.genre}
+        id={stream.id}
+        status={stream.status}
+        title={stream.title}
+        viewerCount={stream.viewerCount}
+      />
+    </div>
   );
 }
 
@@ -936,23 +903,25 @@ function ListeningPartySummaryCard({
       params={{ id: party.id }}
       to="/live/parties/$id"
     >
-      <Card className="h-full border-border/40 bg-card/60 transition-colors hover:border-primary/50 overflow-hidden">
-        <div className="relative aspect-video w-full bg-black/60">
+      <PublicCard>
+        <PublicCardThumbnail>
           <AppImage
-            alt={party.title}
-            className="size-full object-cover opacity-80"
+            alt={`${party.title} thumbnail`}
+            className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            height={720}
+            layout="constrained"
+            loading="lazy"
             src="/summer-music-album-cover.webp"
+            width={1280}
           />
-          <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5">
-            <Badge
-              className="font-bold text-[10px]"
-              variant={isLive ? "destructive" : "secondary"}
-            >
-              {isLive ? "PARTY LIVE" : "UPCOMING PARTY"}
-            </Badge>
-          </div>
-        </div>
-        <CardContent className="space-y-1.5 p-3.5">
+          <Badge
+            className="absolute top-2 left-2 font-bold text-[10px]"
+            variant={isLive ? "destructive" : "secondary"}
+          >
+            {isLive ? "Live Party" : "Upcoming Party"}
+          </Badge>
+        </PublicCardThumbnail>
+        <PublicCardMeta className="space-y-1.5">
           <h4 className="line-clamp-1 font-semibold text-sm text-foreground">
             {party.title}
           </h4>
@@ -968,65 +937,16 @@ function ListeningPartySummaryCard({
               })}
             </span>
           </div>
-        </CardContent>
-      </Card>
+        </PublicCardMeta>
+      </PublicCard>
     </Link>
   );
 }
 
 function HomeProjectCard({ project }: { project: PublicProjectSummary }) {
   return (
-    <Card className="group w-[220px] shrink-0 overflow-hidden border-border/40 bg-card/60 transition-colors hover:border-primary/50">
-      <div className="relative aspect-square w-full overflow-hidden bg-muted">
-        {project.coverArtUrl ? (
-          <AppImage
-            alt={project.title}
-            className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
-            src={project.coverArtUrl}
-          />
-        ) : (
-          <div className="flex size-full items-center justify-center bg-accent/40 text-muted-foreground">
-            <Disc className="size-14 opacity-40" />
-          </div>
-        )}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/35 opacity-0 transition-opacity group-hover:opacity-100">
-          <Button asChild className="rounded-full shadow-lg" size="icon">
-            <Link params={{ id: project.id }} to="/projects/$id">
-              <Play className="ml-0.5 size-5 fill-current" />
-            </Link>
-          </Button>
-        </div>
-        <div className="absolute top-2 left-2 flex flex-wrap gap-1">
-          <Badge
-            className="text-[10px] uppercase tracking-wide"
-            variant="secondary"
-          >
-            {project.projectType}
-          </Badge>
-          {project.isForSale && (
-            <Badge className="bg-black/70 text-[10px] text-white">
-              <ShoppingBag className="mr-1 size-3" />
-              For Sale
-            </Badge>
-          )}
-        </div>
-      </div>
-      <CardContent className="p-4">
-        <Link
-          className="line-clamp-1 font-semibold transition-colors group-hover:text-primary"
-          params={{ id: project.id }}
-          to="/projects/$id"
-        >
-          {project.title}
-        </Link>
-        <p className="mt-1 line-clamp-1 text-muted-foreground text-sm">
-          {project.genre ?? "Mixed genre"}
-        </p>
-        <div className="mt-2 flex items-center justify-between text-muted-foreground text-xs">
-          <span>{project.trackCount} tracks</span>
-          <span>{project.duration ?? "0:00"}</span>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="w-[220px] shrink-0">
+      <ProjectCard project={project} />
+    </div>
   );
 }

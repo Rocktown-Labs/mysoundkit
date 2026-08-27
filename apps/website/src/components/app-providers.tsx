@@ -10,6 +10,7 @@ import { FloatingChatBar } from "@/components/dashboard/floating-chat-bar";
 import { MusicPlayer } from "@/components/explore/music-player";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provider";
 import { BattleQueueCta } from "@/components/live/battle-queue-cta";
+import { BattleReturnMonitor } from "@/components/live/battle-return-monitor";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { authClient } from "@/lib/auth-client";
@@ -55,6 +56,7 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
                   <MusicPlayer />
                   <FloatingChatBar />
                   <BattleQueueCta />
+                  <BattleReturnMonitor />
                 </AudioPlayerProvider>
               </PresenceProvider>
             </KeyboardShortcutsProvider>

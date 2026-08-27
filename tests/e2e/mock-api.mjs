@@ -2,7 +2,13 @@
 import { once } from "node:events";
 import { createServer } from "node:http";
 
-const json = (response, status, body, origin) => {
+const normalizeGenre = (value) =>
+    value
+      ?.toLowerCase()
+      .replaceAll(/[^a-z0-9]+/gu, "-")
+      .replaceAll(/^-+|-+$/gu, "")
+      .replace(/^hip-hop-rap$/u, "hip-hop"),
+  json = (response, status, body, origin) => {
     response.writeHead(status, {
       "access-control-allow-credentials": "true",
       "access-control-allow-headers": "content-type,cookie",
@@ -25,6 +31,7 @@ const json = (response, status, body, origin) => {
     if (session === "complete") {
       return {
         accountType: "artist",
+        avatarUrl: "/summer-music-album-cover.webp",
         displayName: "Complete Artist",
         id: "user_complete",
         onboardingCompletedAt: "2026-05-24T12:00:00.000Z",
@@ -65,7 +72,7 @@ const json = (response, status, body, origin) => {
       kind = "battle";
       title = isWaitingArtistBattle
         ? "Artist Battle Waiting Room"
-        : "West Coast Showdown";
+        : "Artist Battle - Hip-Hop";
     } else if (isStream) {
       kind = "stream";
       title = "Beat Making From The First Drum Hit";
@@ -113,6 +120,7 @@ const json = (response, status, body, origin) => {
                 id: isWaitingArtistBattle ? "user_complete" : "artist-dj-nova",
                 isMuted: false,
                 name: isWaitingArtistBattle ? "Complete Artist" : "DJ Nova",
+                rank: 1,
                 roundsWon: 1,
                 stagePosition: "left",
                 verified: true,
@@ -122,6 +130,7 @@ const json = (response, status, body, origin) => {
                 id: "artist-mc-rhythm",
                 isMuted: true,
                 name: "MC Rhythm",
+                rank: 7,
                 roundsWon: 1,
                 stagePosition: "right",
                 verified: false,
@@ -159,6 +168,19 @@ const json = (response, status, body, origin) => {
           }
         : undefined,
       chat: [
+        ...(isBattle
+          ? [
+              {
+                id: `${roomId}-bot-chat-1`,
+                message: isWaitingArtistBattle
+                  ? "BattleBot: both artists are preparing the stage."
+                  : "BattleBot: the next round is ready.",
+                sentAt: "2026-05-26T11:59:00.000Z",
+                userId: "soundkit-battlebot",
+                userName: "BattleBot",
+              },
+            ]
+          : []),
         {
           id: `${roomId}-chat-1`,
           message: "This room is synced.",
@@ -254,6 +276,7 @@ const json = (response, status, body, origin) => {
       collaboratorCount: 1,
       coverArtUrl: "/summer-music-album-cover.webp",
       duration: "12:44",
+      genre: "Hip-Hop",
       id: "project_after_dark",
       isForSale: false,
       isPublic: true,
@@ -299,6 +322,7 @@ const json = (response, status, body, origin) => {
       creatorName: "Luna Eclipse",
       creatorUsername: "luna-eclipse",
       duration: "3:42",
+      genre: "Hip-Hop",
       id: "video_midnight_vibes_mv",
       muxPlaybackId: null,
       playbackPolicy: "public",
@@ -380,7 +404,7 @@ const json = (response, status, body, origin) => {
         total: 5,
       },
       status: "live",
-      title: "West Coast Showdown",
+      title: "Artist Battle - Hip-Hop",
       tracks: [
         {
           artist: "DJ Nova",
@@ -452,7 +476,7 @@ const json = (response, status, body, origin) => {
       queueSize: 0,
       startsAt: "2026-09-30T20:00:00.000Z",
       status: "scheduled",
-      title: "Upcoming Artist Duel",
+      title: "Artist Battle - Hip-Hop",
       tracks: [],
       viewerCount: 0,
       visibility: "public",
@@ -655,6 +679,33 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (url.pathname === "/v1/discover/genres") {
+      const genres = [
+        "hip-hop",
+        "rb-soul",
+        "electronic",
+        "pop",
+        "spoken-word",
+        "rock",
+        "jazz",
+        "afrobeats",
+        "latin",
+        "country",
+        "reggae",
+        "indie",
+        "metal",
+      ].map((slug) => ({
+        id: `genre_${slug}`,
+        name: slug === "hip-hop" ? "Hip Hop" : slug.replaceAll("-", " "),
+        slug,
+        totalCount: slug === "hip-hop" ? 8 : 0,
+        trackCount: slug === "hip-hop" ? 3 : 0,
+        videoCount: slug === "hip-hop" ? 1 : 0,
+      }));
+      json(response, 200, genres, webOrigin);
+      return;
+    }
+
     if (url.pathname === "/v1/admin/access") {
       json(response, 200, { isAdmin: true }, webOrigin);
       return;
@@ -788,8 +839,32 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (
+      url.pathname === "/v1/projects/public" ||
+      url.pathname === "/v1/projects/public/"
+    ) {
+      const requestedGenre = url.searchParams.get("genre"),
+        projects =
+          requestedGenre && requestedGenre !== "all"
+            ? mockProjects.filter(
+                (project) =>
+                  normalizeGenre(project.genre) === normalizeGenre(requestedGenre)
+              )
+            : mockProjects;
+      json(response, 200, projects, webOrigin);
+      return;
+    }
+
     if (url.pathname === "/v1/tracks" || url.pathname === "/v1/tracks/") {
-      json(response, 200, mockTracks, webOrigin);
+      const requestedGenre = url.searchParams.get("genre"),
+        tracks =
+          requestedGenre && requestedGenre !== "all"
+            ? mockTracks.filter(
+                (track) =>
+                  normalizeGenre(track.genre) === normalizeGenre(requestedGenre)
+              )
+            : mockTracks;
+      json(response, 200, tracks, webOrigin);
       return;
     }
 
@@ -892,12 +967,28 @@ export const createMockApiServer = async ({
     }
 
     if (url.pathname === "/v1/artists" || url.pathname === "/v1/artists/") {
-      json(response, 200, mockArtists, webOrigin);
+      const requestedGenre = url.searchParams.get("genre"),
+        artists =
+          requestedGenre && requestedGenre !== "all"
+            ? mockArtists.filter(
+                (artist) =>
+                  normalizeGenre(artist.genre) === normalizeGenre(requestedGenre)
+              )
+            : mockArtists;
+      json(response, 200, artists, webOrigin);
       return;
     }
 
     if (url.pathname === "/v1/videos" || url.pathname === "/v1/videos/") {
-      json(response, 200, mockVideos, webOrigin);
+      const requestedGenre = url.searchParams.get("genre"),
+        videos =
+          requestedGenre && requestedGenre !== "all"
+            ? mockVideos.filter(
+                (video) =>
+                  normalizeGenre(video.genre) === normalizeGenre(requestedGenre)
+              )
+            : mockVideos;
+      json(response, 200, videos, webOrigin);
       return;
     }
 

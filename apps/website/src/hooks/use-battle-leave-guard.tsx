@@ -15,9 +15,10 @@ import {
 } from "@/components/ui/alert-dialog";
 
 /**
- * Blocks navigation away from a battle only while the viewer is admitted to an
- * active round, offering a chance to leave the battle cleanly. Queued/waiting
- * viewers are not blocked so they can browse while a scheduled battle is open.
+ * Blocks navigation away from a battle once the live match has started,
+ * offering a chance to leave the battle cleanly. Scheduled and waiting-room
+ * artists can browse freely; their return intent is monitored globally until
+ * the battle opens.
  */
 export function useBattleLeaveGuard({
   isArtist,

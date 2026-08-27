@@ -981,6 +981,7 @@ app.openapi(
     }
 
     const outcome = await processBattleServiceEvent({
+      battleDirectory: c.env.BATTLE_DIRECTORY,
       battleId,
       emailQueue: c.env.EMAIL_DELIVERY_QUEUE,
       eventId: externalEventId,

@@ -1,9 +1,10 @@
 "use client";
-/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, unicorn/consistent-function-scoping */
+/* eslint-disable complexity, no-nested-ternary, no-unused-vars, no-void, react/set-state-in-effect, sort-vars, one-var, require-unicode-regexp, unicorn/consistent-function-scoping, unicorn/no-nested-ternary */
 
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  Camera,
   CalendarClock,
   CheckCircle2,
   Disc3,
@@ -24,7 +25,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import { BattleArtistControlPanel } from "@/components/live/battle-artist-control-panel";
@@ -63,6 +64,15 @@ import {
   clearBattleKitSelection,
   readBattleKitSelection,
 } from "@/lib/battle-kit-selection";
+import type { BattleMediaDeviceSelection } from "@/lib/battle-media-selection";
+import {
+  readBattleMediaDeviceSelection,
+  rememberBattleMediaDeviceSelection,
+} from "@/lib/battle-media-selection";
+import {
+  clearBattleReturnIntent,
+  rememberBattleReturnIntent,
+} from "@/lib/battle-return-intent";
 import {
   completeBattleShareReferral,
   rememberBattleShareReferral,
@@ -195,14 +205,10 @@ function BattleStageVisual({
   return (
     <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-gradient-to-br from-primary/30 via-black to-secondary/30">
       <AppImage
-        alt={artistView ? "Artist battle waiting room" : "Upcoming battle"}
-        className="absolute inset-0 size-full object-cover opacity-25"
-        height={720}
-        src={
-          artistView
-            ? "/music-battle-live-performance-video.jpg"
-            : "/soundkit-default-banner.svg"
-        }
+        alt="SoundKit branded battle backdrop"
+        className="absolute inset-0 size-full object-cover opacity-70"
+        height={500}
+        src="/soundkit-default-banner.svg"
         width={1280}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/30" />
@@ -216,28 +222,28 @@ function BattleStageVisual({
         </Badge>
         <div className="flex items-center gap-6 sm:gap-10">
           <div className="flex flex-col items-center gap-2">
-            <Avatar className="size-16 border-2 border-primary ring-4 ring-primary/20 shadow-xl sm:size-20">
+            <Avatar className="size-16 rounded-xl border-2 border-primary ring-4 ring-primary/20 shadow-xl sm:size-20">
               <AvatarImage src={artistA.avatarUrl} />
-              <AvatarFallback className="text-lg font-bold">
+              <AvatarFallback className="rounded-xl text-lg font-bold">
                 {artistA.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <p className="max-w-[120px] truncate text-sm font-bold text-white sm:text-base">
-              {artistA.name}
+            <p className="max-w-[140px] truncate text-sm font-bold text-white sm:text-base">
+              {artistNameWithRank(artistA)}
             </p>
           </div>
           <div className="rounded-full bg-destructive/90 p-3 text-white shadow-lg">
             <Swords className="size-6 sm:size-8" />
           </div>
           <div className="flex flex-col items-center gap-2">
-            <Avatar className="size-16 border-2 border-secondary ring-4 ring-secondary/20 shadow-xl sm:size-20">
+            <Avatar className="size-16 rounded-xl border-2 border-secondary ring-4 ring-secondary/20 shadow-xl sm:size-20">
               <AvatarImage src={artistB.avatarUrl} />
-              <AvatarFallback className="text-lg font-bold">
+              <AvatarFallback className="rounded-xl text-lg font-bold">
                 {artistB.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <p className="max-w-[120px] truncate text-sm font-bold text-white sm:text-base">
-              {artistB.name}
+            <p className="max-w-[140px] truncate text-sm font-bold text-white sm:text-base">
+              {artistNameWithRank(artistB)}
             </p>
           </div>
         </div>
@@ -250,20 +256,6 @@ function BattleStageVisual({
     </div>
   );
 }
-
-const artistForfeitPhases = new Set([
-  "artist_a_turn",
-  "artist_b_turn",
-  "between_rounds",
-  "pre_vote",
-  "round_result",
-  "turn_transition",
-  "tiebreaker_a",
-  "tiebreaker_b",
-  "tiebreaker_transition",
-  "voting",
-  "tiebreaker_voting",
-]);
 
 const battleFormatDetails = {
   best_of_3: {
@@ -280,19 +272,423 @@ const battleFormatDetails = {
   },
 } satisfies Record<BattleKit["format"], { label: string; rounds: string }>;
 
+const artistNameWithRank = (artist: LiveRoomArtist) => {
+  if (typeof artist.rank === "number" && artist.rank > 0) {
+    return `#${artist.rank} ${artist.name}`;
+  }
+
+  if (typeof artist.rank === "string" && artist.rank.trim()) {
+    const rankLabel = artist.rank.trim().startsWith("#")
+      ? artist.rank.trim()
+      : `#${artist.rank.trim()}`;
+    return `${rankLabel} ${artist.name}`;
+  }
+
+  return artist.name;
+};
+
+function BattleStartStatus({
+  artists,
+  phase,
+  phaseEndsAt,
+  readyArtistUserIds,
+  serverNow,
+}: {
+  artists: [LiveRoomArtist, LiveRoomArtist];
+  phase?: string;
+  phaseEndsAt: number | null | undefined;
+  readyArtistUserIds: string[];
+  serverNow?: number;
+}) {
+  const allArtistsReady = readyArtistUserIds.length >= artists.length,
+    timerLabel = phase === "scheduled" ? "Battle opens in" : "Battle starts in";
+
+  return (
+    <div className="mx-auto w-full max-w-2xl rounded-xl border border-border/60 bg-background/50 p-3 text-center">
+      <p className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
+        Battle starts
+      </p>
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+        <BattleTimer
+          label={timerLabel}
+          phaseEndsAt={phaseEndsAt}
+          serverNow={serverNow}
+        />
+        <Badge
+          className="gap-1.5 font-mono text-[10px]"
+          variant={allArtistsReady ? "default" : "outline"}
+        >
+          {allArtistsReady ? (
+            <CheckCircle2 className="size-3.5 text-emerald-300" />
+          ) : (
+            <Users className="size-3.5" />
+          )}
+          {allArtistsReady ? "Ready" : `${readyArtistUserIds.length}/2 ready`}
+        </Badge>
+      </div>
+      <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+        {artists.map((artist) => {
+          const isReady = readyArtistUserIds.includes(artist.id);
+          return (
+            <Badge
+              className="max-w-44 gap-1.5 truncate text-[10px]"
+              key={artist.id}
+              variant={isReady ? "secondary" : "outline"}
+            >
+              {isReady ? (
+                <CheckCircle2 className="size-3 text-emerald-400" />
+              ) : (
+                <span className="size-1.5 rounded-full bg-muted-foreground/50" />
+              )}
+              {artist.name} · {isReady ? "Ready" : "Preparing"}
+            </Badge>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BattleDeviceSetup({
+  onSaved,
+  pending,
+}: {
+  onSaved: (selection: BattleMediaDeviceSelection) => void;
+  pending: boolean;
+}) {
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]),
+    [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]),
+    [selectedVideoDeviceId, setSelectedVideoDeviceId] = useState(""),
+    [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState(""),
+    [mediaStream, setMediaStream] = useState<MediaStream | null>(null),
+    [mediaStatus, setMediaStatus] = useState<
+      "error" | "idle" | "ready" | "requesting"
+    >("idle"),
+    [error, setError] = useState<string | null>(null),
+    [saved, setSaved] = useState(false),
+    restoredSelectionRef = useRef<string | null>(null),
+    previewRef = useRef<HTMLVideoElement | null>(null);
+
+  const refreshDevices = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      return;
+    }
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
+    setAudioDevices(devices.filter((device) => device.kind === "audioinput"));
+  }, []);
+
+  const requestPermissions = useCallback(
+    async (
+      videoDeviceId = selectedVideoDeviceId,
+      audioDeviceId = selectedAudioDeviceId
+    ) => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError("This browser does not provide camera and microphone access.");
+        setMediaStatus("error");
+        return false;
+      }
+
+      setMediaStatus("requesting");
+      setError(null);
+      setSaved(false);
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: audioDeviceId ? { deviceId: { exact: audioDeviceId } } : true,
+          video: videoDeviceId ? { deviceId: { exact: videoDeviceId } } : true,
+        });
+        setMediaStream(stream);
+        await refreshDevices();
+        const devices = await navigator.mediaDevices.enumerateDevices(),
+          nextVideoDevice =
+            videoDeviceId ||
+            devices.find((device) => device.kind === "videoinput")?.deviceId ||
+            "",
+          nextAudioDevice =
+            audioDeviceId ||
+            devices.find((device) => device.kind === "audioinput")?.deviceId ||
+            "";
+        setSelectedVideoDeviceId(nextVideoDevice);
+        setSelectedAudioDeviceId(nextAudioDevice);
+        setMediaStatus("ready");
+        return true;
+      } catch (permissionError) {
+        setMediaStatus("error");
+        setError(
+          permissionError instanceof DOMException &&
+            permissionError.name === "NotAllowedError"
+            ? "Allow camera and microphone access to continue."
+            : "We could not access the selected camera and microphone."
+        );
+        return false;
+      }
+    },
+    [refreshDevices, selectedAudioDeviceId, selectedVideoDeviceId]
+  );
+
+  useEffect(() => {
+    const stream = mediaStream;
+    return () => {
+      for (const track of stream?.getTracks() ?? []) {
+        track.stop();
+      }
+    };
+  }, [mediaStream]);
+
+  useEffect(() => {
+    const video = previewRef.current;
+    if (!video) {
+      return;
+    }
+
+    video.srcObject = mediaStream;
+    return () => {
+      video.srcObject = null;
+    };
+  }, [mediaStream]);
+
+  useEffect(() => {
+    const savedSelection = readBattleMediaDeviceSelection();
+    if (!savedSelection) {
+      return;
+    }
+
+    setSelectedVideoDeviceId(savedSelection.videoDeviceId);
+    setSelectedAudioDeviceId(savedSelection.audioDeviceId);
+
+    if (!navigator.permissions?.query) {
+      return;
+    }
+
+    const selectionKey = `${savedSelection.videoDeviceId}:${savedSelection.audioDeviceId}`;
+    if (restoredSelectionRef.current === selectionKey) {
+      return;
+    }
+    restoredSelectionRef.current = selectionKey;
+
+    let disposed = false;
+    const restoreSavedSetup = async () => {
+      try {
+        const [cameraPermission, microphonePermission] = await Promise.all([
+          navigator.permissions.query({ name: "camera" }),
+          navigator.permissions.query({ name: "microphone" }),
+        ]);
+        if (
+          disposed ||
+          cameraPermission.state !== "granted" ||
+          microphonePermission.state !== "granted"
+        ) {
+          return;
+        }
+
+        const restored = await requestPermissions(
+          savedSelection.videoDeviceId,
+          savedSelection.audioDeviceId
+        );
+        if (restored && !disposed) {
+          rememberBattleMediaDeviceSelection(savedSelection);
+          setSaved(true);
+          onSaved(savedSelection);
+        }
+      } catch {
+        if (!disposed) {
+          setMediaStatus("idle");
+        }
+      }
+    };
+
+    void restoreSavedSetup();
+    return () => {
+      disposed = true;
+    };
+  }, [onSaved, requestPermissions]);
+
+  useEffect(() => {
+    const { mediaDevices } = navigator;
+    if (!mediaDevices) {
+      return;
+    }
+
+    const handleDeviceChange = () => {
+      void refreshDevices();
+    };
+    mediaDevices.addEventListener("devicechange", handleDeviceChange);
+    return () =>
+      mediaDevices.removeEventListener("devicechange", handleDeviceChange);
+  }, [refreshDevices]);
+
+  const saveSetup = () => {
+    if (
+      !(
+        mediaStatus === "ready" &&
+        selectedVideoDeviceId &&
+        selectedAudioDeviceId
+      )
+    ) {
+      return;
+    }
+
+    const selection = {
+      audioDeviceId: selectedAudioDeviceId,
+      videoDeviceId: selectedVideoDeviceId,
+    };
+    rememberBattleMediaDeviceSelection(selection);
+    onSaved(selection);
+    setSaved(true);
+  };
+
+  return (
+    <>
+      <div className="space-y-2 rounded-xl border border-border/60 bg-background/40 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <Camera className="size-3.5 text-primary" />
+            <p className="font-semibold text-xs">Camera</p>
+          </div>
+          <Badge
+            className="text-[10px]"
+            variant={mediaStatus === "ready" ? "secondary" : "outline"}
+          >
+            {mediaStatus === "ready" ? "Ready" : "Not set"}
+          </Badge>
+        </div>
+        <div className="aspect-video overflow-hidden rounded-lg bg-black">
+          {mediaStream ? (
+            <video
+              aria-label="Camera preview"
+              autoPlay
+              className="size-full object-cover"
+              muted
+              playsInline
+              ref={previewRef}
+            />
+          ) : (
+            <div className="flex size-full items-center justify-center px-3 text-center text-[10px] text-muted-foreground">
+              Preview appears after permission is granted.
+            </div>
+          )}
+        </div>
+        <Select
+          disabled={mediaStatus !== "ready"}
+          onValueChange={(value) => {
+            setSelectedVideoDeviceId(value);
+            void requestPermissions(value, selectedAudioDeviceId);
+          }}
+          value={selectedVideoDeviceId}
+        >
+          <SelectTrigger aria-label="Battle camera" className="text-xs">
+            <SelectValue placeholder="Select camera" />
+          </SelectTrigger>
+          <SelectContent>
+            {videoDevices.map((device) => (
+              <SelectItem key={device.deviceId} value={device.deviceId}>
+                {device.label || `Camera ${device.deviceId.slice(0, 6)}`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {mediaStatus !== "ready" && (
+          <Button
+            className="w-full gap-1.5 text-xs"
+            disabled={mediaStatus === "requesting" || pending}
+            onClick={() => void requestPermissions()}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <Camera className="size-3.5" />
+            {mediaStatus === "requesting"
+              ? "Requesting access..."
+              : "Enable camera & mic"}
+          </Button>
+        )}
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-border/60 bg-background/40 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <Mic className="size-3.5 text-primary" />
+            <p className="font-semibold text-xs">Microphone</p>
+          </div>
+          <Badge
+            className="text-[10px]"
+            variant={mediaStatus === "ready" ? "secondary" : "outline"}
+          >
+            {mediaStatus === "ready" ? "Ready" : "Not set"}
+          </Badge>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Choose the input used for your live battle turn.
+        </p>
+        <Select
+          disabled={mediaStatus !== "ready"}
+          onValueChange={(value) => {
+            setSelectedAudioDeviceId(value);
+            void requestPermissions(selectedVideoDeviceId, value);
+          }}
+          value={selectedAudioDeviceId}
+        >
+          <SelectTrigger aria-label="Battle microphone" className="text-xs">
+            <SelectValue placeholder="Select microphone" />
+          </SelectTrigger>
+          <SelectContent>
+            {audioDevices.map((device) => (
+              <SelectItem key={device.deviceId} value={device.deviceId}>
+                {device.label || `Mic ${device.deviceId.slice(0, 6)}`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="rounded-lg border border-dashed border-border/70 p-2 text-[10px] text-muted-foreground">
+          {mediaStatus === "ready"
+            ? "Access granted. Your selected camera and microphone will be restored next time."
+            : "Camera and microphone permissions are requested together. Browser permission is remembered after you allow it."}
+        </div>
+        {error && <p className="text-[10px] text-destructive">{error}</p>}
+        <Button
+          className="w-full gap-1.5 text-xs"
+          disabled={
+            pending ||
+            mediaStatus !== "ready" ||
+            !selectedVideoDeviceId ||
+            !selectedAudioDeviceId
+          }
+          onClick={saveSetup}
+          size="sm"
+          type="button"
+        >
+          <CheckCircle2 className="size-3.5" />
+          {saved ? "Device setup saved" : "Save device setup"}
+        </Button>
+      </div>
+    </>
+  );
+}
+
 function ArtistBattlePreparation({
   format,
+  isReady,
   lockedKitId,
   onLock,
+  onMediaSetupSaved,
+  onReady,
+  pending,
 }: {
   format: BattleKit["format"];
+  isReady: boolean;
   lockedKitId: string | null;
   onLock: (kitId: string) => Promise<void>;
+  onMediaSetupSaved: (selection: BattleMediaDeviceSelection) => void;
+  onReady: (ready: boolean) => Promise<void>;
+  pending: boolean;
 }) {
   const formatDetails = battleFormatDetails[format],
     kitsQuery = useBattleKitsQuery({ format, ready: true }),
     kits = kitsQuery.data ?? [],
     [draftKitId, setDraftKitId] = useState(lockedKitId ?? ""),
+    [mediaSetupSaved, setMediaSetupSaved] = useState(false),
     [saveError, setSaveError] = useState<string | null>(null),
     draftKit = kits.find((kit) => kit.id === draftKitId),
     lockedKit = kits.find((kit) => kit.id === lockedKitId),
@@ -314,6 +710,10 @@ function ArtistBattlePreparation({
             : "Could not lock this Battle Kit."
         );
       }
+    },
+    handleMediaSetupSaved = (selection: BattleMediaDeviceSelection) => {
+      setMediaSetupSaved(true);
+      onMediaSetupSaved(selection);
     };
 
   return (
@@ -391,84 +791,109 @@ function ArtistBattlePreparation({
         )}
 
         {!kitsQuery.isLoading && !kitsQuery.error && kits.length > 0 && (
-          <>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1 space-y-1.5">
-                <label
-                  className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground"
-                  htmlFor="battle-kit-select"
-                >
-                  Battle Kit
-                </label>
-                <Select
-                  onValueChange={(value) => {
-                    setSaveError(null);
-                    setDraftKitId(value);
-                  }}
-                  value={selectedKitId}
-                >
-                  <SelectTrigger
-                    aria-label="Battle Kit"
-                    className="bg-background/70"
-                    id="battle-kit-select"
+          <div className="grid gap-3 lg:grid-cols-3">
+            <div className="space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <label
+                    className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground"
+                    htmlFor="battle-kit-select"
                   >
-                    <SelectValue
-                      placeholder={`Choose a ${formatDetails.label} kit`}
-                    />
-                  </SelectTrigger>
-                  <SelectContent className="[&_[data-highlighted]]:bg-muted [&_[data-highlighted]]:text-foreground">
-                    {kits.map((kit) => (
-                      <SelectItem key={kit.id} value={kit.id}>
-                        <span className="flex items-center gap-2">
-                          <span>{kit.name}</span>
-                          <span className="text-muted-foreground">
-                            · {kit.totalUniqueTracks} tracks
-                          </span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                className="gap-1.5 text-xs"
-                disabled={!selectedKitId || isLocked || kitsQuery.isFetching}
-                onClick={async () => {
-                  await lockKit();
-                }}
-                size="sm"
-              >
-                <LockKeyhole className="size-3.5" />
-                {isLocked ? "Locked for battle" : "Lock Kit"}
-              </Button>
-            </div>
-
-            {selectedKit && (
-              <div className="rounded-lg border border-border/60 bg-background/40 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-semibold text-xs">{selectedKit.name}</p>
-                  <Badge className="text-[10px]" variant="secondary">
-                    {selectedKit.totalUniqueTracks} tracks ready
-                  </Badge>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {selectedKit.tracks.map((track) => (
-                    <Badge
-                      className="max-w-full truncate text-[10px]"
-                      key={track.id}
-                      variant="outline"
+                    Battle Kit
+                  </label>
+                  <Select
+                    onValueChange={(value) => {
+                      setSaveError(null);
+                      setDraftKitId(value);
+                    }}
+                    value={selectedKitId}
+                  >
+                    <SelectTrigger
+                      aria-label="Battle Kit"
+                      className="bg-background/70"
+                      id="battle-kit-select"
                     >
-                      {track.role === "tiebreaker"
-                        ? "TB"
-                        : `R${track.mainSlot ?? "?"}`}{" "}
-                      {track.title}
-                    </Badge>
-                  ))}
+                      <SelectValue
+                        placeholder={`Choose a ${formatDetails.label} kit`}
+                      />
+                    </SelectTrigger>
+                    <SelectContent className="[&_[data-highlighted]]:bg-muted [&_[data-highlighted]]:text-foreground">
+                      {kits.map((kit) => (
+                        <SelectItem key={kit.id} value={kit.id}>
+                          <span className="flex items-center gap-2">
+                            <span>{kit.name}</span>
+                            <span className="text-muted-foreground">
+                              · {kit.totalUniqueTracks} tracks
+                            </span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+                <Button
+                  className="gap-1.5 text-xs"
+                  disabled={!selectedKitId || isLocked || kitsQuery.isFetching}
+                  onClick={async () => {
+                    await lockKit();
+                  }}
+                  size="sm"
+                >
+                  <LockKeyhole className="size-3.5" />
+                  {isLocked ? "Locked for battle" : "Lock Kit"}
+                </Button>
               </div>
-            )}
-          </>
+
+              {selectedKit && (
+                <div className="rounded-lg border border-border/60 bg-background/40 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold text-xs">{selectedKit.name}</p>
+                    <Badge className="text-[10px]" variant="secondary">
+                      {selectedKit.totalUniqueTracks} tracks ready
+                    </Badge>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {selectedKit.tracks.map((track) => (
+                      <Badge
+                        className="max-w-full truncate text-[10px]"
+                        key={track.id}
+                        variant="outline"
+                      >
+                        {track.role === "tiebreaker"
+                          ? "TB"
+                          : `R${track.mainSlot ?? "?"}`}{" "}
+                        {track.title}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <BattleDeviceSetup
+              onSaved={handleMediaSetupSaved}
+              pending={pending}
+            />
+          </div>
         )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
+          <p className="text-[11px] text-muted-foreground">
+            {mediaSetupSaved
+              ? "Device setup saved. Mark yourself ready when your Battle Kit is locked."
+              : "Save your Battle Kit, camera, and microphone before marking yourself ready."}
+          </p>
+          <Button
+            className="gap-1.5"
+            disabled={pending || !isLocked || !mediaSetupSaved}
+            onClick={() => void onReady(!isReady)}
+            size="sm"
+            type="button"
+            variant={isReady ? "secondary" : "default"}
+          >
+            <CheckCircle2 className="size-3.5" />
+            {isReady ? "Not ready" : "I’m ready"}
+          </Button>
+        </div>
 
         {saveError && <p className="text-xs text-destructive">{saveError}</p>}
       </CardContent>
@@ -508,6 +933,8 @@ export function BattlePage({
     [selectedBattleKitId, setSelectedBattleKitId] = useState<string | null>(
       () => readBattleKitSelection()?.kitId ?? null
     ),
+    [mediaDeviceSelection, setMediaDeviceSelection] =
+      useState<BattleMediaDeviceSelection | null>(null),
     selectedBattleKit = useRef(readBattleKitSelection()),
     battleKitApplied = useRef(false),
     {
@@ -524,10 +951,11 @@ export function BattlePage({
       room?.status === "upcoming" ||
       phase === "scheduled" ||
       phase === "waiting_room",
+    isPreStartBattle = phase === "scheduled" || phase === "waiting_room",
+    isBattleActive = Boolean(phase && !isPreStartBattle && phase !== "ended"),
     viewerQueueStatus = battle?.viewerQueueStatus ?? null,
     isAdmitted = viewerQueueStatus === "admitted",
     isArtist = Boolean(room?.role === "artist_a" || room?.role === "artist_b"),
-    isArtistForfeitPhase = isArtist && artistForfeitPhases.has(phase ?? ""),
     isQueued =
       viewerQueueStatus === "queued" || viewerQueueStatus === "waiting",
     readyArtistUserIds = battle?.coordination?.artistReadyUserIds ?? [],
@@ -569,11 +997,20 @@ export function BattlePage({
             });
           }
         : undefined,
-      shouldBlock:
-        Boolean(currentRound) &&
-        (isAdmitted || isArtistForfeitPhase) &&
-        !(isArtist && (phase === "scheduled" || phase === "waiting_room")),
+      shouldBlock: isBattleActive,
     });
+
+  const currentArtistId =
+      room?.role === "artist_a"
+        ? battle?.artists[0]?.id
+        : room?.role === "artist_b"
+          ? battle?.artists[1]?.id
+          : null,
+    currentArtistReady = Boolean(
+      isArtist &&
+      currentArtistId &&
+      readyArtistUserIds.includes(currentArtistId)
+    );
 
   useEffect(() => {
     if (!referrerUsername) {
@@ -589,6 +1026,18 @@ export function BattlePage({
       void completeBattleShareReferral();
     }
   }, [id, referrerUsername, session?.user?.id]);
+
+  useEffect(() => {
+    if (!isArtist || !session?.user?.id || !battle) {
+      return;
+    }
+
+    if (isPreStartBattle) {
+      rememberBattleReturnIntent({ battleId: id, userId: session.user.id });
+    } else {
+      clearBattleReturnIntent(id);
+    }
+  }, [battle, id, isArtist, isPreStartBattle, session?.user?.id]);
 
   useEffect(() => {
     if (
@@ -694,6 +1143,7 @@ export function BattlePage({
           ? (session?.user?.id ?? null)
           : disposition.affectedUserId,
     });
+    clearBattleReturnIntent(id);
     toast({
       description:
         disposition.kind === "ducked"
@@ -806,15 +1256,13 @@ export function BattlePage({
           <div className="space-y-4 pt-4">
             <Card className="border-primary/40 bg-card/90 shadow-xl overflow-hidden">
               <CardHeader className="border-b border-border/60 bg-muted/40">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <CalendarClock className="size-4.5 text-primary" />
-                    <div>
-                      <CardTitle className="text-sm">{room.title}</CardTitle>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {artistA.name} vs {artistB.name}
-                      </p>
-                    </div>
+                <div className="flex flex-wrap items-center justify-center gap-2 text-center">
+                  <div>
+                    <CardTitle className="text-sm">{room.title}</CardTitle>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {artistNameWithRank(artistA)} vs{" "}
+                      {artistNameWithRank(artistB)}
+                    </p>
                   </div>
                   <Badge
                     className="gap-1.5 text-xs font-mono"
@@ -824,88 +1272,76 @@ export function BattlePage({
                     {battle.queueSize?.toLocaleString() ?? 0} in queue
                   </Badge>
                 </div>
+                <div className="mt-3">
+                  <BattleStartStatus
+                    artists={battle.artists}
+                    phase={phase}
+                    phaseEndsAt={battle.coordination?.phaseEndsAt}
+                    readyArtistUserIds={readyArtistUserIds}
+                    serverNow={room.serverNow}
+                  />
+                </div>
               </CardHeader>
               <CardContent className="space-y-4 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/50 p-3">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Battle starts
-                    </p>
-                    <BattleTimer
-                      label={
-                        phase === "scheduled"
-                          ? "Battle opens in"
-                          : "Waiting for both artists"
-                      }
-                      phaseEndsAt={battle.coordination?.phaseEndsAt}
-                      serverNow={room.serverNow}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isArtist || isAdmin ? (
-                      <>
-                        <Badge
-                          className="font-mono text-[10px]"
-                          variant="outline"
-                        >
-                          {readyArtistUserIds.length}/2 ready
-                        </Badge>
-                        <Badge className="gap-1.5 text-xs" variant="secondary">
-                          <Swords className="size-3.5" />
-                          Artist room
-                        </Badge>
-                      </>
-                    ) : isQueued ? (
-                      <>
-                        <Badge variant="secondary" className="gap-1.5 text-xs">
-                          <ListPlus className="size-3.5" />
-                          You are in the queue
-                        </Badge>
-                        <Button
-                          className="gap-1.5 text-xs"
-                          disabled={leave.isPending}
-                          onClick={() => leave.mutate()}
-                          size="sm"
-                          variant="outline"
-                        >
-                          <LogOut className="size-3.5" />
-                          Leave
-                        </Button>
-                      </>
-                    ) : (
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {isArtist || isAdmin ? (
+                    <Badge className="gap-1.5 text-xs" variant="secondary">
+                      <Swords className="size-3.5" />
+                      Artist room
+                    </Badge>
+                  ) : isQueued ? (
+                    <>
+                      <Badge variant="secondary" className="gap-1.5 text-xs">
+                        <ListPlus className="size-3.5" />
+                        You are in the queue
+                      </Badge>
                       <Button
                         className="gap-1.5 text-xs"
-                        disabled={queue.isPending}
-                        onClick={handleJoinQueue}
+                        disabled={leave.isPending}
+                        onClick={() => leave.mutate()}
                         size="sm"
+                        variant="outline"
                       >
-                        <ListPlus className="size-3.5" />
-                        {session?.user ? "Join Queue" : "Sign up to Join Queue"}
+                        <LogOut className="size-3.5" />
+                        Leave
                       </Button>
-                    )}
-                  </div>
+                    </>
+                  ) : (
+                    <Button
+                      className="gap-1.5 text-xs"
+                      disabled={queue.isPending}
+                      onClick={handleJoinQueue}
+                      size="sm"
+                    >
+                      <ListPlus className="size-3.5" />
+                      {session?.user ? "Join Queue" : "Sign up to Join Queue"}
+                    </Button>
+                  )}
                 </div>
                 {(room.role === "artist_a" || room.role === "artist_b") &&
                   battle.coordination?.format && (
                     <ArtistBattlePreparation
                       format={battle.coordination.format}
+                      isReady={currentArtistReady}
                       lockedKitId={lockedBattleKitId ?? null}
                       onLock={handleLockBattleKit}
+                      onMediaSetupSaved={setMediaDeviceSelection}
+                      onReady={async (ready) => {
+                        await battleReady.mutateAsync({ ready });
+                      }}
+                      pending={
+                        battleReady.isPending || battleDisposition.isPending
+                      }
                     />
                   )}
                 <BattleLifecycleControls
                   artists={battle.artists}
+                  compact
                   currentUserId={session?.user?.id}
                   hasSelectedKit={Boolean(lockedBattleKitId)}
-                  isAdmin={room.role === "admin"}
+                  isAdmin={isAdmin}
                   isArtist={isArtist}
-                  isReady={Boolean(
-                    readyArtistUserIds.includes(
-                      room.role === "artist_a"
-                        ? battle.artists[0].id
-                        : battle.artists[1].id
-                    )
-                  )}
+                  isReady={currentArtistReady}
                   onDisposition={handleBattleDisposition}
                   onReady={async (ready) => {
                     await battleReady.mutateAsync({ ready });
@@ -917,8 +1353,8 @@ export function BattlePage({
                 />
                 <p className="text-xs text-muted-foreground">
                   {artistView
-                    ? "Your artist seat stays connected while BattleBot prepares the stage. Chat with the fans here; your battle chat continues when round one begins."
-                    : "You will be admitted automatically, in batches, when the battle opens and between rounds. Chat is open while you wait, and your place in the queue is saved even if you close SoundKit."}
+                    ? "You can leave before the battle starts. SoundKit will bring you back when your match opens."
+                    : "Join the queue to be admitted in batches when the battle opens."}
                 </p>
                 <Button
                   className="px-0"
@@ -972,22 +1408,25 @@ export function BattlePage({
               {isArtist && battle.coordination?.format && (
                 <ArtistBattlePreparation
                   format={battle.coordination.format}
+                  isReady={currentArtistReady}
                   lockedKitId={lockedBattleKitId ?? null}
                   onLock={handleLockBattleKit}
+                  onMediaSetupSaved={setMediaDeviceSelection}
+                  onReady={async (ready) => {
+                    await battleReady.mutateAsync({ ready });
+                  }}
+                  pending={battleReady.isPending || battleDisposition.isPending}
                 />
               )}
               {isArtist && (
                 <BattleLifecycleControls
                   artists={battle.artists}
+                  compact
                   currentUserId={session?.user?.id}
                   hasSelectedKit={Boolean(lockedBattleKitId)}
-                  isAdmin={room.role === "admin"}
+                  isAdmin={isAdmin}
                   isArtist={isArtist}
-                  isReady={readyArtistUserIds.includes(
-                    room.role === "artist_a"
-                      ? battle.artists[0].id
-                      : battle.artists[1].id
-                  )}
+                  isReady={currentArtistReady}
                   onDisposition={handleBattleDisposition}
                   onReady={async (ready) => {
                     await battleReady.mutateAsync({ ready });
@@ -1160,14 +1599,14 @@ export function BattlePage({
               }
               type="button"
             >
-              <Avatar className="size-16 sm:size-20 border-2 border-primary ring-4 ring-primary/20 shadow-xl">
+              <Avatar className="size-16 rounded-xl border-2 border-primary ring-4 ring-primary/20 shadow-xl sm:size-20">
                 <AvatarImage src={artistA.avatarUrl} />
-                <AvatarFallback className="font-bold text-lg">
+                <AvatarFallback className="rounded-xl font-bold text-lg">
                   {artistA.name.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <p className="font-bold text-sm sm:text-base text-white truncate max-w-[120px]">
-                {artistA.name}
+              <p className="max-w-[140px] truncate font-bold text-sm text-white sm:text-base">
+                {artistNameWithRank(artistA)}
               </p>
               <span className="text-xs text-amber-400 font-bold">
                 {artistA.roundsWon} Wins
@@ -1192,14 +1631,14 @@ export function BattlePage({
               }
               type="button"
             >
-              <Avatar className="size-16 sm:size-20 border-2 border-secondary ring-4 ring-secondary/20 shadow-xl">
+              <Avatar className="size-16 rounded-xl border-2 border-secondary ring-4 ring-secondary/20 shadow-xl sm:size-20">
                 <AvatarImage src={artistB.avatarUrl} />
-                <AvatarFallback className="font-bold text-lg">
+                <AvatarFallback className="rounded-xl font-bold text-lg">
                   {artistB.name.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <p className="font-bold text-sm sm:text-base text-white truncate max-w-[120px]">
-                {artistB.name}
+              <p className="max-w-[140px] truncate font-bold text-sm text-white sm:text-base">
+                {artistNameWithRank(artistB)}
               </p>
               <span className="text-xs text-amber-400 font-bold">
                 {artistB.roundsWon} Wins
@@ -1212,8 +1651,10 @@ export function BattlePage({
           <BattleMediaStage
             activeArtistUserId={battle.coordination?.activeArtistUserId}
             artists={battle.artists}
+            audioDeviceId={mediaDeviceSelection?.audioDeviceId}
             className="absolute inset-0 z-10 rounded-none border-0 bg-transparent"
             experienceId={id}
+            videoDeviceId={mediaDeviceSelection?.videoDeviceId}
             phase={phase}
             showHeader={false}
             viewerOnly={
@@ -1286,7 +1727,7 @@ export function BattlePage({
                   }
                   type="button"
                 >
-                  {artistA.name}
+                  {artistNameWithRank(artistA)}
                 </button>{" "}
                 vs{" "}
                 <button
@@ -1305,7 +1746,7 @@ export function BattlePage({
                   }
                   type="button"
                 >
-                  {artistB.name}
+                  {artistNameWithRank(artistB)}
                 </button>{" "}
                 • Click artist to view profile
               </p>

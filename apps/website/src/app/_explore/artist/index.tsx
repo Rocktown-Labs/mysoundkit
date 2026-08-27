@@ -7,9 +7,8 @@ import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-c
 import type { LeaderboardArtist } from "@/components/explore/artist-leaderboard-card";
 import { BattleFilters } from "@/components/explore/battle-filters";
 import { Button } from "@/components/ui/button";
-import { musicGenres } from "@/lib/music-genres";
-import { useArtistsQuery } from "@/lib/soundkit-api-hooks";
-import type { ArtistSummary } from "@/lib/soundkit-api-hooks";
+import { useArtistsQuery, useGenresQuery } from "@/lib/soundkit-api-hooks";
+import type { ArtistSummary, GenreSummary } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
     { label: "Rank (High to Low)", value: "rank-asc" },
@@ -149,13 +148,13 @@ function ArtistGenreRail({
   region,
   regionType,
 }: {
-  genre: (typeof musicGenres)[number];
+  genre: GenreSummary;
   region: string;
   regionType: "north-america" | "global";
 }) {
   const query = useArtistsQuery({
       category: "top",
-      genre: genre.value,
+      genre: genre.slug,
       limit: 6,
       region,
       regionType,
@@ -163,15 +162,19 @@ function ArtistGenreRail({
     }),
     artists = query.data ?? [];
 
+  if (artists.length === 0) {
+    return null;
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-lg">{genre.label}</h3>
+        <h3 className="font-semibold text-lg">{genre.name}</h3>
         <Button asChild size="sm" variant="ghost">
           <Link
             to="/artist/top"
             search={{
-              genre: genre.value,
+              genre: genre.slug,
               region,
               regionType,
               sort: "rank-asc",
@@ -181,25 +184,19 @@ function ArtistGenreRail({
           </Link>
         </Button>
       </div>
-      {artists.length > 0 ? (
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {artists.map((artist) => (
-            <ArtistCard
-              key={artist.username}
-              avatar={artist.avatarUrl ?? "/soundkit-default-avatar.svg"}
-              followers={formatFollowers(artist.followers)}
-              genre={artist.genre}
-              name={artist.name}
-              slug={artist.username}
-              verified={artist.verified}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-lg border border-dashed p-4 text-muted-foreground text-sm">
-          No {genre.label} artists found yet.
-        </div>
-      )}
+      <div className="flex gap-3 overflow-x-auto pb-2">
+        {artists.map((artist) => (
+          <ArtistCard
+            key={artist.username}
+            avatar={artist.avatarUrl ?? "/soundkit-default-avatar.svg"}
+            followers={formatFollowers(artist.followers)}
+            genre={artist.genre}
+            name={artist.name}
+            slug={artist.username}
+            verified={artist.verified}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -263,7 +260,9 @@ function ArtistPage() {
     },
     rising = useArtistsQuery({ ...commonQuery, category: "rising" }),
     newest = useArtistsQuery({ ...commonQuery, category: "new" }),
-    top = useArtistsQuery({ ...commonQuery, category: "top" });
+    top = useArtistsQuery({ ...commonQuery, category: "top" }),
+    genresQuery = useGenresQuery(),
+    genres = genresQuery.data ?? [];
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
@@ -325,10 +324,10 @@ function ArtistPage() {
               Compact genre lists with profile cards.
             </p>
           </div>
-          {musicGenres.map((genreOption) => (
+          {genres.map((genreOption) => (
             <ArtistGenreRail
               genre={genreOption}
-              key={genreOption.value}
+              key={genreOption.slug}
               region={region}
               regionType={regionType}
             />

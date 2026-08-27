@@ -8,7 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { musicGenres } from "@/lib/music-genres";
+import { normalizeGenreValue } from "@/lib/live-collection";
+import { useGenresQuery } from "@/lib/soundkit-api-hooks";
 
 export interface CommunityFilterValue {
   access: "all" | "free" | "paid";
@@ -24,6 +25,8 @@ export function CommunityFilters({
   onChange: (value: CommunityFilterValue) => void;
   value: CommunityFilterValue;
 }) {
+  const { data: genres = [] } = useGenresQuery();
+
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       <div className="relative">
@@ -42,16 +45,16 @@ export function CommunityFilters({
       </div>
       <Select
         onValueChange={(genre) => onChange({ ...value, genre })}
-        value={value.genre}
+        value={normalizeGenreValue(value.genre)}
       >
         <SelectTrigger aria-label="Filter communities by genre">
           <SelectValue placeholder="All genres" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All genres</SelectItem>
-          {musicGenres.map((genre) => (
-            <SelectItem key={genre.value} value={genre.value}>
-              {genre.label}
+          {genres.map((genre) => (
+            <SelectItem key={genre.slug} value={genre.slug}>
+              {genre.name}
             </SelectItem>
           ))}
         </SelectContent>

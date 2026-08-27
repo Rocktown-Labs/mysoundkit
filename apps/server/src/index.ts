@@ -338,6 +338,7 @@ export default {
     executionContext.waitUntil(
       Promise.allSettled([
         runBattleServiceSweep({
+          battleDirectory: workerEnv.BATTLE_DIRECTORY,
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
         }),
         runOpenVerseSweep({

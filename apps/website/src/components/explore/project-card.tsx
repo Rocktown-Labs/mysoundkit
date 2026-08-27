@@ -1,22 +1,29 @@
 import { Link } from "@tanstack/react-router";
 import { Disc, Play } from "lucide-react";
 
+import {
+  PublicCard,
+  PublicCardMeta,
+  PublicCardThumbnail,
+} from "@/components/explore/public-card";
+import { AppImage } from "@/components/ui/app-image";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { PublicProjectSummary } from "@/lib/soundkit-api-hooks";
-
-import { AppImage } from "../ui/app-image";
-import { Badge } from "../ui/badge";
-import { Button } from "../ui/button";
-import { Card, CardContent } from "../ui/card";
 
 export function ProjectCard({ project }: { project: PublicProjectSummary }) {
   return (
-    <Card className="group w-full overflow-hidden border-border/40 bg-card/60 transition-colors hover:border-primary/50">
-      <div className="relative aspect-square w-full overflow-hidden bg-muted">
+    <PublicCard className="w-full" framed>
+      <PublicCardThumbnail aspect="square" className="rounded-none">
         {project.coverArtUrl ? (
           <AppImage
             alt={`${project.title} cover artwork`}
-            className="size-full object-cover transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+            className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+            height={640}
+            layout="constrained"
+            loading="lazy"
             src={project.coverArtUrl}
+            width={640}
           />
         ) : (
           <div className="flex size-full items-center justify-center bg-accent/40 text-muted-foreground">
@@ -48,8 +55,8 @@ export function ProjectCard({ project }: { project: PublicProjectSummary }) {
             </Badge>
           ) : null}
         </div>
-      </div>
-      <CardContent className="p-4">
+      </PublicCardThumbnail>
+      <PublicCardMeta className="p-3.5">
         <Link
           className="line-clamp-1 font-semibold transition-colors group-hover:text-primary"
           params={{ id: project.id }}
@@ -64,7 +71,7 @@ export function ProjectCard({ project }: { project: PublicProjectSummary }) {
           <span>{project.trackCount} tracks</span>
           <span>{project.duration ?? "0:00"}</span>
         </div>
-      </CardContent>
-    </Card>
+      </PublicCardMeta>
+    </PublicCard>
   );
 }

@@ -8,12 +8,12 @@ import { ExploreCollectionGrid } from "@/components/explore/explore-collection";
 import { VideoCard } from "@/components/explore/video-card";
 import { Button } from "@/components/ui/button";
 import { InfiniteScrollSentinel } from "@/components/ui/infinite-scroll-sentinel";
-import { musicGenres } from "@/lib/music-genres";
 import {
+  useGenresQuery,
   useVideosInfiniteQuery,
   useVideosQuery,
 } from "@/lib/soundkit-api-hooks";
-import type { VideoSummary } from "@/lib/soundkit-api-hooks";
+import type { GenreSummary, VideoSummary } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
   { label: "Most Viewed", value: "views-desc" },
@@ -68,6 +68,8 @@ function VideosPage() {
     genre = search.genre ?? "all",
     sort = search.sort ?? "views-desc",
     view = search.view ?? "sections",
+    genresQuery = useGenresQuery(),
+    genres = genresQuery.data ?? [],
     updateFilters = (next: Partial<VideosSearch>) => {
       const nextRegionType = next.regionType ?? regionType,
         nextRegion =
@@ -207,9 +209,9 @@ function VideosPage() {
 
       {view === "all" ? null : (
         <div className="flex flex-col gap-10">
-          {musicGenres.map((sectionGenre) => (
+          {genres.map((sectionGenre) => (
             <VideoGenreRail
-              key={sectionGenre.value}
+              key={sectionGenre.slug}
               genre={sectionGenre}
               region={region}
               regionType={regionType}
@@ -253,13 +255,13 @@ function VideoGenreRail({
   regionType,
   sort,
 }: {
-  genre: (typeof musicGenres)[number];
+  genre: GenreSummary;
   region: string;
   regionType: "north-america" | "global";
   sort: string;
 }) {
   const { data: videos = [], isLoading } = useVideosQuery({
-    genre: genre.value,
+    genre: genre.slug,
     limit: 12,
     region,
     regionType,
@@ -267,11 +269,15 @@ function VideoGenreRail({
     sort,
   });
 
+  if (!isLoading && videos.length === 0) {
+    return null;
+  }
+
   return (
     <section>
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-xl">{genre.label}</h2>
+          <h2 className="font-semibold text-xl">{genre.name}</h2>
           <p className="text-muted-foreground text-sm">
             Videos from this genre.
           </p>
@@ -281,7 +287,7 @@ function VideoGenreRail({
             to="/videos"
             search={
               {
-                genre: genre.value,
+                genre: genre.slug,
                 region,
                 regionType,
                 sort,
@@ -293,17 +299,13 @@ function VideoGenreRail({
           </Link>
         </Button>
       </div>
-      {isLoading || videos.length > 0 ? (
-        <div className="flex gap-4 overflow-x-auto pb-2">
-          {videos.map((video) => (
-            <div className="min-w-[320px] max-w-[420px]" key={video.id}>
-              <ExploreVideoCard video={video} />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <VideoEmptyState>No {genre.label} videos are live yet.</VideoEmptyState>
-      )}
+      <div className="flex gap-4 overflow-x-auto pb-2">
+        {videos.map((video) => (
+          <div className="min-w-[320px] max-w-[420px]" key={video.id}>
+            <ExploreVideoCard video={video} />
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
