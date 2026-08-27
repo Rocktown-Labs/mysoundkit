@@ -264,6 +264,11 @@ export const battleStatusEnum = pgEnum("battle_status", [
   "completed",
   "archived",
 ]);
+export const battleOutcomeEnum = pgEnum("battle_outcome", [
+  "canceled",
+  "ducked",
+  "forfeited",
+]);
 export const battleVisibilityEnum = pgEnum("battle_visibility", [
   "public",
   "premium_only",
@@ -2231,6 +2236,11 @@ export const battles = pgTable(
       }
     ),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    outcome: battleOutcomeEnum("outcome"),
+    outcomeReason: text("outcome_reason"),
+    outcomeUserId: text("outcome_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     endedAt: timestamp("ended_at"),
     externalBattleId: text("external_battle_id"),
     format: battleFormatEnum("format").notNull(),

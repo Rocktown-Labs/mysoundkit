@@ -98,6 +98,7 @@ export { PayoutRunWorkflow } from "@/workflows/payout-run";
 export { PurchaseFulfillmentWorkflow } from "@/workflows/purchase-fulfillment";
 export { ProjectExportWorkflow } from "@/workflows/project-export";
 export { TrackEnrichmentWorkflow } from "@/workflows/track-enrichment";
+export { BattleDirectoryDurableObject } from "@/durable-objects/battle-directory";
 export { LiveRoomDurableObject } from "@/durable-objects/live-room";
 export { PresenceDurableObject } from "@/durable-objects/presence";
 
@@ -202,6 +203,7 @@ app.get("/", async (c) =>
 app.get("/health", async (c) =>
   c.json({
     bindings: {
+      battleDirectory: hasEnvValue("BATTLE_DIRECTORY"),
       databaseUrl: hasEnvValue("DATABASE_URL"),
       emailDeliveryQueue: hasEnvValue("EMAIL_DELIVERY_QUEUE"),
       hyperdrive: hasEnvValue("HYPERDRIVE"),

@@ -54,9 +54,7 @@ const SITE_HOST = isProduction
     : `media-${app.stage}.mysoundkit.com`,
   SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`,
   API_URL = app.local ? "http://localhost:3000" : `https://${API_HOST}`,
-  MEDIA_URL = isProduction
-    ? `https://${MEDIA_HOST}/media`
-    : `${API_URL}/media`,
+  MEDIA_URL = isProduction ? `https://${MEDIA_HOST}/media` : `${API_URL}/media`,
   SENTRY_WEB_DSN =
     process.env.VITE_SENTRY_DSN ||
     "https://87f5517c906a37ab831c171fc686145d@o4510278858309632.ingest.us.sentry.io/4511447930568704",
@@ -274,6 +272,10 @@ const SITE_HOST = isProduction
       messageRetentionPeriod: 1_209_600,
     },
   }),
+  battleDirectory = DurableObjectNamespace("battle-directory", {
+    className: "BattleDirectoryDurableObject",
+    sqlite: true,
+  }),
   liveRooms = DurableObjectNamespace("live-rooms", {
     className: "LiveRoomDurableObject",
     sqlite: true,
@@ -387,6 +389,7 @@ export const server = await Worker("server", {
       alchemy.secret.env.DATABASE_URL,
       "DATABASE_URL"
     ),
+    BATTLE_DIRECTORY: battleDirectory,
     DO_METRICS: doMetrics,
     EMAIL_DELIVERY_QUEUE: emailDeliveryQueue,
     GOOGLE_EMBEDDING_MODEL: requiredEnv("GOOGLE_EMBEDDING_MODEL"),

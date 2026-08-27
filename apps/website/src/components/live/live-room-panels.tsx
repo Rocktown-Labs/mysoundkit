@@ -32,6 +32,7 @@ import { UserProfilePreviewModal } from "./user-profile-preview-modal";
 import type { UserPreviewData } from "./user-profile-preview-modal";
 
 interface LiveChatPanelProps {
+  artistUserIds?: string[];
   className?: string;
   disabled?: boolean;
   extraHeaderAction?: React.ReactNode;
@@ -43,6 +44,7 @@ interface LiveChatPanelProps {
 }
 
 export function LiveChatPanel({
+  artistUserIds = [],
   className = "",
   disabled,
   extraHeaderAction,
@@ -126,8 +128,14 @@ export function LiveChatPanel({
                           chatMessage.userName === meUser?.displayName ||
                           chatMessage.userName === meProfile?.displayName,
                         isBot =
+                          chatMessage.userId === "soundkit-battlebot" ||
                           chatMessage.userName.toLowerCase().includes("bot") ||
                           chatMessage.userName.toLowerCase().includes("system"),
+                        isArtistMessage =
+                          (chatMessage.userId !== undefined &&
+                            artistUserIds.includes(chatMessage.userId)) ||
+                          chatMessage.userRole === "artist_a" ||
+                          chatMessage.userRole === "artist_b",
                         isHost =
                           chatMessage.userName.toLowerCase().includes("host") ||
                           chatMessage.userName.toLowerCase().includes("artist"),
@@ -185,8 +193,10 @@ export function LiveChatPanel({
                           <div
                             className={`group flex items-start gap-2.5 rounded-md p-1.5 transition-colors hover:bg-muted/40 ${
                               isBot
-                                ? "border-l-2 border-primary/60 bg-primary/5"
-                                : ""
+                                ? "border-l-2 border-purple-400/80 bg-purple-500/10"
+                                : isArtistMessage
+                                  ? "border-l-2 border-amber-400/80 bg-amber-400/10"
+                                  : ""
                             }`}
                           >
                             <button
@@ -218,7 +228,13 @@ export function LiveChatPanel({
                                   </span>
                                 )}
                                 <button
-                                  className="font-semibold text-foreground hover:text-primary transition-colors text-left truncate cursor-pointer"
+                                  className={`font-semibold text-left truncate cursor-pointer transition-colors ${
+                                    isBot
+                                      ? "text-purple-300 hover:text-purple-200"
+                                      : isArtistMessage
+                                        ? "text-amber-300 hover:text-amber-200"
+                                        : "text-foreground hover:text-primary"
+                                  }`}
                                   onClick={handleOpenProfile}
                                   type="button"
                                 >

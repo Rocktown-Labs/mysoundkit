@@ -40,7 +40,9 @@ export function BattleTimer({
         {label}
       </span>
       <span aria-live="polite" className="text-sm tabular-nums">
-        {minutes}:{seconds.toString().padStart(2, "0")}
+        {phaseEndsAt
+          ? `${minutes}:${seconds.toString().padStart(2, "0")}`
+          : "Waiting"}
       </span>
     </Badge>
   );

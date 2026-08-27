@@ -550,6 +550,13 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("button", { name: "Locked for battle" })
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "I’m ready" })
+    ).toBeVisible();
+    await page.getByRole("button", { name: "I’m ready" }).click();
+    await expect(
+      page.getByRole("button", { name: "Not ready" })
+    ).toBeVisible();
   });
 
   test("signup surfaces load without console errors", async ({ page }) => {

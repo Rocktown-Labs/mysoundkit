@@ -1,4 +1,8 @@
-import type { BattleCoordination, BattlePhase } from "@/lib/live-battle-state";
+import type {
+  BattleCoordination,
+  BattleOutcome,
+  BattlePhase,
+} from "@/lib/live-battle-state";
 
 export type LiveRoomKind = "battle" | "party" | "stream";
 export type LiveRoomViewerRole =
@@ -12,7 +16,9 @@ export interface LiveRoomChatMessage {
   id: string;
   message: string;
   sentAt: string;
+  userId?: string;
   userName: string;
+  userRole?: LiveRoomViewerRole;
 }
 
 export interface LiveRoomLyricsLine {
@@ -94,6 +100,7 @@ export interface LiveRoomState {
     waitingRoomCount?: number;
     coordination?: BattleCoordination;
     currentRoundId: string;
+    outcome?: BattleOutcome;
     phase?: BattlePhase;
     rounds: LiveBattleRound[];
     tiePolicy: string;

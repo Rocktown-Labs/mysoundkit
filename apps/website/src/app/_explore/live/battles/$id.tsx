@@ -28,6 +28,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import { BattleArtistControlPanel } from "@/components/live/battle-artist-control-panel";
+import { BattleLifecycleControls } from "@/components/live/battle-lifecycle-controls";
 import { BattleMediaStage } from "@/components/live/battle-media-stage";
 import { BattleTimer } from "@/components/live/battle-timer";
 import { LiveChatPanel } from "@/components/live/live-room-panels";
@@ -389,7 +390,7 @@ function ArtistBattlePreparation({
                       placeholder={`Choose a ${formatDetails.label} kit`}
                     />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="[&_[data-highlighted]]:bg-muted [&_[data-highlighted]]:text-foreground">
                     {kits.map((kit) => (
                       <SelectItem key={kit.id} value={kit.id}>
                         <span className="flex items-center gap-2">
@@ -457,8 +458,18 @@ function BattlePage() {
         : (new URLSearchParams(window.location.search).get("ref") ?? undefined),
     router = useRouter(),
     { data: session } = authClient.useSession(),
-    { battleKit, battleTrack, chat, chatMessages, leave, query, queue, vote } =
-      useLiveRoom(id),
+    {
+      battleDisposition,
+      battleKit,
+      battleReady,
+      battleTrack,
+      chat,
+      chatMessages,
+      leave,
+      query,
+      queue,
+      vote,
+    } = useLiveRoom(id),
     [isChatOpen, setIsChatOpen] = useState(true),
     [isFollowingBattle, setIsFollowingBattle] = useState(false),
     [previewUser, setPreviewUser] = useState<UserPreviewData | null>(null),
@@ -481,8 +492,10 @@ function BattlePage() {
       phase === "waiting_room",
     viewerQueueStatus = battle?.viewerQueueStatus ?? null,
     isAdmitted = viewerQueueStatus === "admitted",
+    isArtist = Boolean(room?.role === "artist_a" || room?.role === "artist_b"),
     isQueued =
       viewerQueueStatus === "queued" || viewerQueueStatus === "waiting",
+    readyArtistUserIds = battle?.coordination?.artistReadyUserIds ?? [],
     lockedBattleKitId =
       battle?.artistControls?.selectedKitId ?? selectedBattleKitId,
     currentRound = battle?.rounds.find(
@@ -492,11 +505,24 @@ function BattlePage() {
       (track) => track.id === room.currentTrackId
     ),
     { dialog: battleLeaveDialog } = useBattleLeaveGuard({
-      isLeaving: leave.isPending,
+      isArtist,
+      isLeaving: leave.isPending || battleDisposition.isPending,
+      onForfeit: isArtist
+        ? async () => {
+            await battleDisposition.mutateAsync({
+              affectedUserId: session?.user?.id,
+              kind: "forfeited",
+              reason: "artist_unavailable",
+            });
+          }
+        : undefined,
       onLeave: () => {
         leave.mutate();
       },
-      shouldBlock: isAdmitted && Boolean(currentRound),
+      shouldBlock:
+        isAdmitted &&
+        Boolean(currentRound) &&
+        !(isArtist && (phase === "scheduled" || phase === "waiting_room")),
     });
 
   useEffect(() => {
@@ -579,6 +605,29 @@ function BattlePage() {
       });
     };
 
+  const handleBattleDisposition = async (disposition: {
+    affectedUserId?: string | null;
+    kind: "canceled" | "ducked" | "forfeited";
+    reason: string;
+  }) => {
+    await battleDisposition.mutateAsync({
+      ...disposition,
+      affectedUserId:
+        disposition.kind === "forfeited"
+          ? (session?.user?.id ?? null)
+          : disposition.affectedUserId,
+    });
+    toast({
+      description:
+        disposition.kind === "ducked"
+          ? "The opponent was recorded as ducked. No rating was changed."
+          : disposition.kind === "forfeited"
+            ? "The forfeit was recorded."
+            : "The battle was canceled without changing ratings.",
+      title: "Battle updated",
+    });
+  };
+
   const handleShareBattle = () => {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(window.location.href);
@@ -624,132 +673,151 @@ function BattlePage() {
 
   const [artistA, artistB] = battle.artists;
 
-  if (!currentRound) {
-    if (isScheduled) {
-      return (
-        <LiveRoomAccessGuard allowPublic={isScheduled} roomTitle={room.title}>
-          <LiveTwitchShell
-            chatPanel={
-              <LiveChatPanel
-                disabled={chat.isPending}
-                fillHeight
-                messages={chatMessages}
-                onCollapse={() => setIsChatOpen(false)}
-                onSend={(message) => chat.mutate({ message, userName: "You" })}
-                title="Waiting Room Chat"
-              />
-            }
-            isChatOpen={isChatOpen}
-            onChatOpenChange={setIsChatOpen}
-            videoNode={
-              <BattleStageVisual
-                artists={battle.artists}
-                phaseLabel={phase === "scheduled" ? "Scheduled" : "Open"}
-              />
-            }
-          >
-            <div className="space-y-4 pt-4">
-              <Card className="border-primary/40 bg-card/90 shadow-xl overflow-hidden">
-                <CardHeader className="border-b border-border/60 bg-muted/40">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <CalendarClock className="size-4.5 text-primary" />
-                      <div>
-                        <CardTitle className="text-sm">{room.title}</CardTitle>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">
-                          {artistA.name} vs {artistB.name}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge
-                      className="gap-1.5 text-xs font-mono"
-                      variant="outline"
-                    >
-                      <Users className="size-3 text-muted-foreground" />
-                      {battle.queueSize?.toLocaleString() ?? 0} in queue
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/50 p-3">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        Battle starts
+  if (isScheduled) {
+    return (
+      <LiveRoomAccessGuard allowPublic={isScheduled} roomTitle={room.title}>
+        <LiveTwitchShell
+          chatPanel={
+            <LiveChatPanel
+              artistUserIds={battle.artists.map((artist) => artist.id)}
+              disabled={chat.isPending}
+              fillHeight
+              messages={chatMessages}
+              onCollapse={() => setIsChatOpen(false)}
+              onSend={(message) => chat.mutate({ message, userName: "You" })}
+              title="Waiting Room Chat"
+            />
+          }
+          isChatOpen={isChatOpen}
+          onChatOpenChange={setIsChatOpen}
+          videoNode={
+            <BattleStageVisual
+              artists={battle.artists}
+              phaseLabel={phase === "scheduled" ? "Scheduled" : "Open"}
+            />
+          }
+        >
+          <div className="space-y-4 pt-4">
+            <Card className="border-primary/40 bg-card/90 shadow-xl overflow-hidden">
+              <CardHeader className="border-b border-border/60 bg-muted/40">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <CalendarClock className="size-4.5 text-primary" />
+                    <div>
+                      <CardTitle className="text-sm">{room.title}</CardTitle>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {artistA.name} vs {artistB.name}
                       </p>
-                      <BattleTimer
-                        label="Starting in"
-                        phaseEndsAt={battle.coordination?.phaseEndsAt}
-                        serverNow={room.serverNow}
-                      />
                     </div>
-                    <div className="flex items-center gap-2">
-                      {isQueued ? (
-                        <>
-                          <Badge
-                            variant="secondary"
-                            className="gap-1.5 text-xs"
-                          >
-                            <ListPlus className="size-3.5" />
-                            You are in the queue
-                          </Badge>
-                          <Button
-                            className="gap-1.5 text-xs"
-                            disabled={leave.isPending}
-                            onClick={() => leave.mutate()}
-                            size="sm"
-                            variant="outline"
-                          >
-                            <LogOut className="size-3.5" />
-                            Leave
-                          </Button>
-                        </>
-                      ) : (
+                  </div>
+                  <Badge
+                    className="gap-1.5 text-xs font-mono"
+                    variant="outline"
+                  >
+                    <Users className="size-3 text-muted-foreground" />
+                    {battle.queueSize?.toLocaleString() ?? 0} in queue
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/50 p-3">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Battle starts
+                    </p>
+                    <BattleTimer
+                      label={
+                        phase === "scheduled"
+                          ? "Battle opens in"
+                          : "Waiting for both artists"
+                      }
+                      phaseEndsAt={battle.coordination?.phaseEndsAt}
+                      serverNow={room.serverNow}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isQueued ? (
+                      <>
+                        <Badge variant="secondary" className="gap-1.5 text-xs">
+                          <ListPlus className="size-3.5" />
+                          You are in the queue
+                        </Badge>
                         <Button
                           className="gap-1.5 text-xs"
-                          disabled={queue.isPending}
-                          onClick={handleJoinQueue}
+                          disabled={leave.isPending}
+                          onClick={() => leave.mutate()}
                           size="sm"
+                          variant="outline"
                         >
-                          <ListPlus className="size-3.5" />
-                          {session?.user
-                            ? "Join Queue"
-                            : "Sign up to Join Queue"}
+                          <LogOut className="size-3.5" />
+                          Leave
                         </Button>
-                      )}
-                    </div>
-                  </div>
-                  {(room.role === "artist_a" || room.role === "artist_b") &&
-                    battle.coordination?.format && (
-                      <ArtistBattlePreparation
-                        format={battle.coordination.format}
-                        lockedKitId={lockedBattleKitId ?? null}
-                        onLock={handleLockBattleKit}
-                      />
+                      </>
+                    ) : (
+                      <Button
+                        className="gap-1.5 text-xs"
+                        disabled={queue.isPending}
+                        onClick={handleJoinQueue}
+                        size="sm"
+                      >
+                        <ListPlus className="size-3.5" />
+                        {session?.user ? "Join Queue" : "Sign up to Join Queue"}
+                      </Button>
                     )}
-                  <p className="text-xs text-muted-foreground">
-                    You will be admitted automatically, in batches, when the
-                    battle opens and between rounds. Chat is open while you
-                    wait, and your place in the queue is saved even if you close
-                    SoundKit.
-                  </p>
-                  <Button
-                    className="px-0"
-                    onClick={() => router.history.back()}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    <ArrowLeft className="mr-2 size-4" />
-                    Back
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </LiveTwitchShell>
-          {battleLeaveDialog}
-        </LiveRoomAccessGuard>
-      );
-    }
+                  </div>
+                </div>
+                {(room.role === "artist_a" || room.role === "artist_b") &&
+                  battle.coordination?.format && (
+                    <ArtistBattlePreparation
+                      format={battle.coordination.format}
+                      lockedKitId={lockedBattleKitId ?? null}
+                      onLock={handleLockBattleKit}
+                    />
+                  )}
+                <BattleLifecycleControls
+                  artists={battle.artists}
+                  isAdmin={room.role === "admin"}
+                  isArtist={isArtist}
+                  isReady={Boolean(
+                    readyArtistUserIds.includes(
+                      room.role === "artist_a"
+                        ? battle.artists[0].id
+                        : battle.artists[1].id
+                    )
+                  )}
+                  onDisposition={handleBattleDisposition}
+                  onReady={async (ready) => {
+                    await battleReady.mutateAsync({ ready });
+                  }}
+                  pending={battleReady.isPending || battleDisposition.isPending}
+                  phase={phase ?? "waiting_room"}
+                  readyArtistUserIds={readyArtistUserIds}
+                />
+                <p className="text-xs text-muted-foreground">
+                  You will be admitted automatically, in batches, when the
+                  battle opens and between rounds. Chat is open while you wait,
+                  and your place in the queue is saved even if you close
+                  SoundKit.
+                </p>
+                <Button
+                  className="px-0"
+                  onClick={() => router.history.back()}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <ArrowLeft className="mr-2 size-4" />
+                  Back
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </LiveTwitchShell>
+        {battleLeaveDialog}
+      </LiveRoomAccessGuard>
+    );
+  }
 
+  if (!currentRound) {
     return (
       <LiveRoomAccessGuard roomTitle={room.title}>
         <div className="space-y-6 pb-8">
@@ -794,6 +862,7 @@ function BattlePage() {
 
   const chatPanel = (
       <LiveChatPanel
+        artistUserIds={battle.artists.map((artist) => artist.id)}
         disabled={chat.isPending}
         extraHeaderAction={
           <Badge className="font-mono text-[10px]" variant="outline">
@@ -928,19 +997,21 @@ function BattlePage() {
           </div>
         </div>
 
-        <BattleMediaStage
-          activeArtistUserId={battle.coordination?.activeArtistUserId}
-          artists={battle.artists}
-          className="absolute inset-0 z-10 rounded-none border-0 bg-transparent"
-          experienceId={id}
-          phase={phase}
-          showHeader={false}
-          viewerOnly={
-            room.role !== "admin" &&
-            room.role !== "artist_a" &&
-            room.role !== "artist_b"
-          }
-        />
+        {phase !== "ended" && (
+          <BattleMediaStage
+            activeArtistUserId={battle.coordination?.activeArtistUserId}
+            artists={battle.artists}
+            className="absolute inset-0 z-10 rounded-none border-0 bg-transparent"
+            experienceId={id}
+            phase={phase}
+            showHeader={false}
+            viewerOnly={
+              room.role !== "admin" &&
+              room.role !== "artist_a" &&
+              room.role !== "artist_b"
+            }
+          />
+        )}
 
         {currentTrack && (
           <div className="absolute bottom-4 left-4 right-4 z-20 flex items-center justify-between rounded-xl border border-white/10 bg-black/75 px-4 py-2.5 backdrop-blur-md">
@@ -1047,7 +1118,7 @@ function BattlePage() {
                 <Button
                   className="gap-1.5 text-xs"
                   disabled={leave.isPending}
-                  onClick={() => leave.mutate()}
+                  onClick={() => router.history.back()}
                   size="sm"
                   variant="outline"
                 >
@@ -1258,6 +1329,83 @@ function BattlePage() {
               )}
             </CardContent>
           </Card>
+
+          <Card className="border-border/60 bg-card/70">
+            <CardContent className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Round votes
+                </p>
+                <p className="mt-1 font-mono font-bold text-sm">
+                  {voteTotal(currentRound).toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Viewers
+                </p>
+                <p className="mt-1 font-mono font-bold text-sm">
+                  {room.viewerCount.toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Queue
+                </p>
+                <p className="mt-1 font-mono font-bold text-sm">
+                  {(battle.queueSize ?? 0).toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Battle phase
+                </p>
+                <p className="mt-1 truncate font-semibold text-sm">
+                  {(phase ?? "unknown").replaceAll("_", " ")}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {battle.outcome && (
+            <Card className="border-purple-400/40 bg-purple-500/10">
+              <CardContent className="flex items-start gap-3 p-4">
+                <Swords className="mt-0.5 size-5 shrink-0 text-purple-300" />
+                <div>
+                  <p className="font-semibold text-sm">
+                    {battle.outcome.kind === "ducked"
+                      ? "Battle ended: opponent ducked"
+                      : battle.outcome.kind === "forfeited"
+                        ? "Battle ended by forfeit"
+                        : "Battle canceled"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    This outcome did not change battle ratings.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <BattleLifecycleControls
+            artists={battle.artists}
+            isAdmin={room.role === "admin"}
+            isArtist={isArtist}
+            isReady={Boolean(
+              readyArtistUserIds.includes(
+                room.role === "artist_a"
+                  ? battle.artists[0].id
+                  : battle.artists[1].id
+              )
+            )}
+            onDisposition={handleBattleDisposition}
+            onReady={async (ready) => {
+              await battleReady.mutateAsync({ ready });
+            }}
+            pending={battleReady.isPending || battleDisposition.isPending}
+            phase={phase ?? "waiting_room"}
+            readyArtistUserIds={readyArtistUserIds}
+          />
 
           {(room.role === "artist_a" || room.role === "artist_b") && (
             <BattleArtistControlPanel

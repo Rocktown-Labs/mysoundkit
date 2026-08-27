@@ -20,11 +20,15 @@ import {
  * viewers are not blocked so they can browse while a scheduled battle is open.
  */
 export function useBattleLeaveGuard({
+  isArtist,
   isLeaving,
+  onForfeit,
   onLeave,
   shouldBlock,
 }: {
+  isArtist: boolean;
   isLeaving: boolean;
+  onForfeit?: () => void | Promise<void>;
   onLeave: () => void | Promise<void>;
   shouldBlock: boolean;
 }) {
@@ -32,51 +36,69 @@ export function useBattleLeaveGuard({
   shouldBlockRef.current = shouldBlock;
 
   const { proceed, reset, status } = useBlocker({
-    enableBeforeUnload: () => shouldBlockRef.current && !isLeaving,
-    shouldBlockFn: () => shouldBlockRef.current && !isLeaving,
-    withResolver: true,
-  }),
-
-   leaveAndProceed = async () => {
-    try {
-      await onLeave();
-    } finally {
-      proceed?.();
-    }
-  },
-
-   dialog = (
-    <AlertDialog
-      onOpenChange={(open) => {
-        if (!open) {
-          reset?.();
+      enableBeforeUnload: () => shouldBlockRef.current && !isLeaving,
+      shouldBlockFn: () => shouldBlockRef.current && !isLeaving,
+      withResolver: true,
+    }),
+    leaveAndProceed = async (forfeit = false) => {
+      try {
+        if (forfeit && onForfeit) {
+          await onForfeit();
+        } else {
+          await onLeave();
         }
-      }}
-      open={status === "blocked"}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Leave this battle?</AlertDialogTitle>
-          <AlertDialogDescription>
-            You are an active participant in this round. Leaving removes you
-            from the battle and forfeits your vote this round. You can rejoin
-            the queue at any time.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={reset}>Stay in Battle</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={(event) => {
-              event.preventDefault();
-              void leaveAndProceed();
-            }}
-          >
-            Leave Battle
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
+        proceed?.();
+      } catch {
+        reset?.();
+      }
+    },
+    dialog = (
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open) {
+            reset?.();
+          }
+        }}
+        open={status === "blocked"}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {isArtist ? "Leave this battle?" : "Leave the live room?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {isArtist
+                ? "You are an active battle artist. Leaving ends your participation and records a forfeit."
+                : "You will leave the admitted viewer group. To watch again, you will need to rejoin the battle queue."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={reset}>
+              Stay in Battle
+            </AlertDialogCancel>
+            {isArtist ? (
+              <AlertDialogAction
+                onClick={(event) => {
+                  event.preventDefault();
+                  void leaveAndProceed(true);
+                }}
+              >
+                Leave and Forfeit
+              </AlertDialogAction>
+            ) : (
+              <AlertDialogAction
+                onClick={(event) => {
+                  event.preventDefault();
+                  void leaveAndProceed();
+                }}
+              >
+                Leave Room
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
 
   return { dialog };
 }

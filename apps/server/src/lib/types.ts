@@ -1,4 +1,5 @@
 import type { MediaProcessorContainer } from "@/containers/media-processor";
+import type { BattleDirectoryDurableObject } from "@/durable-objects/battle-directory";
 import type { LiveRoomDurableObject } from "@/durable-objects/live-room";
 import type { PresenceDurableObject } from "@/durable-objects/presence";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
@@ -36,6 +37,7 @@ export interface AppEnv {
   Bindings: {
     BATTLE_ADMISSION_BATCH_SIZE?: string;
     BATTLE_BOT_SECRET?: string;
+    BATTLE_DIRECTORY?: DurableObjectNamespace<BattleDirectoryDurableObject>;
     DO_METRICS?: AnalyticsEngineDataset;
     LIVE_NOTIFICATION_QUEUE?: Queue<LiveNotificationQueueMessage>;
     NOTIFICATION_QUEUE?: Queue<NotificationQueueMessage>;

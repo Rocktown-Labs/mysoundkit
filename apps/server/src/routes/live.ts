@@ -20,6 +20,7 @@ import type { z } from "zod";
 
 import type {
   LiveRoomBattleBotAction,
+  LiveRoomBattleDisposition,
   LiveRoomIdentity,
   LiveRoomVoteBody,
 } from "@/durable-objects/live-room";
@@ -34,6 +35,8 @@ import {
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreSlug } from "@/lib/genre-catalog";
+import { createBattleCoordination } from "@/lib/live-battle-state";
+import type { BattleCancellationReason } from "@/lib/live-battle-state";
 import {
   allowsMockRealtime,
   battleMediaPhase,
@@ -71,9 +74,12 @@ import type {
   LiveRoomState,
   LiveRoomTrack,
 } from "@/lib/live-room-data";
+import { notify } from "@/lib/notifications";
 import { profileRegionCondition } from "@/lib/public-explore";
 import {
   battleBotActionBodySchema,
+  battleDispositionBodySchema,
+  battleReadyBodySchema,
   createLiveExperienceBodySchema,
   joinLiveExperienceBodySchema,
   liveSessionLockCheckBodySchema,
@@ -483,7 +489,7 @@ const badRequest = (message: string) => ({
     action: string;
     phase?: BattlePhase;
   }) => {
-    if (action === "move_lobby_to_round") {
+    if (action === "move_lobby_to_round" || action === "start_battle") {
       return "round_active";
     }
 
@@ -792,9 +798,9 @@ const badRequest = (message: string) => ({
       status =
         battle.status === "live"
           ? "live"
-          : (battle.status === "completed"
+          : battle.status === "completed"
             ? "ended"
-            : "scheduled"),
+            : "scheduled",
       startsAt = (battle.startsAt ?? battle.createdAt).toISOString(),
       [createdExperience] = await db
         .insert(liveExperiences)
@@ -1072,12 +1078,17 @@ const badRequest = (message: string) => ({
         .select({
           challengerArtistUserId: battles.challengerArtistUserId,
           createdAt: battles.createdAt,
+          endedAt: battles.endedAt,
           format: battles.format,
           id: battles.id,
           opponentArtistUserId: battles.opponentArtistUserId,
+          outcome: battles.outcome,
+          outcomeReason: battles.outcomeReason,
+          outcomeUserId: battles.outcomeUserId,
           startsAt: battles.startsAt,
           status: battles.status,
           title: battles.title,
+          updatedAt: battles.updatedAt,
           viewerCount: battles.viewerCount,
         })
         .from(battles)
@@ -1228,6 +1239,21 @@ const badRequest = (message: string) => ({
         battle.challengerArtistUserId ?? "artist-one",
         battle.opponentArtistUserId ?? "artist-two",
       ] as const,
+      battleOutcome = battle.outcome
+        ? {
+            affectedUserId: battle.outcomeUserId,
+            kind: battle.outcome,
+            reason: (battle.outcomeReason ??
+              "other") as BattleCancellationReason,
+            recordedAt: battle.endedAt?.getTime() ?? battle.updatedAt.getTime(),
+          }
+        : undefined,
+      coordination = createBattleCoordination({
+        battleId: battle.id,
+        format: battle.format,
+        now: Date.now(),
+        scheduledStartAt: battle.startsAt?.getTime() ?? null,
+      }),
       liveArtists: [LiveRoomArtist, LiveRoomArtist] = [
         {
           avatarUrl: profileByUserId.get(fallbackArtistIds[0])?.avatarUrl ?? "",
@@ -1318,11 +1344,19 @@ const badRequest = (message: string) => ({
         ? [currentLiveRound.artistATrack, currentLiveRound.artistBTrack]
         : [];
 
+    if (battleOutcome) {
+      coordination.phase = "ended";
+      coordination.phaseEndsAt = null;
+      coordination.outcome = battleOutcome;
+    }
+
     return {
       battle: {
         artistControlsByUserId,
         artists: liveArtists,
+        coordination,
         currentRoundId: currentLiveRound?.id ?? "",
+        outcome: battleOutcome,
         queueSize: queueRows.length,
         rounds: liveRounds,
         tiePolicy:
@@ -1336,11 +1370,11 @@ const badRequest = (message: string) => ({
       kind: "battle",
       startsAt: battle.startsAt ? battle.startsAt.toISOString() : null,
       status:
-        battle.status === "completed"
+        battle.status === "completed" || battle.status === "archived"
           ? "ended"
-          : (battle.status === "live"
+          : battle.status === "live"
             ? "live"
-            : "upcoming"),
+            : "upcoming",
       summary:
         "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
       title: battle.title,
@@ -1465,16 +1499,16 @@ const badRequest = (message: string) => ({
     const roomStatus: LiveRoomState["status"] =
       experience.status === "ended"
         ? "ended"
-        : (experience.status === "live"
+        : experience.status === "live"
           ? "live"
-          : "upcoming");
+          : "upcoming";
 
     const summary =
       experience.kind === "stream"
         ? `Live creator broadcast by ${hostName} on SoundKit.`
-        : (experience.kind === "party"
+        : experience.kind === "party"
           ? `Live listening party hosted by ${hostName}.`
-          : `Live event on SoundKit.`);
+          : `Live event on SoundKit.`;
 
     return {
       chat: [],
@@ -1516,9 +1550,9 @@ const badRequest = (message: string) => ({
               reconnectUntil: experience.reconnectUntil?.getTime() ?? null,
               replayStatus: experience.replayPublishedAt
                 ? "available"
-                : (experience.recordingStatus
+                : experience.recordingStatus
                   ? "processing"
-                  : "none"),
+                  : "none",
             }
           : undefined,
       summary,
@@ -1625,9 +1659,9 @@ const badRequest = (message: string) => ({
     const roomStatus: LiveRoomState["status"] =
       party.status === "ended" || party.status === "canceled"
         ? "ended"
-        : (party.status === "live"
+        : party.status === "live"
           ? "live"
-          : "upcoming");
+          : "upcoming";
 
     return {
       chat: [],
@@ -1975,9 +2009,9 @@ const buildCreateExperienceResponse = ({
       body.source === "obs" &&
       body.scheduleMode === "asap"
         ? "waiting_for_ingest"
-        : (body.scheduleMode === "asap"
+        : body.scheduleMode === "asap"
           ? "ready"
-          : "scheduled"),
+          : "scheduled",
     title: body.title.trim(),
     visibility: body.visibility,
   },
@@ -1990,9 +2024,9 @@ const buildCreateExperienceResponse = ({
       body.source === "obs" &&
       body.scheduleMode === "asap"
         ? "scheduled"
-        : (body.scheduleMode === "asap"
+        : body.scheduleMode === "asap"
           ? "live"
-          : "scheduled"),
+          : "scheduled",
   },
   notifications: buildNotificationFanout({
     experienceId,
@@ -2158,10 +2192,10 @@ app.post("/experiences/:experienceId/join", async (c) => {
       participantRole =
         user.role === "admin"
           ? "host"
-          : (battle?.challengerArtistUserId === user.id ||
+          : battle?.challengerArtistUserId === user.id ||
               battle?.opponentArtistUserId === user.id
             ? "artist"
-            : "listener");
+            : "listener";
       const battleRoom = await getDurableRoomState(
         c,
         experience.battleId
@@ -2276,13 +2310,31 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
     experience = await loadLiveExperienceById(experienceId),
     battleId = experience?.battleId ?? experienceId,
     botAction = parseResult.data.action as LiveRoomBattleBotAction,
-    result = await applyBattleBotAction({
-      action: botAction,
-      battleId,
-      participants: parseResult.data.participants,
-    }),
-    liveRooms = c.env.LIVE_ROOMS;
-  if (liveRooms) {
+    liveRooms = c.env.LIVE_ROOMS,
+    preflightRoom =
+      liveRooms &&
+      (botAction === "start_battle" || botAction === "move_lobby_to_round")
+        ? await retryDurableObjectCall(() =>
+            liveRooms
+              .getByName(experienceId)
+              .announceBattleBotAction(experienceId, botAction)
+          )
+        : null;
+  if (preflightRoom?.battle?.coordination?.phase === "waiting_room") {
+    return c.json(
+      {
+        message: "BattleBot is waiting for both artists to be ready.",
+      },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+
+  const result = await applyBattleBotAction({
+    action: botAction,
+    battleId,
+    participants: parseResult.data.participants,
+  });
+  if (liveRooms && !preflightRoom) {
     await retryDurableObjectCall(() =>
       liveRooms
         .getByName(experienceId)
@@ -2309,6 +2361,197 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
     },
     HttpStatusCodes.CREATED
   );
+});
+
+app.post("/rooms/:roomId/battle/ready", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user) || !c.env.LIVE_ROOMS) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+
+  const parsed = battleReadyBodySchema.safeParse(
+    await c.req.json().catch(() => ({}))
+  );
+  if (!parsed.success) {
+    return c.json(
+      badRequest("Battle readiness details are invalid."),
+      HttpStatusCodes.BAD_REQUEST
+    );
+  }
+
+  try {
+    const roomId = c.req.param("roomId"),
+      identity = await resolveLiveRoomIdentity(c, roomId),
+      room = await c.env.LIVE_ROOMS.getByName(roomId).setArtistReady(
+        roomId,
+        identity,
+        parsed.data.ready
+      );
+    if (
+      isDatabaseConfigured() &&
+      room.battle?.coordination?.phase === "round_intro"
+    ) {
+      const experience = await loadLiveExperienceById(roomId),
+        battleId = experience?.battleId ?? roomId,
+        db = createDb(),
+        [battle] = await db
+          .select({ id: battles.id })
+          .from(battles)
+          .where(
+            or(
+              eq(battles.id, battleId),
+              eq(battles.externalBattleId, battleId),
+              eq(battles.externalBattleId, roomId)
+            )
+          )
+          .limit(1);
+      if (battle) {
+        await Promise.all([
+          db
+            .update(battles)
+            .set({ status: "live", updatedAt: new Date() })
+            .where(eq(battles.id, battle.id)),
+          db
+            .update(battleRounds)
+            .set({ status: "active" })
+            .where(
+              and(
+                eq(battleRounds.battleId, battle.id),
+                eq(battleRounds.roundNumber, 1)
+              )
+            ),
+          db
+            .update(liveExperiences)
+            .set({
+              startedAt: new Date(),
+              status: "live",
+              updatedAt: new Date(),
+            })
+            .where(eq(liveExperiences.battleId, battle.id)),
+        ]);
+        if (c.env.BATTLE_DIRECTORY) {
+          await c.env.BATTLE_DIRECTORY.getByName("public").publish(battle.id).catch(() => 0);
+        }
+      }
+    }
+    return c.json(room, HttpStatusCodes.OK);
+  } catch (error) {
+    return c.json(
+      {
+        message:
+          error instanceof Error ? error.message : "Battle readiness failed.",
+      },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+});
+
+app.post("/rooms/:roomId/battle/disposition", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user) || !c.env.LIVE_ROOMS) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+
+  const parsed = battleDispositionBodySchema.safeParse(
+    await c.req.json().catch(() => ({}))
+  );
+  if (!parsed.success) {
+    return c.json(
+      badRequest("Battle outcome details are invalid."),
+      HttpStatusCodes.BAD_REQUEST
+    );
+  }
+
+  const roomId = c.req.param("roomId"),
+    identity = await resolveLiveRoomIdentity(c, roomId),
+    disposition = parsed.data as LiveRoomBattleDisposition,
+    experience = await loadLiveExperienceById(roomId),
+    battleId = experience?.battleId ?? roomId;
+  try {
+    const room = await c.env.LIVE_ROOMS.getByName(
+      roomId
+    ).resolveBattleDisposition(roomId, identity, disposition);
+    if (isDatabaseConfigured()) {
+      const db = createDb(),
+        [battle] = await db
+          .select({
+            id: battles.id,
+            title: battles.title,
+          })
+          .from(battles)
+          .where(
+            or(
+              eq(battles.id, battleId),
+              eq(battles.externalBattleId, battleId),
+              eq(battles.externalBattleId, roomId)
+            )
+          )
+          .limit(1);
+      if (battle) {
+        await Promise.all([
+          db
+            .update(battles)
+            .set({
+              endedAt: new Date(),
+              outcome: disposition.kind,
+              outcomeReason: disposition.reason,
+              outcomeUserId: disposition.affectedUserId ?? null,
+              status: "archived",
+              updatedAt: new Date(),
+            })
+            .where(eq(battles.id, battle.id)),
+          db
+            .update(liveExperiences)
+            .set({
+              endsAt: new Date(),
+              ingestStatus: "disconnected",
+              status: "ended",
+              updatedAt: new Date(),
+            })
+            .where(eq(liveExperiences.battleId, battle.id)),
+          db
+            .update(battleQueueEntries)
+            .set({
+              leftAt: new Date(),
+              status: "removed",
+              updatedAt: new Date(),
+            })
+            .where(eq(battleQueueEntries.battleId, battle.id)),
+        ]);
+
+        if (c.env.BATTLE_DIRECTORY) {
+          await c.env.BATTLE_DIRECTORY.getByName("public").publish(battle.id).catch(() => 0);
+        }
+
+        if (disposition.kind === "ducked" && disposition.affectedUserId) {
+          await notify(
+            {
+              actorUserId: identity.userId,
+              data: {
+                actorName: identity.displayName,
+                battleId: battle.id,
+                battleTitle: battle.title,
+              },
+              entity: { id: battle.id, type: "battle" },
+              eventId: `${battle.id}:${disposition.affectedUserId}`,
+              recipientUserId: disposition.affectedUserId,
+              type: "battle.ducked",
+            },
+            { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+          );
+        }
+      }
+    }
+    return c.json(room, HttpStatusCodes.OK);
+  } catch (error) {
+    return c.json(
+      {
+        message:
+          error instanceof Error ? error.message : "Battle outcome failed.",
+      },
+      HttpStatusCodes.CONFLICT
+    );
+  }
 });
 
 app.post("/rooms/:roomId/battle/kit", async (c) => {
@@ -2354,9 +2597,9 @@ app.post("/rooms/:roomId/battle/kit", async (c) => {
   const role =
     battle.challengerArtistUserId === user.id
       ? "artist_a"
-      : (battle.opponentArtistUserId === user.id
+      : battle.opponentArtistUserId === user.id
         ? "artist_b"
-        : null);
+        : null;
   if (!role) {
     return c.json(
       forbiddenMessage("Only battle competitors can select a Battle Kit."),
@@ -2505,9 +2748,9 @@ app.post("/rooms/:roomId/party/playback", async (c) => {
       roomId,
       body.type === "track_changed"
         ? { trackId: body.trackId ?? "", type: body.type }
-        : (body.type === "replay"
+        : body.type === "replay"
           ? { trackId: body.trackId, type: body.type }
-          : { type: body.type }),
+          : { type: body.type },
       identity
     );
     return c.json(room, HttpStatusCodes.OK);

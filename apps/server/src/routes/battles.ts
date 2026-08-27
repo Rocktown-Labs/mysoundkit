@@ -24,6 +24,7 @@ import {
   inArray,
   isNull,
   lte,
+  ne,
   or,
   sql,
 } from "drizzle-orm";
@@ -71,8 +72,31 @@ import { resolveTrackAssetFromRows } from "@/lib/track-asset-resolver";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
 
-const app = new OpenAPIHono<AppEnv>(),
-  featuredBattleLimit = 6,
+const app = new OpenAPIHono<AppEnv>();
+
+app.get("/directory/ws", async (c) => {
+  if (c.req.header("upgrade")?.toLowerCase() !== "websocket") {
+    return c.json(
+      { message: "Expected WebSocket upgrade." },
+      HttpStatusCodes.UPGRADE_REQUIRED
+    );
+  }
+  if (!c.env.BATTLE_DIRECTORY) {
+    return c.json(
+      { message: "Battle directory WebSocket is not configured." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+
+  return c.env.BATTLE_DIRECTORY.getByName("public").fetch(
+    new Request("https://battle-directory.soundkit.internal/ws", {
+      headers: { upgrade: "websocket" },
+      method: "GET",
+    })
+  );
+});
+
+const featuredBattleLimit = 6,
   battleTotalRoundsByFormat = {
     best_of_3: 3,
     best_of_5: 5,
@@ -350,15 +374,18 @@ app.openapi(
         .from(battles)
         .leftJoin(genres, eq(genres.id, battles.genreId))
         .where(
-          regionCondition
-            ? sql`exists (
+          and(
+            ne(battles.status, "archived"),
+            regionCondition
+              ? sql`exists (
                 select 1 from ${userProfiles}
                 where ${userProfiles.userId} in (
                   ${battles.challengerArtistUserId},
                   ${battles.opponentArtistUserId}
                 ) and ${regionCondition}
               )`
-            : undefined
+              : undefined
+          )
         )
         .orderBy(desc(battles.viewerCount))
         .limit(50),

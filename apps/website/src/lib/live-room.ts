@@ -15,7 +15,9 @@ export interface LiveRoomChatMessage {
   id: string;
   message: string;
   sentAt: string;
+  userId?: string;
   userName: string;
+  userRole?: LiveRoomViewerRole;
 }
 
 export interface LiveRoomLyricsLine {
@@ -67,6 +69,7 @@ export interface LiveRoomState {
     artists: [LiveRoomArtist, LiveRoomArtist];
     coordination?: {
       activeArtistUserId: string | null;
+      artistReadyUserIds?: string[];
       battleId: string;
       format: "best_of_3" | "best_of_5" | "best_of_7";
       phase: string;
@@ -76,6 +79,12 @@ export interface LiveRoomState {
       winnerUserId: string | null;
     };
     currentRoundId: string;
+    outcome?: {
+      affectedUserId?: string | null;
+      kind: "canceled" | "ducked" | "forfeited";
+      reason: string;
+      recordedAt: number;
+    };
     phase?: string;
     queueSize?: number;
     viewerQueueStatus?: "admitted" | "queued" | "waiting" | null;
@@ -161,7 +170,9 @@ const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
     path:
       | "chat"
       | "vote"
+      | "battle/disposition"
       | "battle/kit"
+      | "battle/ready"
       | "battle/track"
       | "party/playback"
       | "queue"
@@ -202,6 +213,10 @@ interface LiveRoomChatResult {
 
 export const useLiveRoom = (roomId: string) => {
   const queryClient = useQueryClient(),
+    invalidateBattleQueries = () => {
+      void queryClient.invalidateQueries({ queryKey: ["battles"] });
+      void queryClient.invalidateQueries({ queryKey: ["soundkit-db"] });
+    },
     query = useQuery({
       enabled: Boolean(roomId),
       queryFn: () => fetchLiveRoom(roomId),
@@ -264,9 +279,36 @@ export const useLiveRoom = (roomId: string) => {
         }
       },
     }),
+    battleDispositionMutation = useMutation({
+      mutationFn: (body: {
+        affectedUserId?: string | null;
+        kind: "canceled" | "ducked" | "forfeited";
+        reason: string;
+      }) => postLiveRoom(roomId, "battle/disposition", body),
+      onSuccess: (result) => {
+        invalidateBattleQueries();
+        if ("room" in result) {
+          queryClient.setQueryData(liveRoomKey(roomId), result.room);
+        } else {
+          queryClient.setQueryData(liveRoomKey(roomId), result);
+        }
+      },
+    }),
     battleKitMutation = useMutation({
       mutationFn: (body: { kitId: string }) =>
         postLiveRoom(roomId, "battle/kit", body),
+    }),
+    battleReadyMutation = useMutation({
+      mutationFn: (body: { ready: boolean }) =>
+        postLiveRoom(roomId, "battle/ready", body),
+      onSuccess: (result) => {
+        invalidateBattleQueries();
+        if ("room" in result) {
+          queryClient.setQueryData(liveRoomKey(roomId), result.room);
+        } else {
+          queryClient.setQueryData(liveRoomKey(roomId), result);
+        }
+      },
     }),
     battleTrackMutation = useMutation({
       mutationFn: (body: { trackId: string }) =>
@@ -312,7 +354,9 @@ export const useLiveRoom = (roomId: string) => {
     });
 
   return {
+    battleDisposition: battleDispositionMutation,
     battleKit: battleKitMutation,
+    battleReady: battleReadyMutation,
     battleTrack: battleTrackMutation,
     chat: chatMutation,
     chatMessages: sortChatMessages(query.data?.chat ?? []),
