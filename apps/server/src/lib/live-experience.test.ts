@@ -12,6 +12,7 @@ import {
   createRoundVoterSnapshot,
   findLiveSessionConflict,
   hasRealtimeKitConfig,
+  resolveBattleArtistRole,
   resolveRealtimePreset,
 } from "./live-experience";
 
@@ -23,6 +24,30 @@ const artistUser = {
 };
 
 describe("live experience orchestration", () => {
+  it("resolves artists consistently when entering by a battle room id", () => {
+    expect(
+      resolveBattleArtistRole({
+        challengerArtistUserId: "artist_a",
+        opponentArtistUserId: "artist_b",
+        userId: "artist_a",
+      })
+    ).toBe("artist_a");
+    expect(
+      resolveBattleArtistRole({
+        challengerArtistUserId: "artist_a",
+        opponentArtistUserId: "artist_b",
+        userId: "artist_b",
+      })
+    ).toBe("artist_b");
+    expect(
+      resolveBattleArtistRole({
+        challengerArtistUserId: "artist_a",
+        opponentArtistUserId: "artist_b",
+        userId: "listener",
+      })
+    ).toBeNull();
+  });
+
   it("maps Durable Object battle phases to media phases", () => {
     expect(battleMediaPhase("artist_a_turn")).toBe("round_active");
     expect(battleMediaPhase("tiebreaker_voting")).toBe("voting");
