@@ -1162,6 +1162,7 @@ const badRequest = (message: string) => ({
           db
             .select({
               artistUserId: battleLineupSnapshots.artistUserId,
+              kitId: battleLineupSnapshots.kitId,
               tracks: battleLineupSnapshots.tracks,
             })
             .from(battleLineupSnapshots)
@@ -1215,6 +1216,7 @@ const badRequest = (message: string) => ({
               {
                 availableTrackIds: snapshotTracks.map((track) => track.trackId),
                 currentTrackId: null,
+                selectedKitId: snapshot.kitId,
                 selectedNextTrackId: null,
                 usedTrackIds: [],
               },
@@ -2423,6 +2425,19 @@ app.post("/rooms/:roomId/battle/kit", async (c) => {
       ],
     });
 
+  if (c.env.LIVE_ROOMS) {
+    try {
+      await c.env.LIVE_ROOMS.getByName(roomId).chooseBattleKit(
+        roomId,
+        user.id,
+        kit.id,
+        kitTracks.map((track) => track.trackId)
+      );
+    } catch {
+      // The lineup snapshot remains authoritative if the room is not seeded yet.
+    }
+  }
+
   return c.json(
     { battleId: battle.id, kitId: kit.id, role },
     HttpStatusCodes.OK
@@ -2579,9 +2594,17 @@ app.get("/rooms/:roomId", async (c) => {
 
     const seedResponse = await seedDurableRoom({ c, room: realRoom, roomId });
 
-    if (!seedResponse) {
-      return c.json(realRoom, HttpStatusCodes.OK);
+    if (seedResponse) {
+      const personalizedRoom = await getDurableRoomStateForUser(c, roomId);
+      if (personalizedRoom) {
+        return c.json(personalizedRoom, HttpStatusCodes.OK);
+      }
     }
+
+    return c.json(
+      { ...realRoom, role: (await resolveLiveRoomIdentity(c, roomId)).role },
+      HttpStatusCodes.OK
+    );
   }
 
   const room = await getDurableRoomStateForUser(c, roomId);

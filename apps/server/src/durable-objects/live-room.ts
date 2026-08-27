@@ -519,6 +519,48 @@ export class LiveRoomDurableObject extends DurableObject {
     };
   }
 
+  async chooseBattleKit(
+    roomId: string,
+    userId: string,
+    kitId: string,
+    availableTrackIds: string[]
+  ): Promise<LiveRoomState> {
+    this.requestedRoomId = roomId;
+    const room = await this.loadState();
+    if (!(room.kind === "battle" && room.battle?.coordination)) {
+      throw new Error("Battle kit selection is not available in this room.");
+    }
+
+    const artist = room.battle.artists.find((entry) => entry.id === userId);
+    if (!artist) {
+      throw new Error("Only a battle competitor can choose a Battle Kit.");
+    }
+
+    const currentControls = room.battle.artistControlsByUserId?.[userId],
+      nextRoom: LiveRoomState = {
+        ...room,
+        battle: {
+          ...room.battle,
+          artistControlsByUserId: {
+            ...room.battle.artistControlsByUserId,
+            [userId]: {
+              availableTrackIds,
+              currentTrackId: currentControls?.currentTrackId ?? null,
+              selectedKitId: kitId,
+              selectedNextTrackId: currentControls?.selectedNextTrackId ?? null,
+              usedTrackIds: currentControls?.usedTrackIds ?? [],
+            },
+          },
+        },
+      };
+    await this.persist(nextRoom);
+    this.broadcastToUser(userId, {
+      kitId,
+      type: "battle.kit_selected",
+    });
+    return this.publicState(nextRoom);
+  }
+
   async chooseBattleTrack(
     roomId: string,
     trackId: string,
