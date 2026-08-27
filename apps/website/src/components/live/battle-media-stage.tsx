@@ -43,6 +43,7 @@ interface BattleMediaTileProps {
 
 const NON_MEDIA_BATTLE_PHASES = new Set([
     "between_rounds",
+    "ended",
     "pre_vote",
     "round_result",
     "scheduled",

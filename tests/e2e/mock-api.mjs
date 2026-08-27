@@ -1441,6 +1441,28 @@ export const createMockApiServer = async ({
       return;
     }
 
+    const liveRoomBattleActionMatch = url.pathname.match(
+      /^\/v1\/live\/rooms\/([^/]+)\/battle\/(ready|disposition)$/
+    );
+
+    if (liveRoomBattleActionMatch && request.method === "POST") {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          room = liveRoom(liveRoomBattleActionMatch[1], session);
+        if (liveRoomBattleActionMatch[2] === "ready" && room.battle) {
+          room.battle.coordination.artistReadyUserIds = body.ready
+            ? [room.battle.artists[0].id]
+            : [];
+        }
+        json(response, 200, room, webOrigin);
+      });
+      return;
+    }
+
     const liveRoomMutationMatch = url.pathname.match(
       /^\/v1\/live\/rooms\/([^/]+)\/(chat|vote)$/
     );

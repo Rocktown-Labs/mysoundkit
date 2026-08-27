@@ -4,6 +4,10 @@
 
 ### Added
 
+- Added a push-first public battle directory over a Cloudflare Durable Object WebSocket, with a 30-second query refresh as a recovery path for missed updates.
+- Added battle readiness, explicit BattleBot starts, cancellation reason flows, ducked/no-show outcomes, in-progress forfeits, and battle lifecycle stats without rating changes for canceled or ducked battles.
+- Added in-app and transactional email notifications for artists who are marked ducked, plus live-route exit guidance and bottom-sheet profile previews.
+- Added artist and BattleBot chat identity metadata with gold artist highlights and accessible purple BattleBot messages.
 - Added artist battle waiting-room preparation controls with battle-format-scoped Battle Kit selection, lineup previews, and server-persisted kit locking before a scheduled battle opens.
 - Added RealtimeKit battle media stages with browser camera/microphone publishing, responsive two-artist video tiles, BattleBot-managed stage and microphone permissions, reconnect handling, and lazy meeting creation for existing battles.
 - Added owner-scoped video detail analytics at `/dashboard/videos/:id`, first-party Mux playback view sessions, watch-depth charts, and privacy-safe country/Premium regional audience breakdowns.

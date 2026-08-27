@@ -149,12 +149,30 @@ export const liveSessionLockCheckBodySchema = z.object({
     .default([]),
 });
 
+export const battleReadyBodySchema = z.object({
+  ready: z.boolean(),
+});
+
+export const battleDispositionBodySchema = z.object({
+  affectedUserId: z.string().min(1).nullable().optional(),
+  kind: z.enum(["canceled", "ducked", "forfeited"]),
+  reason: z.enum([
+    "ducked",
+    "artist_unavailable",
+    "technical_issue",
+    "schedule_conflict",
+    "moderation",
+    "other",
+  ]),
+});
+
 export const battleBotActionBodySchema = z.object({
   action: z.enum([
     "open_lobby",
     "snapshot_voters",
     "close_voting",
     "move_lobby_to_round",
+    "start_battle",
     "complete_round",
   ]),
   participants: z

@@ -87,9 +87,23 @@ const artists: [LiveRoomArtist, LiveRoomArtist] = [
   };
 
 describe("live battle state machine", () => {
+  it("waits for both artists before starting the first round", () => {
+    const state = host();
+    state.coordination.phaseEndsAt = 10;
+
+    expect(transitionBattle(state, 10).coordination.phase).toBe("waiting_room");
+
+    state.coordination.artistReadyUserIds = ["artist-a", "artist-b"];
+    const started = transitionBattle(state, 10);
+    expect(started.coordination.phase).toBe("round_intro");
+    expect(started.coordination.phaseEndsAt).toBe(20);
+  });
+
   it("uses persisted phase timestamps and transitions without timer ticks", () => {
-    const initial = host(),
-      next = transitionBattle(initial, 10);
+    const initial = host();
+    initial.coordination.artistReadyUserIds = ["artist-a", "artist-b"];
+    initial.coordination.phaseEndsAt = 10;
+    const next = transitionBattle(initial, 10);
 
     expect(next.coordination.phase).toBe("round_intro");
     expect(next.coordination.phaseStartedAt).toBe(10);
@@ -169,7 +183,7 @@ describe("live battle state machine", () => {
       7_200_000
     );
     expect(opened.coordination.phase).toBe("waiting_room");
-    expect(opened.coordination.phaseEndsAt).toBe(7_200_000 + 10);
+    expect(opened.coordination.phaseEndsAt).toBeNull();
   });
 
   it("admits the first batch of queued users when the battle opens and keeps the rest waiting", () => {
@@ -209,6 +223,8 @@ describe("live battle state machine", () => {
 
     state = transitionBattle({ battle: state.battle, coordination }, 10);
     expect(state.coordination.admittedUserIds).toHaveLength(50);
+    state.coordination.artistReadyUserIds = ["artist-a", "artist-b"];
+    state.coordination.phaseEndsAt = 20;
 
     state = transitionBattle(state, 20);
     expect(state.coordination.phase).toBe("round_intro");
@@ -278,6 +294,7 @@ const PHASE_SEQUENCE_TO_VOTING = [
       coordination: {
         ...state.coordination,
         admittedUserIds: fans(admittedCount),
+        artistReadyUserIds: ["artist-a", "artist-b"],
         phase: "waiting_room",
         phaseEndsAt: 10,
         phaseStartedAt: 0,

@@ -81,6 +81,14 @@ export type NotificationEvent = NotificationEventBase &
     | {
         data: {
           actorName: string;
+          battleId: string;
+          battleTitle: string;
+        };
+        type: "battle.ducked";
+      }
+    | {
+        data: {
+          actorName: string;
           listingId: string;
           listingTitle: string;
         };
@@ -443,6 +451,27 @@ export const defineNotificationEvent = (
     case "battle.challenge.accepted":
     case "battle.challenge.declined": {
       return battleResponse(event);
+    }
+    case "battle.ducked": {
+      const actionPath = `/live/battles/${encodeURIComponent(event.data.battleId)}`;
+      return {
+        channels: { email: "immediate", inApp: true },
+        email: {
+          body: `${event.data.actorName} marked you as ducked in “${event.data.battleTitle}” because you did not enter the waiting room. No rating was changed. If this was a mistake, open the battle to contact SoundKit support.`,
+          ctaLabel: "Review battle",
+          eyebrow: "Battle no-show",
+          heading: "You were ducked in a battle",
+          previewText: `You were marked as ducked in ${event.data.battleTitle}.`,
+          subject: `You were ducked in ${event.data.battleTitle}`,
+        },
+        inApp: {
+          link: actionPath,
+          message: `${event.data.actorName} marked you as ducked in “${event.data.battleTitle}”. No rating was changed.`,
+          title: "You were ducked",
+          type: "battle_ducked",
+        },
+        preference: "live",
+      };
     }
     case "open_verse.published": {
       return {

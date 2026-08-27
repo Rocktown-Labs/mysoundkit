@@ -15,11 +15,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { toast } from "@/hooks/use-toast";
 import { useArtistQuery, useMeQuery } from "@/lib/soundkit-api-hooks";
 
@@ -81,7 +81,9 @@ export function UserProfilePreviewModal({
       meProfile?.avatarUrl ??
       meUser?.avatarUrl ??
       "/soundkit-default-avatar.svg")
-    : (artistData?.avatarUrl ?? user.avatarUrl ?? "/soundkit-default-avatar.svg");
+    : (artistData?.avatarUrl ??
+      user.avatarUrl ??
+      "/soundkit-default-avatar.svg");
   const bio = isCurrentUser
     ? (artistData?.bio ?? meProfile?.bio ?? "SoundKit artist & creator.")
     : (artistData?.bio ??
@@ -107,11 +109,14 @@ export function UserProfilePreviewModal({
   };
 
   return (
-    <Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
-      <DialogContent className="sm:max-w-md p-0 overflow-hidden border-border/80 bg-card/95 backdrop-blur-xl">
-        <DialogHeader className="sr-only">
-          <DialogTitle>{displayName}&apos;s Profile</DialogTitle>
-        </DialogHeader>
+    <Sheet onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
+      <SheetContent
+        className="max-h-[88vh] overflow-y-auto border-border/80 bg-card/95 p-0 backdrop-blur-xl"
+        side="bottom"
+      >
+        <SheetHeader className="sr-only">
+          <SheetTitle>{displayName}&apos;s Profile</SheetTitle>
+        </SheetHeader>
 
         {/* Ambient Gradient Banner */}
         <div className="relative h-28 bg-gradient-to-br from-primary/30 via-secondary/20 to-accent/30 p-4 flex items-end justify-end">
@@ -213,7 +218,7 @@ export function UserProfilePreviewModal({
             </Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -1195,7 +1195,7 @@ export const applyBattleBotAction = async ({
     };
   }
 
-  if (action === "move_lobby_to_round") {
+  if (action === "move_lobby_to_round" || action === "start_battle") {
     const targetRound = activeRound ?? upcomingRound;
 
     if (!targetRound) {

@@ -337,6 +337,13 @@
       "when": 1787770213674,
       "tag": "0047_video_view_analytics",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1787808839405,
+      "tag": "0048_glossy_sauron",
+      "breakpoints": true
     }
   ]
 }

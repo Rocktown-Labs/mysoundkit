@@ -333,6 +333,25 @@ describe("notification product-event policy", () => {
     ).toBe("none");
   });
 
+  it("describes a ducked battle as a no-rating outcome", () => {
+    const definition = defineNotificationEvent({
+      actorUserId: "artist_a",
+      data: {
+        actorName: "Artist A",
+        battleId: "battle_1",
+        battleTitle: "Friday Night Smoke",
+      },
+      eventId: "battle_1:artist_b",
+      recipientUserId: "artist_b",
+      type: "battle.ducked",
+    });
+
+    expect(definition.inApp.title).toBe("You were ducked");
+    expect(definition.inApp.message).toContain("No rating was changed");
+    expect(definition.email?.subject).toContain("Friday Night Smoke");
+    expect(definition.channels.email).toBe("immediate");
+  });
+
   it("builds the same follow event for either valid follow route", () => {
     const input = {
         actorAccountType: "fan" as const,

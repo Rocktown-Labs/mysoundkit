@@ -4,7 +4,9 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import type { InferRequestType, InferResponseType } from "hono/client";
+import { useEffect } from "react";
 
 import { API_V1_URL, SoundKitApiError, apiClient, rpcJson } from "./api";
 
@@ -1626,14 +1628,60 @@ export const useListeningPartiesQuery = (query: PublicRegionQuery = {}) =>
     queryKey: [...soundkitQueryKeys.listeningParties, query],
   });
 
-export const useBattlesQuery = (query: PublicRegionQuery = {}) =>
-  useQuery({
+const battleDirectorySubscriptions = new WeakMap<
+    QueryClient,
+    { count: number; socket: WebSocket }
+  >(),
+  subscribeToBattleDirectory = (queryClient: QueryClient) => {
+    if (typeof window === "undefined") {
+      return () => undefined;
+    }
+
+    const current = battleDirectorySubscriptions.get(queryClient);
+    if (current) {
+      current.count += 1;
+      return () => {
+        current.count -= 1;
+        if (current.count === 0) {
+          current.socket.close();
+          battleDirectorySubscriptions.delete(queryClient);
+        }
+      };
+    }
+
+    const url = new URL(`${API_V1_URL}/battles/directory/ws`);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    const socket = new WebSocket(url.toString()),
+      subscription = { count: 1, socket };
+    socket.addEventListener("message", () => {
+      void queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.battles,
+      });
+    });
+    socket.addEventListener("error", () => socket.close());
+    battleDirectorySubscriptions.set(queryClient, subscription);
+
+    return () => {
+      subscription.count -= 1;
+      if (subscription.count === 0) {
+        socket.close();
+        battleDirectorySubscriptions.delete(queryClient);
+      }
+    };
+  };
+
+export const useBattlesQuery = (query: PublicRegionQuery = {}) => {
+  const queryClient = useQueryClient();
+  useEffect(() => subscribeToBattleDirectory(queryClient), [queryClient]);
+
+  return useQuery({
     queryFn: async () => rpcJson(await battlesGet({ query })),
     queryKey: [...soundkitQueryKeys.battles, query],
-    refetchInterval: 10_000,
+    refetchInterval: 30_000,
     refetchOnWindowFocus: true,
-    staleTime: 5_000,
+    staleTime: 15_000,
   });
+};
 
 export const useBattleOpponentsQuery = ({
   genre,
