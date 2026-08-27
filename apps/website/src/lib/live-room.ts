@@ -60,6 +60,7 @@ export interface LiveRoomState {
     artistControls?: {
       availableTrackIds: string[];
       currentTrackId: string | null;
+      selectedKitId?: string | null;
       selectedNextTrackId: string | null;
       usedTrackIds: string[];
     };

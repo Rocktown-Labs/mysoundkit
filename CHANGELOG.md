@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added artist battle waiting-room preparation controls with battle-format-scoped Battle Kit selection, lineup previews, and server-persisted kit locking before a scheduled battle opens.
 - Added owner-scoped video detail analytics at `/dashboard/videos/:id`, first-party Mux playback view sessions, watch-depth charts, and privacy-safe country/Premium regional audience breakdowns.
 - Added canonical dashboard and Explore navigation with compatibility redirects, plus public community discovery and a TanStack DB-powered artist community experience with free/paid membership, chat, posts, member roles, bans, and creator moderation.
 - Added mechanical OpenAPI-to-Hono RPC parity checks, typed website/native API consumers, semantic-search and embedding operations, track recovery, and a validated Expo route manifest with explicit Explore, Library, Live, and Dashboard tab ownership.

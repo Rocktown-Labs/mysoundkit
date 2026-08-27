@@ -55,6 +55,7 @@ export interface LiveBattleRound {
 export interface LiveBattleArtistControls {
   availableTrackIds: string[];
   currentTrackId: string | null;
+  selectedKitId?: string | null;
   selectedNextTrackId: string | null;
   usedTrackIds: string[];
 }

@@ -1,23 +1,22 @@
 "use client";
 /* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, unicorn/consistent-function-scoping */
 
-import {
-  createFileRoute,
-  Link,
-  useRouter,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
   ArrowLeft,
   CalendarClock,
   CheckCircle2,
+  Disc3,
   Heart,
   ListPlus,
+  LockKeyhole,
   LogOut,
   Maximize,
   Mic,
   MicOff,
   Minimize,
   Radio,
+  RefreshCw,
   Share2,
   Swords,
   Trophy,
@@ -39,8 +38,21 @@ import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useBattleLeaveGuard } from "@/hooks/use-battle-leave-guard";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
@@ -55,6 +67,8 @@ import {
 } from "@/lib/battle-share";
 import type { LiveBattleRound, LiveRoomArtist } from "@/lib/live-room";
 import { useLiveRoom } from "@/lib/live-room";
+import type { BattleKit } from "@/lib/soundkit-api-hooks";
+import { useBattleKitsQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/live/battles/$id")({
   component: BattlePage,
@@ -223,28 +237,233 @@ function BattleStageVisual({
   );
 }
 
+const battleFormatDetails = {
+  best_of_3: {
+    label: "Best of 3",
+    rounds: "3 rounds + tiebreaker",
+  },
+  best_of_5: {
+    label: "Best of 5",
+    rounds: "5 rounds + tiebreaker",
+  },
+  best_of_7: {
+    label: "Best of 7",
+    rounds: "7 rounds + tiebreaker",
+  },
+} satisfies Record<BattleKit["format"], { label: string; rounds: string }>;
+
+function ArtistBattlePreparation({
+  format,
+  lockedKitId,
+  onLock,
+}: {
+  format: BattleKit["format"];
+  lockedKitId: string | null;
+  onLock: (kitId: string) => Promise<void>;
+}) {
+  const formatDetails = battleFormatDetails[format],
+    kitsQuery = useBattleKitsQuery({ format, ready: true }),
+    kits = kitsQuery.data ?? [],
+    [draftKitId, setDraftKitId] = useState(lockedKitId ?? ""),
+    [saveError, setSaveError] = useState<string | null>(null),
+    draftKit = kits.find((kit) => kit.id === draftKitId),
+    lockedKit = kits.find((kit) => kit.id === lockedKitId),
+    selectedKit = draftKit ?? lockedKit,
+    selectedKitId = selectedKit?.id ?? "",
+    isLocked = Boolean(selectedKitId && selectedKitId === lockedKitId),
+    lockKit = async () => {
+      if (!selectedKitId || isLocked) {
+        return;
+      }
+
+      setSaveError(null);
+      try {
+        await onLock(selectedKitId);
+      } catch (error) {
+        setSaveError(
+          error instanceof Error
+            ? error.message
+            : "Could not lock this Battle Kit."
+        );
+      }
+    };
+
+  return (
+    <Card className="border-primary/30 bg-primary/5 shadow-sm">
+      <CardHeader className="gap-2 pb-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <div className="mt-0.5 rounded-md bg-primary/15 p-2 text-primary">
+              <Disc3 className="size-4" />
+            </div>
+            <div>
+              <CardTitle className="text-sm">
+                Prepare your battle lineup
+              </CardTitle>
+              <CardDescription className="mt-1 text-xs">
+                {formatDetails.label} · {formatDetails.rounds}. Choose a
+                battle-ready kit before the room opens.
+              </CardDescription>
+            </div>
+          </div>
+          <Badge
+            className="gap-1.5 text-[10px]"
+            variant={isLocked ? "default" : "outline"}
+          >
+            {isLocked ? (
+              <LockKeyhole className="size-3" />
+            ) : (
+              <Swords className="size-3" />
+            )}
+            {isLocked ? "Kit locked" : "Artist only"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 pt-0">
+        {kitsQuery.isLoading && (
+          <div className="rounded-lg border border-dashed border-border/70 bg-background/40 p-3 text-xs text-muted-foreground">
+            Loading your {formatDetails.label} Battle Kits...
+          </div>
+        )}
+
+        {kitsQuery.error && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+            <p className="text-xs text-destructive">
+              We could not load your Battle Kits. Try again before the battle
+              starts.
+            </p>
+            <Button
+              className="gap-1.5 text-xs"
+              onClick={async () => {
+                await kitsQuery.refetch();
+              }}
+              size="sm"
+              variant="outline"
+            >
+              <RefreshCw className="size-3.5" />
+              Retry
+            </Button>
+          </div>
+        )}
+
+        {!kitsQuery.isLoading && !kitsQuery.error && kits.length === 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border/70 bg-background/40 p-3">
+            <div>
+              <p className="font-semibold text-xs">
+                No battle-ready {formatDetails.label} kits yet.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Build the required lineup in My Battle Kits, then return here.
+              </p>
+            </div>
+            <Button asChild className="text-xs" size="sm" variant="outline">
+              <Link to="/dashboard/live/my-kit">Manage kits</Link>
+            </Button>
+          </div>
+        )}
+
+        {!kitsQuery.isLoading && !kitsQuery.error && kits.length > 0 && (
+          <>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <label
+                  className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground"
+                  htmlFor="battle-kit-select"
+                >
+                  Battle Kit
+                </label>
+                <Select
+                  onValueChange={(value) => {
+                    setSaveError(null);
+                    setDraftKitId(value);
+                  }}
+                  value={selectedKitId}
+                >
+                  <SelectTrigger
+                    aria-label="Battle Kit"
+                    className="bg-background/70"
+                    id="battle-kit-select"
+                  >
+                    <SelectValue
+                      placeholder={`Choose a ${formatDetails.label} kit`}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {kits.map((kit) => (
+                      <SelectItem key={kit.id} value={kit.id}>
+                        <span className="flex items-center gap-2">
+                          <span>{kit.name}</span>
+                          <span className="text-muted-foreground">
+                            · {kit.totalUniqueTracks} tracks
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                className="gap-1.5 text-xs"
+                disabled={!selectedKitId || isLocked || kitsQuery.isFetching}
+                onClick={async () => {
+                  await lockKit();
+                }}
+                size="sm"
+              >
+                <LockKeyhole className="size-3.5" />
+                {isLocked ? "Locked for battle" : "Lock Kit"}
+              </Button>
+            </div>
+
+            {selectedKit && (
+              <div className="rounded-lg border border-border/60 bg-background/40 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-semibold text-xs">{selectedKit.name}</p>
+                  <Badge className="text-[10px]" variant="secondary">
+                    {selectedKit.totalUniqueTracks} tracks ready
+                  </Badge>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {selectedKit.tracks.map((track) => (
+                    <Badge
+                      className="max-w-full truncate text-[10px]"
+                      key={track.id}
+                      variant="outline"
+                    >
+                      {track.role === "tiebreaker"
+                        ? "TB"
+                        : `R${track.mainSlot ?? "?"}`}{" "}
+                      {track.title}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {saveError && <p className="text-xs text-destructive">{saveError}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
 function BattlePage() {
   const { id } = Route.useParams(),
     referrerUsername =
       typeof window === "undefined"
         ? undefined
-        : new URLSearchParams(window.location.search).get("ref") ?? undefined,
+        : (new URLSearchParams(window.location.search).get("ref") ?? undefined),
     router = useRouter(),
     { data: session } = authClient.useSession(),
-    {
-      battleKit,
-      battleTrack,
-      chat,
-      chatMessages,
-      leave,
-      query,
-      queue,
-      vote,
-    } =
+    { battleKit, battleTrack, chat, chatMessages, leave, query, queue, vote } =
       useLiveRoom(id),
     [isChatOpen, setIsChatOpen] = useState(true),
     [isFollowingBattle, setIsFollowingBattle] = useState(false),
     [previewUser, setPreviewUser] = useState<UserPreviewData | null>(null),
+    [selectedBattleKitId, setSelectedBattleKitId] = useState<string | null>(
+      () => readBattleKitSelection()?.kitId ?? null
+    ),
     selectedBattleKit = useRef(readBattleKitSelection()),
     battleKitApplied = useRef(false),
     {
@@ -263,6 +482,8 @@ function BattlePage() {
     isAdmitted = viewerQueueStatus === "admitted",
     isQueued =
       viewerQueueStatus === "queued" || viewerQueueStatus === "waiting",
+    lockedBattleKitId =
+      battle?.artistControls?.selectedKitId ?? selectedBattleKitId,
     currentRound = battle?.rounds.find(
       (round) => round.id === battle.currentRoundId
     ),
@@ -306,18 +527,19 @@ function BattlePage() {
     }
 
     battleKitApplied.current = true;
-    void battleKit
-      .mutateAsync({ kitId: selection.kitId })
-      .then(() => {
+    void (async () => {
+      try {
+        await battleKit.mutateAsync({ kitId: selection.kitId });
+        setSelectedBattleKitId(selection.kitId);
         clearBattleKitSelection();
         toast({
           description: "Your selected kit is locked for this battle.",
           title: "Battle Kit selected",
         });
-      })
-      .catch(() => {
+      } catch {
         battleKitApplied.current = false;
-      });
+      }
+    })();
   }, [battleKit, battle, id, isScheduled, session?.user?.id]);
 
   useEffect(() => {
@@ -335,16 +557,26 @@ function BattlePage() {
   }, [id, isAdmitted]);
 
   const handleJoinQueue = () => {
-    if (!session?.user) {
-      void router.navigate({ to: "/signup/fan/credentials" });
-      return;
-    }
+      if (!session?.user) {
+        void router.navigate({ to: "/signup/fan/credentials" });
+        return;
+      }
 
-    if (!queue.mutate) {
-      return;
-    }
-    queue.mutate();
-  };
+      if (!queue.mutate) {
+        return;
+      }
+      queue.mutate();
+    },
+    handleLockBattleKit = async (kitId: string) => {
+      await battleKit.mutateAsync({ kitId });
+      setSelectedBattleKitId(kitId);
+      clearBattleKitSelection();
+      toast({
+        description:
+          "This lineup is locked and will be used when the battle opens.",
+        title: "Battle Kit locked",
+      });
+    };
 
   const handleShareBattle = () => {
     if (navigator.clipboard) {
@@ -485,6 +717,14 @@ function BattlePage() {
                       )}
                     </div>
                   </div>
+                  {(room.role === "artist_a" || room.role === "artist_b") &&
+                    battle.coordination?.format && (
+                      <ArtistBattlePreparation
+                        format={battle.coordination.format}
+                        lockedKitId={lockedBattleKitId ?? null}
+                        onLock={handleLockBattleKit}
+                      />
+                    )}
                   <p className="text-xs text-muted-foreground">
                     You will be admitted automatically, in batches, when the
                     battle opens and between rounds. Chat is open while you

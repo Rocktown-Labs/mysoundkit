@@ -204,7 +204,9 @@ test.describe("main application surfaces", () => {
     );
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByText(/battle/i).first()).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Upcoming Battles" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Upcoming Battles" })
+    ).toBeVisible();
     await expect(page.getByText("Upcoming Artist Duel")).toBeVisible();
     await expect(page.getByText("Luna Eclipse").first()).toBeVisible();
     await expect(page.getByText("Neon Pulse").first()).toBeVisible();
@@ -506,6 +508,44 @@ test.describe("main application surfaces", () => {
     await gotoWithViteRetry(page, "/live");
     await expect(
       page.getByRole("heading", { name: /the pulse of soundkit/i })
+    ).toBeVisible();
+  });
+
+  test("artist battle waiting rooms expose lineup controls", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/live/battles/battle-waiting-artist");
+    await expect(page.getByText("Artist Battle Waiting Room")).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page.getByText("Prepare your battle lineup")).toBeVisible();
+    await expect(
+      page.getByText("Best of 3 · 3 rounds + tiebreaker")
+    ).toBeVisible();
+
+    const battleKitSelect = page.getByRole("combobox", { name: "Battle Kit" });
+    await expect(battleKitSelect).toBeVisible();
+    await battleKitSelect.click();
+    await expect(
+      page.getByRole("option", { name: /BEST OF 3 Warmup Kit/i })
+    ).toBeVisible();
+    await page.getByRole("option", { name: /BEST OF 3 Warmup Kit/i }).click();
+    await page.getByRole("button", { name: "Lock Kit" }).click();
+    await expect(page.getByText("Kit locked", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Locked for battle" })
     ).toBeVisible();
   });
 
