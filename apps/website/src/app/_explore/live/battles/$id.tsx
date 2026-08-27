@@ -834,24 +834,69 @@ function BattlePage() {
             <CardHeader>
               <CardTitle>{room.title}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-muted-foreground">
-              <p>
-                This battle room is live, but no battle rounds have been
-                published yet.
-              </p>
-              <Button asChild variant="outline">
-                <Link
-                  search={{
-                    genre: undefined,
-                    region: undefined,
-                    regionType: "north-america",
-                    sort: undefined,
+            <CardContent className="space-y-4 text-muted-foreground">
+              <div>
+                <p className="font-semibold text-foreground">
+                  This battle room is connected and preparing the lineup.
+                </p>
+                <p className="mt-1 text-sm">
+                  {isArtist
+                    ? "Lock your battle-ready Battle Kit. The stage will open as soon as both artists have a lineup."
+                    : "The artists are finishing their lineup. Stay on this page and refresh to enter when the stage opens."}
+                </p>
+              </div>
+              {isArtist && battle.coordination?.format && (
+                <ArtistBattlePreparation
+                  format={battle.coordination.format}
+                  lockedKitId={lockedBattleKitId ?? null}
+                  onLock={handleLockBattleKit}
+                />
+              )}
+              {isArtist && (
+                <BattleLifecycleControls
+                  artists={battle.artists}
+                  isAdmin={room.role === "admin"}
+                  isArtist={isArtist}
+                  isReady={readyArtistUserIds.includes(
+                    room.role === "artist_a"
+                      ? battle.artists[0].id
+                      : battle.artists[1].id
+                  )}
+                  onDisposition={handleBattleDisposition}
+                  onReady={async (ready) => {
+                    await battleReady.mutateAsync({ ready });
                   }}
-                  to="/live/battles"
+                  pending={battleReady.isPending || battleDisposition.isPending}
+                  phase={phase ?? "waiting_room"}
+                  readyArtistUserIds={readyArtistUserIds}
+                />
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  className="gap-1.5"
+                  disabled={query.isFetching}
+                  onClick={async () => {
+                    await query.refetch();
+                  }}
+                  variant="outline"
                 >
-                  Back to Battles
-                </Link>
-              </Button>
+                  <RefreshCw className="size-3.5" />
+                  Refresh Room
+                </Button>
+                <Button asChild variant="outline">
+                  <Link
+                    search={{
+                      genre: undefined,
+                      region: undefined,
+                      regionType: "north-america",
+                      sort: undefined,
+                    }}
+                    to="/live/battles"
+                  >
+                    Back to Battles
+                  </Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

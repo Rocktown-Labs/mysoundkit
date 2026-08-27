@@ -297,6 +297,10 @@ export const useLiveRoom = (roomId: string) => {
     battleKitMutation = useMutation({
       mutationFn: (body: { kitId: string }) =>
         postLiveRoom(roomId, "battle/kit", body),
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: liveRoomKey(roomId) });
+        invalidateBattleQueries();
+      },
     }),
     battleReadyMutation = useMutation({
       mutationFn: (body: { ready: boolean }) =>

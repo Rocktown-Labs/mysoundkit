@@ -2297,7 +2297,13 @@ export const battleRounds = pgTable(
       onDelete: "set null",
     }),
   },
-  (table) => [index("battle_rounds_battle_id_idx").on(table.battleId)]
+  (table) => [
+    index("battle_rounds_battle_id_idx").on(table.battleId),
+    uniqueIndex("battle_rounds_battle_number_idx").on(
+      table.battleId,
+      table.roundNumber
+    ),
+  ]
 );
 
 export const battleLineupSnapshots = pgTable(

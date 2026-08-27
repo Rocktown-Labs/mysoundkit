@@ -26,6 +26,7 @@ import type {
 } from "@/durable-objects/live-room";
 import { publicAssetUrlFromParts } from "@/lib/asset-urls";
 import { evaluateBattleKitReadiness } from "@/lib/battle-kits";
+import { buildBattleRoundSeeds } from "@/lib/battle-rounds";
 import { retryDurableObjectCall } from "@/lib/durable-object-retry";
 import {
   forbiddenMessage,
@@ -1037,6 +1038,56 @@ const badRequest = (message: string) => ({
 
     return "queued";
   },
+  materializeBattleRounds = async ({
+    battle,
+    db,
+    lineupSnapshots,
+  }: {
+    battle: {
+      challengerArtistUserId: string | null;
+      format: "best_of_3" | "best_of_5" | "best_of_7";
+      id: string;
+      opponentArtistUserId: string | null;
+      status: "archived" | "completed" | "live" | "scheduled";
+    };
+    db: ReturnType<typeof createDb>;
+    lineupSnapshots: {
+      artistUserId: string;
+      tracks: unknown;
+    }[];
+  }) => {
+    if (battle.status !== "live" && battle.status !== "scheduled") {
+      return;
+    }
+
+    const seeds = buildBattleRoundSeeds({
+      artistA: lineupSnapshots.find(
+        (snapshot) => snapshot.artistUserId === battle.challengerArtistUserId
+      ),
+      artistB: lineupSnapshots.find(
+        (snapshot) => snapshot.artistUserId === battle.opponentArtistUserId
+      ),
+      battleId: battle.id,
+      format: battle.format,
+      status: battle.status,
+    });
+    if (!seeds) {
+      return;
+    }
+
+    await db.transaction(async (tx) => {
+      const existingRounds = await tx
+        .select({ id: battleRounds.id })
+        .from(battleRounds)
+        .where(eq(battleRounds.battleId, battle.id))
+        .limit(1);
+      if (existingRounds.length > 0) {
+        return;
+      }
+
+      await tx.insert(battleRounds).values(seeds).onConflictDoNothing();
+    });
+  },
   trackStatusForRound = ({
     isFirstTrack,
     roundStatus,
@@ -1099,7 +1150,8 @@ const badRequest = (message: string) => ({
       return null;
     }
 
-    const roundRows = await db
+    const loadBattleRoundRows = () =>
+      db
         .select({
           id: battleRounds.id,
           isTiebreaker: battleRounds.isTiebreaker,
@@ -1113,8 +1165,30 @@ const badRequest = (message: string) => ({
         })
         .from(battleRounds)
         .where(eq(battleRounds.battleId, battle.id))
-        .orderBy(asc(battleRounds.roundNumber)),
-      trackIds = [
+        .orderBy(asc(battleRounds.roundNumber));
+
+    let [roundRows, lineupSnapshots] = await Promise.all([
+      loadBattleRoundRows(),
+      db
+        .select({
+          artistUserId: battleLineupSnapshots.artistUserId,
+          kitId: battleLineupSnapshots.kitId,
+          tracks: battleLineupSnapshots.tracks,
+        })
+        .from(battleLineupSnapshots)
+        .where(eq(battleLineupSnapshots.battleId, battle.id)),
+    ]);
+
+    if (roundRows.length === 0) {
+      await materializeBattleRounds({
+        battle,
+        db,
+        lineupSnapshots,
+      });
+      roundRows = await loadBattleRoundRows();
+    }
+
+    const trackIds = [
         ...new Set(
           roundRows
             .flatMap((round) => [round.trackOneId, round.trackTwoId])
@@ -1170,14 +1244,7 @@ const badRequest = (message: string) => ({
                 .from(userProfiles)
                 .where(inArray(userProfiles.userId, profileIds))
             : [],
-          db
-            .select({
-              artistUserId: battleLineupSnapshots.artistUserId,
-              kitId: battleLineupSnapshots.kitId,
-              tracks: battleLineupSnapshots.tracks,
-            })
-            .from(battleLineupSnapshots)
-            .where(eq(battleLineupSnapshots.battleId, battle.id)),
+          lineupSnapshots,
           db
             .select({
               userId: battleQueueEntries.userId,
@@ -2430,7 +2497,9 @@ app.post("/rooms/:roomId/battle/ready", async (c) => {
             .where(eq(liveExperiences.battleId, battle.id)),
         ]);
         if (c.env.BATTLE_DIRECTORY) {
-          await c.env.BATTLE_DIRECTORY.getByName("public").publish(battle.id).catch(() => 0);
+          await c.env.BATTLE_DIRECTORY.getByName("public")
+            .publish(battle.id)
+            .catch(() => 0);
         }
       }
     }
@@ -2520,7 +2589,9 @@ app.post("/rooms/:roomId/battle/disposition", async (c) => {
         ]);
 
         if (c.env.BATTLE_DIRECTORY) {
-          await c.env.BATTLE_DIRECTORY.getByName("public").publish(battle.id).catch(() => 0);
+          await c.env.BATTLE_DIRECTORY.getByName("public")
+            .publish(battle.id)
+            .catch(() => 0);
         }
 
         if (disposition.kind === "ducked" && disposition.affectedUserId) {
@@ -2583,12 +2654,19 @@ app.post("/rooms/:roomId/battle/kit", async (c) => {
       .where(
         or(eq(battles.id, battleId), eq(battles.externalBattleId, battleId))
       )
+      .limit(1),
+    [existingRound] = await db
+      .select({ id: battleRounds.id })
+      .from(battleRounds)
+      .where(eq(battleRounds.battleId, battle?.id ?? battleId))
       .limit(1);
 
-  if (!battle || battle.status !== "scheduled") {
+  const canRepairLiveBattle = battle?.status === "live" && !existingRound;
+  if (!battle || (battle.status !== "scheduled" && !canRepairLiveBattle)) {
     return c.json(
       {
-        message: "Battle lineup can only be selected before the battle starts.",
+        message:
+          "Battle lineup can only be selected before the battle starts, or while repairing a live room without rounds.",
       },
       HttpStatusCodes.CONFLICT
     );
@@ -2679,6 +2757,14 @@ app.post("/rooms/:roomId/battle/kit", async (c) => {
     } catch {
       // The lineup snapshot remains authoritative if the room is not seeded yet.
     }
+  }
+
+  // Older battles may have been created before round rows were provisioned.
+  // Rebuild the room snapshot here so the second artist's kit immediately
+  // connects the public battle page to playable rounds.
+  const refreshedRoom = await buildBattleRoomSnapshot(roomId);
+  if (refreshedRoom) {
+    await seedDurableRoom({ c, room: refreshedRoom, roomId });
   }
 
   return c.json(

@@ -188,9 +188,19 @@ test.describe("main application surfaces", () => {
   });
 
   test("live surfaces render current battle discovery rails", async ({
+    context,
     page,
   }) => {
     test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
 
     await gotoWithViteRetry(page, "/live");
     await expect(page.getByRole("main")).toBeVisible();
@@ -207,6 +217,26 @@ test.describe("main application surfaces", () => {
     await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Live Now" })).toBeVisible();
     await expect(page.getByText("West Coast Showdown").first()).toBeVisible();
+    const battleEntryLink = page
+      .locator('a[href="/live/battles/battle_west_coast_showdown"]')
+      .filter({ hasText: /watch live|join waiting room/i })
+      .first();
+    await expect(battleEntryLink).toBeVisible();
+    await expect(battleEntryLink).toHaveAttribute(
+      "href",
+      "/live/battles/battle_west_coast_showdown"
+    );
+    await gotoWithViteRetry(page, "/live/battles/battle_west_coast_showdown");
+    await expect(
+      page.getByRole("heading", { name: "West Coast Showdown" }).first()
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /vote dj nova/i })
+    ).toBeVisible();
+    await gotoWithViteRetry(
+      page,
+      "/live/battles?regionType=north-america&region=us-arkansas"
+    );
     await expect(
       page.getByRole("heading", { exact: true, name: "Upcoming" })
     ).toBeVisible();
@@ -550,13 +580,9 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("button", { name: "Locked for battle" })
     ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "I’m ready" })
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "I’m ready" })).toBeVisible();
     await page.getByRole("button", { name: "I’m ready" }).click();
-    await expect(
-      page.getByRole("button", { name: "Not ready" })
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Not ready" })).toBeVisible();
   });
 
   test("signup surfaces load without console errors", async ({ page }) => {

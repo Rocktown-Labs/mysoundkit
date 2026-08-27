@@ -46,6 +46,7 @@
 
 ### Fixed
 
+- Fixed public battle entry for legacy live battles: missing rounds are rebuilt from both locked Battle Kits, stale Durable Object snapshots are repaired without discarding live phase state, and artist lineup selection remains available while an empty live room is repaired.
 - Fixed battle kits and scheduled battle promotion: kit saves now refresh the current list, duplicate cover-asset joins are collapsed to one track, accepted requests leave Outgoing, public live routes show real upcoming battle cards with participant avatars and status, and Use Kit locks the selected lineup when entering the waiting room.
 - Added shareable upcoming battle invites: signed-out fans retain the battle through signup and Premium checkout, automatically follow the referring artist, and receive replay-ready in-app and email notifications linked to the replay.
 - Fixed battles that had no linked live experience by creating and persisting their RealtimeKit meeting on the first authenticated media join, while preserving the existing waiting-room Durable Object flow.
