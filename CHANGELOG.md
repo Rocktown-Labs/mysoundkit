@@ -36,7 +36,7 @@
 - Added creator rewards settlement engine: active premium subscriptions are allocated into `subscription_reward_allocations`, the pool is distributed across artists by qualified reward units into `creatorEarnings`, with first-earning and halfway-to-payout milestone emails (including a Stripe Connect reminder when payouts aren't ready).
 - Added `PayoutRunWorkflow`: reserved earnings age past the 30-day window into payable, sellers above the $25 minimum receive Stripe transfers, failures email the artist and retry on the next run.
 - Added artist weekly digest emails: plays, unique listeners, battles fought, and sales.
-- Added track editing UX overhaul: released-track edits save without touching locked fields via a persistent "Save changes" button, an inline credits editor lives in the Collaborators tab (also used by the upload form), quick actions (cover art swap, main file swap, credits editing, monetize toggle) run from cards and detail page without opening the full editor, and new tracks default to self-credited artist + songwriter rows.
+- Added complete in-place track management from the three-dot actions: metadata, release visibility and scheduling, access/download rules, sales settings, external links, cover art, master and optional audio files, credits, media retries, and lyrics/stem enrichment.
 - Added orphaned-upload cleanup to the cron scheduler: uploaded R2 objects never registered as assets are deleted after a 7-day grace period, plus stale abandoned checkouts reconcile after 24 hours.
 
 - Added fast-fail handling for media processing when the source master is missing from R2: master verification now uses a tight retry/timeout budget, terminal failures record a distinct `MASTER_OBJECT_MISSING` error code on the processing job instead of retrying a permanently missing object through Cloudflare's default exponential backoff.
@@ -51,6 +51,7 @@
 
 ### Fixed
 
+- Fixed track management by removing the broken full-page edit flow, preserving legacy edit URLs as redirects, allowing release dates and external links to be cleared or updated, and correctly clearing stale prices when monetization is disabled.
 - Fixed live battle room reads against older preview databases by probing optional outcome and winner columns and selecting safe null fallbacks until the production schema rollout completes.
 - Fixed battle-room navigation and layout so pre-start artists can leave safely, active battles guard navigation for every participant, and chat stays independently scrollable within the viewport beside the scrolling battle content.
 - Fixed Dashboard Join Battle routing to keep assigned artists in the authenticated room, public artist links to redirect into that room, fan queue mutations to update room state immediately, and round waiting-room chat to be discarded without losing the initial battle chat.

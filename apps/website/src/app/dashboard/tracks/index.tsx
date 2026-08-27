@@ -1,4 +1,4 @@
-/* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop */
+/* eslint-disable consistent-function-scoping, no-shadow, no-use-before-define, no-void, one-var, react-perf/jsx-no-new-function-as-prop, sort-vars */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
@@ -7,7 +7,6 @@ import {
   Mic2,
   MoreVertical,
   Music,
-  Pencil,
   PlayCircle,
   Plus,
   Trash2,
@@ -21,6 +20,7 @@ import {
   TrackCardQuickActionDialogs,
   TrackCardQuickMenuItems,
 } from "@/components/dashboard/track-quick-actions";
+import type { QuickActionDialogName } from "@/components/dashboard/track-quick-actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -92,7 +92,7 @@ function TracksPage() {
       title: string;
     } | null>(null),
     [quickAction, setQuickAction] = useState<{
-      action: "cover" | "credits" | "genre" | "status" | "swap";
+      action: QuickActionDialogName;
       trackId: string;
     } | null>(null),
     completedCount = tracks.filter(
@@ -304,6 +304,7 @@ function TracksPage() {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild={true}>
                     <Button
+                      aria-label={`Actions for ${track.title}`}
                       className="text-muted-foreground"
                       size="icon"
                       variant="ghost"
@@ -318,15 +319,6 @@ function TracksPage() {
                     >
                       <Download className="mr-2 size-4" />
                       Download Master
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link
-                        to="/dashboard/tracks/$id/edit"
-                        params={{ id: track.id }}
-                      >
-                        <Pencil className="mr-2 size-4" />
-                        Edit Track
-                      </Link>
                     </DropdownMenuItem>
                     <TrackCardQuickMenuItems
                       onOpenAction={(action) =>

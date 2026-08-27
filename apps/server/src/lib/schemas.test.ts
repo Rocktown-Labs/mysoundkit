@@ -10,6 +10,7 @@ import {
   onboardingArtistBodySchema,
   onboardingFanBodySchema,
   settleTrackBodySchema,
+  updateTrackBodySchema,
   userSummarySchema,
 } from "./schemas";
 
@@ -208,6 +209,31 @@ describe("artist dashboard release schemas", () => {
       mimeType: "image/jpeg",
       objectKey: "tracks/track_1/cover.jpg",
       sizeBytes: 512_000,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts complete in-place track updates, including clearing links", () => {
+    const result = updateTrackBodySchema.safeParse({
+      description: "Updated description",
+      downloadsAllowed: true,
+      downloadsRequireFirstPlay: false,
+      downloadsRequirePurchase: false,
+      exclusiveUntil: "",
+      genre: "Hip-Hop",
+      isForSale: false,
+      isPublic: false,
+      isrc: "",
+      listeningAccess: "public",
+      musicalKey: "C minor",
+      priceCents: 0,
+      productionStatus: "mixed",
+      purchaseMode: "digital_download",
+      releaseAt: "",
+      releaseStrategy: "private",
+      streamingLinks: {},
+      title: "Updated title",
     });
 
     expect(result.success).toBe(true);
