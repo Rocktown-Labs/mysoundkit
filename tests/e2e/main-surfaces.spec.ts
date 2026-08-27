@@ -216,7 +216,17 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText(/battle/i).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Live Now" })).toBeVisible();
-    await expect(page.getByText("West Coast Showdown").first()).toBeVisible();
+    await expect(
+      page.getByText("Artist Battle - Hip-Hop - BO5").first()
+    ).toBeVisible();
+    await expect(
+      page.getByText("Hip-Hop • BO5", { exact: true })
+    ).toHaveCount(0);
+    await expect(page.getByText("BO5").first()).toBeVisible();
+    await expect(page.getByText(/Round 1\/5/).first()).toBeVisible();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Electronic" })
+    ).toHaveCount(0);
     const battleEntryLink = page
       .locator('a[href="/live/battles/battle_west_coast_showdown"]')
       .filter({ hasText: /watch live|join waiting room/i })
@@ -228,7 +238,7 @@ test.describe("main application surfaces", () => {
     );
     await gotoWithViteRetry(page, "/live/battles/battle_west_coast_showdown");
     await expect(
-      page.getByRole("heading", { name: "West Coast Showdown" }).first()
+      page.getByRole("heading", { name: "Artist Battle - Hip-Hop" }).first()
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /vote dj nova/i })
@@ -240,7 +250,9 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { exact: true, name: "Upcoming" })
     ).toBeVisible();
-    await expect(page.getByText("Upcoming Artist Duel")).toBeVisible();
+    await expect(
+      page.getByText("Artist Battle - Hip-Hop - BO3").first()
+    ).toBeVisible();
     await expect(page.getByText("Luna Eclipse").first()).toBeVisible();
     await expect(page.getByText("Neon Pulse").first()).toBeVisible();
     await expect(page).toHaveURL(/region=us-arkansas/);
@@ -254,7 +266,9 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { name: "Upcoming Battles" })
     ).toBeVisible();
-    await expect(page.getByText("Upcoming Artist Duel")).toBeVisible();
+    await expect(
+      page.getByText("Artist Battle - Hip-Hop - BO3").first()
+    ).toBeVisible();
 
     await gotoWithViteRetry(
       page,
@@ -323,8 +337,10 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: "Music Videos" })
     ).toBeVisible();
     await expect(page.getByText("Featured Videos")).toBeVisible();
-    await expect(page.getByText("Hip-Hop/Rap").first()).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Country" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Genre" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Country" })
+    ).toHaveCount(0);
   });
 
   test("creator video titles open first-party analytics", async ({
@@ -426,7 +442,9 @@ test.describe("main application surfaces", () => {
     await page.getByRole("button", { name: "Send Battle Request" }).click();
     await expect(page.getByText("To: @new-opponent")).toBeVisible();
     await page
-      .getByRole("button", { name: "More actions for Upcoming Artist Duel" })
+      .getByRole("button", {
+        name: "More actions for Artist Battle - Hip-Hop",
+      })
       .click();
     await expect(
       page.getByRole("menuitem", { name: "Share upcoming battle" })
@@ -520,7 +538,7 @@ test.describe("main application surfaces", () => {
 
     await gotoWithViteRetry(page, "/live/battles/battle-1");
     await expect(
-      page.getByRole("heading", { name: /west coast showdown/i })
+      page.getByRole("heading", { name: /artist battle - hip-hop/i })
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /vote dj nova/i })

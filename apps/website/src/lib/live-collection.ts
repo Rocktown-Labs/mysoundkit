@@ -6,14 +6,22 @@ interface LiveCollectionItem {
   viewerCount?: number;
 }
 
+const genreAliases: Record<string, string> = {
+  "hip-hop-rap": "hip-hop",
+  hiphop: "hip-hop",
+  "r-b-soul": "rb-soul",
+};
+
 export const normalizeGenreValue = (genre?: string | null) => {
   if (!genre) {
     return "";
   }
-  return genre
+
+  const normalized = genre
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/gu, "-")
     .replaceAll(/^-+|-+$/gu, "");
+  return genreAliases[normalized] ?? normalized;
 };
 
 export const filterAndSortLiveItems = <T extends LiveCollectionItem>({

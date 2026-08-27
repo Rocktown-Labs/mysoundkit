@@ -123,6 +123,7 @@ function GenreBattleCard({
     <div className="w-[280px] shrink-0 md:w-[300px]">
       <BattleCard
         currentRound={battle.round?.current ?? 1}
+        format={battle.format}
         genre={battle.genre}
         id={battle.id}
         isLive={battle.status === "live"}
@@ -135,7 +136,7 @@ function GenreBattleCard({
         startsAt={battle.startsAt}
         status={battle.status}
         title={battle.title}
-        totalRounds={battle.round?.total ?? 1}
+        totalRounds={battle.round?.total}
         track1={
           tracks[0]
             ? {
@@ -163,19 +164,13 @@ function GenreBattleCard({
 
 function GenreBattleRail({
   battles,
-  empty,
   isPremiumUser,
 }: {
   battles: BattleSummary[];
-  empty: string;
   isPremiumUser: boolean;
 }) {
   if (battles.length === 0) {
-    return (
-      <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
-        {empty}
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -439,7 +434,6 @@ function GenreDetailPage() {
         <SectionHeader title="Live Battles" description="Watch and vote now" />
         <GenreBattleRail
           battles={sections.live}
-          empty={`No ${genre.name} battles are live right now.`}
           isPremiumUser={isPremiumUser}
         />
       </section>
@@ -452,7 +446,6 @@ function GenreDetailPage() {
         />
         <GenreBattleRail
           battles={sections.upcoming}
-          empty={`No ${genre.name} battles are scheduled yet.`}
           isPremiumUser={isPremiumUser}
         />
       </section>
@@ -465,7 +458,6 @@ function GenreDetailPage() {
         />
         <GenreBattleRail
           battles={sections.mustSee}
-          empty={`No completed ${genre.name} battles yet.`}
           isPremiumUser={isPremiumUser}
         />
       </section>

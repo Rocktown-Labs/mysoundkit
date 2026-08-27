@@ -6,6 +6,7 @@ import {
   battleQueueEntries,
   battleRounds,
   battles,
+  genres,
   listeningParties,
   liveExperiences,
   projectTracks,
@@ -25,6 +26,7 @@ import type {
   LiveRoomVoteBody,
 } from "@/durable-objects/live-room";
 import { publicAssetUrlFromParts } from "@/lib/asset-urls";
+import { resolveArtistBattleTitle } from "@/lib/battle-display";
 import { evaluateBattleKitReadiness } from "@/lib/battle-kits";
 import { buildBattleRoundSeeds } from "@/lib/battle-rounds";
 import { retryDurableObjectCall } from "@/lib/durable-object-retry";
@@ -1137,6 +1139,7 @@ const badRequest = (message: string) => ({
           createdAt: battles.createdAt,
           endedAt: battles.endedAt,
           format: battles.format,
+          genre: genres.name,
           id: battles.id,
           opponentArtistUserId: battles.opponentArtistUserId,
           outcome: battles.outcome,
@@ -1150,6 +1153,7 @@ const badRequest = (message: string) => ({
           winnerUserId: battles.winnerUserId,
         })
         .from(battles)
+        .leftJoin(genres, eq(genres.id, battles.genreId))
         .where(or(eq(battles.id, roomId), eq(battles.externalBattleId, roomId)))
         .limit(1);
 
@@ -1458,7 +1462,7 @@ const badRequest = (message: string) => ({
             : "upcoming",
       summary:
         "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
-      title: battle.title,
+      title: resolveArtistBattleTitle(battle.title, battle.genre ?? "Hip Hop"),
       tracklist,
       viewerCount: battle.viewerCount,
     };
@@ -3269,6 +3273,12 @@ app.post("/rooms/:roomId/queue", async (c) => {
       target: [battleQueueEntries.battleId, battleQueueEntries.userId],
     });
 
+  if (c.env.BATTLE_DIRECTORY) {
+    await c.env.BATTLE_DIRECTORY.getByName("public")
+      .publish(battle.id)
+      .catch(() => 0);
+  }
+
   const room = conflictBattleId
     ? await getDurableRoomState(c, roomId)
     : await c.env.LIVE_ROOMS.getByName(roomId).queueViewer(roomId, identity);
@@ -3314,6 +3324,11 @@ app.post("/rooms/:roomId/leave", async (c) => {
             eq(battleQueueEntries.userId, user.id)
           )
         );
+      if (c.env.BATTLE_DIRECTORY) {
+        await c.env.BATTLE_DIRECTORY.getByName("public")
+          .publish(battle.id)
+          .catch(() => 0);
+      }
     }
   }
 

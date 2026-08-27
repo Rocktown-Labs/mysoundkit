@@ -1,6 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { Eye, Lock, Play, Radio, ShieldCheck } from "lucide-react";
 
+import {
+  PublicCard,
+  PublicCardMeta,
+  PublicCardThumbnail,
+} from "@/components/explore/public-card";
 import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -56,15 +61,8 @@ export function VideoCard({ video }: { video: ExploreVideoCardData }) {
       {...videoLink}
       className="group block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <article
-        aria-label={`${video.title} video`}
-        className="flex min-w-0 flex-col gap-2.5"
-        data-testid="video-card"
-      >
-        <div
-          className="relative aspect-video w-full overflow-hidden rounded-lg bg-muted"
-          data-testid="video-card-thumbnail"
-        >
+      <PublicCard aria-label={`${video.title} video`} data-testid="video-card">
+        <PublicCardThumbnail data-testid="video-card-thumbnail">
           <AppImage
             alt={`${video.title} thumbnail`}
             className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
@@ -97,10 +95,10 @@ export function VideoCard({ video }: { video: ExploreVideoCardData }) {
               {video.duration}
             </span>
           ) : null}
-        </div>
+        </PublicCardThumbnail>
 
-        <div className="flex min-w-0 items-start gap-2.5 px-0.5">
-          <Avatar className="size-9 shrink-0">
+        <PublicCardMeta className="flex items-start gap-2.5">
+          <Avatar className="size-9 shrink-0 rounded-md">
             <AvatarImage
               alt={`${video.creator.name} profile photo`}
               src={video.creator.avatarUrl ?? undefined}
@@ -140,8 +138,8 @@ export function VideoCard({ video }: { video: ExploreVideoCardData }) {
               </span>
             </p>
           </div>
-        </div>
-      </article>
+        </PublicCardMeta>
+      </PublicCard>
     </Link>
   );
 }

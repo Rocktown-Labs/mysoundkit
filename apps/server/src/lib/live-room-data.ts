@@ -370,7 +370,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
     status: "live",
     summary:
       "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
-    title: "West Coast Showdown",
+    title: "Artist Battle - Hip-Hop",
     tracklist: [
       makeTrack(
         "battle-a-3",

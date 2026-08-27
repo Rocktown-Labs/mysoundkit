@@ -21,6 +21,7 @@ interface ExploreCollectionSectionProps<T> {
   isLoading?: boolean;
   items: T[];
   layout?: ExploreCollectionLayout;
+  hideWhenEmpty?: boolean;
   onViewAll?: () => void;
   title: string;
 }
@@ -32,9 +33,14 @@ export function ExploreCollectionSection<T>({
   isLoading = false,
   items,
   layout = "default",
+  hideWhenEmpty = false,
   onViewAll,
   title,
 }: ExploreCollectionSectionProps<T>) {
+  if (hideWhenEmpty && !isLoading && items.length === 0) {
+    return null;
+  }
+
   return (
     <section className="mb-10">
       <div className="mb-3 flex items-center justify-between gap-3">

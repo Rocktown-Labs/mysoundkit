@@ -14,6 +14,7 @@ import {
   notifyBattleReminderEmailsForBattle,
   notifyBattleResultsEmailsForBattle,
 } from "@/lib/email-events";
+import type { AppEnv } from "@/lib/types";
 
 const reminderLookaheadMs = 30 * 60 * 1000,
   liveTransitionLookbackMs = 15 * 60 * 1000,
@@ -138,12 +139,14 @@ const reminderEventTypes = new Set([
     return typeof payload.summary === "string" ? payload.summary : null;
   },
   applyBattleServiceEvent = async ({
+    battleDirectory,
     battleId,
     emailQueue,
     eventId,
     eventType,
     payload,
   }: {
+    battleDirectory?: AppEnv["Bindings"]["BATTLE_DIRECTORY"];
     battleId: string;
     emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
     eventId: string;
@@ -177,13 +180,21 @@ const reminderEventTypes = new Set([
     }
 
     if (liveEventTypes.has(eventType)) {
-      await createDb()
+      const [transitionedBattle] = await createDb()
         .update(battles)
         .set({
           status: "live",
           updatedAt: new Date(),
         })
-        .where(and(eq(battles.id, battle.id), eq(battles.status, "scheduled")));
+        .where(and(eq(battles.id, battle.id), eq(battles.status, "scheduled")))
+        .returning({ id: battles.id });
+
+      if (transitionedBattle && battleDirectory) {
+        await battleDirectory
+          .getByName("public")
+          .publish(transitionedBattle.id)
+          .catch(() => 0);
+      }
       await insertBattleNotifications({
         battleId: battle.id,
         eventId,
@@ -227,12 +238,14 @@ const reminderEventTypes = new Set([
   };
 
 export const processBattleServiceEvent = async ({
+  battleDirectory,
   battleId,
   emailQueue,
   eventId,
   eventType,
   payload,
 }: {
+  battleDirectory?: AppEnv["Bindings"]["BATTLE_DIRECTORY"];
   battleId: string;
   emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
   eventId: string;
@@ -280,6 +293,7 @@ export const processBattleServiceEvent = async ({
 
   try {
     const status = await applyBattleServiceEvent({
+      battleDirectory,
       battleId,
       emailQueue,
       eventId,
@@ -309,9 +323,11 @@ export const processBattleServiceEvent = async ({
 };
 
 export const runBattleServiceSweep = async ({
+  battleDirectory,
   emailQueue,
   now = new Date(),
 }: {
+  battleDirectory?: AppEnv["Bindings"]["BATTLE_DIRECTORY"];
   emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
   now?: Date;
 }) => {
@@ -397,6 +413,7 @@ export const runBattleServiceSweep = async ({
   for (const battle of reminderBattles) {
     const startsAt = battle.startsAt?.toISOString() ?? "unknown",
       outcome = await processBattleServiceEvent({
+        battleDirectory,
         battleId: battle.id,
         emailQueue,
         eventId: `scheduler:battle.reminder:${battle.id}:${startsAt}`,
@@ -417,6 +434,7 @@ export const runBattleServiceSweep = async ({
   for (const battle of liveBattles) {
     const startsAt = battle.startsAt?.toISOString() ?? "unknown",
       outcome = await processBattleServiceEvent({
+        battleDirectory,
         battleId: battle.id,
         emailQueue,
         eventId: `scheduler:battle.live:${battle.id}:${startsAt}`,
@@ -437,6 +455,7 @@ export const runBattleServiceSweep = async ({
   for (const battle of resultBattles) {
     const endedAt = battle.endedAt?.toISOString() ?? "unknown",
       outcome = await processBattleServiceEvent({
+        battleDirectory,
         battleId: battle.id,
         emailQueue,
         eventId: `scheduler:battle.results_ready:${battle.id}:${endedAt}`,

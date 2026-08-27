@@ -7,6 +7,7 @@ import {
   battleKitTracks,
   battleKits,
   battleParticipations,
+  battleQueueEntries,
   battleRounds,
   battleStats,
   battles,
@@ -39,6 +40,11 @@ import {
   getBattleChallengeExpiryCutoff,
   hasBattleChallengeExpired,
 } from "@/lib/battle-challenge-lifecycle";
+import {
+  formatArtistBattleTitle,
+  rankFeaturedBattleIds,
+  resolveArtistBattleTitle,
+} from "@/lib/battle-display";
 import {
   dedupeBattleKitTracks,
   evaluateBattleKitReadiness,
@@ -150,22 +156,43 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
 
     const db = createDb(),
       battleIds = battleRows.map((battle) => battle.id),
-      roundRows = await db
-        .select({
-          battleId: battleRounds.battleId,
-          id: battleRounds.id,
-          isTiebreaker: battleRounds.isTiebreaker,
-          roundNumber: battleRounds.roundNumber,
-          status: battleRounds.status,
-          trackOneId: battleRounds.trackOneId,
-          trackOneVotes: battleRounds.trackOneVotes,
-          trackTwoId: battleRounds.trackTwoId,
-          trackTwoVotes: battleRounds.trackTwoVotes,
-          votingEndsAt: battleRounds.votingEndsAt,
-        })
-        .from(battleRounds)
-        .where(inArray(battleRounds.battleId, battleIds))
-        .orderBy(asc(battleRounds.roundNumber)),
+      [roundRows, queueRows] = await Promise.all([
+        db
+          .select({
+            battleId: battleRounds.battleId,
+            id: battleRounds.id,
+            isTiebreaker: battleRounds.isTiebreaker,
+            roundNumber: battleRounds.roundNumber,
+            status: battleRounds.status,
+            trackOneId: battleRounds.trackOneId,
+            trackOneVotes: battleRounds.trackOneVotes,
+            trackTwoId: battleRounds.trackTwoId,
+            trackTwoVotes: battleRounds.trackTwoVotes,
+            votingEndsAt: battleRounds.votingEndsAt,
+          })
+          .from(battleRounds)
+          .where(inArray(battleRounds.battleId, battleIds))
+          .orderBy(asc(battleRounds.roundNumber)),
+        db
+          .select({
+            battleId: battleQueueEntries.battleId,
+            queueSize: sql<number>`count(*)::int`,
+          })
+          .from(battleQueueEntries)
+          .where(
+            and(
+              inArray(battleQueueEntries.battleId, battleIds),
+              or(
+                eq(battleQueueEntries.status, "queued"),
+                eq(battleQueueEntries.status, "conflict")
+              )
+            )
+          )
+          .groupBy(battleQueueEntries.battleId),
+      ]),
+      queueSizeByBattleId = new Map(
+        queueRows.map((row) => [row.battleId, row.queueSize])
+      ),
       roundsByBattleId = new Map<string, BattleFeedRound[]>();
 
     for (const round of roundRows) {
@@ -302,7 +329,7 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
             : ("watch_now" as const),
         participants,
         phaseEndsAt: currentRound?.votingEndsAt?.toISOString() ?? null,
-        queueSize: 0,
+        queueSize: queueSizeByBattleId.get(battle.id) ?? 0,
         round: currentRound
           ? {
               current: currentRound.roundNumber,
@@ -313,6 +340,7 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
             }
           : null,
         startsAt: battle.startsAt?.toISOString() ?? null,
+        title: resolveArtistBattleTitle(battle.title, battle.genre),
         tracks: roundTracks,
       };
     });
@@ -320,13 +348,7 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
   rankFeaturedBattles = (
     battleRows: Awaited<ReturnType<typeof enrichBattleFeedRows>>
   ) => {
-    const featuredIds = new Map(
-      battleRows
-        .filter((battle) => battle.status === "live")
-        .toSorted((first, second) => second.viewerCount - first.viewerCount)
-        .slice(0, featuredBattleLimit)
-        .map((battle, index) => [battle.id, index + 1])
-    );
+    const featuredIds = rankFeaturedBattleIds(battleRows, featuredBattleLimit);
 
     return battleRows.map((battle) => {
       const featuredRank = featuredIds.get(battle.id) ?? null;
@@ -953,12 +975,14 @@ app.openapi(
           challengerUserId: battleChallenges.challengerUserId,
           createdAt: battleChallenges.createdAt,
           format: battleChallenges.format,
+          genre: genres.name,
           genreId: battleChallenges.genreId,
           opponentArtistUserId: battleChallenges.opponentArtistUserId,
           proposedDate: battleChallenges.proposedDate,
           status: battleChallenges.status,
         })
         .from(battleChallenges)
+        .leftJoin(genres, eq(genres.id, battleChallenges.genreId))
         .where(eq(battleChallenges.id, challengeId))
         .limit(1),
       now = new Date();
@@ -1070,7 +1094,7 @@ app.openapi(
           opponentArtistUserId: challenge.opponentArtistUserId,
           startsAt: challenge.proposedDate ?? new Date(Date.now() + 86_400_000),
           status: "scheduled",
-          title: "SoundKit Artist Battle",
+          title: formatArtistBattleTitle(challenge.genre ?? "Hip Hop"),
           visibility: "public",
         });
       }
