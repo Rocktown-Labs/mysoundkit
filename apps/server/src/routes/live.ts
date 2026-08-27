@@ -19,6 +19,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import type { z } from "zod";
 
 import type {
+  LiveRoomBattleBotAction,
   LiveRoomIdentity,
   LiveRoomVoteBody,
 } from "@/durable-objects/live-room";
@@ -566,6 +567,7 @@ const badRequest = (message: string) => ({
     throw new Error(realtimeSetupRequired.message);
   },
   createRealtimeParticipant = async ({
+    activeArtistUserId,
     env,
     kind,
     meetingId,
@@ -573,6 +575,7 @@ const badRequest = (message: string) => ({
     role,
     user,
   }: {
+    activeArtistUserId?: string | null;
     env: AppEnv["Bindings"];
     kind: LiveExperienceKind;
     meetingId: string;
@@ -581,7 +584,13 @@ const badRequest = (message: string) => ({
     user: AuthenticatedUser;
   }): Promise<RealtimeParticipantToken> => {
     const config = realtimeKitConfig(env),
-      presetName = resolveRealtimePreset({ kind, phase, role });
+      presetName = resolveRealtimePreset({
+        activeArtistUserId,
+        kind,
+        phase,
+        role,
+        userId: user.id,
+      });
 
     if (
       hasRealtimeKitConfig(config) &&
@@ -783,9 +792,9 @@ const badRequest = (message: string) => ({
       status =
         battle.status === "live"
           ? "live"
-          : battle.status === "completed"
+          : (battle.status === "completed"
             ? "ended"
-            : "scheduled",
+            : "scheduled"),
       startsAt = (battle.startsAt ?? battle.createdAt).toISOString(),
       [createdExperience] = await db
         .insert(liveExperiences)
@@ -2119,7 +2128,8 @@ app.post("/experiences/:experienceId/join", async (c) => {
   }
 
   const meetingId = experience?.meetingId ?? experienceId;
-  let participantRole: LiveParticipantRole = parseResult.data.role,
+  let activeArtistUserId: string | null = null,
+    participantRole: LiveParticipantRole = parseResult.data.role,
     participantPhase = parseResult.data.phase;
 
   if (experience) {
@@ -2146,19 +2156,21 @@ app.post("/experiences/:experienceId/join", async (c) => {
       participantRole =
         user.role === "admin"
           ? "host"
-          : battle?.challengerArtistUserId === user.id ||
+          : (battle?.challengerArtistUserId === user.id ||
               battle?.opponentArtistUserId === user.id
             ? "artist"
-            : "listener";
+            : "listener");
       const battleRoom = await getDurableRoomState(
         c,
         experience.battleId
       ).catch(() => null);
+      activeArtistUserId =
+        battleRoom?.battle?.coordination?.activeArtistUserId ?? null;
       const battlePhase = battleMediaPhase(
-        battleRoom?.battle?.coordination?.phase
-      );
-      const isStageParticipant =
-        participantRole === "artist" || participantRole === "host";
+          battleRoom?.battle?.coordination?.phase
+        ),
+        isStageParticipant =
+          participantRole === "artist" || participantRole === "host";
       if (
         isStageParticipant &&
         battlePhase !== "lobby" &&
@@ -2179,6 +2191,7 @@ app.post("/experiences/:experienceId/join", async (c) => {
 
   try {
     participant = await createRealtimeParticipant({
+      activeArtistUserId,
       env: c.env,
       kind,
       meetingId,
@@ -2229,9 +2242,21 @@ app.post("/experiences/:experienceId/session-locks/check", async (c) => {
 });
 
 app.post("/experiences/:experienceId/battlebot", async (c) => {
-  const user = c.get("user");
-  if (!isAuthenticatedUser(user)) {
+  const user = c.get("user"),
+    isPlatformBot = Boolean(
+      c.env.BATTLE_BOT_SECRET &&
+      c.req.header("x-soundkit-battlebot-secret") === c.env.BATTLE_BOT_SECRET
+    );
+  if (!(isPlatformBot || isAuthenticatedUser(user))) {
     return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+  if (!isPlatformBot && user?.role !== "admin") {
+    return c.json(
+      forbiddenMessage(
+        "Only BattleBot or platform administrators can control battles."
+      ),
+      HttpStatusCodes.FORBIDDEN
+    );
   }
 
   const parseResult = battleBotActionBodySchema.safeParse(
@@ -2248,11 +2273,20 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
   const experienceId = c.req.param("experienceId"),
     experience = await loadLiveExperienceById(experienceId),
     battleId = experience?.battleId ?? experienceId,
+    botAction = parseResult.data.action as LiveRoomBattleBotAction,
     result = await applyBattleBotAction({
-      action: parseResult.data.action,
+      action: botAction,
       battleId,
       participants: parseResult.data.participants,
-    });
+    }),
+    liveRooms = c.env.LIVE_ROOMS;
+  if (liveRooms) {
+    await retryDurableObjectCall(() =>
+      liveRooms
+        .getByName(experienceId)
+        .announceBattleBotAction(experienceId, botAction)
+    );
+  }
 
   return c.json(
     {

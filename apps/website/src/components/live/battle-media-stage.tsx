@@ -11,7 +11,6 @@ import {
   Radio,
   RotateCcw,
   Shield,
-  UserMinus,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -21,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { API_V1_URL } from "@/lib/api";
 import type { LiveRoomArtist } from "@/lib/live-room";
-import { wsUrlForRoom } from "@/lib/live-room";
 
 interface BattleParticipantToken {
   authToken: string;
@@ -40,10 +38,7 @@ interface BattleMediaTileProps {
   artist: LiveRoomArtist;
   isActive: boolean;
   isSelf: boolean;
-  onPromote: () => void;
-  onToggleMute: () => void;
   peer: BattlePeer | null;
-  canModerate: boolean;
 }
 
 const NON_MEDIA_BATTLE_PHASES = new Set([
@@ -60,11 +55,8 @@ const NON_MEDIA_BATTLE_PHASES = new Set([
 
 function BattleMediaTile({
   artist,
-  canModerate,
   isActive,
   isSelf,
-  onPromote,
-  onToggleMute,
   peer,
 }: BattleMediaTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null),
@@ -203,38 +195,6 @@ function BattleMediaTile({
           )}
         </div>
       </div>
-      {canModerate && peer && !isSelf && (
-        <div className="absolute inset-x-0 bottom-0 flex flex-wrap gap-2 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8">
-          <Button
-            className="h-8 gap-1.5 text-xs"
-            onClick={onToggleMute}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            {muted ? (
-              <Mic className="size-3.5" />
-            ) : (
-              <MicOff className="size-3.5" />
-            )}
-            {muted ? "Allow mic" : "Mute"}
-          </Button>
-          <Button
-            className="h-8 gap-1.5 text-xs"
-            onClick={onPromote}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            {isOnStage(peer) ? (
-              <UserMinus className="size-3.5" />
-            ) : (
-              <Radio className="size-3.5" />
-            )}
-            {isOnStage(peer) ? "Demote" : "Promote"}
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
@@ -242,7 +202,6 @@ function BattleMediaTile({
 export function BattleMediaStage({
   activeArtistUserId,
   artists,
-  canModerate = false,
   className,
   experienceId,
   phase,
@@ -251,22 +210,19 @@ export function BattleMediaStage({
 }: {
   activeArtistUserId?: string | null;
   artists: [LiveRoomArtist, LiveRoomArtist];
-  canModerate?: boolean;
   className?: string;
   experienceId: string;
   phase?: string;
   showHeader?: boolean;
   viewerOnly?: boolean;
 }) {
-  const [meeting, setMeeting] = useState<RealtimeKitClientType | null>(null),
-    [participants, setParticipants] = useState<RTKParticipant[]>([]),
+  const [participants, setParticipants] = useState<RTKParticipant[]>([]),
     [self, setSelf] = useState<RTKSelf | null>(null),
     [connection, setConnection] = useState<
       "connecting" | "connected" | "error"
     >("connecting"),
     [error, setError] = useState<string | null>(null),
-    [retry, setRetry] = useState(0),
-    mediaControlSocketRef = useRef<WebSocket | null>(null);
+    [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let activeMeeting: RealtimeKitClientType | null = null,
@@ -306,11 +262,10 @@ export function BattleMediaStage({
           });
 
         await client.join();
-        if (
-          !viewerOnly &&
-          stageOpen &&
-          String(client.self.permissions.canProduceAudio) === "ALLOWED"
-        ) {
+        const canProduceMedia =
+          String(client.self.permissions.canProduceAudio) === "ALLOWED" ||
+          String(client.self.permissions.canProduceVideo) === "ALLOWED";
+        if (!viewerOnly && stageOpen && canProduceMedia) {
           await client.stage.join();
         }
         if (disposed) {
@@ -319,7 +274,6 @@ export function BattleMediaStage({
         }
 
         activeMeeting = client;
-        setMeeting(client);
         setSelf(client.self);
         setParticipants(client.participants.joined.toArray());
         setConnection("connected");
@@ -357,101 +311,21 @@ export function BattleMediaStage({
       if (activeMeeting) {
         void activeMeeting.leave();
       }
-      setMeeting(null);
       setSelf(null);
       setParticipants([]);
     };
   }, [experienceId, phase, retry, viewerOnly]);
 
-  useEffect(() => {
-    if (!meeting) {
-      return;
-    }
-
-    const socket = new WebSocket(wsUrlForRoom(experienceId));
-    mediaControlSocketRef.current = socket;
-    socket.addEventListener("message", (event) => {
-      const payload = JSON.parse(String(event.data)) as {
-        action?: string;
-        targetUserId?: string;
-        type?: string;
-      };
-      const selfUserIds = [
-        meeting.self.customParticipantId,
-        meeting.self.userId,
-      ];
-      if (
-        payload.type === "battle.media_control" &&
-        payload.action === "allow_audio" &&
-        selfUserIds.includes(payload.targetUserId ?? "")
-      ) {
-        void meeting.self.enableAudio();
-      }
-    });
-
-    return () => {
-      socket.close();
-      if (mediaControlSocketRef.current === socket) {
-        mediaControlSocketRef.current = null;
-      }
-    };
-  }, [experienceId, meeting]);
-
   const participantByUserId = useMemo(
-      () =>
-        new Map(
-          participants.map((participant) => [
-            participant.customParticipantId ?? participant.userId,
-            participant,
-          ])
-        ),
-      [participants]
-    ),
-    callParticipantAction = async (
-      action: () => Promise<void>
-    ): Promise<void> => {
-      try {
-        await action();
-      } catch (actionError) {
-        setError(
-          actionError instanceof Error
-            ? actionError.message
-            : "The stage action could not be completed."
-        );
-      }
-    },
-    toggleRemoteMute = (participant: RTKParticipant) =>
-      callParticipantAction(async () => {
-        if (participant.audioEnabled) {
-          await participant.disableAudio();
-          return;
-        }
-
-        const socket = mediaControlSocketRef.current;
-        if (socket?.readyState === WebSocket.OPEN) {
-          socket.send(
-            JSON.stringify({
-              payload: {
-                action: "allow_audio",
-                targetUserId:
-                  participant.customParticipantId ?? participant.userId,
-              },
-              type: "battle.media_control",
-            })
-          );
-        }
-      }),
-    toggleStage = (participant: RTKParticipant) =>
-      callParticipantAction(async () => {
-        if (!meeting) {
-          return;
-        }
-        if (isOnStage(participant)) {
-          await meeting.stage.kick([participant.userId]);
-          return;
-        }
-        await meeting.stage.grantAccess([participant.userId]);
-      });
+    () =>
+      new Map(
+        participants.map((participant) => [
+          participant.customParticipantId ?? participant.userId,
+          participant,
+        ])
+      ),
+    [participants]
+  );
 
   return (
     <Card
@@ -464,7 +338,7 @@ export function BattleMediaStage({
             <div>
               <p className="font-bold text-sm text-white">Live battle stage</p>
               <p className="text-[11px] text-white/60">
-                Browser camera and microphone • RealtimeKit
+                Browser camera and microphone • BattleBot managed
               </p>
             </div>
           </div>
@@ -520,20 +394,9 @@ export function BattleMediaStage({
             return (
               <BattleMediaTile
                 artist={artist}
-                canModerate={canModerate}
                 isActive={activeArtistUserId === artist.id}
                 isSelf={isSelf}
                 key={artist.id}
-                onPromote={() => {
-                  if (participant && !isSelf) {
-                    toggleStage(participant);
-                  }
-                }}
-                onToggleMute={() => {
-                  if (participant && !isSelf) {
-                    toggleRemoteMute(participant);
-                  }
-                }}
                 peer={peer}
               />
             );

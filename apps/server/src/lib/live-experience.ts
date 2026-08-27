@@ -85,13 +85,17 @@ export const allowsMockRealtime = ({
   allowMockRealtime?.trim().toLowerCase() === "true";
 
 export const resolveRealtimePreset = ({
+  activeArtistUserId,
   kind,
   phase,
   role,
+  userId,
 }: {
+  activeArtistUserId?: string | null;
   kind: LiveExperienceKind;
   phase?: BattlePhase;
   role: LiveParticipantRole;
+  userId?: string;
 }) => {
   if (kind === "battle") {
     if (phase === "lobby") {
@@ -99,7 +103,12 @@ export const resolveRealtimePreset = ({
     }
 
     if (role === "artist" || role === "host") {
-      return phase === "round_active"
+      const isActiveArtist =
+        role === "host" ||
+        (activeArtistUserId === undefined
+          ? true
+          : activeArtistUserId === userId);
+      return phase === "round_active" && isActiveArtist
         ? "soundkit-battle-artist-live"
         : "soundkit-battle-artist-muted";
     }
@@ -262,12 +271,14 @@ export const createMockRealtimeMeeting = ({
 });
 
 export const createMockParticipantToken = ({
+  activeArtistUserId,
   kind,
   meetingId,
   phase,
   role,
   user,
 }: {
+  activeArtistUserId?: string | null;
   kind: LiveExperienceKind;
   meetingId: string;
   phase?: BattlePhase;
@@ -275,9 +286,11 @@ export const createMockParticipantToken = ({
   user: AuthenticatedUser;
 }): RealtimeParticipantToken => {
   const presetName = resolveRealtimePreset({
+      activeArtistUserId,
       kind,
       phase,
       role,
+      userId: user.id,
     }),
     participantId = `participant_${user.id}`;
 

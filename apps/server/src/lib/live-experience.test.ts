@@ -50,6 +50,33 @@ describe("live experience orchestration", () => {
     ).toBe("soundkit-battle-artist-live");
     expect(
       resolveRealtimePreset({
+        activeArtistUserId: "artist_a",
+        kind: "battle",
+        phase: "round_active",
+        role: "artist",
+        userId: "artist_b",
+      })
+    ).toBe("soundkit-battle-artist-muted");
+    expect(
+      resolveRealtimePreset({
+        activeArtistUserId: "artist_a",
+        kind: "battle",
+        phase: "round_active",
+        role: "artist",
+        userId: "artist_a",
+      })
+    ).toBe("soundkit-battle-artist-live");
+    expect(
+      resolveRealtimePreset({
+        activeArtistUserId: null,
+        kind: "battle",
+        phase: "round_active",
+        role: "artist",
+        userId: "artist_a",
+      })
+    ).toBe("soundkit-battle-artist-muted");
+    expect(
+      resolveRealtimePreset({
         kind: "battle",
         phase: "voting",
         role: "artist",

@@ -691,11 +691,6 @@ function BattlePage() {
         <BattleMediaStage
           activeArtistUserId={battle.coordination?.activeArtistUserId}
           artists={battle.artists}
-          canModerate={
-            room.role === "admin" ||
-            room.role === "artist_a" ||
-            room.role === "artist_b"
-          }
           className="absolute inset-0 z-10 rounded-none border-0 bg-transparent"
           experienceId={id}
           phase={phase}

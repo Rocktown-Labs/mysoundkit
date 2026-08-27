@@ -187,7 +187,7 @@ test.describe("main application surfaces", () => {
     ).toBeVisible();
   });
 
-  test("live surfaces render while realtime implementation is pending", async ({
+  test("live surfaces render current battle discovery rails", async ({
     page,
   }) => {
     test.setTimeout(60_000);
@@ -204,7 +204,12 @@ test.describe("main application surfaces", () => {
     );
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByText(/battle/i).first()).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Upcoming Battles" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Live Now" })).toBeVisible();
+    await expect(page.getByText("West Coast Showdown").first()).toBeVisible();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Upcoming" })
+    ).toBeVisible();
     await expect(page.getByText("Upcoming Artist Duel")).toBeVisible();
     await expect(page.getByText("Luna Eclipse").first()).toBeVisible();
     await expect(page.getByText("Neon Pulse").first()).toBeVisible();
