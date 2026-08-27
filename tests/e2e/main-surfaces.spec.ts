@@ -219,9 +219,9 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByText("Artist Battle - Hip-Hop - BO5").first()
     ).toBeVisible();
-    await expect(
-      page.getByText("Hip-Hop • BO5", { exact: true })
-    ).toHaveCount(0);
+    await expect(page.getByText("Hip-Hop • BO5", { exact: true })).toHaveCount(
+      0
+    );
     await expect(page.getByText("BO5").first()).toBeVisible();
     await expect(page.getByText(/Round 1\/5/).first()).toBeVisible();
     await expect(
@@ -612,7 +612,7 @@ test.describe("main application surfaces", () => {
     ]);
 
     await page.addInitScript(() => {
-      const mediaDevices = navigator.mediaDevices;
+      const { mediaDevices } = navigator;
       if (!mediaDevices) {
         return;
       }
@@ -650,6 +650,31 @@ test.describe("main application surfaces", () => {
     });
     await expect(page.getByText("Prepare your battle lineup")).toBeVisible();
     await expect(page.getByText("0/2 ready")).toBeVisible();
+    await expect(
+      page.getByText("#1 Complete Artist vs #7 MC Rhythm", { exact: true })
+    ).toBeVisible();
+    await expect(page.getByText("BattleBot", { exact: true })).toBeVisible();
+    await expect(page.getByText("BOT", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("BOT", { exact: true }).locator("svg")
+    ).toHaveCount(0);
+    const botMessage = page.getByText(
+      "BattleBot: both artists are preparing the stage.",
+      { exact: true }
+    );
+    await expect(botMessage).toHaveClass(/text-white/);
+    await expect(botMessage.locator("xpath=../..")).toHaveClass(
+      /bg-purple-600/
+    );
+    await expect(botMessage.locator("xpath=../..")).not.toHaveClass(
+      /border-l-2/
+    );
+    await expect(
+      page.locator('img[alt="SoundKit branded battle backdrop"]')
+    ).toHaveAttribute("src", /soundkit-default-banner/);
+    await expect(
+      page.locator('[data-slot="message-scroller-viewport"]')
+    ).toHaveCSS("overflow-y", "auto");
     await expect(page.getByRole("button", { name: "Help" })).toBeVisible();
     await expect(
       page.getByText("Best of 3 · 3 rounds + tiebreaker")
@@ -682,6 +707,13 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("button", { name: "Device setup saved" })
     ).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          window.localStorage.getItem("soundkit.battleMediaDevices.v1")
+        )
+      )
+      .toContain('"videoDeviceId":"camera-1"');
     await expect(page.getByRole("button", { name: "I’m ready" })).toBeVisible();
     await page.getByRole("button", { name: "I’m ready" }).click();
     await expect(page.getByRole("button", { name: "Not ready" })).toBeVisible();

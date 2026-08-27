@@ -120,6 +120,7 @@ const normalizeGenre = (value) =>
                 id: isWaitingArtistBattle ? "user_complete" : "artist-dj-nova",
                 isMuted: false,
                 name: isWaitingArtistBattle ? "Complete Artist" : "DJ Nova",
+                rank: 1,
                 roundsWon: 1,
                 stagePosition: "left",
                 verified: true,
@@ -129,6 +130,7 @@ const normalizeGenre = (value) =>
                 id: "artist-mc-rhythm",
                 isMuted: true,
                 name: "MC Rhythm",
+                rank: 7,
                 roundsWon: 1,
                 stagePosition: "right",
                 verified: false,
@@ -166,6 +168,19 @@ const normalizeGenre = (value) =>
           }
         : undefined,
       chat: [
+        ...(isBattle
+          ? [
+              {
+                id: `${roomId}-bot-chat-1`,
+                message: isWaitingArtistBattle
+                  ? "BattleBot: both artists are preparing the stage."
+                  : "BattleBot: the next round is ready.",
+                sentAt: "2026-05-26T11:59:00.000Z",
+                userId: "soundkit-battlebot",
+                userName: "BattleBot",
+              },
+            ]
+          : []),
         {
           id: `${roomId}-chat-1`,
           message: "This room is synced.",

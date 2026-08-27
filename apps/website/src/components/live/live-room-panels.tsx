@@ -15,7 +15,6 @@ import {
   PanelRightClose,
   Send,
   Shield,
-  Sparkles,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -31,6 +30,8 @@ import { Input } from "../ui/input";
 import { UserProfilePreviewModal } from "./user-profile-preview-modal";
 import type { UserPreviewData } from "./user-profile-preview-modal";
 
+const EMPTY_ARTIST_USER_IDS: string[] = [];
+
 interface LiveChatPanelProps {
   artistUserIds?: string[];
   className?: string;
@@ -44,7 +45,7 @@ interface LiveChatPanelProps {
 }
 
 export function LiveChatPanel({
-  artistUserIds = [],
+  artistUserIds = EMPTY_ARTIST_USER_IDS,
   className = "",
   disabled,
   extraHeaderAction,
@@ -105,7 +106,7 @@ export function LiveChatPanel({
         <CardContent
           className={`p-0 ${
             fillHeight
-              ? "flex min-h-0 flex-1 flex-col justify-between"
+              ? "flex min-h-0 flex-1 flex-col justify-between overflow-hidden"
               : "space-y-4 p-4"
           }`}
         >
@@ -193,7 +194,7 @@ export function LiveChatPanel({
                           <div
                             className={`group flex items-start gap-2.5 rounded-md p-1.5 transition-colors hover:bg-muted/40 ${
                               isBot
-                                ? "border-l-2 border-purple-400/80 bg-purple-500/10"
+                                ? "bg-purple-600 text-white hover:bg-purple-600"
                                 : isArtistMessage
                                   ? "border-l-2 border-amber-400/80 bg-amber-400/10"
                                   : ""
@@ -222,15 +223,14 @@ export function LiveChatPanel({
                                   </span>
                                 )}
                                 {isBot && (
-                                  <span className="flex items-center gap-0.5 rounded bg-secondary px-1 py-0.2 font-bold text-[9px]">
-                                    <Sparkles className="size-2.5 text-primary" />
+                                  <span className="rounded bg-white/15 px-1 py-0.2 font-bold text-[9px] text-white">
                                     BOT
                                   </span>
                                 )}
                                 <button
                                   className={`font-semibold text-left truncate cursor-pointer transition-colors ${
                                     isBot
-                                      ? "text-purple-300 hover:text-purple-200"
+                                      ? "text-white hover:text-white"
                                       : isArtistMessage
                                         ? "text-amber-300 hover:text-amber-200"
                                         : "text-foreground hover:text-primary"
@@ -249,7 +249,9 @@ export function LiveChatPanel({
                                   })}
                                 </span>
                               </div>
-                              <p className="mt-0.5 break-words text-muted-foreground/90 leading-relaxed">
+                              <p
+                                className={`mt-0.5 break-words leading-relaxed ${isBot ? "text-white" : "text-muted-foreground/90"}`}
+                              >
                                 {chatMessage.message}
                               </p>
                             </div>

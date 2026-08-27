@@ -1,5 +1,5 @@
 "use client";
-/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, unicorn/consistent-function-scoping */
+/* eslint-disable complexity, no-nested-ternary, no-unused-vars, no-void, react/set-state-in-effect, sort-vars, one-var, require-unicode-regexp, unicorn/consistent-function-scoping, unicorn/no-nested-ternary */
 
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
@@ -25,7 +25,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import { BattleArtistControlPanel } from "@/components/live/battle-artist-control-panel";
@@ -64,6 +64,15 @@ import {
   clearBattleKitSelection,
   readBattleKitSelection,
 } from "@/lib/battle-kit-selection";
+import type { BattleMediaDeviceSelection } from "@/lib/battle-media-selection";
+import {
+  readBattleMediaDeviceSelection,
+  rememberBattleMediaDeviceSelection,
+} from "@/lib/battle-media-selection";
+import {
+  clearBattleReturnIntent,
+  rememberBattleReturnIntent,
+} from "@/lib/battle-return-intent";
 import {
   completeBattleShareReferral,
   rememberBattleShareReferral,
@@ -196,14 +205,10 @@ function BattleStageVisual({
   return (
     <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-gradient-to-br from-primary/30 via-black to-secondary/30">
       <AppImage
-        alt={artistView ? "Artist battle waiting room" : "Upcoming battle"}
-        className="absolute inset-0 size-full object-cover opacity-25"
-        height={720}
-        src={
-          artistView
-            ? "/music-battle-live-performance-video.jpg"
-            : "/soundkit-default-banner.svg"
-        }
+        alt="SoundKit branded battle backdrop"
+        className="absolute inset-0 size-full object-cover opacity-70"
+        height={500}
+        src="/soundkit-default-banner.svg"
         width={1280}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/30" />
@@ -217,28 +222,28 @@ function BattleStageVisual({
         </Badge>
         <div className="flex items-center gap-6 sm:gap-10">
           <div className="flex flex-col items-center gap-2">
-            <Avatar className="size-16 border-2 border-primary ring-4 ring-primary/20 shadow-xl sm:size-20">
+            <Avatar className="size-16 rounded-xl border-2 border-primary ring-4 ring-primary/20 shadow-xl sm:size-20">
               <AvatarImage src={artistA.avatarUrl} />
-              <AvatarFallback className="text-lg font-bold">
+              <AvatarFallback className="rounded-xl text-lg font-bold">
                 {artistA.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <p className="max-w-[120px] truncate text-sm font-bold text-white sm:text-base">
-              {artistA.name}
+            <p className="max-w-[140px] truncate text-sm font-bold text-white sm:text-base">
+              {artistNameWithRank(artistA)}
             </p>
           </div>
           <div className="rounded-full bg-destructive/90 p-3 text-white shadow-lg">
             <Swords className="size-6 sm:size-8" />
           </div>
           <div className="flex flex-col items-center gap-2">
-            <Avatar className="size-16 border-2 border-secondary ring-4 ring-secondary/20 shadow-xl sm:size-20">
+            <Avatar className="size-16 rounded-xl border-2 border-secondary ring-4 ring-secondary/20 shadow-xl sm:size-20">
               <AvatarImage src={artistB.avatarUrl} />
-              <AvatarFallback className="text-lg font-bold">
+              <AvatarFallback className="rounded-xl text-lg font-bold">
                 {artistB.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <p className="max-w-[120px] truncate text-sm font-bold text-white sm:text-base">
-              {artistB.name}
+            <p className="max-w-[140px] truncate text-sm font-bold text-white sm:text-base">
+              {artistNameWithRank(artistB)}
             </p>
           </div>
         </div>
@@ -251,20 +256,6 @@ function BattleStageVisual({
     </div>
   );
 }
-
-const artistForfeitPhases = new Set([
-  "artist_a_turn",
-  "artist_b_turn",
-  "between_rounds",
-  "pre_vote",
-  "round_result",
-  "turn_transition",
-  "tiebreaker_a",
-  "tiebreaker_b",
-  "tiebreaker_transition",
-  "voting",
-  "tiebreaker_voting",
-]);
 
 const battleFormatDetails = {
   best_of_3: {
@@ -281,10 +272,20 @@ const battleFormatDetails = {
   },
 } satisfies Record<BattleKit["format"], { label: string; rounds: string }>;
 
-interface BattleMediaDeviceSelection {
-  audioDeviceId: string;
-  videoDeviceId: string;
-}
+const artistNameWithRank = (artist: LiveRoomArtist) => {
+  if (typeof artist.rank === "number" && artist.rank > 0) {
+    return `#${artist.rank} ${artist.name}`;
+  }
+
+  if (typeof artist.rank === "string" && artist.rank.trim()) {
+    const rankLabel = artist.rank.trim().startsWith("#")
+      ? artist.rank.trim()
+      : `#${artist.rank.trim()}`;
+    return `${rankLabel} ${artist.name}`;
+  }
+
+  return artist.name;
+};
 
 function BattleStartStatus({
   artists,
@@ -365,9 +366,10 @@ function BattleDeviceSetup({
     >("idle"),
     [error, setError] = useState<string | null>(null),
     [saved, setSaved] = useState(false),
+    restoredSelectionRef = useRef<string | null>(null),
     previewRef = useRef<HTMLVideoElement | null>(null);
 
-  const refreshDevices = async () => {
+  const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) {
       return;
     }
@@ -375,51 +377,56 @@ function BattleDeviceSetup({
     const devices = await navigator.mediaDevices.enumerateDevices();
     setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
     setAudioDevices(devices.filter((device) => device.kind === "audioinput"));
-  };
+  }, []);
 
-  const requestPermissions = async (
-    videoDeviceId = selectedVideoDeviceId,
-    audioDeviceId = selectedAudioDeviceId
-  ) => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError("This browser does not provide camera and microphone access.");
-      setMediaStatus("error");
-      return;
-    }
+  const requestPermissions = useCallback(
+    async (
+      videoDeviceId = selectedVideoDeviceId,
+      audioDeviceId = selectedAudioDeviceId
+    ) => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError("This browser does not provide camera and microphone access.");
+        setMediaStatus("error");
+        return false;
+      }
 
-    setMediaStatus("requesting");
-    setError(null);
-    setSaved(false);
+      setMediaStatus("requesting");
+      setError(null);
+      setSaved(false);
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: audioDeviceId ? { deviceId: { exact: audioDeviceId } } : true,
-        video: videoDeviceId ? { deviceId: { exact: videoDeviceId } } : true,
-      });
-      setMediaStream(stream);
-      await refreshDevices();
-      const devices = await navigator.mediaDevices.enumerateDevices(),
-        nextVideoDevice =
-          videoDeviceId ||
-          devices.find((device) => device.kind === "videoinput")?.deviceId ||
-          "",
-        nextAudioDevice =
-          audioDeviceId ||
-          devices.find((device) => device.kind === "audioinput")?.deviceId ||
-          "";
-      setSelectedVideoDeviceId(nextVideoDevice);
-      setSelectedAudioDeviceId(nextAudioDevice);
-      setMediaStatus("ready");
-    } catch (permissionError) {
-      setMediaStatus("error");
-      setError(
-        permissionError instanceof DOMException &&
-          permissionError.name === "NotAllowedError"
-          ? "Allow camera and microphone access to continue."
-          : "We could not access the selected camera and microphone."
-      );
-    }
-  };
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: audioDeviceId ? { deviceId: { exact: audioDeviceId } } : true,
+          video: videoDeviceId ? { deviceId: { exact: videoDeviceId } } : true,
+        });
+        setMediaStream(stream);
+        await refreshDevices();
+        const devices = await navigator.mediaDevices.enumerateDevices(),
+          nextVideoDevice =
+            videoDeviceId ||
+            devices.find((device) => device.kind === "videoinput")?.deviceId ||
+            "",
+          nextAudioDevice =
+            audioDeviceId ||
+            devices.find((device) => device.kind === "audioinput")?.deviceId ||
+            "";
+        setSelectedVideoDeviceId(nextVideoDevice);
+        setSelectedAudioDeviceId(nextAudioDevice);
+        setMediaStatus("ready");
+        return true;
+      } catch (permissionError) {
+        setMediaStatus("error");
+        setError(
+          permissionError instanceof DOMException &&
+            permissionError.name === "NotAllowedError"
+            ? "Allow camera and microphone access to continue."
+            : "We could not access the selected camera and microphone."
+        );
+        return false;
+      }
+    },
+    [refreshDevices, selectedAudioDeviceId, selectedVideoDeviceId]
+  );
 
   useEffect(() => {
     const stream = mediaStream;
@@ -443,7 +450,63 @@ function BattleDeviceSetup({
   }, [mediaStream]);
 
   useEffect(() => {
-    const {mediaDevices} = navigator;
+    const savedSelection = readBattleMediaDeviceSelection();
+    if (!savedSelection) {
+      return;
+    }
+
+    setSelectedVideoDeviceId(savedSelection.videoDeviceId);
+    setSelectedAudioDeviceId(savedSelection.audioDeviceId);
+
+    if (!navigator.permissions?.query) {
+      return;
+    }
+
+    const selectionKey = `${savedSelection.videoDeviceId}:${savedSelection.audioDeviceId}`;
+    if (restoredSelectionRef.current === selectionKey) {
+      return;
+    }
+    restoredSelectionRef.current = selectionKey;
+
+    let disposed = false;
+    const restoreSavedSetup = async () => {
+      try {
+        const [cameraPermission, microphonePermission] = await Promise.all([
+          navigator.permissions.query({ name: "camera" }),
+          navigator.permissions.query({ name: "microphone" }),
+        ]);
+        if (
+          disposed ||
+          cameraPermission.state !== "granted" ||
+          microphonePermission.state !== "granted"
+        ) {
+          return;
+        }
+
+        const restored = await requestPermissions(
+          savedSelection.videoDeviceId,
+          savedSelection.audioDeviceId
+        );
+        if (restored && !disposed) {
+          rememberBattleMediaDeviceSelection(savedSelection);
+          setSaved(true);
+          onSaved(savedSelection);
+        }
+      } catch {
+        if (!disposed) {
+          setMediaStatus("idle");
+        }
+      }
+    };
+
+    void restoreSavedSetup();
+    return () => {
+      disposed = true;
+    };
+  }, [onSaved, requestPermissions]);
+
+  useEffect(() => {
+    const { mediaDevices } = navigator;
     if (!mediaDevices) {
       return;
     }
@@ -454,7 +517,7 @@ function BattleDeviceSetup({
     mediaDevices.addEventListener("devicechange", handleDeviceChange);
     return () =>
       mediaDevices.removeEventListener("devicechange", handleDeviceChange);
-  }, []);
+  }, [refreshDevices]);
 
   const saveSetup = () => {
     if (
@@ -467,10 +530,12 @@ function BattleDeviceSetup({
       return;
     }
 
-    onSaved({
+    const selection = {
       audioDeviceId: selectedAudioDeviceId,
       videoDeviceId: selectedVideoDeviceId,
-    });
+    };
+    rememberBattleMediaDeviceSelection(selection);
+    onSaved(selection);
     setSaved(true);
   };
 
@@ -578,8 +643,8 @@ function BattleDeviceSetup({
         </Select>
         <div className="rounded-lg border border-dashed border-border/70 p-2 text-[10px] text-muted-foreground">
           {mediaStatus === "ready"
-            ? "Microphone access granted. Save this setup when both devices are correct."
-            : "Camera and microphone permissions are requested together."}
+            ? "Access granted. Your selected camera and microphone will be restored next time."
+            : "Camera and microphone permissions are requested together. Browser permission is remembered after you allow it."}
         </div>
         {error && <p className="text-[10px] text-destructive">{error}</p>}
         <Button
@@ -886,10 +951,11 @@ export function BattlePage({
       room?.status === "upcoming" ||
       phase === "scheduled" ||
       phase === "waiting_room",
+    isPreStartBattle = phase === "scheduled" || phase === "waiting_room",
+    isBattleActive = Boolean(phase && !isPreStartBattle && phase !== "ended"),
     viewerQueueStatus = battle?.viewerQueueStatus ?? null,
     isAdmitted = viewerQueueStatus === "admitted",
     isArtist = Boolean(room?.role === "artist_a" || room?.role === "artist_b"),
-    isArtistForfeitPhase = isArtist && artistForfeitPhases.has(phase ?? ""),
     isQueued =
       viewerQueueStatus === "queued" || viewerQueueStatus === "waiting",
     readyArtistUserIds = battle?.coordination?.artistReadyUserIds ?? [],
@@ -931,10 +997,7 @@ export function BattlePage({
             });
           }
         : undefined,
-      shouldBlock:
-        Boolean(currentRound) &&
-        (isAdmitted || isArtistForfeitPhase) &&
-        !(isArtist && (phase === "scheduled" || phase === "waiting_room")),
+      shouldBlock: isBattleActive,
     });
 
   const currentArtistId =
@@ -944,7 +1007,9 @@ export function BattlePage({
           ? battle?.artists[1]?.id
           : null,
     currentArtistReady = Boolean(
-      isArtist && currentArtistId && readyArtistUserIds.includes(currentArtistId)
+      isArtist &&
+      currentArtistId &&
+      readyArtistUserIds.includes(currentArtistId)
     );
 
   useEffect(() => {
@@ -961,6 +1026,18 @@ export function BattlePage({
       void completeBattleShareReferral();
     }
   }, [id, referrerUsername, session?.user?.id]);
+
+  useEffect(() => {
+    if (!isArtist || !session?.user?.id || !battle) {
+      return;
+    }
+
+    if (isPreStartBattle) {
+      rememberBattleReturnIntent({ battleId: id, userId: session.user.id });
+    } else {
+      clearBattleReturnIntent(id);
+    }
+  }, [battle, id, isArtist, isPreStartBattle, session?.user?.id]);
 
   useEffect(() => {
     if (
@@ -1066,6 +1143,7 @@ export function BattlePage({
           ? (session?.user?.id ?? null)
           : disposition.affectedUserId,
     });
+    clearBattleReturnIntent(id);
     toast({
       description:
         disposition.kind === "ducked"
@@ -1179,14 +1257,12 @@ export function BattlePage({
             <Card className="border-primary/40 bg-card/90 shadow-xl overflow-hidden">
               <CardHeader className="border-b border-border/60 bg-muted/40">
                 <div className="flex flex-wrap items-center justify-center gap-2 text-center">
-                  <div className="flex items-center gap-2">
-                    <CalendarClock className="size-4.5 text-primary" />
-                    <div>
-                      <CardTitle className="text-sm">{room.title}</CardTitle>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {artistA.name} vs {artistB.name}
-                      </p>
-                    </div>
+                  <div>
+                    <CardTitle className="text-sm">{room.title}</CardTitle>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {artistNameWithRank(artistA)} vs{" "}
+                      {artistNameWithRank(artistB)}
+                    </p>
                   </div>
                   <Badge
                     className="gap-1.5 text-xs font-mono"
@@ -1213,7 +1289,7 @@ export function BattlePage({
                       <Swords className="size-3.5" />
                       Artist room
                     </Badge>
-                  ) : (isQueued ? (
+                  ) : isQueued ? (
                     <>
                       <Badge variant="secondary" className="gap-1.5 text-xs">
                         <ListPlus className="size-3.5" />
@@ -1240,7 +1316,7 @@ export function BattlePage({
                       <ListPlus className="size-3.5" />
                       {session?.user ? "Join Queue" : "Sign up to Join Queue"}
                     </Button>
-                  ))}
+                  )}
                 </div>
                 {(room.role === "artist_a" || room.role === "artist_b") &&
                   battle.coordination?.format && (
@@ -1277,7 +1353,7 @@ export function BattlePage({
                 />
                 <p className="text-xs text-muted-foreground">
                   {artistView
-                    ? "Your artist seat stays connected while BattleBot prepares the stage."
+                    ? "You can leave before the battle starts. SoundKit will bring you back when your match opens."
                     : "Join the queue to be admitted in batches when the battle opens."}
                 </p>
                 <Button
@@ -1523,14 +1599,14 @@ export function BattlePage({
               }
               type="button"
             >
-              <Avatar className="size-16 sm:size-20 border-2 border-primary ring-4 ring-primary/20 shadow-xl">
+              <Avatar className="size-16 rounded-xl border-2 border-primary ring-4 ring-primary/20 shadow-xl sm:size-20">
                 <AvatarImage src={artistA.avatarUrl} />
-                <AvatarFallback className="font-bold text-lg">
+                <AvatarFallback className="rounded-xl font-bold text-lg">
                   {artistA.name.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <p className="font-bold text-sm sm:text-base text-white truncate max-w-[120px]">
-                {artistA.name}
+              <p className="max-w-[140px] truncate font-bold text-sm text-white sm:text-base">
+                {artistNameWithRank(artistA)}
               </p>
               <span className="text-xs text-amber-400 font-bold">
                 {artistA.roundsWon} Wins
@@ -1555,14 +1631,14 @@ export function BattlePage({
               }
               type="button"
             >
-              <Avatar className="size-16 sm:size-20 border-2 border-secondary ring-4 ring-secondary/20 shadow-xl">
+              <Avatar className="size-16 rounded-xl border-2 border-secondary ring-4 ring-secondary/20 shadow-xl sm:size-20">
                 <AvatarImage src={artistB.avatarUrl} />
-                <AvatarFallback className="font-bold text-lg">
+                <AvatarFallback className="rounded-xl font-bold text-lg">
                   {artistB.name.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <p className="font-bold text-sm sm:text-base text-white truncate max-w-[120px]">
-                {artistB.name}
+              <p className="max-w-[140px] truncate font-bold text-sm text-white sm:text-base">
+                {artistNameWithRank(artistB)}
               </p>
               <span className="text-xs text-amber-400 font-bold">
                 {artistB.roundsWon} Wins
@@ -1651,7 +1727,7 @@ export function BattlePage({
                   }
                   type="button"
                 >
-                  {artistA.name}
+                  {artistNameWithRank(artistA)}
                 </button>{" "}
                 vs{" "}
                 <button
@@ -1670,7 +1746,7 @@ export function BattlePage({
                   }
                   type="button"
                 >
-                  {artistB.name}
+                  {artistNameWithRank(artistB)}
                 </button>{" "}
                 • Click artist to view profile
               </p>
@@ -1692,7 +1768,7 @@ export function BattlePage({
                   <Swords className="size-3.5" />
                   Artist room
                 </Badge>
-              ) : (isQueued ? (
+              ) : isQueued ? (
                 <Badge
                   variant="secondary"
                   className="gap-1.5 py-1 px-2.5 text-xs"
@@ -1700,7 +1776,7 @@ export function BattlePage({
                   <ListPlus className="size-3.5" />
                   In Queue
                 </Badge>
-              ) : null)}
+              ) : null}
               {isAdmitted && !isArtist && !isAdmin ? (
                 <Button
                   className="gap-1.5 text-xs"

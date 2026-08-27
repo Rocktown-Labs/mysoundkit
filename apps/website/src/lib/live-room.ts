@@ -42,6 +42,7 @@ export interface LiveRoomArtist {
   id: string;
   isMuted: boolean;
   name: string;
+  rank?: number | string | null;
   roundsWon: number;
   stagePosition: "left" | "right";
   verified: boolean;

@@ -14,6 +14,7 @@
 - Added artist and BattleBot chat identity metadata with gold artist highlights and accessible purple BattleBot messages.
 - Added artist battle waiting-room preparation controls with battle-format-scoped Battle Kit selection, lineup previews, and server-persisted kit locking before a scheduled battle opens.
 - Added RealtimeKit battle media stages with browser camera/microphone publishing, responsive two-artist video tiles, BattleBot-managed stage and microphone permissions, reconnect handling, and lazy meeting creation for existing battles.
+- Added persisted battle camera/microphone device setup, ranked artist matchup labels, branded battle backdrops, and a global pre-start return monitor for artists who leave before the match opens.
 - Added owner-scoped video detail analytics at `/dashboard/videos/:id`, first-party Mux playback view sessions, watch-depth charts, and privacy-safe country/Premium regional audience breakdowns.
 - Added canonical dashboard and Explore navigation with compatibility redirects, plus public community discovery and a TanStack DB-powered artist community experience with free/paid membership, chat, posts, member roles, bans, and creator moderation.
 - Added mechanical OpenAPI-to-Hono RPC parity checks, typed website/native API consumers, semantic-search and embedding operations, track recovery, and a validated Expo route manifest with explicit Explore, Library, Live, and Dashboard tab ownership.
@@ -51,6 +52,7 @@
 ### Fixed
 
 - Fixed live battle room reads against older preview databases by probing optional outcome and winner columns and selecting safe null fallbacks until the production schema rollout completes.
+- Fixed battle-room navigation and layout so pre-start artists can leave safely, active battles guard navigation for every participant, and chat stays independently scrollable within the viewport beside the scrolling battle content.
 - Fixed Dashboard Join Battle routing to keep assigned artists in the authenticated room, public artist links to redirect into that room, fan queue mutations to update room state immediately, and round waiting-room chat to be discarded without losing the initial battle chat.
 - Fixed live battle reconnects by resolving generated live experiences through their canonical battle IDs, restoring artist roles and RealtimeKit permissions after disconnects, allowing participating artists to bypass viewer gates, and keeping kit-based recovery available for empty legacy rooms.
 - Fixed public battle entry for legacy live battles: missing rounds are rebuilt from both locked Battle Kits, stale Durable Object snapshots are repaired without discarding live phase state, and artist lineup selection remains available while an empty live room is repaired.

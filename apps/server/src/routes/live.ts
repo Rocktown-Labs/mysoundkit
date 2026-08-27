@@ -2,6 +2,7 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   battleKitTracks,
   battleKits,
+  artistProfiles,
   battleLineupSnapshots,
   battleQueueEntries,
   battleRounds,
@@ -19,6 +20,7 @@ import {
   asc,
   desc,
   eq,
+  gt,
   gte,
   inArray,
   isNull,
@@ -38,9 +40,9 @@ import type {
 } from "@/durable-objects/live-room";
 import { publicAssetUrlFromParts } from "@/lib/asset-urls";
 import { resolveArtistBattleTitle } from "@/lib/battle-display";
-import { loadBattleSchemaCapabilities } from "@/lib/battle-schema-capabilities";
 import { evaluateBattleKitReadiness } from "@/lib/battle-kits";
 import { buildBattleRoundSeeds } from "@/lib/battle-rounds";
+import { loadBattleSchemaCapabilities } from "@/lib/battle-schema-capabilities";
 import { retryDurableObjectCall } from "@/lib/durable-object-retry";
 import {
   forbiddenMessage,
@@ -820,9 +822,9 @@ const badRequest = (message: string) => ({
       status =
         battle.status === "live"
           ? "live"
-          : battle.status === "completed"
+          : (battle.status === "completed"
             ? "ended"
-            : "scheduled",
+            : "scheduled"),
       startsAt = (battle.startsAt ?? battle.createdAt).toISOString(),
       [createdExperience] = await db
         .insert(liveExperiences)
@@ -1237,7 +1239,7 @@ const badRequest = (message: string) => ({
           )
         ),
       ],
-      [trackRows, coverRows, profileRows, snapshotRows, queueRows] =
+      [trackRows, coverRows, profileRows, rankRows, snapshotRows, queueRows] =
         await Promise.all([
           trackIds.length > 0
             ? db
@@ -1279,6 +1281,23 @@ const badRequest = (message: string) => ({
                 .from(userProfiles)
                 .where(inArray(userProfiles.userId, profileIds))
             : [],
+          profileIds.length > 0
+            ? db
+                .select({
+                  rank: sql<number>`row_number() over (order by ${artistProfiles.battleCount} desc, ${artistProfiles.followerCount} desc, ${artistProfiles.userId})`,
+                  userId: artistProfiles.userId,
+                })
+                .from(artistProfiles)
+                .where(
+                  and(
+                    eq(artistProfiles.publicProfileEnabled, true),
+                    or(
+                      gt(artistProfiles.battleCount, 0),
+                      gt(artistProfiles.followerCount, 0)
+                    )
+                  )
+                )
+            : [],
           lineupSnapshots,
           db
             .select({
@@ -1311,6 +1330,9 @@ const badRequest = (message: string) => ({
       ),
       profileByUserId = new Map(
         profileRows.map((profile) => [profile.userId, profile])
+      ),
+      rankByUserId = new Map(
+        rankRows.map((profile) => [profile.userId, profile.rank])
       ),
       artistControlsByUserId: Record<string, LiveBattleArtistControls> =
         Object.fromEntries(
@@ -1364,6 +1386,7 @@ const badRequest = (message: string) => ({
           name:
             profileByUserId.get(fallbackArtistIds[0])?.displayName ??
             "Artist One",
+          rank: rankByUserId.get(fallbackArtistIds[0]) ?? null,
           roundsWon: roundRows.filter(
             (round) =>
               round.status === "completed" &&
@@ -1381,6 +1404,7 @@ const badRequest = (message: string) => ({
           name:
             profileByUserId.get(fallbackArtistIds[1])?.displayName ??
             "Artist Two",
+          rank: rankByUserId.get(fallbackArtistIds[1]) ?? null,
           roundsWon: roundRows.filter(
             (round) =>
               round.status === "completed" &&
@@ -1481,9 +1505,9 @@ const badRequest = (message: string) => ({
       status:
         battle.status === "completed" || battle.status === "archived"
           ? "ended"
-          : battle.status === "live"
+          : (battle.status === "live"
             ? "live"
-            : "upcoming",
+            : "upcoming"),
       summary:
         "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
       title: resolveArtistBattleTitle(battle.title, battle.genre ?? "Hip Hop"),
@@ -1608,16 +1632,16 @@ const badRequest = (message: string) => ({
     const roomStatus: LiveRoomState["status"] =
       experience.status === "ended"
         ? "ended"
-        : experience.status === "live"
+        : (experience.status === "live"
           ? "live"
-          : "upcoming";
+          : "upcoming");
 
     const summary =
       experience.kind === "stream"
         ? `Live creator broadcast by ${hostName} on SoundKit.`
-        : experience.kind === "party"
+        : (experience.kind === "party"
           ? `Live listening party hosted by ${hostName}.`
-          : `Live event on SoundKit.`;
+          : `Live event on SoundKit.`);
 
     return {
       chat: [],
@@ -1659,9 +1683,9 @@ const badRequest = (message: string) => ({
               reconnectUntil: experience.reconnectUntil?.getTime() ?? null,
               replayStatus: experience.replayPublishedAt
                 ? "available"
-                : experience.recordingStatus
+                : (experience.recordingStatus
                   ? "processing"
-                  : "none",
+                  : "none"),
             }
           : undefined,
       summary,
@@ -1768,9 +1792,9 @@ const badRequest = (message: string) => ({
     const roomStatus: LiveRoomState["status"] =
       party.status === "ended" || party.status === "canceled"
         ? "ended"
-        : party.status === "live"
+        : (party.status === "live"
           ? "live"
-          : "upcoming";
+          : "upcoming");
 
     return {
       chat: [],
@@ -2131,9 +2155,9 @@ const buildCreateExperienceResponse = ({
       body.source === "obs" &&
       body.scheduleMode === "asap"
         ? "waiting_for_ingest"
-        : body.scheduleMode === "asap"
+        : (body.scheduleMode === "asap"
           ? "ready"
-          : "scheduled",
+          : "scheduled"),
     title: body.title.trim(),
     visibility: body.visibility,
   },
@@ -2146,9 +2170,9 @@ const buildCreateExperienceResponse = ({
       body.source === "obs" &&
       body.scheduleMode === "asap"
         ? "scheduled"
-        : body.scheduleMode === "asap"
+        : (body.scheduleMode === "asap"
           ? "live"
-          : "scheduled",
+          : "scheduled"),
   },
   notifications: buildNotificationFanout({
     experienceId,
@@ -2324,9 +2348,9 @@ app.post("/experiences/:experienceId/join", async (c) => {
       participantRole =
         battleRole === "artist_a" || battleRole === "artist_b"
           ? "artist"
-          : battleRole === "admin"
+          : (battleRole === "admin"
             ? "host"
-            : "listener";
+            : "listener");
       const battleRoom = await getDurableRoomState(c, experienceId).catch(
         () => null
       );
@@ -2889,17 +2913,16 @@ const persistBattleTrackSelection = async ({
   trackId: string;
 }) => {
   const rounds = await db
-    .select({
-      id: battleRounds.id,
-      status: battleRounds.status,
-      trackOneId: battleRounds.trackOneId,
-      trackTwoId: battleRounds.trackTwoId,
-    })
-    .from(battleRounds)
-    .where(eq(battleRounds.battleId, battleId))
-    .orderBy(asc(battleRounds.roundNumber));
-
-  const targetRound =
+      .select({
+        id: battleRounds.id,
+        status: battleRounds.status,
+        trackOneId: battleRounds.trackOneId,
+        trackTwoId: battleRounds.trackTwoId,
+      })
+      .from(battleRounds)
+      .where(eq(battleRounds.battleId, battleId))
+      .orderBy(asc(battleRounds.roundNumber)),
+    targetRound =
       rounds.find((round) => round.status === "upcoming") ??
       rounds.find((round) => round.status === "active"),
     trackKey = role === "artist_a" ? "trackOneId" : "trackTwoId",
@@ -2951,11 +2974,11 @@ app.post("/rooms/:roomId/battle/track", async (c) => {
 
   try {
     const room = await c.env.LIVE_ROOMS.getByName(roomId).chooseBattleTrack(
-      roomId,
-      body.trackId,
-      identity
-    );
-    const experience = await loadLiveExperienceById(roomId),
+        roomId,
+        body.trackId,
+        identity
+      ),
+      experience = await loadLiveExperienceById(roomId),
       battleId = experience?.battleId ?? roomId;
     await persistBattleTrackSelection({
       battleId,
@@ -3000,9 +3023,9 @@ app.post("/rooms/:roomId/party/playback", async (c) => {
       roomId,
       body.type === "track_changed"
         ? { trackId: body.trackId ?? "", type: body.type }
-        : body.type === "replay"
+        : (body.type === "replay"
           ? { trackId: body.trackId, type: body.type }
-          : { type: body.type },
+          : { type: body.type }),
       identity
     );
     return c.json(room, HttpStatusCodes.OK);
