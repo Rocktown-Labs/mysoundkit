@@ -192,6 +192,8 @@ const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
     return url.toString();
   };
 
+export { wsUrlForRoom };
+
 interface LiveRoomChatResult {
   message: LiveRoomChatMessage | null;
   rateLimited?: boolean;

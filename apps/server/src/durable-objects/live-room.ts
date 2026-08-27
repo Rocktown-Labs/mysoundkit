@@ -1,4 +1,4 @@
-/* eslint-disable one-var, sort-vars, typescript/explicit-member-accessibility, require-await, prefer-destructuring, class-methods-use-this */
+/* eslint-disable complexity, one-var, sort-vars, typescript/explicit-member-accessibility, require-await, prefer-destructuring, class-methods-use-this */
 import { DurableObject } from "cloudflare:workers";
 
 import {
@@ -7,7 +7,7 @@ import {
   isVotingPhase,
   PRODUCTION_BATTLE_DURATIONS,
 } from "@/lib/live-battle-state";
-import type { BattleCoordination } from "@/lib/live-battle-state";
+import type { BattleCoordination, BattlePhase } from "@/lib/live-battle-state";
 import type {
   LiveRoomChatMessage,
   LiveRoomState,
@@ -30,6 +30,13 @@ interface LiveRoomSocketMessage {
   type?: "chat" | "vote";
 }
 
+export type LiveRoomBattleBotAction =
+  | "close_voting"
+  | "complete_round"
+  | "move_lobby_to_round"
+  | "open_lobby"
+  | "snapshot_voters";
+
 export interface LiveRoomIdentity {
   displayName: string;
   role?: LiveRoomViewerRole;
@@ -46,7 +53,8 @@ export interface LiveRoomChatResult {
   room: LiveRoomState;
 }
 
-const CHAT_RATE_LIMIT = 5,
+const BATTLE_BOT_USER_ID = "soundkit-battlebot",
+  CHAT_RATE_LIMIT = 5,
   CHAT_RATE_WINDOW_MS = 5000,
   CHAT_STORAGE_KEY = "live-room-chat",
   MAX_CHAT_MESSAGES = 80,
@@ -57,7 +65,54 @@ const CHAT_RATE_LIMIT = 5,
     Response.json(body, { status }),
   notFoundResponse = () => jsonResponse({ message: "Not found" }, 404),
   isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === "object" && value !== null;
+    typeof value === "object" && value !== null,
+  battleBotMessageForPhase = (room: LiveRoomState, phase: BattlePhase) => {
+    const artists = room.battle?.artists ?? [],
+      activeArtist = artists.find(
+        (artist) => artist.id === room.battle?.coordination?.activeArtistUserId
+      );
+
+    switch (phase) {
+      case "waiting_room": {
+        return "The battle is live. BattleBot is opening the waiting room and preparing the artists.";
+      }
+      case "round_intro": {
+        return `Round ${room.battle?.coordination?.roundNumber ?? 1} is about to begin. BattleBot is bringing both artists to the stage.`;
+      }
+      case "turn_transition":
+      case "tiebreaker_transition": {
+        return "BattleBot is handing the stage to the next artist.";
+      }
+      case "pre_vote": {
+        return "Both artists have finished their turns. BattleBot is opening the audience vote.";
+      }
+      case "artist_a_turn":
+      case "artist_b_turn":
+      case "tiebreaker_a":
+      case "tiebreaker_b": {
+        return `${activeArtist?.name ?? "The active artist"} has the mic. BattleBot is managing the stage.`;
+      }
+      case "voting":
+      case "tiebreaker_voting": {
+        return "The round is open for voting. BattleBot has muted the artists while the audience decides.";
+      }
+      case "round_result": {
+        return "Voting is closed. BattleBot is tallying the round and preparing the result.";
+      }
+      case "between_rounds": {
+        return "Round complete. BattleBot is resetting the stage and admitting the next audience group.";
+      }
+      case "battle_result": {
+        return "The final round is complete. BattleBot is confirming the battle result.";
+      }
+      case "ended": {
+        return "Battle complete. Thanks for watching — the replay will be available when processing finishes.";
+      }
+      default: {
+        return null;
+      }
+    }
+  };
 
 export class LiveRoomDurableObject extends DurableObject {
   private roomState: LiveRoomState | null = null;
@@ -193,6 +248,7 @@ export class LiveRoomDurableObject extends DurableObject {
           (parsed.payload ?? {}) as LiveRoomVoteBody,
           attachment
         );
+        return;
       }
     } catch (error) {
       console.warn("Live room WebSocket message rejected", {
@@ -222,7 +278,7 @@ export class LiveRoomDurableObject extends DurableObject {
 
     if (nextRoom !== room) {
       await this.persist(nextRoom);
-      this.broadcastStateChange(room, nextRoom);
+      await this.broadcastStateChange(room, nextRoom);
     }
     await this.scheduleNextAlarm(nextRoom);
   }
@@ -386,6 +442,67 @@ export class LiveRoomDurableObject extends DurableObject {
     return this.publicChatResult(result, identity);
   }
 
+  async announceBattleBotAction(
+    roomId: string,
+    action: LiveRoomBattleBotAction
+  ): Promise<LiveRoomState> {
+    this.requestedRoomId = roomId;
+    const room = await this.loadState();
+    if (!(room.kind === "battle" && room.battle?.coordination)) {
+      return this.publicState(room);
+    }
+
+    const phase = room.battle.coordination.phase,
+      shouldAdvance =
+        (action === "open_lobby" && phase === "scheduled") ||
+        (action === "move_lobby_to_round" &&
+          (phase === "waiting_room" || phase === "between_rounds")) ||
+        ((action === "close_voting" || action === "complete_round") &&
+          isVotingPhase(phase));
+
+    if (shouldAdvance) {
+      const now = Date.now(),
+        nextRoom = this.recoverDueState(
+          {
+            ...room,
+            battle: {
+              ...room.battle,
+              coordination: {
+                ...room.battle.coordination,
+                phaseEndsAt: now,
+              },
+            },
+          },
+          now
+        );
+      if (nextRoom !== room) {
+        await this.persist(nextRoom);
+        await this.broadcastStateChange(room, nextRoom);
+        return this.publicState(nextRoom);
+      }
+    }
+
+    this.broadcast({
+      action,
+      activeArtistUserId: room.battle.coordination.activeArtistUserId,
+      phase,
+      type: "battle.bot_stage_control",
+    });
+
+    const message =
+      action === "open_lobby"
+        ? "BattleBot opened the battle lobby."
+        : action === "move_lobby_to_round"
+          ? "BattleBot started the next round and assigned the stage."
+          : action === "close_voting"
+            ? "BattleBot closed voting and is calculating the result."
+            : action === "complete_round"
+              ? "BattleBot completed the round and is preparing the next transition."
+              : "BattleBot recorded the audience vote snapshot.";
+    const nextRoom = await this.appendBotChatMessage(room, message);
+    return this.publicState(nextRoom);
+  }
+
   async vote(
     roomId: string,
     body: LiveRoomVoteBody,
@@ -484,11 +601,18 @@ export class LiveRoomDurableObject extends DurableObject {
       },
     };
     await this.persist(nextRoom);
+    const artistName =
+        room.battle.artists.find((entry) => entry.id === identity.userId)
+          ?.name ?? "An artist",
+      announcedRoom = await this.appendBotChatMessage(
+        nextRoom,
+        `BattleBot: ${artistName} selected the next track from their locked Battle Kit.`
+      );
     this.broadcastToUser(identity.userId, {
       trackId,
       type: "battle.track_selected",
     });
-    return this.publicState(nextRoom, identity);
+    return this.publicState(announcedRoom, identity);
   }
 
   async updatePartyPlayback(
@@ -542,11 +666,12 @@ export class LiveRoomDurableObject extends DurableObject {
   }
 
   private async loadState(): Promise<LiveRoomState> {
-    if (this.roomState) {
-      const recovered = this.recoverDueState(this.roomState);
-      if (recovered !== this.roomState) {
+    const currentRoom = this.roomState;
+    if (currentRoom) {
+      const recovered = this.recoverDueState(currentRoom);
+      if (recovered !== currentRoom) {
         await this.persist(recovered);
-        this.broadcastStateChange(this.roomState, recovered);
+        await this.broadcastStateChange(currentRoom, recovered);
       }
       return recovered;
     }
@@ -711,19 +836,43 @@ export class LiveRoomDurableObject extends DurableObject {
     await this.ctx.storage.setAlarm(Math.min(...timestamps));
   }
 
-  private broadcastStateChange(previous: LiveRoomState, next: LiveRoomState) {
-    if (
-      previous.battle?.coordination?.phase !== next.battle?.coordination?.phase
-    ) {
+  private async broadcastStateChange(
+    previous: LiveRoomState,
+    next: LiveRoomState
+  ) {
+    let announcedRoom = next;
+    const phaseChanged =
+      previous.battle?.coordination?.phase !== next.battle?.coordination?.phase;
+
+    if (phaseChanged && next.battle?.coordination?.phase) {
+      const phase = next.battle.coordination.phase;
       this.broadcast({
-        phase: next.battle?.coordination?.phase,
-        phaseEndsAt: next.battle?.coordination?.phaseEndsAt,
-        roundNumber: next.battle?.coordination?.roundNumber,
+        action:
+          phase === "waiting_room" ||
+          phase === "round_intro" ||
+          phase === "between_rounds"
+            ? "open"
+            : (phase === "ended" || phase === "battle_result"
+              ? "close"
+              : "sync"),
+        activeArtistUserId: next.battle.coordination.activeArtistUserId,
+        phase,
+        type: "battle.bot_stage_control",
+      });
+      const message = battleBotMessageForPhase(next, phase);
+      if (message) {
+        announcedRoom = await this.appendBotChatMessage(next, message);
+      }
+      this.broadcast({
+        phase,
+        phaseEndsAt: next.battle.coordination.phaseEndsAt,
+        roundNumber: next.battle.coordination.roundNumber,
         type: "battle.phase_changed",
-        version: next.battle?.coordination?.lastTransitionVersion,
+        version: next.battle.coordination.lastTransitionVersion,
       });
     }
-    const removedUserIds = next.battle?.coordination?.removedUserIds ?? [];
+    const removedUserIds =
+      announcedRoom.battle?.coordination?.removedUserIds ?? [];
     if (removedUserIds.length > 0) {
       this.broadcast({
         reason:
@@ -739,7 +888,7 @@ export class LiveRoomDurableObject extends DurableObject {
         }
       }
     }
-    this.broadcast({ room: this.publicState(next), type: "state" });
+    this.broadcast({ room: this.publicState(announcedRoom), type: "state" });
   }
 
   private publicState(
@@ -810,6 +959,25 @@ export class LiveRoomDurableObject extends DurableObject {
       CHAT_STORAGE_KEY,
       chat.slice(-MAX_CHAT_MESSAGES)
     );
+  }
+
+  private async appendBotChatMessage(
+    room: LiveRoomState,
+    message: string
+  ): Promise<LiveRoomState> {
+    const chatMessage: LiveRoomChatMessage = {
+        id: `${BATTLE_BOT_USER_ID}:${crypto.randomUUID()}`,
+        message,
+        sentAt: new Date().toISOString(),
+        userName: "BattleBot",
+      },
+      nextChat = [...room.chat, chatMessage].slice(-MAX_CHAT_MESSAGES),
+      nextRoom = { ...room, chat: nextChat };
+
+    await this.persistChat(nextChat);
+    this.roomState = nextRoom;
+    this.broadcast({ message: chatMessage, type: "chat" });
+    return nextRoom;
   }
 
   private async appendChatMessage(
@@ -941,13 +1109,22 @@ export class LiveRoomDurableObject extends DurableObject {
       };
 
     await this.persist(nextRoom);
+    const announcedRoom = await this.appendBotChatMessage(
+      nextRoom,
+      `BattleBot recorded a vote for ${artist.name}. ${Object.values(
+        nextRounds.find((entry) => entry.id === round.id)?.voteTotals ?? {}
+      ).reduce(
+        (sum, votes) => sum + votes,
+        0
+      )} votes have been cast in this round.`
+    );
     this.broadcast({
       roundId: round.id,
       type: "battle.vote_cast",
       voteTotals: nextRounds.find((entry) => entry.id === round.id)?.voteTotals,
     });
     return {
-      body: { room: this.publicState(nextRoom, identity) },
+      body: { room: this.publicState(announcedRoom, identity) },
       status: 200,
     };
   }

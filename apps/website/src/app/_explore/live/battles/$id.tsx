@@ -28,6 +28,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import { BattleArtistControlPanel } from "@/components/live/battle-artist-control-panel";
+import { BattleMediaStage } from "@/components/live/battle-media-stage";
 import { BattleTimer } from "@/components/live/battle-timer";
 import { LiveChatPanel } from "@/components/live/live-room-panels";
 import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
@@ -927,8 +928,22 @@ function BattlePage() {
           </div>
         </div>
 
+        <BattleMediaStage
+          activeArtistUserId={battle.coordination?.activeArtistUserId}
+          artists={battle.artists}
+          className="absolute inset-0 z-10 rounded-none border-0 bg-transparent"
+          experienceId={id}
+          phase={phase}
+          showHeader={false}
+          viewerOnly={
+            room.role !== "admin" &&
+            room.role !== "artist_a" &&
+            room.role !== "artist_b"
+          }
+        />
+
         {currentTrack && (
-          <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between rounded-xl border border-white/10 bg-black/75 px-4 py-2.5 backdrop-blur-md">
+          <div className="absolute bottom-4 left-4 right-4 z-20 flex items-center justify-between rounded-xl border border-white/10 bg-black/75 px-4 py-2.5 backdrop-blur-md">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
                 Now Performing Track

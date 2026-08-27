@@ -1630,6 +1630,9 @@ export const useBattlesQuery = (query: PublicRegionQuery = {}) =>
   useQuery({
     queryFn: async () => rpcJson(await battlesGet({ query })),
     queryKey: [...soundkitQueryKeys.battles, query],
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
+    staleTime: 5_000,
   });
 
 export const useBattleOpponentsQuery = ({

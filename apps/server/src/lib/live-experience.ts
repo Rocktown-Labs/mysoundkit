@@ -85,21 +85,30 @@ export const allowsMockRealtime = ({
   allowMockRealtime?.trim().toLowerCase() === "true";
 
 export const resolveRealtimePreset = ({
+  activeArtistUserId,
   kind,
   phase,
   role,
+  userId,
 }: {
+  activeArtistUserId?: string | null;
   kind: LiveExperienceKind;
   phase?: BattlePhase;
   role: LiveParticipantRole;
+  userId?: string;
 }) => {
   if (kind === "battle") {
     if (phase === "lobby") {
       return ROUND_LOBBY_PRESET;
     }
 
-    if (role === "artist") {
-      return phase === "round_active"
+    if (role === "artist" || role === "host") {
+      const isActiveArtist =
+        role === "host" ||
+        (activeArtistUserId === undefined
+          ? true
+          : activeArtistUserId === userId);
+      return phase === "round_active" && isActiveArtist
         ? "soundkit-battle-artist-live"
         : "soundkit-battle-artist-muted";
     }
@@ -114,6 +123,43 @@ export const resolveRealtimePreset = ({
   return role === "host" || role === "artist"
     ? "soundkit-stream-host"
     : "soundkit-stream-viewer";
+};
+
+export const battleMediaPhase = (phase?: string): BattlePhase | undefined => {
+  if (!phase) {
+    return undefined;
+  }
+
+  if (
+    phase === "scheduled" ||
+    phase === "waiting_room" ||
+    phase === "between_rounds" ||
+    phase === "round_result" ||
+    phase === "turn_transition" ||
+    phase === "pre_vote"
+  ) {
+    return "lobby";
+  }
+
+  if (
+    phase === "round_intro" ||
+    phase === "artist_a_turn" ||
+    phase === "artist_b_turn" ||
+    phase === "tiebreaker_a" ||
+    phase === "tiebreaker_b"
+  ) {
+    return "round_active";
+  }
+
+  if (phase === "voting" || phase === "tiebreaker_voting") {
+    return "voting";
+  }
+
+  if (phase === "battle_result" || phase === "ended") {
+    return "completed";
+  }
+
+  return undefined;
 };
 
 export const findLiveSessionConflict = ({
@@ -225,12 +271,14 @@ export const createMockRealtimeMeeting = ({
 });
 
 export const createMockParticipantToken = ({
+  activeArtistUserId,
   kind,
   meetingId,
   phase,
   role,
   user,
 }: {
+  activeArtistUserId?: string | null;
   kind: LiveExperienceKind;
   meetingId: string;
   phase?: BattlePhase;
@@ -238,9 +286,11 @@ export const createMockParticipantToken = ({
   user: AuthenticatedUser;
 }): RealtimeParticipantToken => {
   const presetName = resolveRealtimePreset({
+      activeArtistUserId,
       kind,
       phase,
       role,
+      userId: user.id,
     }),
     participantId = `participant_${user.id}`;
 

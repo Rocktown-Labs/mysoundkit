@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  battleMediaPhase,
   buildNotificationFanout,
   buildRealtimeKitChatDumpUrl,
   buildRealtimeKitEndMeetingUrl,
@@ -22,6 +23,13 @@ const artistUser = {
 };
 
 describe("live experience orchestration", () => {
+  it("maps Durable Object battle phases to media phases", () => {
+    expect(battleMediaPhase("artist_a_turn")).toBe("round_active");
+    expect(battleMediaPhase("tiebreaker_voting")).toBe("voting");
+    expect(battleMediaPhase("waiting_room")).toBe("lobby");
+    expect(battleMediaPhase("ended")).toBe("completed");
+  });
+
   it("uses text-only battle lobby presets before the next round", () => {
     expect(
       resolveRealtimePreset({
@@ -42,11 +50,45 @@ describe("live experience orchestration", () => {
     ).toBe("soundkit-battle-artist-live");
     expect(
       resolveRealtimePreset({
+        activeArtistUserId: "artist_a",
+        kind: "battle",
+        phase: "round_active",
+        role: "artist",
+        userId: "artist_b",
+      })
+    ).toBe("soundkit-battle-artist-muted");
+    expect(
+      resolveRealtimePreset({
+        activeArtistUserId: "artist_a",
+        kind: "battle",
+        phase: "round_active",
+        role: "artist",
+        userId: "artist_a",
+      })
+    ).toBe("soundkit-battle-artist-live");
+    expect(
+      resolveRealtimePreset({
+        activeArtistUserId: null,
+        kind: "battle",
+        phase: "round_active",
+        role: "artist",
+        userId: "artist_a",
+      })
+    ).toBe("soundkit-battle-artist-muted");
+    expect(
+      resolveRealtimePreset({
         kind: "battle",
         phase: "voting",
         role: "artist",
       })
     ).toBe("soundkit-battle-artist-muted");
+    expect(
+      resolveRealtimePreset({
+        kind: "battle",
+        phase: "round_active",
+        role: "host",
+      })
+    ).toBe("soundkit-battle-artist-live");
   });
 
   it("keeps next-round lobby users out of mandatory vote snapshots", () => {
