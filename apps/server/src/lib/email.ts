@@ -53,7 +53,7 @@ export interface SendTransactionalEmailOptions {
     subject?: string;
     battleOutcomeAudience?: "artist" | "viewer";
     battleOutcomeArtistName?: string | null;
-    battleOutcomeKind?: "canceled" | "ducked" | "forfeited";
+    battleOutcomeKind?: "canceled" | "ducked" | "forfeited" | "quit";
     battleOutcomeReason?: string;
     battleTitle?: string;
     trackId?: string;

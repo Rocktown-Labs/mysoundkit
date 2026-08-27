@@ -93,7 +93,7 @@ export type NotificationEvent = NotificationEventBase &
           audience: "artist" | "viewer";
           battleId: string;
           battleTitle: string;
-          kind: "canceled" | "ducked" | "forfeited";
+          kind: "canceled" | "ducked" | "forfeited" | "quit";
           reason: string;
         };
         type: "battle.outcome";
@@ -180,7 +180,7 @@ export interface NotificationEmailCopy {
   template?: "battle_outcome" | "follower" | "notification";
   battleOutcomeAudience?: "artist" | "viewer";
   battleOutcomeArtistName?: string | null;
-  battleOutcomeKind?: "canceled" | "ducked" | "forfeited";
+  battleOutcomeKind?: "canceled" | "ducked" | "forfeited" | "quit";
   battleOutcomeReason?: string;
   battleTitle?: string;
 }
@@ -496,23 +496,30 @@ export const defineNotificationEvent = (
         isArtist = event.data.audience === "artist",
         isDucked = event.data.kind === "ducked",
         isForfeit = event.data.kind === "forfeited",
+        isQuit = event.data.kind === "quit",
         isPlatformIssue =
           event.data.reason === "platform_issue" ||
           event.data.reason === "technical_issue",
         artistName = event.data.affectedArtistName ?? "One of the artists",
         body = isArtist
-          ? isForfeit
-            ? `We heard the news: you forfeited “${event.data.battleTitle}”. On SoundKit, stepping away from an active match is recorded as ducking the smoke. No rating was changed.`
-            : `We heard the news: you were marked as the artist who ducked “${event.data.battleTitle}” because you did not show up in the waiting room. No rating was changed. If this was a mistake, contact SoundKit support.`
+          ? isQuit
+            ? `You quit “${event.data.battleTitle}” before the match was complete. Your battle participation has been recorded, and no rating was changed.`
+            : isForfeit
+              ? `We heard the news: you forfeited “${event.data.battleTitle}”. On SoundKit, stepping away from an active match is recorded as ducking the smoke. No rating was changed.`
+              : `We heard the news: you were marked as the artist who ducked “${event.data.battleTitle}” because you did not show up in the waiting room. No rating was changed. If this was a mistake, contact SoundKit support.`
           : isDucked
             ? `Unfortunately, ${artistName} ducked the smoke in “${event.data.battleTitle}”, so the battle was canceled before a rated result. No ratings were changed.`
             : isForfeit
               ? `${artistName} forfeited “${event.data.battleTitle}”. The battle has ended, and no new audience votes or rating changes will be recorded.`
-              : isPlatformIssue
-                ? `SoundKit dropped the ball on “${event.data.battleTitle}”, so we canceled the battle before a rated result. We are sorry for the interruption. No ratings were changed.`
-                : `“${event.data.battleTitle}” was canceled before a rated result was recorded. No ratings were changed.`,
+              : isQuit
+                ? `${artistName} quit “${event.data.battleTitle}”. The battle has ended, and no new audience votes or rating changes will be recorded.`
+                : isPlatformIssue
+                  ? `SoundKit dropped the ball on “${event.data.battleTitle}”, so we canceled the battle before a rated result. We are sorry for the interruption. No ratings were changed.`
+                  : `“${event.data.battleTitle}” was canceled before a rated result was recorded. No ratings were changed.`,
         heading = isArtist
-          ? "You Ducked the Smoke"
+          ? isQuit
+            ? "You quit the battle"
+            : "You Ducked the Smoke"
           : isForfeit
             ? "The battle ended by forfeit"
             : isPlatformIssue
@@ -531,9 +538,11 @@ export const defineNotificationEvent = (
           body,
           ctaLabel: isArtist ? "Open artist battles" : "View battle outcome",
           eyebrow: isArtist
-            ? isForfeit
-              ? "Battle forfeit"
-              : "Battle no-show"
+            ? isQuit
+              ? "Battle quit"
+              : isForfeit
+                ? "Battle forfeit"
+                : "Battle no-show"
             : isPlatformIssue
               ? "SoundKit platform issue"
               : isForfeit
@@ -544,9 +553,11 @@ export const defineNotificationEvent = (
             : "You are receiving this because you joined or watched this SoundKit battle.",
           heading,
           previewText: isArtist
-            ? isForfeit
-              ? `Your forfeit ended ${event.data.battleTitle}.`
-              : `You were marked as ducking ${event.data.battleTitle}.`
+            ? isQuit
+              ? `You quit ${event.data.battleTitle}.`
+              : isForfeit
+                ? `Your forfeit ended ${event.data.battleTitle}.`
+                : `You were marked as ducking ${event.data.battleTitle}.`
             : body,
           subject: isArtist
             ? "You Ducked the Smoke"

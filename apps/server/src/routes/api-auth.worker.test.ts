@@ -275,6 +275,10 @@ const API_ORIGIN = "http://soundkit.test",
       path: "/v1/projects/project_after_dark",
     },
     {
+      label: "battle record retrieval",
+      path: "/v1/battles/record",
+    },
+    {
       label: "battle stats retrieval",
       path: "/v1/battles/stats",
     },

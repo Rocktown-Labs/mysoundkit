@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added per-round artist readiness with timer fallback, private Battle Kit track status and next-song selection, tie-aware battle results, and ranked-versus-practice participation records in the artist dashboard.
 - Added an authenticated artist battle room at `/dashboard/live/battles/join/:roomId/artistview`, with artist-scoped waiting-room chat, Battle Kit/readiness controls, reconnect-safe media, and admin-only outcome controls.
 - Added a branded “You Ducked the Smoke” transactional email template and idempotent notification flow for ducked, forfeited, platform-canceled, and viewer battle outcomes.
 - Added a push-first public battle directory over a Cloudflare Durable Object WebSocket, with a 30-second query refresh as a recovery path for missed updates.

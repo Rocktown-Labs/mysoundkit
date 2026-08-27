@@ -12,13 +12,7 @@ import {
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -44,7 +38,7 @@ type BattleCancellationReason =
   | "platform_issue"
   | "schedule_conflict"
   | "technical_issue";
-type BattleOutcomeKind = "canceled" | "ducked" | "forfeited";
+type BattleOutcomeKind = "canceled" | "ducked" | "forfeited" | "quit";
 
 const reasonOptions: { label: string; value: BattleCancellationReason }[] = [
     { label: "Ducked / opponent no-show", value: "ducked" },
@@ -79,6 +73,7 @@ interface Disposition {
 export function BattleLifecycleControls({
   artists,
   currentUserId,
+  hasSelectedKit,
   isAdmin,
   isArtist,
   isReady,
@@ -87,9 +82,11 @@ export function BattleLifecycleControls({
   pending,
   phase,
   readyArtistUserIds,
+  roundNumber,
 }: {
   artists: [LiveRoomArtist, LiveRoomArtist];
   currentUserId?: string;
+  hasSelectedKit: boolean;
   isAdmin: boolean;
   isArtist: boolean;
   isReady: boolean;
@@ -98,6 +95,7 @@ export function BattleLifecycleControls({
   pending: boolean;
   phase: string;
   readyArtistUserIds: string[];
+  roundNumber?: number;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false),
     [kind, setKind] = useState<BattleOutcomeKind>("canceled"),
@@ -109,10 +107,12 @@ export function BattleLifecycleControls({
     ),
     [actionError, setActionError] = useState<string | null>(null),
     isPreStart = preStartPhases.has(phase),
+    isReadinessPhase = isPreStart || phase === "between_rounds",
     isInProgress = turnPhases.has(phase),
     isActionable = phase !== "ended",
     canCancel = isActionable && (isAdmin || (isArtist && isPreStart)),
     canForfeit = (isArtist || isAdmin) && isInProgress,
+    canQuit = isArtist && isInProgress,
     isDuckedReport =
       kind === "ducked" || (kind === "canceled" && reason === "ducked"),
     openDisposition = (
@@ -162,71 +162,71 @@ export function BattleLifecycleControls({
   return (
     <>
       <Card className="border-primary/30 bg-card/80 shadow-sm">
-        <CardHeader className="gap-2 pb-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex items-start gap-2.5">
-              <div className="mt-0.5 rounded-md bg-primary/15 p-2 text-primary">
-                <Swords className="size-4" />
-              </div>
-              <div>
-                <CardTitle className="text-sm">
-                  {isPreStart ? "Battle readiness" : "Battle controls"}
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs">
-                  {isPreStart
-                    ? "Both artists must be ready before BattleBot starts the first turn."
-                    : "BattleBot controls the stage; use these controls only when you need to leave the match."}
-                </CardDescription>
-              </div>
+        <CardContent className="flex flex-wrap items-center gap-3 p-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="rounded-md bg-primary/15 p-2 text-primary">
+              <Swords className="size-4" />
             </div>
-            {isPreStart && (
-              <span className="rounded-full border border-border/70 bg-muted/50 px-2.5 py-1 font-mono text-[10px] text-muted-foreground">
-                {readyArtistUserIds.length}/2 ready
-              </span>
-            )}
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold text-sm">
+                  {isReadinessPhase
+                    ? phase === "between_rounds" && roundNumber
+                      ? `Round ${roundNumber} readiness`
+                      : "Battle readiness"
+                    : "Battle controls"}
+                </p>
+              </div>
+              <p className="truncate text-[11px] text-muted-foreground">
+                {isReadinessPhase
+                  ? "Both artists can ready up, or the timer will start the next round."
+                  : "BattleBot controls the stage; use these controls only when you need to leave."}
+              </p>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3 pt-0">
-          {isPreStart && (
-            <div className="grid gap-2 sm:grid-cols-2">
+
+          {isReadinessPhase && (
+            <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
               {artists.map((artist) => {
                 const ready = readyArtistUserIds.includes(artist.id);
                 return (
                   <div
-                    className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-background/40 p-2.5"
+                    className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-border/60 bg-background/40 px-2.5 py-1"
                     key={artist.id}
                   >
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold text-xs">
-                        {artist.name}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {ready ? "Ready to battle" : "Preparing"}
-                      </p>
-                    </div>
                     {ready ? (
-                      <Check className="size-4 shrink-0 text-emerald-400" />
+                      <Check className="size-3.5 shrink-0 text-emerald-400" />
                     ) : (
-                      <span className="size-2 shrink-0 rounded-full bg-muted-foreground/50" />
+                      <span className="size-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
                     )}
+                    <span className="max-w-32 truncate font-semibold text-[11px]">
+                      {artist.name}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {ready ? "Ready" : "Preparing"}
+                    </span>
                   </div>
                 );
               })}
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            {isArtist && isPreStart && (
+          <div className="flex flex-wrap gap-2 sm:ml-auto">
+            {isArtist && isReadinessPhase && (
               <Button
                 className="gap-1.5"
-                disabled={pending}
+                disabled={pending || (!hasSelectedKit && !isReady)}
                 onClick={() => void onReady(!isReady)}
                 size="sm"
                 type="button"
                 variant={isReady ? "secondary" : "default"}
               >
                 <Hand className="size-3.5" />
-                {isReady ? "Not ready" : "I’m ready"}
+                {isReady
+                  ? "Not ready"
+                  : hasSelectedKit
+                    ? "I’m ready"
+                    : "Select kit first"}
               </Button>
             )}
             {canCancel && (
@@ -253,6 +253,19 @@ export function BattleLifecycleControls({
               >
                 <Flag className="size-3.5" />
                 Mark ducked
+              </Button>
+            )}
+            {canQuit && (
+              <Button
+                className="gap-1.5"
+                disabled={pending}
+                onClick={() => openDisposition("quit", "artist_unavailable")}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <LogOut className="size-3.5" />
+                Quit battle
               </Button>
             )}
             {canForfeit && (
@@ -282,14 +295,18 @@ export function BattleLifecycleControls({
                 ? "Record a duck"
                 : kind === "forfeited"
                   ? "Forfeit this battle?"
-                  : "Cancel this battle?"}
+                  : kind === "quit"
+                    ? "Quit this battle?"
+                    : "Cancel this battle?"}
             </DialogTitle>
             <DialogDescription>
               {isDuckedReport
                 ? "This ends the waiting room without changing either artist’s rating."
                 : kind === "forfeited"
                   ? "This ends the active match and records the selected artist as the forfeiting participant."
-                  : "This closes the battle before a rated result is recorded."}
+                  : kind === "quit"
+                    ? "This ends your battle participation and records you as having quit."
+                    : "This closes the battle before a rated result is recorded."}
             </DialogDescription>
           </DialogHeader>
 
@@ -377,13 +394,19 @@ export function BattleLifecycleControls({
               disabled={pending}
               onClick={() => void submitDisposition()}
               type="button"
-              variant={kind === "forfeited" ? "destructive" : "default"}
+              variant={
+                kind === "forfeited" || kind === "quit"
+                  ? "destructive"
+                  : "default"
+              }
             >
               {pending
                 ? "Saving..."
                 : isDuckedReport
                   ? "Record duck"
-                  : "Confirm"}
+                  : kind === "quit"
+                    ? "Quit battle"
+                    : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>

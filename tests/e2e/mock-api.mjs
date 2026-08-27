@@ -1227,6 +1227,44 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (url.pathname === "/v1/battles/record") {
+      json(
+        response,
+        200,
+        {
+          history: [],
+          participation: {
+            battles: 0,
+            canceled: 0,
+            ducks: 0,
+            forfeits: 0,
+            losses: 0,
+            quits: 0,
+            roundsPlayed: 0,
+            ties: 0,
+            wins: 0,
+          },
+          ranked: {
+            battles: 0,
+            canceled: 0,
+            ducks: 0,
+            forfeits: 0,
+            losses: 0,
+            quits: 0,
+            ties: 0,
+            wins: 0,
+          },
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (url.pathname === "/v1/battles/stats") {
+      json(response, 200, [], webOrigin);
+      return;
+    }
+
     if (url.pathname === "/v1/battles" || url.pathname === "/v1/battles/") {
       json(response, 200, mockBattles, webOrigin);
       return;

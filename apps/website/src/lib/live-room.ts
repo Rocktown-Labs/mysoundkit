@@ -83,7 +83,7 @@ export interface LiveRoomState {
     currentRoundId: string;
     outcome?: {
       affectedUserId?: string | null;
-      kind: "canceled" | "ducked" | "forfeited";
+      kind: "canceled" | "ducked" | "forfeited" | "quit";
       reason: string;
       recordedAt: number;
     };
@@ -284,7 +284,7 @@ export const useLiveRoom = (roomId: string) => {
     battleDispositionMutation = useMutation({
       mutationFn: (body: {
         affectedUserId?: string | null;
-        kind: "canceled" | "ducked" | "forfeited";
+        kind: "canceled" | "ducked" | "forfeited" | "quit";
         reason: string;
       }) => postLiveRoom(roomId, "battle/disposition", body),
       onSuccess: (result) => {

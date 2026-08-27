@@ -6,6 +6,7 @@ import {
   battleChallenges,
   battleKitTracks,
   battleKits,
+  battleParticipations,
   battleRounds,
   battleStats,
   battles,
@@ -60,6 +61,7 @@ import {
   battleChallengesResponseSchema,
   battleKitQuerySchema,
   battleKitSchema,
+  battleRecordResponseSchema,
   createBattleKitBodySchema,
   updateBattleKitBodySchema,
   battleSummarySchema,
@@ -1984,6 +1986,108 @@ app.openapi(
 app.openapi(
   createRoute({
     method: "get",
+    path: "/record",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        battleRecordResponseSchema,
+        "Artist battle record and participation history"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Battles"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const emptySummary = {
+      battles: 0,
+      canceled: 0,
+      ducks: 0,
+      forfeits: 0,
+      losses: 0,
+      quits: 0,
+      roundsPlayed: 0,
+      ties: 0,
+      wins: 0,
+    };
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        {
+          history: [],
+          participation: emptySummary,
+          ranked: {
+            battles: 0,
+            canceled: 0,
+            ducks: 0,
+            forfeits: 0,
+            losses: 0,
+            quits: 0,
+            ties: 0,
+            wins: 0,
+          },
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const db = createDb(),
+      rows = await db
+        .select({
+          battleId: battleParticipations.battleId,
+          battleTitle: battles.title,
+          createdAt: battleParticipations.createdAt,
+          isRanked: battleParticipations.isRanked,
+          result: battleParticipations.result,
+          roundsPlayed: battleParticipations.roundsPlayed,
+          roundsWon: battleParticipations.roundsWon,
+        })
+        .from(battleParticipations)
+        .innerJoin(battles, eq(battles.id, battleParticipations.battleId))
+        .where(eq(battleParticipations.userId, user.id))
+        .orderBy(desc(battleParticipations.createdAt)),
+      summarize = (items: typeof rows) => ({
+        battles: items.length,
+        canceled: items.filter((row) => row.result === "canceled").length,
+        ducks: items.filter((row) => row.result === "ducked").length,
+        forfeits: items.filter((row) => row.result === "forfeited").length,
+        losses: items.filter((row) => row.result === "loss").length,
+        quits: items.filter((row) => row.result === "quit").length,
+        roundsPlayed: items.reduce((total, row) => total + row.roundsPlayed, 0),
+        ties: items.filter((row) => row.result === "tie").length,
+        wins: items.filter((row) => row.result === "win").length,
+      }),
+      rankedRows = rows.filter((row) => row.isRanked),
+      participation = summarize(rows),
+      rankedSummary = summarize(rankedRows);
+
+    return c.json(
+      {
+        history: rows.map((row) => ({
+          battleId: row.battleId,
+          battleTitle: row.battleTitle,
+          isRanked: row.isRanked,
+          recordedAt: row.createdAt.toISOString(),
+          result: row.result,
+          roundsPlayed: row.roundsPlayed,
+          roundsWon: row.roundsWon,
+        })),
+        participation,
+        ranked: rankedSummary,
+      },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
     path: "/stats",
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
@@ -1993,6 +2097,7 @@ app.openapi(
             losses: z.number(),
             purchases: z.number(),
             saves: z.number(),
+            ties: z.number(),
             trackId: z.string(),
             trackName: z.string(),
             wins: z.number(),
@@ -2025,6 +2130,7 @@ app.openapi(
           losses: battleStats.losses,
           purchases: battleStats.purchases,
           saves: battleStats.saves,
+          ties: battleStats.ties,
           trackId: battleStats.trackId,
           trackName: tracks.title,
           wins: battleStats.wins,
@@ -2046,6 +2152,7 @@ app.openapi(
           losses: 0,
           purchases: 0,
           saves: 0,
+          ties: 0,
           trackId: t.trackId,
           trackName: t.trackName,
           wins: 0,
@@ -2091,6 +2198,7 @@ app.openapi(
             losses: z.number(),
             purchases: z.number(),
             saves: z.number(),
+            ties: z.number(),
             wins: z.number(),
           }),
           trackId: z.string(),
@@ -2127,6 +2235,7 @@ app.openapi(
             losses: 0,
             purchases: 0,
             saves: 0,
+            ties: 0,
             wins: 0,
           },
           trackId,
@@ -2153,6 +2262,7 @@ app.openapi(
           losses: battleStats.losses,
           purchases: battleStats.purchases,
           saves: battleStats.saves,
+          ties: battleStats.ties,
           wins: battleStats.wins,
         })
         .from(battleStats)
@@ -2163,6 +2273,7 @@ app.openapi(
         losses: 0,
         purchases: 0,
         saves: 0,
+        ties: 0,
         wins: 0,
       },
       rounds = await db

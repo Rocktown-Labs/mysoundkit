@@ -153,9 +153,54 @@ export const battleReadyBodySchema = z.object({
   ready: z.boolean(),
 });
 
+export const battleParticipationResultSchema = z.enum([
+  "canceled",
+  "ducked",
+  "forfeited",
+  "loss",
+  "quit",
+  "tie",
+  "win",
+]);
+
+export const battleRecordResponseSchema = z.object({
+  history: z.array(
+    z.object({
+      battleId: z.string(),
+      battleTitle: z.string(),
+      isRanked: z.boolean(),
+      recordedAt: z.string(),
+      result: battleParticipationResultSchema,
+      roundsPlayed: z.number(),
+      roundsWon: z.number(),
+    })
+  ),
+  participation: z.object({
+    battles: z.number(),
+    canceled: z.number(),
+    ducks: z.number(),
+    forfeits: z.number(),
+    losses: z.number(),
+    quits: z.number(),
+    roundsPlayed: z.number(),
+    ties: z.number(),
+    wins: z.number(),
+  }),
+  ranked: z.object({
+    battles: z.number(),
+    canceled: z.number(),
+    ducks: z.number(),
+    forfeits: z.number(),
+    losses: z.number(),
+    quits: z.number(),
+    ties: z.number(),
+    wins: z.number(),
+  }),
+});
+
 export const battleDispositionBodySchema = z.object({
   affectedUserId: z.string().min(1).nullable().optional(),
-  kind: z.enum(["canceled", "ducked", "forfeited"]),
+  kind: z.enum(["canceled", "ducked", "forfeited", "quit"]),
   reason: z.enum([
     "ducked",
     "artist_unavailable",

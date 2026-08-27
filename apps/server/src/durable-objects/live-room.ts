@@ -41,7 +41,7 @@ export type LiveRoomBattleBotAction =
 
 export interface LiveRoomBattleDisposition {
   affectedUserId?: string | null;
-  kind: "canceled" | "ducked" | "forfeited";
+  kind: "canceled" | "ducked" | "forfeited" | "quit";
   reason:
     | "artist_unavailable"
     | "ducked"
@@ -538,8 +538,13 @@ export class LiveRoomDurableObject extends DurableObject {
     if (!(identity.role === "artist_a" || identity.role === "artist_b")) {
       throw new Error("Only battle artists can change readiness.");
     }
-    if (room.battle.coordination.phase !== "waiting_room") {
-      throw new Error("Artists can only change readiness in the waiting room.");
+    if (
+      room.battle.coordination.phase !== "waiting_room" &&
+      room.battle.coordination.phase !== "between_rounds"
+    ) {
+      throw new Error(
+        "Artists can only change readiness in the waiting room or between rounds."
+      );
     }
     if (
       ready &&
@@ -629,10 +634,10 @@ export class LiveRoomDurableObject extends DurableObject {
     if (phase === "ended") {
       throw new Error("This battle has already ended.");
     }
-    if (disposition.kind === "forfeited") {
+    if (disposition.kind === "forfeited" || disposition.kind === "quit") {
       if (!(battleHasStarted && phase !== "round_intro")) {
         throw new Error(
-          "A forfeit is only available after both artists are ready and turns have started."
+          "A forfeit or quit is only available after both artists are ready and turns have started."
         );
       }
       if (
@@ -641,10 +646,10 @@ export class LiveRoomDurableObject extends DurableObject {
           (artist) => artist.id === disposition.affectedUserId
         )
       ) {
-        throw new Error("The forfeiting artist is not in this battle.");
+        throw new Error("The affected artist is not in this battle.");
       }
       if (!isAdmin && disposition.affectedUserId !== identity.userId) {
-        throw new Error("Artists can only forfeit their own battle seat.");
+        throw new Error("Artists can only leave their own battle seat.");
       }
     } else if (!(isAdmin || !battleHasStarted)) {
       throw new Error(
@@ -696,7 +701,9 @@ export class LiveRoomDurableObject extends DurableObject {
           ? `${affectedArtist?.name ?? "The opponent"} ducked the battle.`
           : disposition.kind === "forfeited"
             ? `${affectedArtist?.name ?? "An artist"} forfeited the battle.`
-            : "BattleBot canceled the battle before ratings were recorded.";
+            : disposition.kind === "quit"
+              ? `${affectedArtist?.name ?? "An artist"} quit the battle.`
+              : "BattleBot canceled the battle before ratings were recorded.";
     await this.persist(nextRoom);
     const announcedRoom = await this.appendBotChatMessage(
       nextRoom,
@@ -854,6 +861,12 @@ export class LiveRoomDurableObject extends DurableObject {
     const controls = room.battle.artistControlsByUserId?.[identity.userId];
     if (!controls?.availableTrackIds.includes(trackId)) {
       throw new Error("Track is not available in your locked Battle Kit.");
+    }
+    if (
+      controls.usedTrackIds.includes(trackId) ||
+      controls.currentTrackId === trackId
+    ) {
+      throw new Error("Choose an unused track from your Battle Kit.");
     }
 
     const nextRoom: LiveRoomState = {

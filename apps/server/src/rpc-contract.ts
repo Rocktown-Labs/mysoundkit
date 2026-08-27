@@ -738,6 +738,49 @@ export const rpcContract = new Hono()
   .delete("/v1/battles/challenges/:challengeId", (c) =>
     c.json({} as z.infer<typeof messageResponseSchema>)
   )
+  .get("/v1/battles/record", (c) =>
+    c.json(
+      {} as {
+        history: {
+          battleId: string;
+          battleTitle: string;
+          isRanked: boolean;
+          recordedAt: string;
+          result:
+            | "canceled"
+            | "ducked"
+            | "forfeited"
+            | "loss"
+            | "quit"
+            | "tie"
+            | "win";
+          roundsPlayed: number;
+          roundsWon: number;
+        }[];
+        participation: {
+          battles: number;
+          canceled: number;
+          ducks: number;
+          forfeits: number;
+          losses: number;
+          quits: number;
+          roundsPlayed: number;
+          ties: number;
+          wins: number;
+        };
+        ranked: {
+          battles: number;
+          canceled: number;
+          ducks: number;
+          forfeits: number;
+          losses: number;
+          quits: number;
+          ties: number;
+          wins: number;
+        };
+      }
+    )
+  )
   .get("/v1/battles/stats", (c) =>
     c.json(
       [] as {
@@ -745,6 +788,7 @@ export const rpcContract = new Hono()
         trackName: string;
         wins: number;
         losses: number;
+        ties: number;
         saves: number;
         downloads: number;
         purchases: number;
@@ -759,6 +803,7 @@ export const rpcContract = new Hono()
         stats: {
           wins: number;
           losses: number;
+          ties: number;
           saves: number;
           downloads: number;
           purchases: number;

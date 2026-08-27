@@ -1,6 +1,7 @@
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistFollows,
+  battleParticipations,
   battleRounds,
   battles,
   battleStats,
@@ -25,6 +26,15 @@ import { notify } from "@/lib/notifications";
 import { logWarn } from "@/middleware/structured-logging";
 
 export const BATTLE_RECORD_THRESHOLD_VIEWERS = 10;
+
+export type BattleParticipationResult =
+  | "canceled"
+  | "ducked"
+  | "forfeited"
+  | "loss"
+  | "quit"
+  | "tie"
+  | "win";
 
 export const REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL =
   "https://api.realtime.cloudflare.com/.well-known/webhooks.json";
@@ -723,6 +733,226 @@ export const applyParticipantLeftEvent = async (
   return "processed" as const;
 };
 
+const upsertBattleParticipation = async ({
+    battleId,
+    db,
+    isRanked,
+    result,
+    roundsPlayed,
+    roundsWon,
+    userId,
+  }: {
+    battleId: string;
+    db: ReturnType<typeof createDb>;
+    isRanked: boolean;
+    result: BattleParticipationResult;
+    roundsPlayed: number;
+    roundsWon: number;
+    userId: string;
+  }) => {
+    await db
+      .insert(battleParticipations)
+      .values({
+        battleId,
+        id: crypto.randomUUID(),
+        isRanked,
+        result,
+        roundsPlayed,
+        roundsWon,
+        userId,
+      })
+      .onConflictDoUpdate({
+        set: {
+          isRanked,
+          result,
+          roundsPlayed,
+          roundsWon,
+          updatedAt: new Date(),
+        },
+        target: [battleParticipations.battleId, battleParticipations.userId],
+      });
+  },
+  recordBattleParticipationOutcome = async ({
+    affectedUserId,
+    battleId,
+    kind,
+    peakViewerCount,
+  }: {
+    affectedUserId?: string | null;
+    battleId: string;
+    kind: "canceled" | "ducked" | "forfeited" | "quit";
+    peakViewerCount: number;
+  }) => {
+    if (!isDatabaseConfigured()) {
+      return { ranked: false, skipped: true };
+    }
+
+    const db = createDb(),
+      [battle] = await db
+        .select({
+          challengerArtistUserId: battles.challengerArtistUserId,
+          opponentArtistUserId: battles.opponentArtistUserId,
+        })
+        .from(battles)
+        .where(eq(battles.id, battleId))
+        .limit(1),
+      artistIds = [
+        battle?.challengerArtistUserId,
+        battle?.opponentArtistUserId,
+      ].filter((userId): userId is string => Boolean(userId));
+
+    if (artistIds.length === 0) {
+      return { ranked: false, skipped: true };
+    }
+
+    const isRanked = peakViewerCount >= BATTLE_RECORD_THRESHOLD_VIEWERS,
+      hasAffectedArtist = Boolean(
+        affectedUserId && artistIds.includes(affectedUserId)
+      ),
+      otherResult: BattleParticipationResult = hasAffectedArtist
+        ? "win"
+        : "canceled";
+
+    await Promise.all(
+      artistIds.map((userId) =>
+        upsertBattleParticipation({
+          battleId,
+          db,
+          isRanked,
+          result:
+            hasAffectedArtist && userId === affectedUserId ? kind : otherResult,
+          roundsPlayed: 0,
+          roundsWon: 0,
+          userId,
+        })
+      )
+    );
+
+    return { ranked: isRanked, skipped: false };
+  },
+  recordBattleParticipationForCompletion = async ({
+    battleId,
+    peakViewerCount,
+  }: {
+    battleId: string;
+    peakViewerCount: number;
+  }) => {
+    if (!isDatabaseConfigured()) {
+      return { alreadyRecorded: false, ranked: false, skipped: true };
+    }
+
+    const db = createDb(),
+      [battle] = await db
+        .select({
+          challengerArtistUserId: battles.challengerArtistUserId,
+          isRanked: battles.isRanked,
+          opponentArtistUserId: battles.opponentArtistUserId,
+          outcome: battles.outcome,
+        })
+        .from(battles)
+        .where(eq(battles.id, battleId))
+        .limit(1),
+      artistIds = [
+        battle?.challengerArtistUserId,
+        battle?.opponentArtistUserId,
+      ].filter((userId): userId is string => Boolean(userId));
+
+    if (artistIds.length === 0) {
+      return { alreadyRecorded: false, ranked: false, skipped: true };
+    }
+    if (battle?.outcome) {
+      return {
+        alreadyRecorded: true,
+        ranked: battle.isRanked,
+        skipped: true,
+      };
+    }
+
+    const existingParticipationRows = await db
+        .select({ userId: battleParticipations.userId })
+        .from(battleParticipations)
+        .where(eq(battleParticipations.battleId, battleId)),
+      alreadyRecorded = artistIds.every((userId) =>
+        existingParticipationRows.some((row) => row.userId === userId)
+      ),
+      rounds = await db
+        .select({
+          status: battleRounds.status,
+          winningTrackId: battleRounds.winningTrackId,
+        })
+        .from(battleRounds)
+        .where(eq(battleRounds.battleId, battleId)),
+      trackIds = rounds
+        .map((round) => round.winningTrackId)
+        .filter((trackId): trackId is string => Boolean(trackId)),
+      winningTracks =
+        trackIds.length > 0
+          ? await db
+              .select({ id: tracks.id, ownerUserId: tracks.ownerUserId })
+              .from(tracks)
+              .where(inArray(tracks.id, trackIds))
+          : [],
+      ownerByTrackId = new Map(
+        winningTracks.map((track) => [track.id, track.ownerUserId])
+      ),
+      roundsWonByUserId = new Map(artistIds.map((userId) => [userId, 0])),
+      completedRounds = rounds.filter((round) => round.status === "completed");
+
+    for (const round of completedRounds) {
+      const winnerUserId = round.winningTrackId
+        ? ownerByTrackId.get(round.winningTrackId)
+        : null;
+      if (winnerUserId && roundsWonByUserId.has(winnerUserId)) {
+        roundsWonByUserId.set(
+          winnerUserId,
+          (roundsWonByUserId.get(winnerUserId) ?? 0) + 1
+        );
+      }
+    }
+
+    const [firstArtistId, secondArtistId] = artistIds,
+      firstScore = firstArtistId
+        ? (roundsWonByUserId.get(firstArtistId) ?? 0)
+        : 0,
+      secondScore = secondArtistId
+        ? (roundsWonByUserId.get(secondArtistId) ?? 0)
+        : 0,
+      winnerUserId =
+        firstScore === secondScore
+          ? null
+          : firstScore > secondScore
+            ? firstArtistId
+            : secondArtistId,
+      isRanked = peakViewerCount >= BATTLE_RECORD_THRESHOLD_VIEWERS;
+
+    await Promise.all(
+      artistIds.map((userId) =>
+        upsertBattleParticipation({
+          battleId,
+          db,
+          isRanked,
+          result:
+            winnerUserId === null
+              ? "tie"
+              : winnerUserId === userId
+                ? "win"
+                : "loss",
+          roundsPlayed: completedRounds.length,
+          roundsWon: roundsWonByUserId.get(userId) ?? 0,
+          userId,
+        })
+      )
+    );
+    await db
+      .update(battles)
+      .set({ isRanked, updatedAt: new Date(), winnerUserId })
+      .where(eq(battles.id, battleId));
+
+    return { alreadyRecorded, ranked: isRanked, skipped: false, winnerUserId };
+  };
+
+export { recordBattleParticipationOutcome };
+
 export const updateArtistRecordsForBattle = async ({
   battleId,
   peakViewerCount,
@@ -731,11 +961,19 @@ export const updateArtistRecordsForBattle = async ({
   peakViewerCount: number;
 }) => {
   if (!isDatabaseConfigured()) {
-    return { losses: 0, skipped: true, wins: 0 };
+    return { losses: 0, skipped: true, ties: 0, wins: 0 };
   }
 
-  if (peakViewerCount < BATTLE_RECORD_THRESHOLD_VIEWERS) {
-    return { losses: 0, skipped: true, wins: 0 };
+  const completionRecord = await recordBattleParticipationForCompletion({
+    battleId,
+    peakViewerCount,
+  });
+
+  if (
+    peakViewerCount < BATTLE_RECORD_THRESHOLD_VIEWERS ||
+    completionRecord.alreadyRecorded
+  ) {
+    return { losses: 0, skipped: true, ties: 0, wins: 0 };
   }
 
   const db = createDb(),
@@ -754,7 +992,7 @@ export const updateArtistRecordsForBattle = async ({
       );
 
   if (roundRows.length === 0) {
-    return { losses: 0, skipped: true, wins: 0 };
+    return { losses: 0, skipped: true, ties: 0, wins: 0 };
   }
 
   const trackIds = [
@@ -770,7 +1008,7 @@ export const updateArtistRecordsForBattle = async ({
   ];
 
   if (trackIds.length === 0) {
-    return { losses: 0, skipped: true, wins: 0 };
+    return { losses: 0, skipped: true, ties: 0, wins: 0 };
   }
 
   const trackRows = await db
@@ -785,21 +1023,23 @@ export const updateArtistRecordsForBattle = async ({
     );
 
   let losses = 0,
+    ties = 0,
     wins = 0;
 
   const upsertBattleStats = async ({
-    isWinner,
     ownerUserId,
+    result,
     trackId,
   }: {
-    isWinner: boolean;
     ownerUserId: string;
+    result: "loss" | "tie" | "win";
     trackId: string;
   }) => {
     const [statsRow] = await db
       .select({
         id: battleStats.id,
         losses: battleStats.losses,
+        ties: battleStats.ties,
         wins: battleStats.wins,
       })
       .from(battleStats)
@@ -815,9 +1055,11 @@ export const updateArtistRecordsForBattle = async ({
       await db
         .update(battleStats)
         .set(
-          isWinner
+          result === "win"
             ? { wins: statsRow.wins + 1 }
-            : { losses: statsRow.losses + 1 }
+            : result === "tie"
+              ? { ties: statsRow.ties + 1 }
+              : { losses: statsRow.losses + 1 }
         )
         .where(eq(battleStats.id, statsRow.id));
       return;
@@ -826,12 +1068,13 @@ export const updateArtistRecordsForBattle = async ({
     await db.insert(battleStats).values({
       downloads: 0,
       id: crypto.randomUUID(),
-      losses: isWinner ? 0 : 1,
+      losses: result === "loss" ? 1 : 0,
       purchases: 0,
       saves: 0,
+      ties: result === "tie" ? 1 : 0,
       trackId,
       userId: ownerUserId,
-      wins: isWinner ? 1 : 0,
+      wins: result === "win" ? 1 : 0,
     });
   };
 
@@ -849,23 +1092,30 @@ export const updateArtistRecordsForBattle = async ({
         continue;
       }
 
-      const isWinner = winnerUserId !== null && winnerUserId === ownerUserId;
+      const result =
+        winnerUserId === null
+          ? ("tie" as const)
+          : winnerUserId === ownerUserId
+            ? ("win" as const)
+            : ("loss" as const);
 
       await upsertBattleStats({
-        isWinner,
         ownerUserId,
+        result,
         trackId,
       });
 
-      if (isWinner) {
+      if (result === "win") {
         wins += 1;
+      } else if (result === "tie") {
+        ties += 1;
       } else {
         losses += 1;
       }
     }
   }
 
-  return { losses, skipped: false, wins };
+  return { losses, skipped: false, ties, wins };
 };
 
 export const publishExperienceRecordingAsVideo = async ({
@@ -1120,7 +1370,7 @@ export const roundVoteWinner = (
     trackTwoId: string | null;
     trackTwoVotes: number;
   },
-  isTiebreaker: boolean
+  _isTiebreaker?: boolean
 ) => {
   if (round.trackOneVotes > round.trackTwoVotes) {
     return round.trackOneId;
@@ -1130,7 +1380,7 @@ export const roundVoteWinner = (
     return round.trackTwoId;
   }
 
-  return isTiebreaker ? round.trackOneId : null;
+  return null;
 };
 
 export const applyBattleBotAction = async ({

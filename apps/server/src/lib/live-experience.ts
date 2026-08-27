@@ -99,6 +99,23 @@ export const resolveBattleArtistRole = ({
   return null;
 };
 
+export const resolveBattleRoomRole = ({
+  challengerArtistUserId,
+  isAdmin,
+  opponentArtistUserId,
+  userId,
+}: {
+  challengerArtistUserId: string | null | undefined;
+  isAdmin: boolean;
+  opponentArtistUserId: string | null | undefined;
+  userId: string;
+}): "admin" | "artist_a" | "artist_b" | "fan" =>
+  resolveBattleArtistRole({
+    challengerArtistUserId,
+    opponentArtistUserId,
+    userId,
+  }) ?? (isAdmin ? "admin" : "fan");
+
 export const allowsMockRealtime = ({
   allowMockRealtime,
 }: CloudflareRealtimeKitConfig) =>

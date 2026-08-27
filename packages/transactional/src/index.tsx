@@ -248,7 +248,11 @@ export function TransactionalNotificationEmail({
 }
 
 export type BattleOutcomeEmailAudience = "artist" | "viewer";
-export type BattleOutcomeEmailKind = "canceled" | "ducked" | "forfeited";
+export type BattleOutcomeEmailKind =
+  | "canceled"
+  | "ducked"
+  | "forfeited"
+  | "quit";
 
 export interface BattleOutcomeEmailProps {
   actionUrl: string;
@@ -272,19 +276,28 @@ const getBattleOutcomeCopy = ({
   "actionUrl" | "assetBaseUrl" | "recipientName"
 >) => {
   if (audience === "artist") {
-    const explicitForfeit = kind === "forfeited";
+    const explicitForfeit = kind === "forfeited",
+      quit = kind === "quit";
     return {
-      body: explicitForfeit
-        ? `We heard the news: you forfeited “${battleTitle}”. On SoundKit, stepping away from an active match is recorded as ducking the smoke. No rating was changed.`
-        : `We heard the news: you were marked as the artist who ducked “${battleTitle}” because you did not show up in the waiting room. No rating was changed. If this was a mistake, contact SoundKit support.`,
+      body: quit
+        ? `You quit “${battleTitle}” before the match was complete. Your battle participation has been recorded, and no rating was changed.`
+        : explicitForfeit
+          ? `We heard the news: you forfeited “${battleTitle}”. On SoundKit, stepping away from an active match is recorded as ducking the smoke. No rating was changed.`
+          : `We heard the news: you were marked as the artist who ducked “${battleTitle}” because you did not show up in the waiting room. No rating was changed. If this was a mistake, contact SoundKit support.`,
       ctaLabel: "Open artist battles",
-      eyebrow: explicitForfeit ? "Battle forfeit" : "Battle no-show",
+      eyebrow: quit
+        ? "Battle quit"
+        : explicitForfeit
+          ? "Battle forfeit"
+          : "Battle no-show",
       footerNote:
         "You are receiving this because an outcome was recorded for a battle involving your SoundKit artist account.",
-      heading: "You Ducked the Smoke",
-      previewText: explicitForfeit
-        ? `Your forfeit ended ${battleTitle}.`
-        : `You were marked as ducking ${battleTitle}.`,
+      heading: quit ? "You quit the battle" : "You Ducked the Smoke",
+      previewText: quit
+        ? `You quit ${battleTitle}.`
+        : explicitForfeit
+          ? `Your forfeit ended ${battleTitle}.`
+          : `You were marked as ducking ${battleTitle}.`,
     };
   }
 
@@ -303,15 +316,18 @@ const getBattleOutcomeCopy = ({
     };
   }
 
-  if (kind === "forfeited") {
+  if (kind === "forfeited" || kind === "quit") {
+    const didQuit = kind === "quit";
     return {
-      body: `${artistName} forfeited “${battleTitle}”. The battle has ended, and no new audience votes or rating changes will be recorded.`,
+      body: `${artistName} ${didQuit ? "quit" : "forfeited"} “${battleTitle}”. The battle has ended, and no new audience votes or rating changes will be recorded.`,
       ctaLabel: "View battle outcome",
       eyebrow: "Battle ended",
       footerNote:
         "You are receiving this because you joined or watched this SoundKit battle.",
-      heading: "The battle ended by forfeit",
-      previewText: `${artistName} forfeited ${battleTitle}.`,
+      heading: didQuit
+        ? "The battle ended when an artist quit"
+        : "The battle ended by forfeit",
+      previewText: `${artistName} ${didQuit ? "quit" : "forfeited"} ${battleTitle}.`,
     };
   }
 

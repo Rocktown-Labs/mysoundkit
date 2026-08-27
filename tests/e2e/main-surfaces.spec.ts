@@ -411,9 +411,7 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByText("Artist Battle Waiting Room", { exact: true })
     ).toBeVisible();
-    await expect(
-      page.getByText("Battle Chat", { exact: true })
-    ).toBeVisible();
+    await expect(page.getByText("Battle Chat", { exact: true })).toBeVisible();
 
     await gotoWithViteRetry(page, "/dashboard/live/battles");
     await page.getByRole("tab", { name: /outgoing/i }).click();
@@ -597,15 +595,18 @@ test.describe("main application surfaces", () => {
 
     await gotoWithViteRetry(page, "/live/battles/battle-waiting-artist");
     await expect(page).toHaveURL(
-      /\/dashboard\/live\/battles\/join\/battle-waiting-artist\/artistview$/
+      /\/dashboard\/live\/battles\/join\/battle-waiting-artist\/artistview$/,
+      { timeout: 60_000 }
     );
     await expect(page.getByText("Artist Battle Waiting Room")).toBeVisible({
       timeout: 60_000,
     });
     await expect(page.getByText("Prepare your battle lineup")).toBeVisible();
+    await expect(page.getByText("0/2 ready")).toBeVisible();
     await expect(
       page.getByText("Best of 3 · 3 rounds + tiebreaker")
     ).toBeVisible();
+    await page.waitForTimeout(500);
 
     const battleKitSelect = page.getByRole("combobox", { name: "Battle Kit" });
     await expect(battleKitSelect).toBeVisible();

@@ -28,7 +28,7 @@ export interface EnqueueTransactionalEmailOptions {
     subject?: string;
     battleOutcomeAudience?: "artist" | "viewer";
     battleOutcomeArtistName?: string | null;
-    battleOutcomeKind?: "canceled" | "ducked" | "forfeited";
+    battleOutcomeKind?: "canceled" | "ducked" | "forfeited" | "quit";
     battleOutcomeReason?: string;
     battleTitle?: string;
     trackId?: string;
@@ -224,7 +224,7 @@ export const deliverTransactionalEmail = async ({
         subject?: string;
         battleOutcomeAudience?: "artist" | "viewer";
         battleOutcomeArtistName?: string | null;
-        battleOutcomeKind?: "canceled" | "ducked" | "forfeited";
+        battleOutcomeKind?: "canceled" | "ducked" | "forfeited" | "quit";
         battleOutcomeReason?: string;
         battleTitle?: string;
         trackId?: string;

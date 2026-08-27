@@ -9,6 +9,7 @@ export interface BattleStats {
   trackName: string;
   wins: number;
   losses: number;
+  ties: number;
   winRate: number;
   saves: number;
   downloads: number;
@@ -63,6 +64,21 @@ export const columns: ColumnDef<BattleStats>[] = [
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
       >
         Losses
+        <ArrowUpDown className="ml-2 size-4" />
+      </Button>
+    ),
+  },
+  {
+    accessorKey: "ties",
+    cell: ({ row }) => (
+      <div className="font-semibold text-amber-500">{row.getValue("ties")}</div>
+    ),
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Ties
         <ArrowUpDown className="ml-2 size-4" />
       </Button>
     ),

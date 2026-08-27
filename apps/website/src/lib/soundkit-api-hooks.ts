@@ -152,6 +152,7 @@ const meGet = apiClient.v1.me.index.$get,
   sellerStatusGet = apiClient.v1.seller.status.$get,
   artistSetupGuideGet = apiClient.v1["artist-setup-guide"].index.$get,
   platformInvitePost = apiClient.v1.referrals.invite.$post,
+  battleRecordGet = apiClient.v1.battles.record.$get,
   battleStatsGet = apiClient.v1.battles.stats.$get,
   trackBattleHistoryGet =
     apiClient.v1.battles["track-history"][":trackId"].$get,
@@ -434,6 +435,7 @@ export const soundkitQueryKeys = {
   battleChallenges: ["battles", "challenges"] as const,
   battleKit: (id: string) => ["battles", "kits", id] as const,
   battleKits: ["battles", "kits"] as const,
+  battleRecord: ["battles", "record"] as const,
   battles: ["battles"] as const,
   battlesStats: ["battles", "stats"] as const,
   billingPlans: ["billing", "plans"] as const,
@@ -1634,7 +1636,7 @@ const battleDirectorySubscriptions = new WeakMap<
   >(),
   subscribeToBattleDirectory = (queryClient: QueryClient) => {
     if (typeof window === "undefined") {
-      return () => undefined;
+      return () => {};
     }
 
     const current = battleDirectorySubscriptions.get(queryClient);
@@ -2538,6 +2540,12 @@ export const usePlatformInviteMutation = () => {
       }),
   });
 };
+
+export const useBattleRecordQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await battleRecordGet()),
+    queryKey: soundkitQueryKeys.battleRecord,
+  });
 
 export const useBattleStatsQuery = () =>
   useQuery({

@@ -527,11 +527,16 @@ export function BattlePage({
     viewerQueueStatus = battle?.viewerQueueStatus ?? null,
     isAdmitted = viewerQueueStatus === "admitted",
     isArtist = Boolean(room?.role === "artist_a" || room?.role === "artist_b"),
-    isArtistForfeitPhase =
-      isArtist && artistForfeitPhases.has(phase ?? ""),
+    isArtistForfeitPhase = isArtist && artistForfeitPhases.has(phase ?? ""),
     isQueued =
       viewerQueueStatus === "queued" || viewerQueueStatus === "waiting",
     readyArtistUserIds = battle?.coordination?.artistReadyUserIds ?? [],
+    isBattleTie = Boolean(
+      battle &&
+      !battle.outcome &&
+      !battle.coordination?.winnerUserId &&
+      (phase === "battle_result" || phase === "ended")
+    ),
     lockedBattleKitId =
       battle?.artistControls?.selectedKitId ?? selectedBattleKitId,
     currentRound = battle?.rounds.find(
@@ -555,6 +560,15 @@ export function BattlePage({
       onLeave: () => {
         leave.mutate();
       },
+      onQuit: isArtist
+        ? async () => {
+            await battleDisposition.mutateAsync({
+              affectedUserId: session?.user?.id,
+              kind: "quit",
+              reason: "artist_unavailable",
+            });
+          }
+        : undefined,
       shouldBlock:
         Boolean(currentRound) &&
         (isAdmitted || isArtistForfeitPhase) &&
@@ -669,13 +683,14 @@ export function BattlePage({
 
   const handleBattleDisposition = async (disposition: {
     affectedUserId?: string | null;
-    kind: "canceled" | "ducked" | "forfeited";
+    kind: "canceled" | "ducked" | "forfeited" | "quit";
     reason: string;
   }) => {
     await battleDisposition.mutateAsync({
       ...disposition,
       affectedUserId:
-        disposition.kind === "forfeited" && !isAdmin
+        (disposition.kind === "forfeited" || disposition.kind === "quit") &&
+        !isAdmin
           ? (session?.user?.id ?? null)
           : disposition.affectedUserId,
     });
@@ -685,7 +700,9 @@ export function BattlePage({
           ? "The opponent was recorded as ducked. No rating was changed."
           : disposition.kind === "forfeited"
             ? "The forfeit was recorded."
-            : "The battle was canceled without changing ratings.",
+            : disposition.kind === "quit"
+              ? "Your battle exit was recorded."
+              : "The battle was canceled without changing ratings.",
       title: "Battle updated",
     });
   };
@@ -826,10 +843,18 @@ export function BattlePage({
                   </div>
                   <div className="flex items-center gap-2">
                     {isArtist || isAdmin ? (
-                      <Badge className="gap-1.5 text-xs" variant="secondary">
-                        <Swords className="size-3.5" />
-                        Artist room
-                      </Badge>
+                      <>
+                        <Badge
+                          className="font-mono text-[10px]"
+                          variant="outline"
+                        >
+                          {readyArtistUserIds.length}/2 ready
+                        </Badge>
+                        <Badge className="gap-1.5 text-xs" variant="secondary">
+                          <Swords className="size-3.5" />
+                          Artist room
+                        </Badge>
+                      </>
                     ) : isQueued ? (
                       <>
                         <Badge variant="secondary" className="gap-1.5 text-xs">
@@ -871,6 +896,7 @@ export function BattlePage({
                 <BattleLifecycleControls
                   artists={battle.artists}
                   currentUserId={session?.user?.id}
+                  hasSelectedKit={Boolean(lockedBattleKitId)}
                   isAdmin={room.role === "admin"}
                   isArtist={isArtist}
                   isReady={Boolean(
@@ -887,6 +913,7 @@ export function BattlePage({
                   pending={battleReady.isPending || battleDisposition.isPending}
                   phase={phase ?? "waiting_room"}
                   readyArtistUserIds={readyArtistUserIds}
+                  roundNumber={battle.coordination?.roundNumber}
                 />
                 <p className="text-xs text-muted-foreground">
                   {artistView
@@ -953,6 +980,7 @@ export function BattlePage({
                 <BattleLifecycleControls
                   artists={battle.artists}
                   currentUserId={session?.user?.id}
+                  hasSelectedKit={Boolean(lockedBattleKitId)}
                   isAdmin={room.role === "admin"}
                   isArtist={isArtist}
                   isReady={readyArtistUserIds.includes(
@@ -967,6 +995,7 @@ export function BattlePage({
                   pending={battleReady.isPending || battleDisposition.isPending}
                   phase={phase ?? "waiting_room"}
                   readyArtistUserIds={readyArtistUserIds}
+                  roundNumber={battle.coordination?.roundNumber}
                 />
               )}
               <div className="flex flex-wrap items-center gap-2">
@@ -1562,6 +1591,21 @@ export function BattlePage({
             </CardContent>
           </Card>
 
+          {isBattleTie && (
+            <Card className="border-amber-400/40 bg-amber-500/10">
+              <CardContent className="flex items-start gap-3 p-4">
+                <Swords className="mt-0.5 size-5 shrink-0 text-amber-300" />
+                <div>
+                  <p className="font-semibold text-sm">Battle ended in a tie</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    The final score stayed even. This result is shown in your
+                    participation history and does not change ratings.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {battle.outcome && (
             <Card className="border-purple-400/40 bg-purple-500/10">
               <CardContent className="flex items-start gap-3 p-4">
@@ -1572,7 +1616,9 @@ export function BattlePage({
                       ? "Battle ended: opponent ducked"
                       : battle.outcome.kind === "forfeited"
                         ? "Battle ended by forfeit"
-                        : "Battle canceled"}
+                        : battle.outcome.kind === "quit"
+                          ? "Battle ended by quit"
+                          : "Battle canceled"}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     This outcome did not change battle ratings.
@@ -1585,6 +1631,7 @@ export function BattlePage({
           <BattleLifecycleControls
             artists={battle.artists}
             currentUserId={session?.user?.id}
+            hasSelectedKit={Boolean(lockedBattleKitId)}
             isAdmin={room.role === "admin"}
             isArtist={isArtist}
             isReady={Boolean(
@@ -1601,14 +1648,20 @@ export function BattlePage({
             pending={battleReady.isPending || battleDisposition.isPending}
             phase={phase ?? "waiting_room"}
             readyArtistUserIds={readyArtistUserIds}
+            roundNumber={battle.coordination?.roundNumber}
           />
 
           {(room.role === "artist_a" || room.role === "artist_b") && (
             <BattleArtistControlPanel
+              artistId={
+                room.role === "artist_a"
+                  ? battle.artists[0].id
+                  : battle.artists[1].id
+              }
               battle={battle}
+              currentTrackId={room.currentTrackId}
               onSelectTrack={(trackId) => battleTrack.mutate({ trackId })}
               pending={battleTrack.isPending}
-              selectedTrackId={currentTrack?.id}
             />
           )}
         </div>
