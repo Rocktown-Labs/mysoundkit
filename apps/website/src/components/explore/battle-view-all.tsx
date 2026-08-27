@@ -261,12 +261,14 @@ function LiveBattleSummaryCard({
 
 function BattleRail({
   battles,
+  emptyMessage,
   isPremiumUser,
   showViewAll = true,
   title,
   viewAllGenre,
 }: {
   battles: BattleSummary[];
+  emptyMessage?: string;
   isPremiumUser: boolean;
   showViewAll?: boolean;
   title: string;
@@ -309,7 +311,7 @@ function BattleRail({
         </div>
       ) : (
         <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
-          No live battles in {title} right now.
+          {emptyMessage ?? `No live battles in ${title} right now.`}
         </div>
       )}
     </section>
@@ -405,9 +407,11 @@ export function BattleViewAll({
               (first.featuredRank ?? Number.MAX_SAFE_INTEGER) -
               (second.featuredRank ?? Number.MAX_SAFE_INTEGER)
           ),
-        byGenre = groupBattlesByGenre(filtered);
+        byGenre = groupBattlesByGenre(filtered).filter(
+          (section) => section.battles.length > 0
+        );
 
-      return { byGenre, featured, total: filtered.length };
+      return { byGenre, featured, live: filtered, total: filtered.length };
     }, [battleSummaries, genre, sort]),
     upcomingBattles = useMemo(() => {
       const scheduled = battleSummaries.filter(
@@ -454,14 +458,20 @@ export function BattleViewAll({
             isPremiumUser={isPremiumUser}
             title="Featured"
           />
-          {upcomingBattles.length > 0 ? (
-            <BattleRail
-              battles={upcomingBattles}
-              isPremiumUser={isPremiumUser}
-              showViewAll={false}
-              title="Upcoming Battles"
-            />
-          ) : null}
+          <BattleRail
+            battles={liveBattleSections.live}
+            emptyMessage="No battles are live right now."
+            isPremiumUser={isPremiumUser}
+            showViewAll={false}
+            title="Live Now"
+          />
+          <BattleRail
+            battles={upcomingBattles}
+            emptyMessage="No upcoming battles are scheduled yet."
+            isPremiumUser={isPremiumUser}
+            showViewAll={false}
+            title="Upcoming"
+          />
           {liveBattleSections.byGenre.map((section) => (
             <BattleRail
               key={section.genre}
@@ -473,7 +483,7 @@ export function BattleViewAll({
           ))}
         </>
       );
-    }, [isLoadingBattles, liveBattleSections, upcomingBattles]),
+    }, [isLoadingBattles, isPremiumUser, liveBattleSections, upcomingBattles]),
     getBattleTypeIcon = (battleType: BattleType) => {
       switch (battleType) {
         case "leaderboard": {
@@ -653,7 +663,7 @@ export function BattleViewAll({
             <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-muted-foreground">
               Loading upcoming battles...
             </div>
-          ) : upcomingBattles.length === 0 ? (
+          ) : (upcomingBattles.length === 0 ? (
             <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-muted-foreground">
               No upcoming battles are scheduled yet.
             </div>
@@ -665,11 +675,9 @@ export function BattleViewAll({
                 key={battle.id}
               />
             ))
-          )}
+          ))}
         </div>
       )}
-
-
     </div>
   );
 }

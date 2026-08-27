@@ -340,6 +340,9 @@ importers:
       '@better-upload/client':
         specifier: ^3.0.17
         version: 3.0.19(react@19.2.7)
+      '@cloudflare/realtimekit':
+        specifier: 2.0.2
+        version: 2.0.2
       '@fontsource-variable/geist':
         specifier: ^5.2.8
         version: 5.2.9
@@ -1753,6 +1756,9 @@ packages:
   '@cloudflare/kv-asset-handler@0.5.0':
     resolution: {integrity: sha512-jxQYkj8dSIzc0cD6cMMNdOc1UVjqSqu8BZdor5s8cGjW2I8BjODt/kWPVdY+u9zj3ms75Q5qaZgnxUad83+eAg==}
     engines: {node: '>=22.0.0'}
+
+  '@cloudflare/realtimekit@2.0.2':
+    resolution: {integrity: sha512-tetGFcwlq9QAf4sSyLOJriChgZKoImKphC/JiOCJ9U/B+h2onJ8lYJzdwQTVAb9YnAImtiN3I/eYs2IxHer3fQ==}
 
   '@cloudflare/unenv-preset@2.16.1':
     resolution: {integrity: sha512-ECxObrMfyTl5bhQf/lZCXwo5G6xX9IAUo+nDMKK4SZ8m4Jvvxp52vilxyySSWh2YTZz8+HQ07qGH/2rEom1vDw==}
@@ -3824,6 +3830,9 @@ packages:
 
   '@posthog/types@1.392.0':
     resolution: {integrity: sha512-nctNujXL3FC1v99FktaTMSugSD9ZOZekEpahUSafkU2TSvW+XGKNkQZbokuJtiWvPBK208dwMJva8UfBkChqpw==}
+
+  '@protobuf-ts/runtime@2.11.1':
+    resolution: {integrity: sha512-KuDaT1IfHkugM2pyz+FwiY80ejWrkH1pAtOBOZFuR6SXEFTsnb/jiQWQ1rCIrcKx2BtyxnxW6BWwsVSA/Ie+WQ==}
 
   '@quansync/fs@1.0.0':
     resolution: {integrity: sha512-4TJ3DFtlf1L5LDMaM6CanJ/0lckGNtJcMjQ1NAV6zDmA0tEHKZtxNKin8EgPaVX1YzljbxckyT2tJrpQKAtngQ==}
@@ -8071,6 +8080,10 @@ packages:
   fast-string-width@3.0.2:
     resolution: {integrity: sha512-gX8LrtNEI5hq8DVUfRQMbr5lpaS4nMIWV+7XEbXk2b8kiQIizgnlr12B4dA3ZEx3308ze0O4Q1R+cHts8kyUJg==}
 
+  fast-unique-numbers@8.0.13:
+    resolution: {integrity: sha512-7OnTFAVPefgw2eBJ1xj2PGGR9FwYzSUso9decayHgCDX4sJkHLdcsYTytTg+tYv+wKF3U8gJuSBz2jJpQV4u/g==}
+    engines: {node: '>=16.1.0'}
+
   fast-uri@3.1.3:
     resolution: {integrity: sha512-i70LwGWUduXqzicKXWshooq+sWL1K3WUU5rKZNG/0i3a1OSoX3HqhH5WbWwTmqWfor4urUakGPiRQcleRZTwOg==}
 
@@ -10573,6 +10586,10 @@ packages:
   scheduler@0.27.0:
     resolution: {integrity: sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==}
 
+  sdp-transform@2.15.0:
+    resolution: {integrity: sha512-KrOH82c/W+GYQ0LHqtr3caRpM3ITglq3ljGUIb8LTki7ByacJZ9z+piSGiwZDsRyhQbYBOBJgr2k6X4BZXi3Kw==}
+    hasBin: true
+
   selderee@0.11.0:
     resolution: {integrity: sha512-5TF+l7p4+OsnP8BCCvSyZiSPc4x4//p5uPwK8TCnVPJYRmU2aYKMpOXvw8zM5a5JvuuCGN1jmsMwuU2W02ukfA==}
 
@@ -11469,6 +11486,11 @@ packages:
     deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
+  uuid@8.3.2:
+    resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+    hasBin: true
+
   validate-npm-package-name@5.0.1:
     resolution: {integrity: sha512-OljLrQ9SQdOUqTaQxqL5dEfZWrXExyyWsozYlAWFawPVNuD83igl7uJD2RTkNMbniIYgt8l81eCJGIdQF7avLQ==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
@@ -11676,6 +11698,15 @@ packages:
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
+
+  worker-timers-broker@6.1.8:
+    resolution: {integrity: sha512-FUCJu9jlK3A8WqLTKXM9E6kAmI/dR1vAJ8dHYLMisLNB/n3GuaFIjJ7pn16ZcD1zCOf7P6H62lWIEBi+yz/zQQ==}
+
+  worker-timers-worker@7.0.71:
+    resolution: {integrity: sha512-ks/5YKwZsto1c2vmljroppOKCivB/ma97g9y77MAAz2TBBjPPgpoOiS1qYQKIgvGTr2QYPT3XhJWIB6Rj2MVPQ==}
+
+  worker-timers@7.0.60:
+    resolution: {integrity: sha512-kom5j7+JQU0uuJAqAeFvxPpKlp21BH09YLMU/JLKA+0Zs3WTGk7WSBFYjdR3G+kjXr6qWD7zIcenv3oXaWBJzw==}
 
   workerd@1.20260310.1:
     resolution: {integrity: sha512-yawXhypXXHtArikJj15HOMknNGikpBbSg2ZDe6lddUbqZnJXuCVSkgc/0ArUeVMG1jbbGvpst+REFtKwILvRTQ==}
@@ -13123,6 +13154,14 @@ snapshots:
   '@cloudflare/containers@0.3.7': {}
 
   '@cloudflare/kv-asset-handler@0.5.0': {}
+
+  '@cloudflare/realtimekit@2.0.2':
+    dependencies:
+      '@protobuf-ts/runtime': 2.11.1
+      bowser: 2.14.1
+      sdp-transform: 2.15.0
+      uuid: 8.3.2
+      worker-timers: 7.0.60
 
   '@cloudflare/unenv-preset@2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260625.1)':
     dependencies:
@@ -15051,6 +15090,8 @@ snapshots:
       '@types/react': 19.2.17
 
   '@posthog/types@1.392.0': {}
+
+  '@protobuf-ts/runtime@2.11.1': {}
 
   '@quansync/fs@1.0.0':
     dependencies:
@@ -20683,6 +20724,11 @@ snapshots:
     dependencies:
       fast-string-truncated-width: 3.0.3
 
+  fast-unique-numbers@8.0.13:
+    dependencies:
+      '@babel/runtime': 7.29.7
+      tslib: 2.8.1
+
   fast-uri@3.1.3: {}
 
   fast-wrap-ansi@0.2.2:
@@ -24125,6 +24171,8 @@ snapshots:
 
   scheduler@0.27.0: {}
 
+  sdp-transform@2.15.0: {}
+
   selderee@0.11.0:
     dependencies:
       parseley: 0.12.1
@@ -25034,6 +25082,8 @@ snapshots:
 
   uuid@7.0.3: {}
 
+  uuid@8.3.2: {}
+
   validate-npm-package-name@5.0.1: {}
 
   validate-npm-package-name@7.0.2: {}
@@ -25268,6 +25318,25 @@ snapshots:
       stackback: 0.0.2
 
   word-wrap@1.2.5: {}
+
+  worker-timers-broker@6.1.8:
+    dependencies:
+      '@babel/runtime': 7.29.7
+      fast-unique-numbers: 8.0.13
+      tslib: 2.8.1
+      worker-timers-worker: 7.0.71
+
+  worker-timers-worker@7.0.71:
+    dependencies:
+      '@babel/runtime': 7.29.7
+      tslib: 2.8.1
+
+  worker-timers@7.0.60:
+    dependencies:
+      '@babel/runtime': 7.29.7
+      tslib: 2.8.1
+      worker-timers-broker: 6.1.8
+      worker-timers-worker: 7.0.71
 
   workerd@1.20260310.1:
     optionalDependencies:

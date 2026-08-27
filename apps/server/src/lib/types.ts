@@ -35,6 +35,7 @@ export interface AppVariables {
 export interface AppEnv {
   Bindings: {
     BATTLE_ADMISSION_BATCH_SIZE?: string;
+    BATTLE_BOT_SECRET?: string;
     DO_METRICS?: AnalyticsEngineDataset;
     LIVE_NOTIFICATION_QUEUE?: Queue<LiveNotificationQueueMessage>;
     NOTIFICATION_QUEUE?: Queue<NotificationQueueMessage>;
