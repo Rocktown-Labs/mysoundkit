@@ -35,6 +35,7 @@ import {
 import { canonicalGenreSlug } from "@/lib/genre-catalog";
 import {
   allowsMockRealtime,
+  battleMediaPhase,
   buildNotificationFanout,
   buildRealtimeKitMeetingUrl,
   buildRealtimeKitParticipantUrl,
@@ -712,10 +713,113 @@ const badRequest = (message: string) => ({
       return null;
     }
   },
-  resolveMeetingIdForExperience = async (experienceId: string) => {
-    const experience = await loadLiveExperienceById(experienceId);
+  ensureBattleLiveExperience = async ({
+    env,
+    experienceId,
+  }: {
+    env: AppEnv["Bindings"];
+    experienceId: string;
+  }) => {
+    if (!isDatabaseConfigured()) {
+      return null;
+    }
 
-    return experience?.meetingId ?? experienceId;
+    const db = createDb(),
+      [existingById] = await db
+        .select()
+        .from(liveExperiences)
+        .where(eq(liveExperiences.id, experienceId))
+        .limit(1);
+
+    if (existingById) {
+      return existingById;
+    }
+
+    const [battle] = await db
+      .select({
+        challengerArtistUserId: battles.challengerArtistUserId,
+        createdAt: battles.createdAt,
+        id: battles.id,
+        opponentArtistUserId: battles.opponentArtistUserId,
+        startsAt: battles.startsAt,
+        status: battles.status,
+        title: battles.title,
+        visibility: battles.visibility,
+      })
+      .from(battles)
+      .where(
+        or(
+          eq(battles.id, experienceId),
+          eq(battles.externalBattleId, experienceId)
+        )
+      )
+      .limit(1);
+
+    if (!battle) {
+      return null;
+    }
+
+    const [existingByBattle] = await db
+      .select()
+      .from(liveExperiences)
+      .where(eq(liveExperiences.battleId, battle.id))
+      .limit(1);
+
+    if (existingByBattle) {
+      return existingByBattle;
+    }
+
+    const createdByUserId =
+      battle.challengerArtistUserId ?? battle.opponentArtistUserId;
+    if (!createdByUserId) {
+      return null;
+    }
+
+    const meeting = await createRealtimeMeeting({
+        env,
+        kind: "battle",
+        title: battle.title,
+      }),
+      status =
+        battle.status === "live"
+          ? "live"
+          : battle.status === "completed"
+            ? "ended"
+            : "scheduled",
+      startsAt = (battle.startsAt ?? battle.createdAt).toISOString(),
+      [createdExperience] = await db
+        .insert(liveExperiences)
+        .values({
+          ...buildLiveExperienceInsert({
+            battleId: battle.id,
+            battleKitId: null,
+            createdByUserId,
+            genre: null,
+            id: battle.id,
+            kind: "battle",
+            meetingId: meeting.id,
+            playlistId: null,
+            projectId: null,
+            source: "browser",
+            startsAt,
+            title: battle.title,
+            visibility: battle.visibility,
+          }),
+          status,
+        })
+        .onConflictDoNothing()
+        .returning();
+
+    if (createdExperience) {
+      return createdExperience;
+    }
+
+    const [battleExperience] = await db
+      .select()
+      .from(liveExperiences)
+      .where(eq(liveExperiences.battleId, battle.id))
+      .limit(1);
+    return battleExperience ?? null;
   },
   isArtistUser = async (userId: string) => {
     if (!isDatabaseConfigured()) {
@@ -824,15 +928,27 @@ const badRequest = (message: string) => ({
         experience.createdByUserId === user.id
       ) {
         role = "host";
-      } else if (experience?.battleId) {
-        const [battle] = await db
-          .select({
-            challengerArtistUserId: battles.challengerArtistUserId,
-            opponentArtistUserId: battles.opponentArtistUserId,
-          })
-          .from(battles)
-          .where(eq(battles.id, experience.battleId))
-          .limit(1);
+      } else if (
+        !experience ||
+        experience.battleId ||
+        experience.kind === "battle"
+      ) {
+        const battleId = experience?.battleId ?? roomId,
+          [battle] = await db
+            .select({
+              challengerArtistUserId: battles.challengerArtistUserId,
+              opponentArtistUserId: battles.opponentArtistUserId,
+            })
+            .from(battles)
+            .where(
+              experience?.battleId
+                ? eq(battles.id, battleId)
+                : or(
+                    eq(battles.id, battleId),
+                    eq(battles.externalBattleId, battleId)
+                  )
+            )
+            .limit(1);
         if (battle?.challengerArtistUserId === user.id) {
           role = "artist_a";
         } else if (battle?.opponentArtistUserId === user.id) {
@@ -1990,17 +2106,24 @@ app.post("/experiences/:experienceId/join", async (c) => {
   }
 
   const experienceId = c.req.param("experienceId"),
-    kind = liveKindFromExperienceId(experienceId),
-    meetingId = await resolveMeetingIdForExperience(experienceId);
+    kind = liveKindFromExperienceId(experienceId);
+  let experience = isDatabaseConfigured()
+    ? await loadLiveExperienceById(experienceId)
+    : null;
+
+  if (!experience && kind === "battle") {
+    experience = await ensureBattleLiveExperience({
+      env: c.env,
+      experienceId,
+    });
+  }
+
+  const meetingId = experience?.meetingId ?? experienceId;
   let participantRole: LiveParticipantRole = parseResult.data.role,
     participantPhase = parseResult.data.phase;
 
-  if (isDatabaseConfigured()) {
-    const experience = await loadLiveExperienceById(experienceId);
-    if (
-      experience &&
-      !(await hasLiveRoomAccess(c, experience.status === "live"))
-    ) {
+  if (experience) {
+    if (!(await hasLiveRoomAccess(c, experience.status === "live"))) {
       return c.json(
         forbiddenMessage(
           "A Premium subscription is required to join live rooms."
@@ -2008,10 +2131,10 @@ app.post("/experiences/:experienceId/join", async (c) => {
         HttpStatusCodes.FORBIDDEN
       );
     }
-    if (experience?.kind === "party") {
+    if (experience.kind === "party") {
       participantRole =
         experience.createdByUserId === user.id ? "host" : "listener";
-    } else if (experience?.battleId) {
+    } else if (experience.battleId) {
       const [battle] = await createDb()
         .select({
           challengerArtistUserId: battles.challengerArtistUserId,
@@ -2021,12 +2144,33 @@ app.post("/experiences/:experienceId/join", async (c) => {
         .where(eq(battles.id, experience.battleId))
         .limit(1);
       participantRole =
-        battle?.challengerArtistUserId === user.id ||
-        battle?.opponentArtistUserId === user.id
-          ? "artist"
-          : "listener";
-      participantPhase = undefined;
-    } else if (experience && experience.createdByUserId !== user.id) {
+        user.role === "admin"
+          ? "host"
+          : battle?.challengerArtistUserId === user.id ||
+              battle?.opponentArtistUserId === user.id
+            ? "artist"
+            : "listener";
+      const battleRoom = await getDurableRoomState(
+        c,
+        experience.battleId
+      ).catch(() => null);
+      const battlePhase = battleMediaPhase(
+        battleRoom?.battle?.coordination?.phase
+      );
+      const isStageParticipant =
+        participantRole === "artist" || participantRole === "host";
+      if (
+        isStageParticipant &&
+        battlePhase !== "lobby" &&
+        battlePhase !== "completed"
+      ) {
+        participantPhase = "round_active";
+      } else if (isStageParticipant) {
+        participantPhase = battlePhase;
+      } else {
+        participantPhase = "lobby";
+      }
+    } else if (experience.createdByUserId !== user.id) {
       participantRole = "viewer";
     }
   }

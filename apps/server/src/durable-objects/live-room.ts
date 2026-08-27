@@ -26,8 +26,13 @@ interface LiveRoomChatBody {
 }
 
 interface LiveRoomSocketMessage {
-  payload?: LiveRoomChatBody | LiveRoomVoteBody;
-  type?: "chat" | "vote";
+  payload?: LiveRoomChatBody | LiveRoomMediaControl | LiveRoomVoteBody;
+  type?: "battle.media_control" | "chat" | "vote";
+}
+
+interface LiveRoomMediaControl {
+  action: "allow_audio";
+  targetUserId: string;
 }
 
 export interface LiveRoomIdentity {
@@ -191,6 +196,13 @@ export class LiveRoomDurableObject extends DurableObject {
       if (parsed.type === "vote") {
         await this.applyVote(
           (parsed.payload ?? {}) as LiveRoomVoteBody,
+          attachment
+        );
+        return;
+      }
+      if (parsed.type === "battle.media_control") {
+        await this.applyMediaControl(
+          (parsed.payload ?? {}) as LiveRoomMediaControl,
           attachment
         );
       }
@@ -961,6 +973,35 @@ export class LiveRoomDurableObject extends DurableObject {
       count: this.ctx.getWebSockets().length,
       roomId: room.id,
       type: "presence",
+    });
+  }
+
+  private async applyMediaControl(
+    body: LiveRoomMediaControl,
+    identity: LiveRoomIdentity
+  ) {
+    if (
+      !(
+        identity.role === "admin" ||
+        identity.role === "artist_a" ||
+        identity.role === "artist_b"
+      ) ||
+      body.action !== "allow_audio" ||
+      !body.targetUserId
+    ) {
+      return;
+    }
+
+    const room = await this.loadState(),
+      artistIds = room.battle?.artists.map((artist) => artist.id) ?? [];
+    if (!artistIds.includes(body.targetUserId)) {
+      return;
+    }
+
+    this.broadcastToUser(body.targetUserId, {
+      action: body.action,
+      fromUserId: identity.userId,
+      type: "battle.media_control",
     });
   }
 

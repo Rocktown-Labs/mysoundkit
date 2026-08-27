@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added RealtimeKit battle media stages with browser camera/microphone publishing, responsive two-artist video tiles, stage promotion/demotion, participant mute controls, reconnect handling, and lazy meeting creation for existing battles.
 - Added owner-scoped video detail analytics at `/dashboard/videos/:id`, first-party Mux playback view sessions, watch-depth charts, and privacy-safe country/Premium regional audience breakdowns.
 - Added canonical dashboard and Explore navigation with compatibility redirects, plus public community discovery and a TanStack DB-powered artist community experience with free/paid membership, chat, posts, member roles, bans, and creator moderation.
 - Added mechanical OpenAPI-to-Hono RPC parity checks, typed website/native API consumers, semantic-search and embedding operations, track recovery, and a validated Expo route manifest with explicit Explore, Library, Live, and Dashboard tab ownership.
@@ -42,6 +43,7 @@
 
 - Fixed battle kits and scheduled battle promotion: kit saves now refresh the current list, duplicate cover-asset joins are collapsed to one track, accepted requests leave Outgoing, public live routes show real upcoming battle cards with participant avatars and status, and Use Kit locks the selected lineup when entering the waiting room.
 - Added shareable upcoming battle invites: signed-out fans retain the battle through signup and Premium checkout, automatically follow the referring artist, and receive replay-ready in-app and email notifications linked to the replay.
+- Fixed battles that had no linked live experience by creating and persisting their RealtimeKit meeting on the first authenticated media join, while preserving the existing waiting-room Durable Object flow.
 - Fixed battle challenge lifecycle handling: pending requests now expire after seven days, stale requests are reconciled by reads and the scheduled sweep, and senders can cancel pending outgoing requests from the dashboard. Battle requests now use optimistic TanStack DB state, while expired/declined/canceled requests and stale scheduled battles can be cleared safely.
 - Removed duplicate payout/workspace prompts from the dashboard and payments page; payout setup now lives in the artist activation guide while Stripe account controls remain on Payments.
 - Fixed Battle Kit creation affordances to require Artist Premium and four released, playable tracks before setup.

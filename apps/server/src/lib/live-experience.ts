@@ -98,7 +98,7 @@ export const resolveRealtimePreset = ({
       return ROUND_LOBBY_PRESET;
     }
 
-    if (role === "artist") {
+    if (role === "artist" || role === "host") {
       return phase === "round_active"
         ? "soundkit-battle-artist-live"
         : "soundkit-battle-artist-muted";
@@ -114,6 +114,43 @@ export const resolveRealtimePreset = ({
   return role === "host" || role === "artist"
     ? "soundkit-stream-host"
     : "soundkit-stream-viewer";
+};
+
+export const battleMediaPhase = (phase?: string): BattlePhase | undefined => {
+  if (!phase) {
+    return undefined;
+  }
+
+  if (
+    phase === "scheduled" ||
+    phase === "waiting_room" ||
+    phase === "between_rounds" ||
+    phase === "round_result" ||
+    phase === "turn_transition" ||
+    phase === "pre_vote"
+  ) {
+    return "lobby";
+  }
+
+  if (
+    phase === "round_intro" ||
+    phase === "artist_a_turn" ||
+    phase === "artist_b_turn" ||
+    phase === "tiebreaker_a" ||
+    phase === "tiebreaker_b"
+  ) {
+    return "round_active";
+  }
+
+  if (phase === "voting" || phase === "tiebreaker_voting") {
+    return "voting";
+  }
+
+  if (phase === "battle_result" || phase === "ended") {
+    return "completed";
+  }
+
+  return undefined;
 };
 
 export const findLiveSessionConflict = ({
