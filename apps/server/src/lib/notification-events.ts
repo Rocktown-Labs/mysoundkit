@@ -88,6 +88,18 @@ export type NotificationEvent = NotificationEventBase &
       }
     | {
         data: {
+          affectedArtistName: string | null;
+          affectedUserId: string | null;
+          audience: "artist" | "viewer";
+          battleId: string;
+          battleTitle: string;
+          kind: "canceled" | "ducked" | "forfeited";
+          reason: string;
+        };
+        type: "battle.outcome";
+      }
+    | {
+        data: {
           actorName: string;
           listingId: string;
           listingTitle: string;
@@ -161,10 +173,16 @@ export interface NotificationEmailCopy {
   body: string;
   ctaLabel: string;
   eyebrow: string;
+  footerNote?: string;
   heading: string;
   previewText: string;
   subject: string;
-  template?: "follower" | "notification";
+  template?: "battle_outcome" | "follower" | "notification";
+  battleOutcomeAudience?: "artist" | "viewer";
+  battleOutcomeArtistName?: string | null;
+  battleOutcomeKind?: "canceled" | "ducked" | "forfeited";
+  battleOutcomeReason?: string;
+  battleTitle?: string;
 }
 
 export interface NotificationEventDefinition {
@@ -473,6 +491,77 @@ export const defineNotificationEvent = (
         preference: "live",
       };
     }
+    case "battle.outcome": {
+      const actionPath = `/live/battles/${encodeURIComponent(event.data.battleId)}`,
+        isArtist = event.data.audience === "artist",
+        isDucked = event.data.kind === "ducked",
+        isForfeit = event.data.kind === "forfeited",
+        isPlatformIssue =
+          event.data.reason === "platform_issue" ||
+          event.data.reason === "technical_issue",
+        artistName = event.data.affectedArtistName ?? "One of the artists",
+        body = isArtist
+          ? isForfeit
+            ? `We heard the news: you forfeited “${event.data.battleTitle}”. On SoundKit, stepping away from an active match is recorded as ducking the smoke. No rating was changed.`
+            : `We heard the news: you were marked as the artist who ducked “${event.data.battleTitle}” because you did not show up in the waiting room. No rating was changed. If this was a mistake, contact SoundKit support.`
+          : isDucked
+            ? `Unfortunately, ${artistName} ducked the smoke in “${event.data.battleTitle}”, so the battle was canceled before a rated result. No ratings were changed.`
+            : isForfeit
+              ? `${artistName} forfeited “${event.data.battleTitle}”. The battle has ended, and no new audience votes or rating changes will be recorded.`
+              : isPlatformIssue
+                ? `SoundKit dropped the ball on “${event.data.battleTitle}”, so we canceled the battle before a rated result. We are sorry for the interruption. No ratings were changed.`
+                : `“${event.data.battleTitle}” was canceled before a rated result was recorded. No ratings were changed.`,
+        heading = isArtist
+          ? "You Ducked the Smoke"
+          : isForfeit
+            ? "The battle ended by forfeit"
+            : isPlatformIssue
+              ? "SoundKit canceled the battle"
+              : isDucked
+                ? "The battle was ducked"
+                : "The battle was canceled";
+      return {
+        channels: { email: "immediate", inApp: true },
+        email: {
+          battleOutcomeArtistName: event.data.affectedArtistName,
+          battleOutcomeAudience: event.data.audience,
+          battleOutcomeKind: event.data.kind,
+          battleOutcomeReason: event.data.reason,
+          battleTitle: event.data.battleTitle,
+          body,
+          ctaLabel: isArtist ? "Open artist battles" : "View battle outcome",
+          eyebrow: isArtist
+            ? isForfeit
+              ? "Battle forfeit"
+              : "Battle no-show"
+            : isPlatformIssue
+              ? "SoundKit platform issue"
+              : isForfeit
+                ? "Battle ended"
+                : "Battle canceled",
+          footerNote: isArtist
+            ? "You are receiving this because an outcome was recorded for a battle involving your SoundKit artist account."
+            : "You are receiving this because you joined or watched this SoundKit battle.",
+          heading,
+          previewText: isArtist
+            ? isForfeit
+              ? `Your forfeit ended ${event.data.battleTitle}.`
+              : `You were marked as ducking ${event.data.battleTitle}.`
+            : body,
+          subject: isArtist
+            ? "You Ducked the Smoke"
+            : `${event.data.battleTitle} battle update`,
+          template: "battle_outcome",
+        },
+        inApp: {
+          link: actionPath,
+          message: body,
+          title: heading,
+          type: isArtist ? "battle_outcome_artist" : "battle_outcome_viewer",
+        },
+        preference: "live",
+      };
+    }
     case "open_verse.published": {
       return {
         channels: { email: "immediate", inApp: true },
@@ -586,7 +675,7 @@ export const defineNotificationEvent = (
         preference: "followers",
       };
     }
-    case "live.scheduled":
+    case "live.scheduled": {
       return {
         channels: { email: "immediate", inApp: true },
         email: {
@@ -606,6 +695,7 @@ export const defineNotificationEvent = (
         },
         preference: "followers",
       };
+    }
     case "artist.live": {
       return {
         channels: { email: "immediate", inApp: true },

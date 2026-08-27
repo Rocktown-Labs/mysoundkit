@@ -114,6 +114,7 @@ import { Route as ExploreLiveBattlesLeaderboardRouteImport } from './app/_explor
 import { Route as ExploreLiveBattlesIdRouteImport } from './app/_explore/live/battles/$id'
 import { Route as ExploreLibraryPurchasedPurchaseIdRouteImport } from './app/_explore/library/purchased/$purchaseId'
 import { Route as ExploreLibraryPlaylistsIdIndexRouteImport } from './app/_explore/library/playlists/$id/index'
+import { Route as DashboardLiveBattlesJoinRoomIdArtistviewRouteImport } from './app/dashboard/live/battles/join/$roomId/artistview'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -661,6 +662,12 @@ const ExploreLibraryPlaylistsIdIndexRoute =
     path: '/library/playlists/$id/',
     getParentRoute: () => ExploreRoute,
   } as any)
+const DashboardLiveBattlesJoinRoomIdArtistviewRoute =
+  DashboardLiveBattlesJoinRoomIdArtistviewRouteImport.update({
+    id: '/join/$roomId/artistview',
+    path: '/join/$roomId/artistview',
+    getParentRoute: () => DashboardLiveBattlesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ExploreIndexRoute
@@ -709,7 +716,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
   '/dashboard/career/team': typeof DashboardCareerTeamRoute
-  '/dashboard/live/battles': typeof DashboardLiveBattlesRoute
+  '/dashboard/live/battles': typeof DashboardLiveBattlesRouteWithChildren
   '/dashboard/live/challenge': typeof DashboardLiveChallengeRoute
   '/dashboard/live/find': typeof DashboardLiveFindRoute
   '/dashboard/live/my-kit': typeof DashboardLiveMyKitRoute
@@ -767,6 +774,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/live/my-stats/': typeof DashboardLiveMyStatsIndexRoute
   '/dashboard/tracks/$id/': typeof DashboardTracksIdIndexRoute
   '/library/playlists/$id/': typeof ExploreLibraryPlaylistsIdIndexRoute
+  '/dashboard/live/battles/join/$roomId/artistview': typeof DashboardLiveBattlesJoinRoomIdArtistviewRoute
 }
 export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
@@ -812,7 +820,7 @@ export interface FileRoutesByTo {
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
   '/dashboard/career/team': typeof DashboardCareerTeamRoute
-  '/dashboard/live/battles': typeof DashboardLiveBattlesRoute
+  '/dashboard/live/battles': typeof DashboardLiveBattlesRouteWithChildren
   '/dashboard/live/challenge': typeof DashboardLiveChallengeRoute
   '/dashboard/live/find': typeof DashboardLiveFindRoute
   '/dashboard/live/my-kit': typeof DashboardLiveMyKitRoute
@@ -870,6 +878,7 @@ export interface FileRoutesByTo {
   '/dashboard/live/my-stats': typeof DashboardLiveMyStatsIndexRoute
   '/dashboard/tracks/$id': typeof DashboardTracksIdIndexRoute
   '/library/playlists/$id': typeof ExploreLibraryPlaylistsIdIndexRoute
+  '/dashboard/live/battles/join/$roomId/artistview': typeof DashboardLiveBattlesJoinRoomIdArtistviewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -920,7 +929,7 @@ export interface FileRoutesById {
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
   '/dashboard/career/team': typeof DashboardCareerTeamRoute
-  '/dashboard/live/battles': typeof DashboardLiveBattlesRoute
+  '/dashboard/live/battles': typeof DashboardLiveBattlesRouteWithChildren
   '/dashboard/live/challenge': typeof DashboardLiveChallengeRoute
   '/dashboard/live/find': typeof DashboardLiveFindRoute
   '/dashboard/live/my-kit': typeof DashboardLiveMyKitRoute
@@ -978,6 +987,7 @@ export interface FileRoutesById {
   '/dashboard/live/my-stats/': typeof DashboardLiveMyStatsIndexRoute
   '/dashboard/tracks/$id/': typeof DashboardTracksIdIndexRoute
   '/_explore/library/playlists/$id/': typeof ExploreLibraryPlaylistsIdIndexRoute
+  '/dashboard/live/battles/join/$roomId/artistview': typeof DashboardLiveBattlesJoinRoomIdArtistviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -1086,6 +1096,7 @@ export interface FileRouteTypes {
     | '/dashboard/live/my-stats/'
     | '/dashboard/tracks/$id/'
     | '/library/playlists/$id/'
+    | '/dashboard/live/battles/join/$roomId/artistview'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/forgot-password'
@@ -1189,6 +1200,7 @@ export interface FileRouteTypes {
     | '/dashboard/live/my-stats'
     | '/dashboard/tracks/$id'
     | '/library/playlists/$id'
+    | '/dashboard/live/battles/join/$roomId/artistview'
   id:
     | '__root__'
     | '/_explore'
@@ -1296,6 +1308,7 @@ export interface FileRouteTypes {
     | '/dashboard/live/my-stats/'
     | '/dashboard/tracks/$id/'
     | '/_explore/library/playlists/$id/'
+    | '/dashboard/live/battles/join/$roomId/artistview'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -2047,6 +2060,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExploreLibraryPlaylistsIdIndexRouteImport
       parentRoute: typeof ExploreRoute
     }
+    '/dashboard/live/battles/join/$roomId/artistview': {
+      id: '/dashboard/live/battles/join/$roomId/artistview'
+      path: '/join/$roomId/artistview'
+      fullPath: '/dashboard/live/battles/join/$roomId/artistview'
+      preLoaderRoute: typeof DashboardLiveBattlesJoinRoomIdArtistviewRouteImport
+      parentRoute: typeof DashboardLiveBattlesRoute
+    }
   }
 }
 
@@ -2165,6 +2185,18 @@ const ExploreRouteChildren: ExploreRouteChildren = {
 const ExploreRouteWithChildren =
   ExploreRoute._addFileChildren(ExploreRouteChildren)
 
+interface DashboardLiveBattlesRouteChildren {
+  DashboardLiveBattlesJoinRoomIdArtistviewRoute: typeof DashboardLiveBattlesJoinRoomIdArtistviewRoute
+}
+
+const DashboardLiveBattlesRouteChildren: DashboardLiveBattlesRouteChildren = {
+  DashboardLiveBattlesJoinRoomIdArtistviewRoute:
+    DashboardLiveBattlesJoinRoomIdArtistviewRoute,
+}
+
+const DashboardLiveBattlesRouteWithChildren =
+  DashboardLiveBattlesRoute._addFileChildren(DashboardLiveBattlesRouteChildren)
+
 interface DashboardOpenVersesGenreRouteChildren {
   DashboardOpenVersesGenreIdRoute: typeof DashboardOpenVersesGenreIdRoute
 }
@@ -2213,7 +2245,7 @@ interface DashboardRouteChildren {
   DashboardCareerProfileRoute: typeof DashboardCareerProfileRoute
   DashboardCareerSettingsRoute: typeof DashboardCareerSettingsRoute
   DashboardCareerTeamRoute: typeof DashboardCareerTeamRoute
-  DashboardLiveBattlesRoute: typeof DashboardLiveBattlesRoute
+  DashboardLiveBattlesRoute: typeof DashboardLiveBattlesRouteWithChildren
   DashboardLiveChallengeRoute: typeof DashboardLiveChallengeRoute
   DashboardLiveFindRoute: typeof DashboardLiveFindRoute
   DashboardLiveMyKitRoute: typeof DashboardLiveMyKitRoute
@@ -2263,7 +2295,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardCareerProfileRoute: DashboardCareerProfileRoute,
   DashboardCareerSettingsRoute: DashboardCareerSettingsRoute,
   DashboardCareerTeamRoute: DashboardCareerTeamRoute,
-  DashboardLiveBattlesRoute: DashboardLiveBattlesRoute,
+  DashboardLiveBattlesRoute: DashboardLiveBattlesRouteWithChildren,
   DashboardLiveChallengeRoute: DashboardLiveChallengeRoute,
   DashboardLiveFindRoute: DashboardLiveFindRoute,
   DashboardLiveMyKitRoute: DashboardLiveMyKitRoute,

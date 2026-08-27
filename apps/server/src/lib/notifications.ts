@@ -282,6 +282,15 @@ export const createNotificationDispatcher =
       actionPath: definition.inApp.link,
       idempotencyKey: emailIdempotencyKeyForEvent(event),
       payload: {
+        ...(definition.email.battleOutcomeAudience
+          ? {
+              battleOutcomeArtistName: definition.email.battleOutcomeArtistName,
+              battleOutcomeAudience: definition.email.battleOutcomeAudience,
+              battleOutcomeKind: definition.email.battleOutcomeKind,
+              battleOutcomeReason: definition.email.battleOutcomeReason,
+              battleTitle: definition.email.battleTitle,
+            }
+          : {}),
         body: definition.email.body,
         ctaLabel: definition.email.ctaLabel,
         eyebrow: definition.email.eyebrow,

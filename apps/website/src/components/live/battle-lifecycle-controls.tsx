@@ -41,6 +41,7 @@ type BattleCancellationReason =
   | "ducked"
   | "moderation"
   | "other"
+  | "platform_issue"
   | "schedule_conflict"
   | "technical_issue";
 type BattleOutcomeKind = "canceled" | "ducked" | "forfeited";
@@ -48,6 +49,7 @@ type BattleOutcomeKind = "canceled" | "ducked" | "forfeited";
 const reasonOptions: { label: string; value: BattleCancellationReason }[] = [
     { label: "Ducked / opponent no-show", value: "ducked" },
     { label: "Artist unavailable", value: "artist_unavailable" },
+    { label: "Platform issue (SoundKit)", value: "platform_issue" },
     { label: "Technical issue", value: "technical_issue" },
     { label: "Schedule conflict", value: "schedule_conflict" },
     { label: "Moderation or safety", value: "moderation" },
@@ -57,6 +59,7 @@ const reasonOptions: { label: string; value: BattleCancellationReason }[] = [
   turnPhases = new Set([
     "artist_a_turn",
     "artist_b_turn",
+    "between_rounds",
     "pre_vote",
     "round_result",
     "turn_transition",
@@ -67,14 +70,15 @@ const reasonOptions: { label: string; value: BattleCancellationReason }[] = [
     "tiebreaker_voting",
   ]);
 
-type Disposition = {
+interface Disposition {
   affectedUserId?: string | null;
   kind: BattleOutcomeKind;
   reason: BattleCancellationReason;
-};
+}
 
 export function BattleLifecycleControls({
   artists,
+  currentUserId,
   isAdmin,
   isArtist,
   isReady,
@@ -85,6 +89,7 @@ export function BattleLifecycleControls({
   readyArtistUserIds,
 }: {
   artists: [LiveRoomArtist, LiveRoomArtist];
+  currentUserId?: string;
   isAdmin: boolean;
   isArtist: boolean;
   isReady: boolean;
@@ -97,15 +102,19 @@ export function BattleLifecycleControls({
   const [dialogOpen, setDialogOpen] = useState(false),
     [kind, setKind] = useState<BattleOutcomeKind>("canceled"),
     [reason, setReason] = useState<BattleCancellationReason>("technical_issue"),
-    [affectedUserId, setAffectedUserId] = useState<string | null>(
-      artists[1]?.id ?? null
+    [affectedUserId, setAffectedUserId] = useState<string | null>(() =>
+      isAdmin
+        ? null
+        : (artists.find((artist) => artist.id !== currentUserId)?.id ?? null)
     ),
     [actionError, setActionError] = useState<string | null>(null),
     isPreStart = preStartPhases.has(phase),
     isInProgress = turnPhases.has(phase),
     isActionable = phase !== "ended",
     canCancel = isActionable && (isAdmin || (isArtist && isPreStart)),
-    canForfeit = isArtist && isInProgress,
+    canForfeit = (isArtist || isAdmin) && isInProgress,
+    isDuckedReport =
+      kind === "ducked" || (kind === "canceled" && reason === "ducked"),
     openDisposition = (
       nextKind: BattleOutcomeKind,
       nextReason: BattleCancellationReason
@@ -116,15 +125,26 @@ export function BattleLifecycleControls({
       setDialogOpen(true);
     },
     submitDisposition = async () => {
-      if (kind === "ducked" && !affectedUserId) {
-        setActionError("Choose the artist who no-showed.");
+      if (
+        (isDuckedReport || (kind === "forfeited" && isAdmin)) &&
+        !affectedUserId
+      ) {
+        setActionError(
+          kind === "forfeited"
+            ? "Choose the artist who forfeited."
+            : "Choose the artist who no-showed."
+        );
         return;
       }
       setActionError(null);
       try {
         await onDisposition({
-          affectedUserId: kind === "canceled" ? null : affectedUserId,
-          kind,
+          affectedUserId: isDuckedReport
+            ? affectedUserId
+            : kind === "canceled"
+              ? null
+              : affectedUserId,
+          kind: isDuckedReport ? "ducked" : kind,
           reason,
         });
         setDialogOpen(false);
@@ -247,7 +267,7 @@ export function BattleLifecycleControls({
                 variant="destructive"
               >
                 <ShieldAlert className="size-3.5" />
-                Forfeit battle
+                {isAdmin ? "Record forfeit" : "Forfeit battle"}
               </Button>
             )}
           </div>
@@ -258,14 +278,14 @@ export function BattleLifecycleControls({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {kind === "ducked"
+              {isDuckedReport
                 ? "Record a duck"
                 : kind === "forfeited"
                   ? "Forfeit this battle?"
                   : "Cancel this battle?"}
             </DialogTitle>
             <DialogDescription>
-              {kind === "ducked"
+              {isDuckedReport
                 ? "This ends the waiting room without changing either artist’s rating."
                 : kind === "forfeited"
                   ? "This ends the active match and records the selected artist as the forfeiting participant."
@@ -274,29 +294,41 @@ export function BattleLifecycleControls({
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            {kind === "ducked" && (
+            {(isDuckedReport || (kind === "forfeited" && isAdmin)) && (
               <div className="space-y-2">
                 <label
                   className="font-semibold text-xs"
-                  htmlFor="ducked-artist"
+                  htmlFor="affected-artist"
                 >
-                  No-showing artist
+                  {kind === "forfeited"
+                    ? "Forfeiting artist"
+                    : "No-showing artist"}
                 </label>
                 <Select
+                  disabled={!isAdmin}
                   onValueChange={setAffectedUserId}
                   value={affectedUserId ?? undefined}
                 >
-                  <SelectTrigger id="ducked-artist">
+                  <SelectTrigger id="affected-artist">
                     <SelectValue placeholder="Choose an artist" />
                   </SelectTrigger>
                   <SelectContent className="[&_[data-highlighted]]:bg-muted [&_[data-highlighted]]:text-foreground">
-                    {artists.map((artist) => (
-                      <SelectItem key={artist.id} value={artist.id}>
-                        {artist.name}
-                      </SelectItem>
-                    ))}
+                    {artists
+                      .filter(
+                        (artist) => isAdmin || artist.id !== currentUserId
+                      )
+                      .map((artist) => (
+                        <SelectItem key={artist.id} value={artist.id}>
+                          {artist.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
+                {!isAdmin && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Only the other artist can be reported as a no-show.
+                  </p>
+                )}
               </div>
             )}
             <div className="space-y-2">
@@ -347,7 +379,11 @@ export function BattleLifecycleControls({
               type="button"
               variant={kind === "forfeited" ? "destructive" : "default"}
             >
-              {pending ? "Saving..." : "Confirm"}
+              {pending
+                ? "Saving..."
+                : isDuckedReport
+                  ? "Record duck"
+                  : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -352,6 +352,48 @@ describe("notification product-event policy", () => {
     expect(definition.channels.email).toBe("immediate");
   });
 
+  it("builds a ducked-smoke email for the affected artist", () => {
+    const definition = defineNotificationEvent({
+      data: {
+        affectedArtistName: "Artist B",
+        affectedUserId: "artist_b",
+        audience: "artist",
+        battleId: "battle_1",
+        battleTitle: "Friday Night Smoke",
+        kind: "ducked",
+        reason: "ducked",
+      },
+      eventId: "battle_1:outcome:1:artist:artist_b",
+      recipientUserId: "artist_b",
+      type: "battle.outcome",
+    });
+
+    expect(definition.email?.template).toBe("battle_outcome");
+    expect(definition.email?.heading).toBe("You Ducked the Smoke");
+    expect(definition.email?.subject).toBe("You Ducked the Smoke");
+  });
+
+  it("tells battle viewers when SoundKit drops the ball", () => {
+    const definition = defineNotificationEvent({
+      data: {
+        affectedArtistName: null,
+        affectedUserId: null,
+        audience: "viewer",
+        battleId: "battle_1",
+        battleTitle: "Friday Night Smoke",
+        kind: "canceled",
+        reason: "platform_issue",
+      },
+      eventId: "battle_1:outcome:1:viewer:fan_1",
+      recipientUserId: "fan_1",
+      type: "battle.outcome",
+    });
+
+    expect(definition.email?.template).toBe("battle_outcome");
+    expect(definition.email?.body).toContain("dropped the ball");
+    expect(definition.inApp.title).toBe("SoundKit canceled the battle");
+  });
+
   it("builds the same follow event for either valid follow route", () => {
     const input = {
         actorAccountType: "fan" as const,

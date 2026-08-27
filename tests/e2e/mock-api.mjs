@@ -403,6 +403,35 @@ const json = (response, status, body, origin) => {
     {
       format: "best_of_3",
       genre: "Hip-Hop",
+      id: "battle-waiting-artist",
+      isFeatured: false,
+      joinMode: "waiting_room",
+      participants: [
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "user_complete",
+          name: "Complete Artist",
+          username: "complete_artist",
+        },
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "artist-mc-rhythm",
+          name: "MC Rhythm",
+          username: "mc-rhythm",
+        },
+      ],
+      phaseEndsAt: null,
+      queueSize: 0,
+      round: null,
+      status: "live",
+      title: "Artist Battle Waiting Room",
+      tracks: [],
+      viewerCount: 0,
+      visibility: "public",
+    },
+    {
+      format: "best_of_3",
+      genre: "Hip-Hop",
       id: "battle_upcoming_duel",
       isFeatured: false,
       joinMode: "watch_now",
@@ -1460,6 +1489,22 @@ export const createMockApiServer = async ({
         }
         json(response, 200, room, webOrigin);
       });
+      return;
+    }
+
+    const liveRoomQueueMutationMatch = url.pathname.match(
+      /^\/v1\/live\/rooms\/([^/]+)\/(queue|leave)$/
+    );
+
+    if (liveRoomQueueMutationMatch && request.method === "POST") {
+      const room = liveRoom(liveRoomQueueMutationMatch[1], session);
+      if (room.battle) {
+        room.battle.viewerQueueStatus =
+          liveRoomQueueMutationMatch[2] === "queue" ? "queued" : null;
+        room.battle.queueSize =
+          liveRoomQueueMutationMatch[2] === "queue" ? 1 : 0;
+      }
+      json(response, 200, room, webOrigin);
       return;
     }
 

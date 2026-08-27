@@ -12,6 +12,7 @@ export const BATTLE_CANCELLATION_REASONS = [
   "schedule_conflict",
   "moderation",
   "other",
+  "platform_issue",
 ] as const;
 
 export type BattleCancellationReason =
@@ -202,6 +203,7 @@ export const createBattleCoordination = ({
   activeArtistUserId: null,
   admissionBatchSize,
   admittedUserIds: [],
+  artistReadyUserIds: [],
   battleId,
   durations,
   format,
@@ -211,7 +213,6 @@ export const createBattleCoordination = ({
   phaseEndsAt:
     scheduledStartAt && scheduledStartAt > now ? scheduledStartAt : null,
   phaseStartedAt: now,
-  artistReadyUserIds: [],
   queuedUserIds: [],
   removedUserIds: [],
   requiredVoterUserIds: [],

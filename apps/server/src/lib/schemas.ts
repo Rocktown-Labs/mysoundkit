@@ -163,6 +163,7 @@ export const battleDispositionBodySchema = z.object({
     "schedule_conflict",
     "moderation",
     "other",
+    "platform_issue",
   ]),
 });
 

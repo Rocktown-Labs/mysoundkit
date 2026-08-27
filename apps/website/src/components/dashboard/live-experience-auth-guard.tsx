@@ -19,6 +19,7 @@ interface LiveExperienceAuthGuardProps {
   actionLabel?: string;
   children: React.ReactNode;
   featureTitle?: string;
+  allowAdmin?: boolean;
   allowFreeArtist?: boolean;
   requiredEntitlement?:
     | "canCreateLiveBattles"
@@ -28,6 +29,7 @@ interface LiveExperienceAuthGuardProps {
 
 export function LiveExperienceAuthGuard({
   actionLabel = "access live experience features",
+  allowAdmin = false,
   allowFreeArtist = false,
   children,
   featureTitle = "SoundKit Live Studio",
@@ -46,12 +48,14 @@ export function LiveExperienceAuthGuard({
   }
 
   const isAuthenticated = Boolean(user),
+    isAdmin = user?.role === "admin",
     isArtist = meQuery.data?.user.accountType === "artist",
     hasEntitlement = Boolean(
       (entitlements && requiredEntitlement in entitlements
         ? entitlements[requiredEntitlement]
         : entitlements?.isPremium) ||
-      (allowFreeArtist && isArtist)
+      (allowFreeArtist && isArtist) ||
+      (allowAdmin && isAdmin)
     );
 
   // If authenticated and has entitlement, render children

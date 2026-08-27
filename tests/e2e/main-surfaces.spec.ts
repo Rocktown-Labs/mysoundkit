@@ -401,6 +401,21 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByText(/Review incoming challenge requests/i)
     ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Enter Artist Room" })
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Enter Artist Room" }).click();
+    await expect(page).toHaveURL(
+      /\/dashboard\/live\/battles\/join\/battle-waiting-artist\/artistview$/
+    );
+    await expect(
+      page.getByText("Artist Battle Waiting Room", { exact: true })
+    ).toBeVisible();
+    await expect(
+      page.getByText("Battle Chat", { exact: true })
+    ).toBeVisible();
+
+    await gotoWithViteRetry(page, "/dashboard/live/battles");
     await page.getByRole("tab", { name: /outgoing/i }).click();
     await expect(page.getByText("To: @accepted-artist")).toHaveCount(0);
     await expect(page.getByText("To: @stale-artist")).toBeVisible();
@@ -544,6 +559,27 @@ test.describe("main application surfaces", () => {
     ).toBeVisible();
   });
 
+  test("fans can join a battle queue without navigating away", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/live/battles/battle-west-coast-showdown");
+    await expect(page.getByRole("button", { name: "Join Queue" })).toBeVisible({
+      timeout: 60_000,
+    });
+    await page.getByRole("button", { name: "Join Queue" }).click();
+    await expect(page.getByText("In Queue", { exact: true })).toBeVisible();
+  });
+
   test("artist battle waiting rooms expose lineup controls", async ({
     context,
     page,
@@ -560,6 +596,9 @@ test.describe("main application surfaces", () => {
     ]);
 
     await gotoWithViteRetry(page, "/live/battles/battle-waiting-artist");
+    await expect(page).toHaveURL(
+      /\/dashboard\/live\/battles\/join\/battle-waiting-artist\/artistview$/
+    );
     await expect(page.getByText("Artist Battle Waiting Room")).toBeVisible({
       timeout: 60_000,
     });

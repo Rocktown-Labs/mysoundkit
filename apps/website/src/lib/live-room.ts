@@ -12,6 +12,7 @@ export type LiveRoomViewerRole =
   | "host";
 
 export interface LiveRoomChatMessage {
+  chatScope?: "battle" | "waiting_room";
   id: string;
   message: string;
   sentAt: string;
@@ -67,6 +68,7 @@ export interface LiveRoomState {
       usedTrackIds: string[];
     };
     artists: [LiveRoomArtist, LiveRoomArtist];
+    chatStarted?: boolean;
     coordination?: {
       activeArtistUserId: string | null;
       artistReadyUserIds?: string[];
@@ -351,9 +353,11 @@ export const useLiveRoom = (roomId: string) => {
     queueMutation = useMutation({
       mutationFn: () => postLiveRoom(roomId, "queue", {}),
       onSuccess: (result) => {
-        if ("room" in result) {
-          queryClient.setQueryData(liveRoomKey(roomId), result.room);
-        }
+        queryClient.setQueryData(
+          liveRoomKey(roomId),
+          "room" in result ? result.room : result
+        );
+        invalidateBattleQueries();
       },
     });
 

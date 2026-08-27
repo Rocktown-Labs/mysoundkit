@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added an authenticated artist battle room at `/dashboard/live/battles/join/:roomId/artistview`, with artist-scoped waiting-room chat, Battle Kit/readiness controls, reconnect-safe media, and admin-only outcome controls.
+- Added a branded “You Ducked the Smoke” transactional email template and idempotent notification flow for ducked, forfeited, platform-canceled, and viewer battle outcomes.
 - Added a push-first public battle directory over a Cloudflare Durable Object WebSocket, with a 30-second query refresh as a recovery path for missed updates.
 - Added battle readiness, explicit BattleBot starts, cancellation reason flows, ducked/no-show outcomes, in-progress forfeits, and battle lifecycle stats without rating changes for canceled or ducked battles.
 - Added in-app and transactional email notifications for artists who are marked ducked, plus live-route exit guidance and bottom-sheet profile previews.
@@ -46,6 +48,7 @@
 
 ### Fixed
 
+- Fixed Dashboard Join Battle routing to keep assigned artists in the authenticated room, public artist links to redirect into that room, fan queue mutations to update room state immediately, and round waiting-room chat to be discarded without losing the initial battle chat.
 - Fixed live battle reconnects by resolving generated live experiences through their canonical battle IDs, restoring artist roles and RealtimeKit permissions after disconnects, allowing participating artists to bypass viewer gates, and keeping kit-based recovery available for empty legacy rooms.
 - Fixed public battle entry for legacy live battles: missing rounds are rebuilt from both locked Battle Kits, stale Durable Object snapshots are repaired without discarding live phase state, and artist lineup selection remains available while an empty live room is repaired.
 - Fixed battle kits and scheduled battle promotion: kit saves now refresh the current list, duplicate cover-asset joins are collapsed to one track, accepted requests leave Outgoing, public live routes show real upcoming battle cards with participant avatars and status, and Use Kit locks the selected lineup when entering the waiting room.

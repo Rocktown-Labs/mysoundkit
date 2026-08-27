@@ -2286,10 +2286,9 @@ app.post("/experiences/:experienceId/join", async (c) => {
               })
             ? "artist"
             : "listener";
-      const battleRoom = await getDurableRoomState(
-        c,
-        experience.battleId
-      ).catch(() => null);
+      const battleRoom = await getDurableRoomState(c, experienceId).catch(
+        () => null
+      );
       activeArtistUserId =
         battleRoom?.battle?.coordination?.activeArtistUserId ?? null;
       const battlePhase = battleMediaPhase(
@@ -2555,14 +2554,20 @@ app.post("/rooms/:roomId/battle/disposition", async (c) => {
   }
 
   const roomId = c.req.param("roomId"),
+    liveRooms = c.env.LIVE_ROOMS,
     identity = await resolveLiveRoomIdentity(c, roomId),
     disposition = parsed.data as LiveRoomBattleDisposition,
     experience = await loadLiveExperienceById(roomId),
     battleId = experience?.battleId ?? roomId;
   try {
-    const room = await c.env.LIVE_ROOMS.getByName(
-      roomId
-    ).resolveBattleDisposition(roomId, identity, disposition);
+    const audienceUserIds = await retryDurableObjectCall(() =>
+        liveRooms.getByName(roomId).getBattleAudienceUserIds(roomId)
+      ),
+      room = await retryDurableObjectCall(() =>
+        liveRooms
+          .getByName(roomId)
+          .resolveBattleDisposition(roomId, identity, disposition)
+      );
     if (isDatabaseConfigured()) {
       const db = createDb(),
         [battle] = await db
@@ -2617,23 +2622,50 @@ app.post("/rooms/:roomId/battle/disposition", async (c) => {
             .catch(() => 0);
         }
 
-        if (disposition.kind === "ducked" && disposition.affectedUserId) {
-          await notify(
-            {
-              actorUserId: identity.userId,
-              data: {
-                actorName: identity.displayName,
-                battleId: battle.id,
-                battleTitle: battle.title,
+        const affectedArtistName =
+            room.battle?.artists.find(
+              (artist) => artist.id === disposition.affectedUserId
+            )?.name ?? null,
+          outcomeRecordedAt = room.battle?.outcome?.recordedAt ?? Date.now(),
+          notificationRecipients = [
+            ...(disposition.affectedUserId &&
+            (disposition.kind === "ducked" || disposition.kind === "forfeited")
+              ? [
+                  {
+                    audience: "artist" as const,
+                    userId: disposition.affectedUserId,
+                  },
+                ]
+              : []),
+            ...audienceUserIds.map((userId) => ({
+              audience: "viewer" as const,
+              userId,
+            })),
+          ];
+
+        await Promise.all(
+          notificationRecipients.map(({ audience, userId }) =>
+            notify(
+              {
+                actorUserId: null,
+                data: {
+                  affectedArtistName,
+                  affectedUserId: disposition.affectedUserId ?? null,
+                  audience,
+                  battleId: battle.id,
+                  battleTitle: battle.title,
+                  kind: disposition.kind,
+                  reason: disposition.reason,
+                },
+                entity: { id: battle.id, type: "battle" },
+                eventId: `${battle.id}:outcome:${outcomeRecordedAt}:${audience}:${userId}`,
+                recipientUserId: userId,
+                type: "battle.outcome",
               },
-              entity: { id: battle.id, type: "battle" },
-              eventId: `${battle.id}:${disposition.affectedUserId}`,
-              recipientUserId: disposition.affectedUserId,
-              type: "battle.ducked",
-            },
-            { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
-          );
-        }
+              { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+            )
+          )
+        );
       }
     }
     return c.json(room, HttpStatusCodes.OK);
@@ -2682,9 +2714,8 @@ app.post("/rooms/:roomId/battle/kit", async (c) => {
       .select({ id: battleRounds.id })
       .from(battleRounds)
       .where(eq(battleRounds.battleId, battle?.id ?? battleId))
-      .limit(1);
-
-  const canRepairLiveBattle = battle?.status === "live" && !existingRound;
+      .limit(1),
+    canRepairLiveBattle = battle?.status === "live" && !existingRound;
   if (!battle || (battle.status !== "scheduled" && !canRepairLiveBattle)) {
     return c.json(
       {
@@ -3081,6 +3112,7 @@ app.post("/rooms/:roomId/queue", async (c) => {
   }
 
   const roomId = c.req.param("roomId"),
+    identity = await resolveLiveRoomIdentity(c, roomId),
     db = createDb(),
     [battle] = await db
       .select({
@@ -3098,6 +3130,16 @@ app.post("/rooms/:roomId/queue", async (c) => {
   if (battle.status === "completed" || battle.status === "archived") {
     return c.json(
       { message: "This battle is no longer accepting new queue entries." },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+
+  if (identity.role === "artist_a" || identity.role === "artist_b") {
+    return c.json(
+      {
+        message:
+          "Battle artists enter through the authenticated artist room; they do not join the viewer queue.",
+      },
       HttpStatusCodes.CONFLICT
     );
   }
@@ -3142,10 +3184,9 @@ app.post("/rooms/:roomId/queue", async (c) => {
       target: [battleQueueEntries.battleId, battleQueueEntries.userId],
     });
 
-  const identity = await resolveLiveRoomIdentity(c, roomId),
-    room = conflictBattleId
-      ? await getDurableRoomState(c, roomId)
-      : await c.env.LIVE_ROOMS.getByName(roomId).queueViewer(roomId, identity);
+  const room = conflictBattleId
+    ? await getDurableRoomState(c, roomId)
+    : await c.env.LIVE_ROOMS.getByName(roomId).queueViewer(roomId, identity);
 
   return c.json(room ?? null, HttpStatusCodes.OK);
 });
