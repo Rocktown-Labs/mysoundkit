@@ -144,6 +144,7 @@ const meGet = apiClient.v1.me.index.$get,
   trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post,
   artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post,
   artistFollowDelete = apiClient.v1.social.artists[":username"].follow.$delete,
+  profileFollowPost = apiClient.v1.social.profiles[":username"].follow.$post,
   sellerAccountLinkPost = apiClient.v1.seller["account-link"].$post,
   sellerAccountSessionPost = apiClient.v1.seller["account-session"].$post,
   sellerStatusGet = apiClient.v1.seller.status.$get,
@@ -265,6 +266,7 @@ type UpdateNotificationSettingsBody = InferRequestType<
   typeof meNotificationSettingsPatch
 >["json"];
 export type BattleSummary = InferResponseType<typeof battlesGet, 200>[number];
+export type BattleParticipant = BattleSummary["participants"][number];
 export type BattleChallengesResponse = InferResponseType<
   typeof battleChallengesGet,
   200
@@ -425,6 +427,7 @@ export const soundkitQueryKeys = {
   analyticsOverview: ["analytics", "overview"] as const,
   artist: (username: string) => ["artists", username] as const,
   artistMedia: (username: string) => ["artists", username, "media"] as const,
+  artistSetupGuide: ["artist-setup-guide"] as const,
   artists: (query?: ArtistRankingQuery) => ["artists", query ?? {}] as const,
   battleChallenges: ["battles", "challenges"] as const,
   battleKit: (id: string) => ["battles", "kits", id] as const,
@@ -464,7 +467,6 @@ export const soundkitQueryKeys = {
     ["projects", "public", query ?? {}] as const,
   search: (query: SearchQuery) => ["search", query] as const,
   sellerStatus: ["seller", "status"] as const,
-  artistSetupGuide: ["artist-setup-guide"] as const,
   track: (id: string) => ["tracks", id] as const,
   trackBattleHistory: (trackId: string) =>
     ["battles", "track-history", trackId] as const,
@@ -478,6 +480,13 @@ export const soundkitQueryKeys = {
   videosPrefix: ["videos"] as const,
   workspace: ["me", "workspace"] as const,
 };
+
+export const followProfileByUsername = async (username: string) =>
+  rpcJson(
+    await profileFollowPost({
+      param: { username },
+    })
+  );
 
 const fetchApiJson = async <T>(
   path: string,
@@ -777,8 +786,8 @@ interface OptimisticRollback {
   previousProjects?: ProjectSummary[];
   previousRequests?: FriendRequestSummary[];
   previousTrack?: TrackDetail;
-  previousTracks?: Array<[readonly unknown[], TrackSummary[]]>;
-  previousVideos?: Array<[readonly unknown[], VideoSummary[]]>;
+  previousTracks?: [readonly unknown[], TrackSummary[]][];
+  previousVideos?: [readonly unknown[], VideoSummary[]][];
 }
 
 export const useCreateFriendRequestMutation = () => {

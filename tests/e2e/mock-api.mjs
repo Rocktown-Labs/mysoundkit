@@ -166,9 +166,59 @@ const json = (response, status, body, origin) => {
       isForSale: true,
       isPublic: true,
       plays: 2_400_000,
+      releaseAt: null,
+      releaseStrategy: "publish_when_ready",
       price: "$2.99",
       priceCents: 299,
       title: "Summer Nights",
+    },
+    {
+      artistName: "Luna Eclipse",
+      artistUsername: "luna-eclipse",
+      coverArtUrl: "/hip-hop-album-cover.webp",
+      duration: "3:12",
+      genre: "Hip-Hop",
+      id: "track_city_lights",
+      isForSale: false,
+      isPublic: true,
+      plays: 1200,
+      price: "$0.00",
+      priceCents: 0,
+      releaseAt: null,
+      releaseStrategy: "publish_when_ready",
+      title: "City Lights",
+    },
+    {
+      artistName: "Luna Eclipse",
+      artistUsername: "luna-eclipse",
+      coverArtUrl: "/night-music-album-cover.webp",
+      duration: "2:58",
+      genre: "Hip-Hop",
+      id: "track_after_hours",
+      isForSale: false,
+      isPublic: true,
+      plays: 980,
+      price: "$0.00",
+      priceCents: 0,
+      releaseAt: null,
+      releaseStrategy: "publish_when_ready",
+      title: "After Hours",
+    },
+    {
+      artistName: "Luna Eclipse",
+      artistUsername: "luna-eclipse",
+      coverArtUrl: "/music-battle-video-thumbnail.jpg",
+      duration: "4:01",
+      genre: "Hip-Hop",
+      id: "track_battle_ready",
+      isForSale: false,
+      isPublic: true,
+      plays: 750,
+      price: "$0.00",
+      priceCents: 0,
+      releaseAt: null,
+      releaseStrategy: "publish_when_ready",
+      title: "Battle Ready",
     },
   ],
   mockProjects = [
@@ -280,6 +330,20 @@ const json = (response, status, body, origin) => {
       id: "battle_west_coast_showdown",
       isFeatured: true,
       joinMode: "waiting_room",
+      participants: [
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "mock-artist-dj-nova",
+          name: "DJ Nova",
+          username: "dj-nova",
+        },
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "mock-artist-mc-rhythm",
+          name: "MC Rhythm",
+          username: "mc-rhythm",
+        },
+      ],
       phaseEndsAt: new Date(Date.now() + 120_000).toISOString(),
       queueSize: 128,
       round: {
@@ -310,6 +374,34 @@ const json = (response, status, body, origin) => {
       viewerCount: 4321,
       visibility: "premium_only",
     },
+    {
+      format: "best_of_3",
+      genre: "Hip-Hop",
+      id: "battle_upcoming_duel",
+      isFeatured: false,
+      joinMode: "watch_now",
+      participants: [
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "mock-artist-luna",
+          name: "Luna Eclipse",
+          username: "luna-eclipse",
+        },
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "mock-artist-neon",
+          name: "Neon Pulse",
+          username: "neon-pulse",
+        },
+      ],
+      queueSize: 0,
+      startsAt: "2026-09-30T20:00:00.000Z",
+      status: "scheduled",
+      title: "Upcoming Artist Duel",
+      tracks: [],
+      viewerCount: 0,
+      visibility: "public",
+    },
   ];
 
 export const createMockApiServer = async ({
@@ -318,6 +410,7 @@ export const createMockApiServer = async ({
   webOrigin = "http://127.0.0.1:4311",
 } = {}) => {
   const mockBattleChallengesByClient = new Map(),
+    mockBattleKitsByClient = new Map(),
     getMockBattleChallenges = (request) => {
       const clientKey = request.headers["user-agent"] ?? "default",
         existing = mockBattleChallengesByClient.get(clientKey);
@@ -340,9 +433,34 @@ export const createMockApiServer = async ({
           proposedTimeLabel: null,
           status: "expired",
         },
+        {
+          challengerUsername: "complete_artist",
+          createdAt: "2026-08-20T12:00:00.000Z",
+          direction: "outgoing",
+          expiresAt: "2026-08-27T12:00:00.000Z",
+          format: "best_of_3",
+          genre: "Hip-Hop",
+          id: "mock-accepted-challenge",
+          message: null,
+          opponentUsername: "accepted-artist",
+          proposedDate: "2026-09-30T20:00:00.000Z",
+          proposedTimeLabel: "Sep 30, 2026, 8:00 PM",
+          status: "accepted",
+        },
       ];
       mockBattleChallengesByClient.set(clientKey, challenges);
       return challenges;
+    },
+    getMockBattleKits = (request) => {
+      const clientKey = request.headers["user-agent"] ?? "default",
+        existing = mockBattleKitsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const kits = [];
+      mockBattleKitsByClient.set(clientKey, kits);
+      return kits;
     },
     server = createServer((request, response) => {
     const effectiveOrigin = request.headers.origin || webOrigin;
@@ -804,6 +922,78 @@ export const createMockApiServer = async ({
       };
       json(response, 200, video, webOrigin);
       return;
+    }
+
+    if (
+      url.pathname === "/v1/battles/kits" ||
+      url.pathname === "/v1/battles/kits/"
+    ) {
+      const user = mockUser(session);
+      if (!user) {
+        json(
+          response,
+          401,
+          { message: "Authentication is required." },
+          webOrigin
+        );
+        return;
+      }
+
+      const mockBattleKits = getMockBattleKits(request);
+      if (request.method === "GET") {
+        json(response, 200, mockBattleKits, webOrigin);
+        return;
+      }
+
+      if (request.method === "POST") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            inputTracks = Array.isArray(body.tracks) ? body.tracks : [],
+            tracks = inputTracks.map((track, index) => {
+              const source = mockTracks.find(
+                (candidate) => candidate.id === track.trackId
+              );
+              return {
+                coverArtUrl: source?.coverArtUrl ?? null,
+                id: `mock-kit-track-${Date.now()}-${index}`,
+                mainSlot: track.mainSlot ?? null,
+                role: track.role,
+                title: source?.title ?? `Track ${index + 1}`,
+                trackId: track.trackId,
+              };
+            }),
+            mainTrackCount = tracks.filter(
+              (track) => track.role === "main"
+            ).length,
+            tiebreakerCount = tracks.filter(
+              (track) => track.role === "tiebreaker"
+            ).length,
+            kit = {
+              createdAt: new Date().toISOString(),
+              format: body.format,
+              id: `mock-kit-${Date.now()}`,
+              isBattleReady: mainTrackCount >= 3 && tiebreakerCount === 1,
+              mainTrackCount,
+              name: body.name,
+              reason: null,
+              requiredMainTracks: Number(String(body.format).slice(-1)),
+              tiebreakerCount,
+              totalRequiredTracks: Number(String(body.format).slice(-1)) + 1,
+              totalUniqueTracks: new Set(
+                tracks.map((track) => track.trackId)
+              ).size,
+              tracks,
+              updatedAt: new Date().toISOString(),
+            };
+          mockBattleKits.push(kit);
+          json(response, 201, kit, webOrigin);
+        });
+        return;
+      }
     }
 
     const battleChallengeMatch = url.pathname.match(

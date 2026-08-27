@@ -1,6 +1,7 @@
 /* eslint-disable complexity, unicorn/max-nested-calls, sort-vars, one-var, no-nested-ternary, unicorn/no-nested-ternary, unicorn/no-await-expression-member, unicorn/no-negated-condition, unicorn/prefer-number-properties, unicorn/prefer-ternary */
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  artistFollows,
   notificationSettings,
   openVerseListings,
   orderItems,
@@ -9,17 +10,13 @@ import {
   purchases,
   trackAssets,
   tracks,
+  userFollows,
   userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser, subscription } from "@soundkit/db/schema/auth";
 import { communitySubscriptions } from "@soundkit/db/schema/communities";
-import {
-  and,
-  eq,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 
 import { createSignedMediaSourceUrl } from "@/lib/media-signing";
 import { enqueueTransactionalEmail } from "@/lib/email-delivery";
@@ -198,6 +195,7 @@ const accountFooter =
         challengerArtistUserId: battles.challengerArtistUserId,
         id: battles.id,
         opponentArtistUserId: battles.opponentArtistUserId,
+        replayVideoId: battles.replayVideoId,
         title: battles.title,
       })
       .from(battles)
@@ -210,10 +208,38 @@ const accountFooter =
       return { enqueued: false, reason: "battle_not_found" as const };
     }
 
-    const recipientUserIds = [
+    const participantUserIds = [
         battle.challengerArtistUserId,
         battle.opponentArtistUserId,
       ].filter((userId): userId is string => Boolean(userId)),
+      followerUserIds = new Set<string>();
+
+    if (type === "results" && participantUserIds.length > 0) {
+      const [artistFollowerRows, profileFollowerRows] = await Promise.all([
+        createDb()
+          .select({ userId: artistFollows.followerUserId })
+          .from(artistFollows)
+          .where(inArray(artistFollows.artistUserId, participantUserIds)),
+        createDb()
+          .select({ userId: userFollows.followerUserId })
+          .from(userFollows)
+          .where(inArray(userFollows.targetUserId, participantUserIds)),
+      ]);
+
+      for (const follower of [
+        ...artistFollowerRows,
+        ...profileFollowerRows,
+      ]) {
+        followerUserIds.add(follower.userId);
+      }
+    }
+
+    const recipientUserIds = [
+        ...new Set([...participantUserIds, ...followerUserIds]),
+      ],
+      replayPath = battle.replayVideoId
+        ? `/videos/${battle.replayVideoId}`
+        : `/live/battles/${battle.id}`,
       deliveries = [];
 
     for (const recipientUserId of recipientUserIds) {
@@ -244,7 +270,7 @@ const accountFooter =
           .insert(userNotifications)
           .values({
             id: `battle_results:${battle.id}:${recipientUserId}`,
-            link: `/live/battles/${battle.id}`,
+            link: replayPath,
             message: `"${battle.title}" is complete. Review your final round scores and voting breakdown.`,
             title: "Battle Results Ready",
             type: "battle_results",
@@ -257,8 +283,12 @@ const accountFooter =
             battleId: battle.id,
             battleTitle: battle.title,
             idempotencyScope: idempotencyPrefix,
+            preference: followerUserIds.has(recipientUserId)
+              ? "followers"
+              : "collaborations",
             queue,
             recipientUserId,
+            replayPath,
             resultsSummary:
               resultsSummary ??
               "The final round data has been saved to your dashboard.",
@@ -352,14 +382,18 @@ export const notifyBattleResultsEmail = async ({
   battleId,
   battleTitle,
   idempotencyScope,
+  preference = "collaborations",
   recipientUserId,
+  replayPath,
   resultsSummary,
   queue,
 }: {
   battleId: string;
   battleTitle: string;
   idempotencyScope?: string;
+  preference?: EmailPreference;
   recipientUserId: string;
+  replayPath: string;
   resultsSummary: string;
   queue?: Queue<EmailDeliveryQueueMessage> | null;
 }) => {
@@ -370,18 +404,19 @@ export const notifyBattleResultsEmail = async ({
   }
 
   return enqueueForRecipient({
-    actionPath: "/dashboard/live",
-    body: `${battleTitle} is complete. ${resultsSummary} Open the recap to review the rounds, results, and next steps.`,
-    ctaLabel: "View recap",
-    eyebrow: "Battle results",
-    footerNote: collaborationFooter,
-    heading: "Your battle results are ready",
+    actionPath: replayPath,
+    body: `${battleTitle} is complete. ${resultsSummary} Open the replay to review the battle.`,
+    ctaLabel: "Watch replay",
+    eyebrow: "Battle replay",
+    footerNote:
+      preference === "followers" ? followerFooter : collaborationFooter,
+    heading: "The battle replay is ready",
     idempotencyKey: `battle-results/${idempotencyScope ?? battleId}/${recipientUserId}`,
-    preference: "collaborations",
-    previewText: `${battleTitle} is complete.`,
+    preference,
+    previewText: `${battleTitle} replay is ready.`,
     queue,
     recipient,
-    subject: `${battleTitle} results are ready`,
+    subject: `${battleTitle} replay is ready`,
     template: "battle_results",
   });
 };

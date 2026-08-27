@@ -1272,6 +1272,13 @@ export const respondFriendRequestBodySchema = z.object({
   action: z.enum(["accept", "decline", "cancel"]),
 });
 
+export const battleParticipantSchema = z.object({
+  avatarUrl: z.string().nullable(),
+  id: z.string(),
+  name: z.string(),
+  username: z.string().nullable(),
+});
+
 export const battleSummarySchema = z.object({
   featuredRank: z.number().int().positive().nullable().optional(),
   format: z.enum(["best_of_3", "best_of_5", "best_of_7"]),
@@ -1279,6 +1286,7 @@ export const battleSummarySchema = z.object({
   id: z.string(),
   isFeatured: z.boolean().default(false),
   joinMode: z.enum(["watch_now", "waiting_room"]).default("watch_now"),
+  participants: battleParticipantSchema.array().max(2).default([]),
   phaseEndsAt: z.string().nullable().optional(),
   queueSize: z.number().int().nonnegative().default(0),
   round: z
@@ -1738,6 +1746,8 @@ export const onboardingFanBodySchema = z.object({
   country: z.string().min(1),
   genrePreferences: z.array(z.string()).min(3),
   mediaLayout: z.enum(["cards", "list"]).default("cards"),
+  referrerUsername: z.string().trim().toLowerCase().min(3).max(80).optional(),
+  returnPath: z.string().trim().max(500).optional(),
   selectedPlanCode: z.enum(["fan_free", "soundkit_premium_fan"]),
   state: z.string().min(1),
   username: usernameSchema,

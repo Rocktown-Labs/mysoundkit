@@ -204,10 +204,27 @@ test.describe("main application surfaces", () => {
     );
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByText(/battle/i).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Upcoming Battles" })).toBeVisible();
+    await expect(page.getByText("Upcoming Artist Duel")).toBeVisible();
+    await expect(page.getByText("Luna Eclipse").first()).toBeVisible();
+    await expect(page.getByText("Neon Pulse").first()).toBeVisible();
     await expect(page).toHaveURL(/region=us-arkansas/);
     if ((page.viewportSize()?.width ?? 0) >= 1024) {
       await expect(page.getByRole("combobox")).toHaveCount(4);
     }
+    await gotoWithViteRetry(
+      page,
+      "/live/battles/upcoming?regionType=north-america&region=us-arkansas"
+    );
+    await expect(
+      page.getByRole("heading", { name: "Upcoming Battles" })
+    ).toBeVisible();
+    await expect(page.getByText("Upcoming Artist Duel")).toBeVisible();
+
+    await gotoWithViteRetry(
+      page,
+      "/live/battles?regionType=north-america&region=us-arkansas"
+    );
     const battlesContentBox = await page
         .getByRole("heading", { exact: true, name: "Live Battles" })
         .nth(1)
@@ -350,6 +367,7 @@ test.describe("main application surfaces", () => {
       page.getByText(/Review incoming challenge requests/i)
     ).toBeVisible();
     await page.getByRole("tab", { name: /outgoing/i }).click();
+    await expect(page.getByText("To: @accepted-artist")).toHaveCount(0);
     await expect(page.getByText("To: @stale-artist")).toBeVisible();
     await page.getByRole("button", { name: "Clear" }).click();
     await expect(page.getByText("To: @stale-artist")).toHaveCount(0);
@@ -359,6 +377,31 @@ test.describe("main application surfaces", () => {
     await page.getByLabel("Time").fill("20:00");
     await page.getByRole("button", { name: "Send Battle Request" }).click();
     await expect(page.getByText("To: @new-opponent")).toBeVisible();
+    await page
+      .getByRole("button", { name: "More actions for Upcoming Artist Duel" })
+      .click();
+    await expect(
+      page.getByRole("menuitem", { name: "Share upcoming battle" })
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await gotoWithViteRetry(page, "/dashboard/live/my-kit");
+    await expect(
+      page.getByRole("heading", { name: "My Battle Kits" })
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Create Kit" }).click();
+    await page.getByLabel("Battle Kit name").fill("Regression Kit");
+    await page.getByRole("button", { name: "Add main" }).nth(0).click();
+    await page.getByRole("button", { name: "Add main" }).nth(0).click();
+    await page.getByRole("button", { name: "Add main" }).nth(0).click();
+    await page.getByRole("button", { name: "TB" }).last().click();
+    await page.getByRole("button", { name: "Save Kit" }).click();
+    await expect(page.getByText("Regression Kit")).toBeVisible();
+    await page.getByRole("link", { name: "Use Kit" }).click();
+    await expect(page).toHaveURL(/\/dashboard\/live\/battles/);
+    await expect(
+      page.getByText(/Regression Kit will be ready when you enter/i)
+    ).toBeVisible();
 
     await gotoWithViteRetry(page, "/dashboard/live/parties");
     await expect(

@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { isReleasedTrack } from "@/lib/release-momentum";
+import { rememberBattleKitSelection } from "@/lib/battle-kit-selection";
 import type { BattleKit, TrackSummary } from "@/lib/soundkit-api-hooks";
 import {
   useBattleKitsQuery,
@@ -91,6 +92,7 @@ function MyKitPage() {
             } else {
               await createKit.mutateAsync(payload);
             }
+            await kitsQuery.refetch();
             toast({
               description:
                 "Your Battle Kit is saved across your SoundKit devices.",
@@ -173,13 +175,13 @@ function MyKitPage() {
               Build your first Battle Kit
             </h2>
             <p className="max-w-lg text-sm text-muted-foreground">
-              {!canCreateBattleKits
-                ? "Battle Kits are available with Artist Premium. You can keep building your catalog on the Free plan."
-                : tracks.length === 0
+              {canCreateBattleKits
+                ? tracks.length === 0
                   ? "Upload and release music before creating a Battle Kit."
                   : releasedTracks.length < 4
                     ? `You currently have ${releasedTracks.length} eligible track${releasedTracks.length === 1 ? "" : "s"}. A BO3 kit requires 4 released, playable tracks.`
-                    : "Give a named set of songs a home, then take it into your next battle."}
+                    : "Give a named set of songs a home, then take it into your next battle."
+                : "Battle Kits are available with Artist Premium. You can keep building your catalog on the Free plan."}
             </p>
             {releasedTracks.length >= 4 && canCreateBattleKits && (
               <Button onClick={() => setEditingKitId("new")}>
@@ -288,7 +290,10 @@ function BattleKitCard({
             disabled={!kit.isBattleReady}
             variant={kit.isBattleReady ? "default" : "outline"}
           >
-            <Link to="/dashboard/live/battles">
+            <Link
+              onClick={() => rememberBattleKitSelection({ kitId: kit.id })}
+              to="/dashboard/live/battles"
+            >
               <Swords data-icon="inline-start" />
               Use Kit
             </Link>

@@ -1,15 +1,17 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+
+import { BattleViewAll } from "@/components/explore/battle-view-all";
 
 export const Route = createFileRoute("/_explore/live/battles/upcoming")({
-  beforeLoad: () => {
-    throw redirect({
-      search: {
-        genre: undefined,
-        region: undefined,
-        regionType: "north-america",
-        sort: undefined,
-      },
-      to: "/live/battles",
-    });
-  },
+  component: UpcomingBattlesPage,
 });
+
+function UpcomingBattlesPage() {
+  return (
+    <BattleViewAll
+      description="See the next battles and join the waiting room before they begin."
+      title="Upcoming Battles"
+      type="upcoming"
+    />
+  );
+}

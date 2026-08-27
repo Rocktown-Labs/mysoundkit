@@ -7,6 +7,7 @@ import {
   genres,
   onboardingProgress,
   profileLinks,
+  userFollows,
   userProfiles,
   userGenrePreferences,
 } from "@soundkit/db/schema/app";
@@ -20,6 +21,7 @@ import { indexSearchEntity } from "@/lib/audio-processing";
 import { createPlanCheckout, isFreePlan } from "@/lib/billing";
 import { getPublicSiteUrl, sendTransactionalEmail } from "@/lib/email";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
+import { notifyFollowCreated } from "@/lib/follow-notifications";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
 import { canCompleteArtistOnboarding } from "@/lib/onboarding-domain";
 import { assertPlanSeatCount, maxIncludedSeatsForPlan } from "@/lib/plan-seats";
@@ -187,13 +189,23 @@ const checkUsernameAvailability = async (
       status: "active",
     });
   },
-  onboardingUrls = (request: Request, accountType: "artist" | "fan") => {
+  onboardingUrls = (
+    request: Request,
+    accountType: "artist" | "fan",
+    returnPath?: string
+  ) => {
     const fallbackOrigin = new URL(request.url).origin,
-      siteOrigin = getPublicSiteUrl().replace(/\/$/u, "") || fallbackOrigin;
+      siteOrigin = getPublicSiteUrl().replace(/\/$/u, "") || fallbackOrigin,
+      safeReturnPath =
+        returnPath?.startsWith("/") && !returnPath.startsWith("//")
+          ? returnPath
+          : (accountType === "artist"
+            ? "/dashboard"
+            : "/");
 
     return {
       cancelUrl: `${siteOrigin}/signup`,
-      successUrl: `${siteOrigin}${accountType === "artist" ? "/dashboard" : "/"}`,
+      successUrl: `${siteOrigin}${safeReturnPath}`,
     };
   };
 
@@ -909,6 +921,40 @@ app.openapi(
           target: userProfiles.userId,
         });
 
+      const referrerUsername = body.referrerUsername?.trim().toLowerCase();
+      if (referrerUsername && referrerUsername !== body.username) {
+        const [referrer] = await db
+          .select({
+            accountType: userProfiles.accountType,
+            userId: userProfiles.userId,
+          })
+          .from(userProfiles)
+          .where(eq(userProfiles.username, referrerUsername))
+          .limit(1);
+
+        if (referrer?.accountType === "artist") {
+          const [createdFollow] = await db
+            .insert(userFollows)
+            .values({
+              followerUserId: user.id,
+              targetUserId: referrer.userId,
+            })
+            .onConflictDoNothing()
+            .returning({ followerUserId: userFollows.followerUserId });
+
+          if (createdFollow) {
+            await notifyFollowCreated({
+              actorAccountType: "fan",
+              actorName: body.username,
+              actorUserId: user.id,
+              actorUsername: body.username,
+              emailQueue: c.env.EMAIL_DELIVERY_QUEUE,
+              recipientUserId: referrer.userId,
+            });
+          }
+        }
+      }
+
       await db
         .insert(fanProfiles)
         .values({
@@ -983,7 +1029,7 @@ app.openapi(
       });
 
       const checkout = await createPlanCheckout({
-        ...onboardingUrls(c.req.raw, "fan"),
+        ...onboardingUrls(c.req.raw, "fan", body.returnPath),
         planCode: body.selectedPlanCode,
         referenceId: workspaceId,
         request: c.req.raw,

@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import { completeBattleShareReferral } from "@/lib/battle-share";
 
 const accountLabel = (accountType: "artist" | "fan") =>
   accountType === "artist" ? "Artist" : "Fan";
@@ -125,6 +126,9 @@ export function CredentialsForm({
 
         if (isSignup) {
           await persistSignupIntent();
+          if (accountType === "fan") {
+            await completeBattleShareReferral();
+          }
           posthog.capture("account_created", {
             account_type: accountType,
             auth_method: "email",

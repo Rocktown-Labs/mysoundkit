@@ -1,6 +1,6 @@
 /* eslint-disable one-var, sort-vars, complexity, react/memo-dependencies, react/preserve-manual-memoization, react/set-state-in-effect, react-hooks/exhaustive-deps, unicorn/consistent-function-scoping, react/no-array-index-key */
 import { Link, useSearch } from "@tanstack/react-router";
-import { Eye, Music2, Swords, TrendingUp, Trophy } from "lucide-react";
+import { Swords, TrendingUp, Trophy } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppImage } from "@/components/ui/app-image";
@@ -8,13 +8,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { musicGenres } from "@/lib/music-genres";
 import {
   useBattlesQuery,
@@ -111,32 +104,6 @@ const sortOptionsMap = {
       location: "Texas, US",
       views: Math.floor(Math.random() * 100_000) + 1000,
       winner: Math.random() > 0.5 ? "artist1" : "artist2",
-    })),
-  generateUpcomingBattles = (count: number) =>
-    Array.from({ length: count }, (_, i) => ({
-      anticipation: Math.floor(Math.random() * 5000) + 100,
-      artist1: `Artist ${i * 2 + 1}`,
-      artist1Image: `/placeholder.svg?height=100&width=100&query=artist${i * 2 + 1}`,
-      artist1Stats: {
-        losses: Math.floor(Math.random() * 15),
-        topSongs: ["Track A", "Track B", "Track C"],
-        winRate: Math.floor(Math.random() * 40) + 50,
-        wins: Math.floor(Math.random() * 30) + 5,
-      },
-      artist2: `Artist ${i * 2 + 2}`,
-      artist2Image: `/placeholder.svg?height=100&width=100&query=artist${i * 2 + 2}`,
-      artist2Stats: {
-        losses: Math.floor(Math.random() * 15),
-        topSongs: ["Track X", "Track Y", "Track Z"],
-        winRate: Math.floor(Math.random() * 40) + 50,
-        wins: Math.floor(Math.random() * 30) + 5,
-      },
-      genre: battleGenres[Math.floor(Math.random() * battleGenres.length)],
-      id: `upcoming-${i}`,
-      location: "Florida, US",
-      scheduledTime: new Date(
-        Date.now() + Math.random() * 24 * 60 * 60 * 1000
-      ).toISOString(),
     })),
   normalizedGenreValue = (value: string) => {
     const normalized = value
@@ -250,85 +217,58 @@ function LiveBattleSummaryCard({
 }) {
   const tracks = battle.tracks ?? [];
 
-  if (tracks.length >= 2) {
-    return (
-      <div className="w-full min-w-0">
-        <BattleCard
-          currentRound={battle.round?.current ?? 1}
-          genre={battle.genre}
-          id={battle.id}
-          isLive={battle.status === "live"}
-          isPremiumUser={isPremiumUser}
-          isVoting={battle.round?.isVoting ?? false}
-          joinMode={battle.joinMode}
-          phaseEndsAt={battle.phaseEndsAt}
-          queueSize={battle.queueSize}
-          title={battle.title}
-          totalRounds={battle.round?.total ?? 1}
-          track1={{
-            artist: tracks[0].artist,
-            cover: tracks[0].cover ?? "",
-            title: tracks[0].title,
-            votes: tracks[0].votes,
-          }}
-          track2={{
-            artist: tracks[1].artist,
-            cover: tracks[1].cover ?? "",
-            title: tracks[1].title,
-            votes: tracks[1].votes,
-          }}
-        />
-      </div>
-    );
-  }
-
   return (
-    <Link
-      to="/live/battles/$id"
-      params={{ id: battle.id }}
-      className="block w-full min-w-0"
-    >
-      <Card className="h-full transition-colors hover:bg-accent">
-        <CardContent className="space-y-4 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <Badge variant="secondary">{battle.genre}</Badge>
-            <Badge variant={battle.status === "live" ? "default" : "outline"}>
-              {battle.status === "live" ? "Live" : battle.status}
-            </Badge>
-          </div>
-          <div>
-            <h3 className="line-clamp-2 font-semibold">{battle.title}</h3>
-            <p className="mt-1 text-muted-foreground text-sm">
-              {battle.format.replaceAll("_", " ")}
-            </p>
-          </div>
-          <div className="flex items-center justify-between text-muted-foreground text-sm">
-            <span className="flex items-center gap-1">
-              <Eye className="size-4" />
-              {battle.viewerCount.toLocaleString()}
-            </span>
-            {battle.isFeatured && battle.featuredRank ? (
-              <span>Featured #{battle.featuredRank}</span>
-            ) : (
-              <span>
-                {battle.visibility === "premium_only" ? "Premium" : "Public"}
-              </span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+    <div className="w-full min-w-0">
+      <BattleCard
+        currentRound={battle.round?.current ?? 1}
+        genre={battle.genre}
+        id={battle.id}
+        isLive={battle.status === "live"}
+        isPremiumUser={isPremiumUser}
+        isVoting={battle.round?.isVoting ?? false}
+        joinMode={battle.joinMode}
+        participants={battle.participants}
+        phaseEndsAt={battle.phaseEndsAt}
+        queueSize={battle.queueSize}
+        startsAt={battle.startsAt}
+        status={battle.status}
+        title={battle.title}
+        totalRounds={battle.round?.total ?? 1}
+        track1={
+          tracks[0]
+            ? {
+                artist: tracks[0].artist,
+                cover: tracks[0].cover ?? "",
+                title: tracks[0].title,
+                votes: tracks[0].votes,
+              }
+            : undefined
+        }
+        track2={
+          tracks[1]
+            ? {
+                artist: tracks[1].artist,
+                cover: tracks[1].cover ?? "",
+                title: tracks[1].title,
+                votes: tracks[1].votes,
+              }
+            : undefined
+        }
+      />
+    </div>
   );
 }
 
 function BattleRail({
   battles,
   isPremiumUser,
+  showViewAll = true,
   title,
   viewAllGenre,
 }: {
   battles: BattleSummary[];
   isPremiumUser: boolean;
+  showViewAll?: boolean;
   title: string;
   viewAllGenre?: string;
 }) {
@@ -340,19 +280,21 @@ function BattleRail({
           <span className="text-muted-foreground text-sm">
             {battles.length} {battles.length === 1 ? "battle" : "battles"}
           </span>
-          <Button asChild size="sm" variant="ghost">
-            <Link
-              to="/live/battles"
-              search={{
-                genre: viewAllGenre ?? DEFAULT_GENRE,
-                region: DEFAULT_REGION,
-                regionType: DEFAULT_REGION_TYPE,
-                sort: sortOptionsMap.live[0].value,
-              }}
-            >
-              View All
-            </Link>
-          </Button>
+          {showViewAll ? (
+            <Button asChild size="sm" variant="ghost">
+              <Link
+                to="/live/battles"
+                search={{
+                  genre: viewAllGenre ?? DEFAULT_GENRE,
+                  region: DEFAULT_REGION,
+                  regionType: DEFAULT_REGION_TYPE,
+                  sort: sortOptionsMap.live[0].value,
+                }}
+              >
+                View All
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </div>
       {battles.length > 0 ? (
@@ -380,9 +322,6 @@ export function BattleViewAll({
   description,
 }: BattleViewAllProps) {
   const routeSearch = useSearch({ strict: false }),
-    [selectedMatchup, setSelectedMatchup] = useState<
-      ReturnType<typeof generateUpcomingBattles>[number] | null
-    >(null),
     isInitialMount = useRef(true),
     defaultSort = sortOptionsMap[type][0].value,
     regionTypeFromSearch =
@@ -470,6 +409,24 @@ export function BattleViewAll({
 
       return { byGenre, featured, total: filtered.length };
     }, [battleSummaries, genre, sort]),
+    upcomingBattles = useMemo(() => {
+      const scheduled = battleSummaries.filter(
+        (battle) =>
+          battle.status === "scheduled" && matchesSelectedGenre(battle, genre)
+      );
+
+      return scheduled.toSorted((first, second) => {
+        const firstTime = first.startsAt
+          ? new Date(first.startsAt).getTime()
+          : Number.MAX_SAFE_INTEGER;
+        const secondTime = second.startsAt
+          ? new Date(second.startsAt).getTime()
+          : Number.MAX_SAFE_INTEGER;
+        return sort === "time-desc"
+          ? secondTime - firstTime
+          : firstTime - secondTime;
+      });
+    }, [battleSummaries, genre, sort]),
     data = useMemo(() => {
       if (type === "leaderboard") {
         return generateLeaderboardArtists(100);
@@ -479,7 +436,7 @@ export function BattleViewAll({
         return generateMustSeeBattles(50);
       }
 
-      return generateUpcomingBattles(30);
+      return [];
     }, [type]),
     liveBattleContent = useMemo(() => {
       if (isLoadingBattles) {
@@ -497,6 +454,14 @@ export function BattleViewAll({
             isPremiumUser={isPremiumUser}
             title="Featured"
           />
+          {upcomingBattles.length > 0 ? (
+            <BattleRail
+              battles={upcomingBattles}
+              isPremiumUser={isPremiumUser}
+              showViewAll={false}
+              title="Upcoming Battles"
+            />
+          ) : null}
           {liveBattleSections.byGenre.map((section) => (
             <BattleRail
               key={section.genre}
@@ -508,7 +473,7 @@ export function BattleViewAll({
           ))}
         </>
       );
-    }, [isLoadingBattles, liveBattleSections]),
+    }, [isLoadingBattles, liveBattleSections, upcomingBattles]),
     getBattleTypeIcon = (battleType: BattleType) => {
       switch (battleType) {
         case "leaderboard": {
@@ -683,218 +648,28 @@ export function BattleViewAll({
       )}
 
       {type === "upcoming" && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(data as ReturnType<typeof generateUpcomingBattles>).map(
-              (battle) => (
-                <Card
-                  className="group overflow-hidden transition-colors hover:bg-accent"
-                  key={battle.id}
-                >
-                  <BattleMatchupHero
-                    artist1={battle.artist1}
-                    artist1Image={battle.artist1Image}
-                    artist2={battle.artist2}
-                    artist2Image={battle.artist2Image}
-                    label={battle.genre}
-                  />
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <Badge variant="secondary">{battle.genre}</Badge>
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(battle.scheduledTime).toLocaleString()}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <Avatar className="size-12">
-                        <AvatarImage
-                          src={battle.artist1Image || "/placeholder.svg"}
-                          alt={battle.artist1}
-                        />
-                        <AvatarFallback>{battle.artist1[0]}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-sm">
-                          {battle.artist1}
-                        </h3>
-                      </div>
-                    </div>
-                    <div className="text-center text-xs text-muted-foreground my-2">
-                      VS
-                    </div>
-                    <div className="flex items-center gap-3 mb-3">
-                      <Avatar className="size-12">
-                        <AvatarImage
-                          src={battle.artist2Image || "/placeholder.svg"}
-                          alt={battle.artist2}
-                        />
-                        <AvatarFallback>{battle.artist2[0]}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-sm">
-                          {battle.artist2}
-                        </h3>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 bg-transparent"
-                      >
-                        Join Queue
-                      </Button>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => setSelectedMatchup(battle)}
-                      >
-                        View Matchup
-                      </Button>
-                    </div>
-                    <div className="mt-3 pt-3 border-t text-xs text-muted-foreground flex items-center gap-1">
-                      <TrendingUp className="size-3" />
-                      {battle.anticipation.toLocaleString()} interested
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            )}
-          </div>
-
-          {/* Head to Head Matchup Dialog */}
-          <Dialog
-            open={!!selectedMatchup}
-            onOpenChange={() => setSelectedMatchup(null)}
-          >
-            <DialogContent className="max-w-3xl">
-              <DialogHeader>
-                <DialogTitle>Head to Head Matchup</DialogTitle>
-                <DialogDescription>
-                  Compare artist stats and performance
-                </DialogDescription>
-              </DialogHeader>
-              {selectedMatchup && (
-                <div className="space-y-6">
-                  {/* Artist Headers */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col items-center text-center">
-                      <Avatar className="size-20 mb-2">
-                        <AvatarImage
-                          src={
-                            selectedMatchup.artist1Image || "/placeholder.svg"
-                          }
-                          alt={selectedMatchup.artist1}
-                        />
-                        <AvatarFallback>
-                          {selectedMatchup.artist1[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <h3 className="font-bold text-lg">
-                        {selectedMatchup.artist1}
-                      </h3>
-                    </div>
-                    <div className="flex flex-col items-center text-center">
-                      <Avatar className="size-20 mb-2">
-                        <AvatarImage
-                          src={
-                            selectedMatchup.artist2Image || "/placeholder.svg"
-                          }
-                          alt={selectedMatchup.artist2}
-                        />
-                        <AvatarFallback>
-                          {selectedMatchup.artist2[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <h3 className="font-bold text-lg">
-                        {selectedMatchup.artist2}
-                      </h3>
-                    </div>
-                  </div>
-
-                  {/* Stats Comparison */}
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-4 items-center">
-                      <div className="text-right font-semibold">
-                        {selectedMatchup.artist1Stats.wins}
-                      </div>
-                      <div className="text-center text-sm text-muted-foreground">
-                        Total Wins
-                      </div>
-                      <div className="text-left font-semibold">
-                        {selectedMatchup.artist2Stats.wins}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4 items-center">
-                      <div className="text-right font-semibold">
-                        {selectedMatchup.artist1Stats.losses}
-                      </div>
-                      <div className="text-center text-sm text-muted-foreground">
-                        Total Losses
-                      </div>
-                      <div className="text-left font-semibold">
-                        {selectedMatchup.artist2Stats.losses}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4 items-center">
-                      <div className="text-right font-semibold text-primary">
-                        {selectedMatchup.artist1Stats.winRate}%
-                      </div>
-                      <div className="text-center text-sm text-muted-foreground">
-                        Win Rate
-                      </div>
-                      <div className="text-left font-semibold text-primary">
-                        {selectedMatchup.artist2Stats.winRate}%
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Top Songs */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <h4 className="font-semibold mb-2 flex items-center gap-2">
-                        <Music2 className="size-4" />
-                        Top Songs
-                      </h4>
-                      <ul className="space-y-1 text-sm">
-                        {selectedMatchup.artist1Stats.topSongs.map(
-                          (song: string, i: number) => (
-                            <li key={i} className="flex items-center gap-2">
-                              <span className="text-muted-foreground">
-                                {i + 1}.
-                              </span>
-                              {song}
-                            </li>
-                          )
-                        )}
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold mb-2 flex items-center gap-2">
-                        <Music2 className="size-4" />
-                        Top Songs
-                      </h4>
-                      <ul className="space-y-1 text-sm">
-                        {selectedMatchup.artist2Stats.topSongs.map(
-                          (song: string, i: number) => (
-                            <li key={i} className="flex items-center gap-2">
-                              <span className="text-muted-foreground">
-                                {i + 1}.
-                              </span>
-                              {song}
-                            </li>
-                          )
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </DialogContent>
-          </Dialog>
-        </>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {isLoadingBattles ? (
+            <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+              Loading upcoming battles...
+            </div>
+          ) : upcomingBattles.length === 0 ? (
+            <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+              No upcoming battles are scheduled yet.
+            </div>
+          ) : (
+            upcomingBattles.map((battle) => (
+              <LiveBattleSummaryCard
+                battle={battle}
+                isPremiumUser={isPremiumUser}
+                key={battle.id}
+              />
+            ))
+          )}
+        </div>
       )}
+
+
     </div>
   );
 }

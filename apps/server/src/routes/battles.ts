@@ -38,6 +38,7 @@ import {
   hasBattleChallengeExpired,
 } from "@/lib/battle-challenge-lifecycle";
 import {
+  dedupeBattleKitTracks,
   evaluateBattleKitReadiness,
   validateBattleKitTracks,
 } from "@/lib/battle-kits";
@@ -79,9 +80,11 @@ const app = new OpenAPIHono<AppEnv>(),
   } as const;
 
 interface BattleFeedRow {
+  challengerArtistUserId: string | null;
   format: "best_of_3" | "best_of_5" | "best_of_7";
   genre: string;
   id: string;
+  opponentArtistUserId: string | null;
   startsAt: Date | null;
   status: "scheduled" | "live" | "completed" | "archived";
   title: string;
@@ -145,7 +148,32 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
       roundsByBattleId.set(round.battleId, rounds);
     }
 
-    const trackIds = [
+    const participantIds = [
+        ...new Set(
+          battleRows
+            .flatMap((battle) => [
+              battle.challengerArtistUserId,
+              battle.opponentArtistUserId,
+            ])
+            .filter((userId): userId is string => Boolean(userId))
+        ),
+      ],
+      participantRows =
+        participantIds.length > 0
+          ? await db
+              .select({
+                avatarUrl: userProfiles.avatarUrl,
+                displayName: userProfiles.displayName,
+                id: userProfiles.userId,
+                username: userProfiles.username,
+              })
+              .from(userProfiles)
+              .where(inArray(userProfiles.userId, participantIds))
+          : [],
+      participantById = new Map(
+        participantRows.map((participant) => [participant.id, participant])
+      ),
+      trackIds = [
         ...new Set(
           roundRows
             .flatMap((round) => [round.trackOneId, round.trackTwoId])
@@ -199,6 +227,24 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
     return battleRows.map((battle) => {
       const rounds = roundsByBattleId.get(battle.id) ?? [],
         currentRound = selectCurrentRound(rounds),
+        participants = [
+          battle.challengerArtistUserId,
+          battle.opponentArtistUserId,
+        ].flatMap((userId) => {
+          if (!userId) {
+            return [];
+          }
+
+          const participant = participantById.get(userId);
+          return [
+            {
+              avatarUrl: participant?.avatarUrl ?? null,
+              id: userId,
+              name: participant?.displayName ?? "SoundKit Artist",
+              username: participant?.username ?? null,
+            },
+          ];
+        }),
         roundTracks = currentRound
           ? [
               currentRound.trackOneId
@@ -228,6 +274,7 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
           battle.status === "live" && currentRound?.status === "active"
             ? ("waiting_room" as const)
             : ("watch_now" as const),
+        participants,
         phaseEndsAt: currentRound?.votingEndsAt?.toISOString() ?? null,
         queueSize: 0,
         round: currentRound
@@ -289,9 +336,11 @@ app.openapi(
       regionCondition = profileRegionCondition(query),
       rows = await db
         .select({
+          challengerArtistUserId: battles.challengerArtistUserId,
           format: battles.format,
           genre: genres.name,
           id: battles.id,
+          opponentArtistUserId: battles.opponentArtistUserId,
           startsAt: battles.startsAt,
           status: battles.status,
           title: battles.title,
@@ -1371,32 +1420,34 @@ const battleKitOwnership = ({
           trackAssets,
           and(
             eq(trackAssets.trackId, tracks.id),
-            eq(trackAssets.assetKind, "cover_art")
+            eq(trackAssets.assetKind, "cover_art"),
+            eq(trackAssets.isCurrent, true)
           )
         )
         .where(inArray(battleKitTracks.battleKitId, kitIds))
         .orderBy(
           asc(battleKitTracks.battleKitId),
-          asc(battleKitTracks.mainSlot)
+          asc(battleKitTracks.mainSlot),
+          desc(trackAssets.updatedAt)
         );
 
     return Promise.all(
       kits.map((kit) =>
         buildBattleKitSummary({
           kit,
-          trackRows: trackRows
-            .filter((track) => track.kitId === kit.id)
-            .map((track) => ({
-              coverArtUrl: publicAssetUrlFromParts({
-                metadata: track.coverMetadata,
-                objectKey: track.coverObjectKey,
-              }),
-              id: track.id,
-              mainSlot: track.mainSlot,
-              role: track.role,
-              title: track.title,
-              trackId: track.trackId,
-            })),
+          trackRows: dedupeBattleKitTracks(
+            trackRows.filter((track) => track.kitId === kit.id)
+          ).map((track) => ({
+            coverArtUrl: publicAssetUrlFromParts({
+              metadata: track.coverMetadata,
+              objectKey: track.coverObjectKey,
+            }),
+            id: track.id,
+            mainSlot: track.mainSlot,
+            role: track.role,
+            title: track.title,
+            trackId: track.trackId,
+          })),
         })
       )
     );
@@ -2201,9 +2252,11 @@ app.openapi(
     const db = createDb(),
       [row] = await db
         .select({
+          challengerArtistUserId: battles.challengerArtistUserId,
           format: battles.format,
           genre: genres.name,
           id: battles.id,
+          opponentArtistUserId: battles.opponentArtistUserId,
           startsAt: battles.startsAt,
           status: battles.status,
           title: battles.title,

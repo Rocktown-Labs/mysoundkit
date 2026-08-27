@@ -27,6 +27,21 @@ export interface BattleKitReadiness {
 export const requiredMainTracksForFormat = (format: BattleKitFormat) =>
   Number(format.slice(-1));
 
+export const dedupeBattleKitTracks = <T extends { trackId: string }>(
+  tracks: readonly T[]
+): T[] => {
+  const seenTrackIds = new Set<string>();
+
+  return tracks.filter((track) => {
+    if (seenTrackIds.has(track.trackId)) {
+      return false;
+    }
+
+    seenTrackIds.add(track.trackId);
+    return true;
+  });
+};
+
 export const evaluateBattleKitReadiness = ({
   format,
   tracks,
