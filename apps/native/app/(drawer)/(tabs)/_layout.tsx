@@ -15,17 +15,25 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.primary,
-        tabBarInactiveTintColor: theme.text,
+        tabBarHideOnKeyboard: true,
+        tabBarInactiveTintColor: theme.mutedText,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "700",
+        },
         tabBarStyle: {
           backgroundColor: theme.background,
           borderTopColor: theme.border,
+          height: 68,
+          paddingBottom: 8,
+          paddingTop: 7,
         },
       }}
     >
       {NATIVE_TAB_ROUTES.map((route) => (
         <Tabs.Screen
           key={route.id}
-          name={route.id === "explore" ? "index" : route.id}
+          name={route.screen}
           options={{
             tabBarIcon: ({ color }) => (
               <TabBarIcon color={color} name={route.icon} />

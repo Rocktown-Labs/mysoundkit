@@ -1,18 +1,34 @@
+// Hex values mirror the web app's OKLCH tokens while remaining compatible
+// with React Native's color parser.
 export const NAV_THEME = {
   dark: {
-    background: "hsl(222.2 84% 4.9%)",
-    border: "hsl(217.2 32.6% 17.5%)",
-    card: "hsl(222.2 84% 4.9%)",
-    notification: "hsl(0 72% 51%)",
-    primary: "hsl(217.2 91.2% 59.8%)",
-    text: "hsl(210 40% 98%)",
+    accent: "#DDA34A",
+    accentForeground: "#171717",
+    background: "#141414",
+    border: "#403F3E",
+    card: "#1F1F1F",
+    destructive: "#E05D4D",
+    muted: "#292929",
+    mutedText: "#A6A4A2",
+    notification: "#E05D4D",
+    primary: "#B993FF",
+    primaryForeground: "#171717",
+    text: "#F7F7F5",
   },
   light: {
-    background: "hsl(0 0% 100%)",
-    border: "hsl(220 13% 91%)",
-    card: "hsl(0 0% 100%)",
-    notification: "hsl(0 84.2% 60.2%)",
-    primary: "hsl(221.2 83.2% 53.3%)",
-    text: "hsl(222.2 84% 4.9%)",
+    accent: "#E5DFC9",
+    accentForeground: "#27252F",
+    background: "#F7F5F0",
+    border: "#E4E1D8",
+    card: "#FEFEFD",
+    destructive: "#C2412D",
+    muted: "#EFEDE7",
+    mutedText: "#78737E",
+    notification: "#C2412D",
+    primary: "#6531B5",
+    primaryForeground: "#FFFFFF",
+    text: "#27252F",
   },
-};
+} as const;
+
+export type NavTheme = (typeof NAV_THEME)["dark"];

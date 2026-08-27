@@ -14,12 +14,14 @@ function DrawerLayout() {
   return (
     <Drawer
       screenOptions={{
-        drawerInactiveTintColor: theme.text,
-        drawerLabelStyle: { color: theme.text },
+        drawerActiveTintColor: theme.primary,
+        drawerInactiveTintColor: theme.mutedText,
+        drawerLabelStyle: { color: theme.text, fontWeight: "700" },
         drawerStyle: { backgroundColor: theme.background },
+        headerShadowVisible: false,
         headerStyle: { backgroundColor: theme.background },
         headerTintColor: theme.text,
-        headerTitleStyle: { color: theme.text },
+        headerTitleStyle: { color: theme.text, fontWeight: "800" },
       }}
     >
       <Drawer.Screen
@@ -33,7 +35,7 @@ function DrawerLayout() {
         }}
       />
       <Drawer.Screen
-        name="index"
+        name="account"
         options={{
           drawerIcon: ({ color, size }) => (
             <Ionicons color={color} name="person-outline" size={size} />

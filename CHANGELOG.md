@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added the native mobile navigation shell with themed Explore, Library, Live, and Dashboard tabs, menu destinations, nested stacks, and branded placeholder screens for the planned mobile routes.
 - Added per-round artist readiness with timer fallback, private Battle Kit track status and next-song selection, tie-aware battle results, and ranked-versus-practice participation records in the artist dashboard.
 - Added an authenticated artist battle room at `/dashboard/live/battles/join/:roomId/artistview`, with artist-scoped waiting-room chat, Battle Kit/readiness controls, reconnect-safe media, and admin-only outcome controls.
 - Added a branded “You Ducked the Smoke” transactional email template and idempotent notification flow for ducked, forfeited, platform-canceled, and viewer battle outcomes.
