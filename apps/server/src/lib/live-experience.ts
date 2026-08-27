@@ -79,6 +79,26 @@ export const hasRealtimeKitConfig = ({
 }: CloudflareRealtimeKitConfig) =>
   Boolean(accountId?.trim() && apiToken?.trim() && appId?.trim());
 
+export const resolveBattleArtistRole = ({
+  challengerArtistUserId,
+  opponentArtistUserId,
+  userId,
+}: {
+  challengerArtistUserId: string | null | undefined;
+  opponentArtistUserId: string | null | undefined;
+  userId: string;
+}): "artist_a" | "artist_b" | null => {
+  if (challengerArtistUserId === userId) {
+    return "artist_a";
+  }
+
+  if (opponentArtistUserId === userId) {
+    return "artist_b";
+  }
+
+  return null;
+};
+
 export const allowsMockRealtime = ({
   allowMockRealtime,
 }: CloudflareRealtimeKitConfig) =>

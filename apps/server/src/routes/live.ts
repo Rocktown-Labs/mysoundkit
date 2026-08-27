@@ -50,6 +50,7 @@ import {
   createRoundVoterSnapshot,
   findLiveSessionConflict,
   hasRealtimeKitConfig,
+  resolveBattleArtistRole,
   resolveRealtimePreset,
 } from "@/lib/live-experience";
 import type {
@@ -934,7 +935,8 @@ const badRequest = (message: string) => ({
           .where(
             or(
               eq(liveExperiences.id, roomId),
-              eq(liveExperiences.streamInputId, roomId)
+              eq(liveExperiences.streamInputId, roomId),
+              eq(liveExperiences.battleId, roomId)
             )
           )
           .limit(1);
@@ -965,11 +967,12 @@ const badRequest = (message: string) => ({
                   )
             )
             .limit(1);
-        if (battle?.challengerArtistUserId === user.id) {
-          role = "artist_a";
-        } else if (battle?.opponentArtistUserId === user.id) {
-          role = "artist_b";
-        }
+        role =
+          resolveBattleArtistRole({
+            challengerArtistUserId: battle?.challengerArtistUserId,
+            opponentArtistUserId: battle?.opponentArtistUserId,
+            userId: user.id,
+          }) ?? role;
       }
     }
 
@@ -1812,7 +1815,8 @@ const badRequest = (message: string) => ({
     c: {
       get: (key: "session" | "user") => unknown;
     },
-    isLive: boolean
+    isLive: boolean,
+    roomId?: string
   ) => {
     if (!(isLive && isDatabaseConfigured())) {
       return true;
@@ -1825,6 +1829,18 @@ const badRequest = (message: string) => ({
 
     if (!isAuthenticatedUser(user)) {
       return false;
+    }
+
+    if (roomId) {
+      const identity = await resolveLiveRoomIdentity(
+        {
+          get: (key) => (key === "user" ? user : null),
+        },
+        roomId
+      );
+      if (identity.role === "artist_a" || identity.role === "artist_b") {
+        return true;
+      }
     }
 
     const session = c.get("session"),
@@ -2134,7 +2150,9 @@ app.get("/experiences/:experienceId", async (c) => {
     }
   }
 
-  if (!(await hasLiveRoomAccess(c, experience.status === "live"))) {
+  if (
+    !(await hasLiveRoomAccess(c, experience.status === "live", experience.id))
+  ) {
     return c.json(
       forbiddenMessage(
         "A Premium subscription is required to watch live rooms."
@@ -2236,7 +2254,9 @@ app.post("/experiences/:experienceId/join", async (c) => {
     participantPhase = parseResult.data.phase;
 
   if (experience) {
-    if (!(await hasLiveRoomAccess(c, experience.status === "live"))) {
+    if (
+      !(await hasLiveRoomAccess(c, experience.status === "live", experience.id))
+    ) {
       return c.json(
         forbiddenMessage(
           "A Premium subscription is required to join live rooms."
@@ -2259,8 +2279,11 @@ app.post("/experiences/:experienceId/join", async (c) => {
       participantRole =
         user.role === "admin"
           ? "host"
-          : battle?.challengerArtistUserId === user.id ||
-              battle?.opponentArtistUserId === user.id
+          : resolveBattleArtistRole({
+                challengerArtistUserId: battle?.challengerArtistUserId,
+                opponentArtistUserId: battle?.opponentArtistUserId,
+                userId: user.id,
+              })
             ? "artist"
             : "listener";
       const battleRoom = await getDurableRoomState(
@@ -2672,12 +2695,11 @@ app.post("/rooms/:roomId/battle/kit", async (c) => {
     );
   }
 
-  const role =
-    battle.challengerArtistUserId === user.id
-      ? "artist_a"
-      : battle.opponentArtistUserId === user.id
-        ? "artist_b"
-        : null;
+  const role = resolveBattleArtistRole({
+    challengerArtistUserId: battle.challengerArtistUserId,
+    opponentArtistUserId: battle.opponentArtistUserId,
+    userId: user.id,
+  });
   if (!role) {
     return c.json(
       forbiddenMessage("Only battle competitors can select a Battle Kit."),
@@ -2912,7 +2934,7 @@ app.get("/rooms/:roomId", async (c) => {
     realRoom = battleRoom ?? experienceRoom ?? partyRoom;
 
   if (realRoom) {
-    if (!(await hasLiveRoomAccess(c, realRoom.status === "live"))) {
+    if (!(await hasLiveRoomAccess(c, realRoom.status === "live", roomId))) {
       return c.json(
         forbiddenMessage(
           "A Premium subscription is required to watch live rooms."
@@ -2958,7 +2980,7 @@ app.get("/rooms/:roomId/ws", async (c) => {
 
   const roomId = c.req.param("roomId"),
     room = await getDurableRoomState(c, roomId);
-  if (!(await hasLiveRoomAccess(c, room?.status === "live"))) {
+  if (!(await hasLiveRoomAccess(c, room?.status === "live", roomId))) {
     return c.json(
       forbiddenMessage(
         "A Premium subscription is required to join live rooms."
@@ -2989,7 +3011,7 @@ app.post("/rooms/:roomId/chat", async (c) => {
 
   const roomId = c.req.param("roomId"),
     room = await getDurableRoomState(c, roomId);
-  if (!(await hasLiveRoomAccess(c, room?.status === "live"))) {
+  if (!(await hasLiveRoomAccess(c, room?.status === "live", roomId))) {
     return c.json(
       forbiddenMessage("A Premium subscription is required to use live chat."),
       HttpStatusCodes.FORBIDDEN
@@ -3021,7 +3043,7 @@ app.post("/rooms/:roomId/vote", async (c) => {
 
   const roomId = c.req.param("roomId"),
     room = await getDurableRoomState(c, roomId);
-  if (!(await hasLiveRoomAccess(c, room?.status === "live"))) {
+  if (!(await hasLiveRoomAccess(c, room?.status === "live", roomId))) {
     return c.json(
       forbiddenMessage(
         "A Premium subscription is required to vote in live battles."

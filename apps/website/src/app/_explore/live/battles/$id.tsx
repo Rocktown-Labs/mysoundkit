@@ -675,7 +675,10 @@ function BattlePage() {
 
   if (isScheduled) {
     return (
-      <LiveRoomAccessGuard allowPublic={isScheduled} roomTitle={room.title}>
+      <LiveRoomAccessGuard
+        allowPublic={isScheduled || isArtist}
+        roomTitle={room.title}
+      >
         <LiveTwitchShell
           chatPanel={
             <LiveChatPanel
@@ -819,7 +822,7 @@ function BattlePage() {
 
   if (!currentRound) {
     return (
-      <LiveRoomAccessGuard roomTitle={room.title}>
+      <LiveRoomAccessGuard allowPublic={isArtist} roomTitle={room.title}>
         <div className="space-y-6 pb-8">
           <Button
             className="px-0"
@@ -871,7 +874,38 @@ function BattlePage() {
                   readyArtistUserIds={readyArtistUserIds}
                 />
               )}
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {!isArtist &&
+                  (isQueued ? (
+                    <>
+                      <Badge className="gap-1.5" variant="secondary">
+                        <ListPlus className="size-3.5" />
+                        {viewerQueueStatus === "waiting"
+                          ? "Waiting for the next opening"
+                          : "In the battle queue"}
+                      </Badge>
+                      <Button
+                        className="gap-1.5"
+                        disabled={leave.isPending}
+                        onClick={() => leave.mutate()}
+                        size="sm"
+                        variant="outline"
+                      >
+                        <LogOut className="size-3.5" />
+                        Leave Queue
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      className="gap-1.5"
+                      disabled={queue.isPending}
+                      onClick={handleJoinQueue}
+                      size="sm"
+                    >
+                      <ListPlus className="size-3.5" />
+                      {session?.user ? "Join Battle Queue" : "Sign up to Join"}
+                    </Button>
+                  ))}
                 <Button
                   className="gap-1.5"
                   disabled={query.isFetching}
@@ -1074,7 +1108,7 @@ function BattlePage() {
     );
 
   return (
-    <LiveRoomAccessGuard roomTitle={room.title}>
+    <LiveRoomAccessGuard allowPublic={isArtist} roomTitle={room.title}>
       <LiveTwitchShell
         chatPanel={chatPanel}
         defaultChatOpen={true}
