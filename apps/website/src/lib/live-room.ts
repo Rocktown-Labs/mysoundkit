@@ -12,6 +12,7 @@ export type LiveRoomViewerRole =
   | "host";
 
 export interface LiveRoomChatMessage {
+  chatScope?: "battle" | "waiting_room";
   id: string;
   message: string;
   sentAt: string;
@@ -67,6 +68,7 @@ export interface LiveRoomState {
       usedTrackIds: string[];
     };
     artists: [LiveRoomArtist, LiveRoomArtist];
+    chatStarted?: boolean;
     coordination?: {
       activeArtistUserId: string | null;
       artistReadyUserIds?: string[];
@@ -81,7 +83,7 @@ export interface LiveRoomState {
     currentRoundId: string;
     outcome?: {
       affectedUserId?: string | null;
-      kind: "canceled" | "ducked" | "forfeited";
+      kind: "canceled" | "ducked" | "forfeited" | "quit";
       reason: string;
       recordedAt: number;
     };
@@ -282,7 +284,7 @@ export const useLiveRoom = (roomId: string) => {
     battleDispositionMutation = useMutation({
       mutationFn: (body: {
         affectedUserId?: string | null;
-        kind: "canceled" | "ducked" | "forfeited";
+        kind: "canceled" | "ducked" | "forfeited" | "quit";
         reason: string;
       }) => postLiveRoom(roomId, "battle/disposition", body),
       onSuccess: (result) => {
@@ -351,9 +353,11 @@ export const useLiveRoom = (roomId: string) => {
     queueMutation = useMutation({
       mutationFn: () => postLiveRoom(roomId, "queue", {}),
       onSuccess: (result) => {
-        if ("room" in result) {
-          queryClient.setQueryData(liveRoomKey(roomId), result.room);
-        }
+        queryClient.setQueryData(
+          liveRoomKey(roomId),
+          "room" in result ? result.room : result
+        );
+        invalidateBattleQueries();
       },
     });
 

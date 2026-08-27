@@ -1,6 +1,6 @@
 "use client";
 
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   AlertCircle,
   Flag,
@@ -58,15 +58,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import {
-  useDbBattleActions,
-  useDbBattleChallenges,
-  useDbBattles,
-} from "@/lib/data-db";
-import {
   clearBattleKitSelection,
   readBattleKitSelection,
   rememberBattleKitSelection,
 } from "@/lib/battle-kit-selection";
+import {
+  useDbBattleActions,
+  useDbBattleChallenges,
+  useDbBattles,
+} from "@/lib/data-db";
 import { musicGenres } from "@/lib/music-genres";
 import { absoluteSiteUrl } from "@/lib/seo";
 import { shareLink } from "@/lib/share";
@@ -81,8 +81,16 @@ import {
 } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/live/battles")({
-  component: BattleHubPage,
+  component: BattleRoutePage,
 });
+
+function BattleRoutePage() {
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
+
+  return pathname.includes("/join/") ? <Outlet /> : <BattleHubPage />;
+}
 
 function BattleHubPage() {
   const meQuery = useMeQuery(),
@@ -489,9 +497,9 @@ function BattleHubPage() {
                                 variant={
                                   req.status === "accepted"
                                     ? "default"
-                                    : (req.status === "declined"
+                                    : req.status === "declined"
                                       ? "destructive"
-                                      : "outline")
+                                      : "outline"
                                 }
                               >
                                 {req.status}
@@ -601,7 +609,7 @@ function BattleHubPage() {
                               <Trash2 className="mr-1.5 size-4" />
                               Cancel Request
                             </Button>
-                          ) : (req.status !== "accepted" ? (
+                          ) : req.status !== "accepted" ? (
                             <Button
                               className="shrink-0"
                               disabled={pendingChallengeId === req.id}
@@ -612,7 +620,7 @@ function BattleHubPage() {
                               <Trash2 className="mr-1.5 size-4" />
                               Clear
                             </Button>
-                          ) : null)}
+                          ) : null}
                         </div>
                       ))
                     )}
@@ -650,7 +658,14 @@ function BattleHubPage() {
 
                 <div className="space-y-3">
                   {battles.map((battle) => {
-                    const isLive = battle.status === "live";
+                    const isLive = battle.status === "live",
+                      isParticipant = Boolean(
+                        meQuery.data?.user.id &&
+                        battle.participants.some(
+                          (participant) =>
+                            participant.id === meQuery.data?.user.id
+                        )
+                      );
                     return (
                       <div
                         className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -677,20 +692,29 @@ function BattleHubPage() {
                             className="w-full sm:w-auto"
                             size="sm"
                           >
-                            <Link
-                              onClick={() => {
-                                if (selectedBattleKitId) {
-                                  rememberBattleKitSelection({
-                                    battleId: battle.id,
-                                    kitId: selectedBattleKitId,
-                                  });
-                                }
-                              }}
-                              params={{ id: battle.id }}
-                              to="/live/battles/$id"
-                            >
-                              {isLive ? "Join Battle" : "View Room"}
-                            </Link>
+                            {isParticipant ? (
+                              <Link
+                                onClick={() => {
+                                  if (selectedBattleKitId) {
+                                    rememberBattleKitSelection({
+                                      battleId: battle.id,
+                                      kitId: selectedBattleKitId,
+                                    });
+                                  }
+                                }}
+                                params={{ roomId: battle.id }}
+                                to="/dashboard/live/battles/join/$roomId/artistview"
+                              >
+                                Enter Artist Room
+                              </Link>
+                            ) : (
+                              <Link
+                                params={{ id: battle.id }}
+                                to="/live/battles/$id"
+                              >
+                                {isLive ? "Watch Live" : "View Room"}
+                              </Link>
+                            )}
                           </Button>
                           <Button
                             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
@@ -803,9 +827,9 @@ function BattleHubPage() {
                   >
                     {deletingBattleId !== null || deleteExperience.isPending
                       ? "Processing..."
-                      : (targetBattle?.status === "live"
+                      : targetBattle?.status === "live"
                         ? "Confirm Forfeit"
-                        : "Confirm Cancellation")}
+                        : "Confirm Cancellation"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -850,7 +874,10 @@ function BattleHubPage() {
                       value={selectedFormat}
                       onValueChange={(value) => {
                         setSelectedFormat(value);
-                        if (selectedBattleKit && selectedBattleKit.format !== value) {
+                        if (
+                          selectedBattleKit &&
+                          selectedBattleKit.format !== value
+                        ) {
                           clearBattleKitSelection();
                           setSelectedBattleKitId(null);
                         }

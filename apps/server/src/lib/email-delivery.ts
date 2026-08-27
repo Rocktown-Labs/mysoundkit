@@ -26,6 +26,11 @@ export interface EnqueueTransactionalEmailOptions {
     }[];
     previewText?: string;
     subject?: string;
+    battleOutcomeAudience?: "artist" | "viewer";
+    battleOutcomeArtistName?: string | null;
+    battleOutcomeKind?: "canceled" | "ducked" | "forfeited" | "quit";
+    battleOutcomeReason?: string;
+    battleTitle?: string;
     trackId?: string;
     trackTitle?: string;
   };
@@ -217,6 +222,11 @@ export const deliverTransactionalEmail = async ({
         previewText?: string;
         recipientName: string;
         subject?: string;
+        battleOutcomeAudience?: "artist" | "viewer";
+        battleOutcomeArtistName?: string | null;
+        battleOutcomeKind?: "canceled" | "ducked" | "forfeited" | "quit";
+        battleOutcomeReason?: string;
+        battleTitle?: string;
         trackId?: string;
         trackTitle?: string;
       },

@@ -247,6 +247,151 @@ export function TransactionalNotificationEmail({
   );
 }
 
+export type BattleOutcomeEmailAudience = "artist" | "viewer";
+export type BattleOutcomeEmailKind =
+  | "canceled"
+  | "ducked"
+  | "forfeited"
+  | "quit";
+
+export interface BattleOutcomeEmailProps {
+  actionUrl: string;
+  affectedArtistName?: string | null;
+  assetBaseUrl: string;
+  audience: BattleOutcomeEmailAudience;
+  battleTitle: string;
+  kind: BattleOutcomeEmailKind;
+  reason: string;
+  recipientName: string;
+}
+
+const getBattleOutcomeCopy = ({
+  affectedArtistName,
+  audience,
+  battleTitle,
+  kind,
+  reason,
+}: Omit<
+  BattleOutcomeEmailProps,
+  "actionUrl" | "assetBaseUrl" | "recipientName"
+>) => {
+  if (audience === "artist") {
+    const explicitForfeit = kind === "forfeited",
+      quit = kind === "quit";
+    return {
+      body: quit
+        ? `You quit “${battleTitle}” before the match was complete. Your battle participation has been recorded, and no rating was changed.`
+        : explicitForfeit
+          ? `We heard the news: you forfeited “${battleTitle}”. On SoundKit, stepping away from an active match is recorded as ducking the smoke. No rating was changed.`
+          : `We heard the news: you were marked as the artist who ducked “${battleTitle}” because you did not show up in the waiting room. No rating was changed. If this was a mistake, contact SoundKit support.`,
+      ctaLabel: "Open artist battles",
+      eyebrow: quit
+        ? "Battle quit"
+        : explicitForfeit
+          ? "Battle forfeit"
+          : "Battle no-show",
+      footerNote:
+        "You are receiving this because an outcome was recorded for a battle involving your SoundKit artist account.",
+      heading: quit ? "You quit the battle" : "You Ducked the Smoke",
+      previewText: quit
+        ? `You quit ${battleTitle}.`
+        : explicitForfeit
+          ? `Your forfeit ended ${battleTitle}.`
+          : `You were marked as ducking ${battleTitle}.`,
+    };
+  }
+
+  const artistName = affectedArtistName ?? "One of the artists",
+    isPlatformIssue =
+      reason === "platform_issue" || reason === "technical_issue";
+  if (kind === "ducked") {
+    return {
+      body: `Unfortunately, ${artistName} ducked the smoke in “${battleTitle}”, so the battle was canceled before a rated result. No ratings were changed.`,
+      ctaLabel: "View battle outcome",
+      eyebrow: "Battle canceled",
+      footerNote:
+        "You are receiving this because you joined or watched this SoundKit battle.",
+      heading: "The battle was ducked",
+      previewText: `${artistName} ducked the smoke. ${battleTitle} was canceled.`,
+    };
+  }
+
+  if (kind === "forfeited" || kind === "quit") {
+    const didQuit = kind === "quit";
+    return {
+      body: `${artistName} ${didQuit ? "quit" : "forfeited"} “${battleTitle}”. The battle has ended, and no new audience votes or rating changes will be recorded.`,
+      ctaLabel: "View battle outcome",
+      eyebrow: "Battle ended",
+      footerNote:
+        "You are receiving this because you joined or watched this SoundKit battle.",
+      heading: didQuit
+        ? "The battle ended when an artist quit"
+        : "The battle ended by forfeit",
+      previewText: `${artistName} ${didQuit ? "quit" : "forfeited"} ${battleTitle}.`,
+    };
+  }
+
+  return {
+    body: isPlatformIssue
+      ? `SoundKit dropped the ball on “${battleTitle}”, so we canceled the battle before a rated result. We are sorry for the interruption. No ratings were changed.`
+      : `“${battleTitle}” was canceled before a rated result was recorded. No ratings were changed.`,
+    ctaLabel: "View battle outcome",
+    eyebrow: isPlatformIssue ? "SoundKit platform issue" : "Battle canceled",
+    footerNote:
+      "You are receiving this because you joined or watched this SoundKit battle.",
+    heading: isPlatformIssue
+      ? "SoundKit canceled the battle"
+      : "The battle was canceled",
+    previewText: isPlatformIssue
+      ? `${battleTitle} was canceled because of a SoundKit platform issue.`
+      : `${battleTitle} was canceled before a result.`,
+  };
+};
+
+export function BattleOutcomeEmail({
+  actionUrl,
+  affectedArtistName,
+  assetBaseUrl,
+  audience,
+  battleTitle,
+  kind,
+  reason,
+  recipientName,
+}: BattleOutcomeEmailProps) {
+  const copy = getBattleOutcomeCopy({
+    affectedArtistName,
+    audience,
+    battleTitle,
+    kind,
+    reason,
+  });
+  return (
+    <TransactionalNotificationEmail
+      actionUrl={actionUrl}
+      assetBaseUrl={assetBaseUrl}
+      recipientName={recipientName}
+      {...copy}
+    />
+  );
+}
+
+export interface RenderBattleOutcomeEmailOptions extends BattleOutcomeEmailProps {
+  subject: string;
+}
+
+export async function renderBattleOutcomeEmail(
+  options: RenderBattleOutcomeEmailOptions
+) {
+  const { subject, ...props } = options,
+    element = <BattleOutcomeEmail {...props} />,
+    [html, text] = await Promise.all([
+      render(element),
+      render(element, { plainText: true }),
+    ]);
+
+  return { html, subject, text };
+}
+
 const getTrackLifecycleCopy = ({
   eventType = "track_ready",
   trackTitle,

@@ -12,11 +12,12 @@ export const BATTLE_CANCELLATION_REASONS = [
   "schedule_conflict",
   "moderation",
   "other",
+  "platform_issue",
 ] as const;
 
 export type BattleCancellationReason =
   (typeof BATTLE_CANCELLATION_REASONS)[number];
-export type BattleOutcomeKind = "canceled" | "ducked" | "forfeited";
+export type BattleOutcomeKind = "canceled" | "ducked" | "forfeited" | "quit";
 
 export interface BattleOutcome {
   affectedUserId?: string | null;
@@ -172,7 +173,7 @@ const winnerForRound = (round: LiveBattleRound) => {
       votesB = round.voteTotals[artistB] ?? 0;
 
     if (votesA === votesB) {
-      return round.isTiebreaker ? artistA : null;
+      return null;
     }
 
     return votesA > votesB ? artistA : artistB;
@@ -202,6 +203,7 @@ export const createBattleCoordination = ({
   activeArtistUserId: null,
   admissionBatchSize,
   admittedUserIds: [],
+  artistReadyUserIds: [],
   battleId,
   durations,
   format,
@@ -211,7 +213,6 @@ export const createBattleCoordination = ({
   phaseEndsAt:
     scheduledStartAt && scheduledStartAt > now ? scheduledStartAt : null,
   phaseStartedAt: now,
-  artistReadyUserIds: [],
   queuedUserIds: [],
   removedUserIds: [],
   requiredVoterUserIds: [],
@@ -220,6 +221,78 @@ export const createBattleCoordination = ({
   waitingUserIds: [],
   winnerUserId: null,
 });
+
+const applySelectedTracksAtRoundStart = (
+  battle: BattleStateHost["battle"],
+  roundNumber: number
+): BattleStateHost["battle"] => {
+  const targetRound = battle.rounds.find(
+      (round) => round.number === roundNumber
+    ),
+    controlsByUserId = battle.artistControlsByUserId ?? {},
+    tracksById = new Map(
+      battle.rounds.flatMap((round) => [
+        [round.artistATrack.id, round.artistATrack],
+        [round.artistBTrack.id, round.artistBTrack],
+      ])
+    ),
+    nextControlsByUserId = { ...controlsByUserId };
+  let nextRounds = battle.rounds,
+    selectionCount = 0;
+
+  if (!targetRound) {
+    return battle;
+  }
+
+  const [artistA] = battle.artists;
+  for (const artist of battle.artists) {
+    const controls = controlsByUserId[artist.id],
+      selectedTrackId = controls?.selectedNextTrackId,
+      selectedTrack = selectedTrackId
+        ? tracksById.get(selectedTrackId)
+        : undefined;
+
+    if (!(controls && selectedTrackId && selectedTrack)) {
+      continue;
+    }
+
+    const trackKey: "artistATrack" | "artistBTrack" =
+        artist.id === artistA.id ? "artistATrack" : "artistBTrack",
+      targetTrack = targetRound[trackKey],
+      sourceRound = nextRounds.find(
+        (round) => round[trackKey].id === selectedTrackId
+      );
+
+    nextRounds = nextRounds.map((round) => {
+      if (round.id === targetRound.id) {
+        return { ...round, [trackKey]: selectedTrack };
+      }
+
+      if (sourceRound?.id === round.id) {
+        return { ...round, [trackKey]: targetTrack };
+      }
+
+      return round;
+    }) as LiveBattleRound[];
+    nextControlsByUserId[artist.id] = {
+      ...controls,
+      currentTrackId: selectedTrackId,
+      selectedNextTrackId: null,
+      usedTrackIds: [...new Set([...controls.usedTrackIds, selectedTrackId])],
+    };
+    selectionCount += 1;
+  }
+
+  if (selectionCount === 0) {
+    return battle;
+  }
+
+  return {
+    ...battle,
+    artistControlsByUserId: nextControlsByUserId,
+    rounds: nextRounds,
+  };
+};
 
 const updateRoundStatus = (
   rounds: LiveBattleRound[],
@@ -326,7 +399,12 @@ export const transitionBattle = (
         ).length >= regularRounds;
 
     if (hasClinched || (updatedRound?.isTiebreaker ?? false)) {
-      winnerUserId = winnerA > winnerB ? artistA.id : artistB.id;
+      winnerUserId =
+        winnerA === winnerB
+          ? null
+          : winnerA > winnerB
+            ? artistA.id
+            : artistB.id;
       nextPhase = "battle_result";
     } else if (regularRoundsComplete) {
       if (winnerA === winnerB) {
@@ -360,7 +438,14 @@ export const transitionBattle = (
     nextPhase = "ended";
   }
 
-  const admittedUsers = coordination.admittedUserIds ?? [],
+  const nextBattle =
+      nextPhase === "round_intro" || nextPhase === "tiebreaker_a"
+        ? applySelectedTracksAtRoundStart(
+            { ...battle, rounds: nextRounds },
+            nextRoundNumber
+          )
+        : { ...battle, rounds: nextRounds },
+    admittedUsers = coordination.admittedUserIds ?? [],
     admissionCandidates = [
       ...(coordination.waitingUserIds ?? []),
       ...(coordination.queuedUserIds ?? []),
@@ -415,13 +500,14 @@ export const transitionBattle = (
       votedUserIds:
         isVotingPhase(phase) || phase === "round_result" ? votedUsers : [],
       waitingUserIds: waitingUsers,
+      ...(nextPhase === "between_rounds" ? { artistReadyUserIds: [] } : {}),
       winnerUserId,
     };
 
   return {
     battle: {
-      ...battle,
-      rounds: updateRoundStatus(nextRounds, nextPhase, nextRoundNumber),
+      ...nextBattle,
+      rounds: updateRoundStatus(nextBattle.rounds, nextPhase, nextRoundNumber),
     },
     coordination: nextCoordination,
   };

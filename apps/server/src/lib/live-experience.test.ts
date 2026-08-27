@@ -13,6 +13,7 @@ import {
   findLiveSessionConflict,
   hasRealtimeKitConfig,
   resolveBattleArtistRole,
+  resolveBattleRoomRole,
   resolveRealtimePreset,
 } from "./live-experience";
 
@@ -46,6 +47,33 @@ describe("live experience orchestration", () => {
         userId: "listener",
       })
     ).toBeNull();
+  });
+
+  it("keeps an assigned artist role even when the account is an admin", () => {
+    expect(
+      resolveBattleRoomRole({
+        challengerArtistUserId: "artist_a",
+        isAdmin: true,
+        opponentArtistUserId: "artist_b",
+        userId: "artist_a",
+      })
+    ).toBe("artist_a");
+    expect(
+      resolveBattleRoomRole({
+        challengerArtistUserId: "artist_a",
+        isAdmin: true,
+        opponentArtistUserId: "artist_b",
+        userId: "moderator",
+      })
+    ).toBe("admin");
+    expect(
+      resolveBattleRoomRole({
+        challengerArtistUserId: "artist_a",
+        isAdmin: false,
+        opponentArtistUserId: "artist_b",
+        userId: "listener",
+      })
+    ).toBe("fan");
   });
 
   it("maps Durable Object battle phases to media phases", () => {

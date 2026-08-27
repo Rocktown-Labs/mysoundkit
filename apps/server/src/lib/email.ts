@@ -13,6 +13,7 @@ export type TransactionalEmailTemplate =
   | "battle_challenge"
   | "battle_reminder"
   | "battle_results"
+  | "battle_outcome"
   | "billing_issue"
   | "collaborator_invite"
   | "earnings_halfway"
@@ -50,6 +51,11 @@ export interface SendTransactionalEmailOptions {
     previewText?: string;
     recipientName: string;
     subject?: string;
+    battleOutcomeAudience?: "artist" | "viewer";
+    battleOutcomeArtistName?: string | null;
+    battleOutcomeKind?: "canceled" | "ducked" | "forfeited" | "quit";
+    battleOutcomeReason?: string;
+    battleTitle?: string;
     trackId?: string;
     trackTitle?: string;
   };
@@ -137,7 +143,11 @@ export const sendTransactionalEmail = async ({
 
   const publicSiteUrl = getPublicSiteUrl(),
     [
-      { renderTrackLifecycleEmail, renderTransactionalNotificationEmail },
+      {
+        renderBattleOutcomeEmail,
+        renderTrackLifecycleEmail,
+        renderTransactionalNotificationEmail,
+      },
       { Resend },
     ] = await Promise.all([
       import("@soundkit/transactional"),
@@ -152,23 +162,36 @@ export const sendTransactionalEmail = async ({
             eventType: template,
             trackTitle: payload.trackTitle ?? "Your track",
           })
-        : await renderTransactionalNotificationEmail({
-            actionUrl: payload.actionUrl,
-            assetBaseUrl: publicSiteUrl,
-            body: payload.body ?? "Open SoundKit to review the latest update.",
-            ctaLabel: payload.ctaLabel ?? "Open SoundKit",
-            eyebrow: payload.eyebrow ?? "SoundKit",
-            footerNote:
-              payload.footerNote ??
-              "You are receiving this because this email is related to your SoundKit account.",
-            heading: payload.heading ?? "You have a SoundKit update",
-            links: payload.links,
-            previewText:
-              payload.previewText ??
-              "Open SoundKit to review the latest update.",
-            recipientName: payload.recipientName,
-            subject: getEmailSubject({ payload, template }),
-          }),
+        : template === "battle_outcome"
+          ? await renderBattleOutcomeEmail({
+              actionUrl: payload.actionUrl,
+              affectedArtistName: payload.battleOutcomeArtistName,
+              assetBaseUrl: publicSiteUrl,
+              audience: payload.battleOutcomeAudience ?? "viewer",
+              battleTitle: payload.battleTitle ?? "your SoundKit battle",
+              kind: payload.battleOutcomeKind ?? "canceled",
+              reason: payload.battleOutcomeReason ?? "other",
+              recipientName: payload.recipientName,
+              subject: getEmailSubject({ payload, template }),
+            })
+          : await renderTransactionalNotificationEmail({
+              actionUrl: payload.actionUrl,
+              assetBaseUrl: publicSiteUrl,
+              body:
+                payload.body ?? "Open SoundKit to review the latest update.",
+              ctaLabel: payload.ctaLabel ?? "Open SoundKit",
+              eyebrow: payload.eyebrow ?? "SoundKit",
+              footerNote:
+                payload.footerNote ??
+                "You are receiving this because this email is related to your SoundKit account.",
+              heading: payload.heading ?? "You have a SoundKit update",
+              links: payload.links,
+              previewText:
+                payload.previewText ??
+                "Open SoundKit to review the latest update.",
+              recipientName: payload.recipientName,
+              subject: getEmailSubject({ payload, template }),
+            }),
     subject = getEmailSubject({ payload, template }),
     resend = new Resend(apiKey),
     replyTo = getEmailReplyTo(),

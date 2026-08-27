@@ -268,7 +268,12 @@ export const battleOutcomeEnum = pgEnum("battle_outcome", [
   "canceled",
   "ducked",
   "forfeited",
+  "quit",
 ]);
+export const battleParticipationResultEnum = pgEnum(
+  "battle_participation_result",
+  ["canceled", "ducked", "forfeited", "loss", "quit", "tie", "win"]
+);
 export const battleVisibilityEnum = pgEnum("battle_visibility", [
   "public",
   "premium_only",
@@ -2236,11 +2241,6 @@ export const battles = pgTable(
       }
     ),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    outcome: battleOutcomeEnum("outcome"),
-    outcomeReason: text("outcome_reason"),
-    outcomeUserId: text("outcome_user_id").references(() => user.id, {
-      onDelete: "set null",
-    }),
     endedAt: timestamp("ended_at"),
     externalBattleId: text("external_battle_id"),
     format: battleFormatEnum("format").notNull(),
@@ -2248,12 +2248,18 @@ export const battles = pgTable(
       onDelete: "set null",
     }),
     id: text("id").primaryKey(),
+    isRanked: boolean("is_ranked").default(false).notNull(),
     opponentArtistUserId: text("opponent_artist_user_id").references(
       () => user.id,
       {
         onDelete: "set null",
       }
     ),
+    outcome: battleOutcomeEnum("outcome"),
+    outcomeReason: text("outcome_reason"),
+    outcomeUserId: text("outcome_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     replayVideoId: text("replay_video_id").references(() => videos.id, {
       onDelete: "set null",
     }),
@@ -2266,6 +2272,9 @@ export const battles = pgTable(
       .notNull(),
     viewerCount: integer("viewer_count").default(0).notNull(),
     visibility: battleVisibilityEnum("visibility").default("public").notNull(),
+    winnerUserId: text("winner_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => [
     index("battles_external_battle_id_idx").on(table.externalBattleId),
@@ -2372,6 +2381,42 @@ export const battleQueueEntries = pgTable(
   ]
 );
 
+export const battleParticipations = pgTable(
+  "battle_participations",
+  {
+    battleId: text("battle_id")
+      .notNull()
+      .references(() => battles.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    isRanked: boolean("is_ranked").default(false).notNull(),
+    result: battleParticipationResultEnum("result").notNull(),
+    roundsPlayed: integer("rounds_played").default(0).notNull(),
+    roundsWon: integer("rounds_won").default(0).notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("battle_participations_battle_user_idx").on(
+      table.battleId,
+      table.userId
+    ),
+    index("battle_participations_user_created_idx").on(
+      table.userId,
+      table.createdAt
+    ),
+    index("battle_participations_user_ranked_idx").on(
+      table.userId,
+      table.isRanked
+    ),
+  ]
+);
+
 export const battleStats = pgTable(
   "battle_stats",
   {
@@ -2380,6 +2425,7 @@ export const battleStats = pgTable(
     losses: integer("losses").default(0).notNull(),
     purchases: integer("purchases").default(0).notNull(),
     saves: integer("saves").default(0).notNull(),
+    ties: integer("ties").default(0).notNull(),
     trackId: text("track_id")
       .notNull()
       .references(() => tracks.id, { onDelete: "cascade" }),

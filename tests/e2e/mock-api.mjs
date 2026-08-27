@@ -403,6 +403,35 @@ const json = (response, status, body, origin) => {
     {
       format: "best_of_3",
       genre: "Hip-Hop",
+      id: "battle-waiting-artist",
+      isFeatured: false,
+      joinMode: "waiting_room",
+      participants: [
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "user_complete",
+          name: "Complete Artist",
+          username: "complete_artist",
+        },
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "artist-mc-rhythm",
+          name: "MC Rhythm",
+          username: "mc-rhythm",
+        },
+      ],
+      phaseEndsAt: null,
+      queueSize: 0,
+      round: null,
+      status: "live",
+      title: "Artist Battle Waiting Room",
+      tracks: [],
+      viewerCount: 0,
+      visibility: "public",
+    },
+    {
+      format: "best_of_3",
+      genre: "Hip-Hop",
       id: "battle_upcoming_duel",
       isFeatured: false,
       joinMode: "watch_now",
@@ -1198,6 +1227,44 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (url.pathname === "/v1/battles/record") {
+      json(
+        response,
+        200,
+        {
+          history: [],
+          participation: {
+            battles: 0,
+            canceled: 0,
+            ducks: 0,
+            forfeits: 0,
+            losses: 0,
+            quits: 0,
+            roundsPlayed: 0,
+            ties: 0,
+            wins: 0,
+          },
+          ranked: {
+            battles: 0,
+            canceled: 0,
+            ducks: 0,
+            forfeits: 0,
+            losses: 0,
+            quits: 0,
+            ties: 0,
+            wins: 0,
+          },
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (url.pathname === "/v1/battles/stats") {
+      json(response, 200, [], webOrigin);
+      return;
+    }
+
     if (url.pathname === "/v1/battles" || url.pathname === "/v1/battles/") {
       json(response, 200, mockBattles, webOrigin);
       return;
@@ -1460,6 +1527,22 @@ export const createMockApiServer = async ({
         }
         json(response, 200, room, webOrigin);
       });
+      return;
+    }
+
+    const liveRoomQueueMutationMatch = url.pathname.match(
+      /^\/v1\/live\/rooms\/([^/]+)\/(queue|leave)$/
+    );
+
+    if (liveRoomQueueMutationMatch && request.method === "POST") {
+      const room = liveRoom(liveRoomQueueMutationMatch[1], session);
+      if (room.battle) {
+        room.battle.viewerQueueStatus =
+          liveRoomQueueMutationMatch[2] === "queue" ? "queued" : null;
+        room.battle.queueSize =
+          liveRoomQueueMutationMatch[2] === "queue" ? 1 : 0;
+      }
+      json(response, 200, room, webOrigin);
       return;
     }
 

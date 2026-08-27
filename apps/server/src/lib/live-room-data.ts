@@ -13,6 +13,7 @@ export type LiveRoomViewerRole =
   | "host";
 
 export interface LiveRoomChatMessage {
+  chatScope?: "battle" | "waiting_room";
   id: string;
   message: string;
   sentAt: string;
@@ -94,6 +95,7 @@ export interface LiveRoomState {
     artistControls?: LiveBattleArtistControls;
     artistControlsByUserId?: Record<string, LiveBattleArtistControls>;
     artists: [LiveRoomArtist, LiveRoomArtist];
+    chatStarted?: boolean;
     queueSize?: number;
     queueUserIds?: string[];
     viewerQueueStatus?: "admitted" | "queued" | "waiting" | null;

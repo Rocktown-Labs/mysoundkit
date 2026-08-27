@@ -41,12 +41,13 @@ export type LiveRoomBattleBotAction =
 
 export interface LiveRoomBattleDisposition {
   affectedUserId?: string | null;
-  kind: "canceled" | "ducked" | "forfeited";
+  kind: "canceled" | "ducked" | "forfeited" | "quit";
   reason:
     | "artist_unavailable"
     | "ducked"
     | "moderation"
     | "other"
+    | "platform_issue"
     | "schedule_conflict"
     | "technical_issue";
 }
@@ -325,6 +326,14 @@ export class LiveRoomDurableObject extends DurableObject {
     if (!(room.kind === "battle" && room.battle?.coordination)) {
       return this.publicState(room, identity);
     }
+    if (
+      identity.role === "admin" ||
+      identity.role === "artist_a" ||
+      identity.role === "artist_b" ||
+      identity.role === "host"
+    ) {
+      return this.publicState(room, identity);
+    }
     if (!identity.userId || identity.userId === "anonymous") {
       return this.publicState(room, identity);
     }
@@ -386,6 +395,27 @@ export class LiveRoomDurableObject extends DurableObject {
     identity: LiveRoomIdentity
   ): Promise<LiveRoomState> {
     return this.joinRoom(roomId, identity);
+  }
+
+  async getBattleAudienceUserIds(roomId: string): Promise<string[]> {
+    this.requestedRoomId = roomId;
+    const room = await this.loadState();
+    if (!(room.kind === "battle" && room.battle?.coordination)) {
+      return [];
+    }
+
+    const artistIds = new Set(room.battle.artists.map((artist) => artist.id));
+    return [
+      ...(room.battle.coordination.admittedUserIds ?? []),
+      ...(room.battle.coordination.queuedUserIds ?? []),
+      ...(room.battle.coordination.waitingUserIds ?? []),
+      ...(room.battle.coordination.requiredVoterUserIds ?? []),
+    ].filter(
+      (userId, index, userIds) =>
+        userId !== "anonymous" &&
+        !artistIds.has(userId) &&
+        userIds.indexOf(userId) === index
+    );
   }
 
   async leaveViewer(
@@ -508,8 +538,13 @@ export class LiveRoomDurableObject extends DurableObject {
     if (!(identity.role === "artist_a" || identity.role === "artist_b")) {
       throw new Error("Only battle artists can change readiness.");
     }
-    if (room.battle.coordination.phase !== "waiting_room") {
-      throw new Error("Artists can only change readiness in the waiting room.");
+    if (
+      room.battle.coordination.phase !== "waiting_room" &&
+      room.battle.coordination.phase !== "between_rounds"
+    ) {
+      throw new Error(
+        "Artists can only change readiness in the waiting room or between rounds."
+      );
     }
     if (
       ready &&
@@ -599,10 +634,10 @@ export class LiveRoomDurableObject extends DurableObject {
     if (phase === "ended") {
       throw new Error("This battle has already ended.");
     }
-    if (disposition.kind === "forfeited") {
+    if (disposition.kind === "forfeited" || disposition.kind === "quit") {
       if (!(battleHasStarted && phase !== "round_intro")) {
         throw new Error(
-          "A forfeit is only available after both artists are ready and turns have started."
+          "A forfeit or quit is only available after both artists are ready and turns have started."
         );
       }
       if (
@@ -611,10 +646,10 @@ export class LiveRoomDurableObject extends DurableObject {
           (artist) => artist.id === disposition.affectedUserId
         )
       ) {
-        throw new Error("The forfeiting artist is not in this battle.");
+        throw new Error("The affected artist is not in this battle.");
       }
       if (!isAdmin && disposition.affectedUserId !== identity.userId) {
-        throw new Error("Artists can only forfeit their own battle seat.");
+        throw new Error("Artists can only leave their own battle seat.");
       }
     } else if (!(isAdmin || !battleHasStarted)) {
       throw new Error(
@@ -666,7 +701,9 @@ export class LiveRoomDurableObject extends DurableObject {
           ? `${affectedArtist?.name ?? "The opponent"} ducked the battle.`
           : disposition.kind === "forfeited"
             ? `${affectedArtist?.name ?? "An artist"} forfeited the battle.`
-            : "BattleBot canceled the battle before ratings were recorded.";
+            : disposition.kind === "quit"
+              ? `${affectedArtist?.name ?? "An artist"} quit the battle.`
+              : "BattleBot canceled the battle before ratings were recorded.";
     await this.persist(nextRoom);
     const announcedRoom = await this.appendBotChatMessage(
       nextRoom,
@@ -824,6 +861,12 @@ export class LiveRoomDurableObject extends DurableObject {
     const controls = room.battle.artistControlsByUserId?.[identity.userId];
     if (!controls?.availableTrackIds.includes(trackId)) {
       throw new Error("Track is not available in your locked Battle Kit.");
+    }
+    if (
+      controls.usedTrackIds.includes(trackId) ||
+      controls.currentTrackId === trackId
+    ) {
+      throw new Error("Choose an unused track from your Battle Kit.");
     }
 
     const nextRoom: LiveRoomState = {
@@ -997,6 +1040,9 @@ export class LiveRoomDurableObject extends DurableObject {
       ...room,
       battle: {
         ...room.battle,
+        chatStarted:
+          room.battle.chatStarted ??
+          !["scheduled", "waiting_room"].includes(coordination.phase),
         coordination,
         phase: coordination.phase,
       },
@@ -1057,6 +1103,63 @@ export class LiveRoomDurableObject extends DurableObject {
     return room;
   }
 
+  private chatScopeForRoom(room: LiveRoomState): "battle" | "waiting_room" {
+    if (
+      room.kind === "battle" &&
+      (!room.battle?.chatStarted ||
+        room.battle.coordination?.phase === "between_rounds")
+    ) {
+      return "waiting_room";
+    }
+
+    return "battle";
+  }
+
+  private prepareBattleChatForPhaseTransition(
+    previous: LiveRoomState,
+    next: LiveRoomState
+  ): LiveRoomState {
+    const previousPhase = previous.battle?.coordination?.phase,
+      nextPhase = next.battle?.coordination?.phase;
+    if (
+      !(
+        previousPhase &&
+        nextPhase &&
+        previousPhase !== nextPhase &&
+        next.battle
+      )
+    ) {
+      return next;
+    }
+
+    if (
+      previousPhase === "waiting_room" &&
+      nextPhase !== "scheduled" &&
+      nextPhase !== "waiting_room"
+    ) {
+      return {
+        ...next,
+        battle: { ...next.battle, chatStarted: true },
+        chat: next.chat.map((message) =>
+          message.chatScope === "waiting_room"
+            ? { ...message, chatScope: "battle" as const }
+            : message
+        ),
+      };
+    }
+
+    if (previousPhase === "between_rounds" && nextPhase !== "between_rounds") {
+      return {
+        ...next,
+        chat: next.chat.filter(
+          (message) => message.chatScope !== "waiting_room"
+        ),
+      };
+    }
+
+    return next;
+  }
+
   private async persist(room: LiveRoomState) {
     await Promise.all([
       this.ctx.storage.put(STATE_STORAGE_KEY, { ...room, chat: [] }),
@@ -1085,7 +1188,13 @@ export class LiveRoomDurableObject extends DurableObject {
     previous: LiveRoomState,
     next: LiveRoomState
   ) {
-    let announcedRoom = next;
+    let announcedRoom = this.prepareBattleChatForPhaseTransition(
+      previous,
+      next
+    );
+    if (announcedRoom !== next) {
+      await this.persist(announcedRoom);
+    }
     const phaseChanged =
       previous.battle?.coordination?.phase !== next.battle?.coordination?.phase;
 
@@ -1104,9 +1213,9 @@ export class LiveRoomDurableObject extends DurableObject {
         phase,
         type: "battle.bot_stage_control",
       });
-      const message = battleBotMessageForPhase(next, phase);
+      const message = battleBotMessageForPhase(announcedRoom, phase);
       if (message) {
-        announcedRoom = await this.appendBotChatMessage(next, message);
+        announcedRoom = await this.appendBotChatMessage(announcedRoom, message);
       }
       this.broadcast({
         phase,
@@ -1231,6 +1340,7 @@ export class LiveRoomDurableObject extends DurableObject {
     message: string
   ): Promise<LiveRoomState> {
     const chatMessage: LiveRoomChatMessage = {
+        chatScope: this.chatScopeForRoom(room),
         id: `${BATTLE_BOT_USER_ID}:${crypto.randomUUID()}`,
         message,
         sentAt: new Date().toISOString(),
@@ -1271,6 +1381,7 @@ export class LiveRoomDurableObject extends DurableObject {
     }
 
     const chatMessage: LiveRoomChatMessage = {
+        chatScope: this.chatScopeForRoom(room),
         id: crypto.randomUUID(),
         message,
         sentAt: new Date().toISOString(),

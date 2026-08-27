@@ -24,12 +24,14 @@ export function useBattleLeaveGuard({
   isLeaving,
   onForfeit,
   onLeave,
+  onQuit,
   shouldBlock,
 }: {
   isArtist: boolean;
   isLeaving: boolean;
   onForfeit?: () => void | Promise<void>;
   onLeave: () => void | Promise<void>;
+  onQuit?: () => void | Promise<void>;
   shouldBlock: boolean;
 }) {
   const shouldBlockRef = useRef(shouldBlock);
@@ -40,10 +42,14 @@ export function useBattleLeaveGuard({
       shouldBlockFn: () => shouldBlockRef.current && !isLeaving,
       withResolver: true,
     }),
-    leaveAndProceed = async (forfeit = false) => {
+    leaveAndProceed = async (
+      action: "forfeit" | "leave" | "quit" = "leave"
+    ) => {
       try {
-        if (forfeit && onForfeit) {
+        if (action === "forfeit" && onForfeit) {
           await onForfeit();
+        } else if (action === "quit" && onQuit) {
+          await onQuit();
         } else {
           await onLeave();
         }
@@ -68,7 +74,7 @@ export function useBattleLeaveGuard({
             </AlertDialogTitle>
             <AlertDialogDescription>
               {isArtist
-                ? "You are an active battle artist. Leaving ends your participation and records a forfeit."
+                ? "You are an active battle artist. Choose whether leaving records a quit or a forfeit."
                 : "You will leave the admitted viewer group. To watch again, you will need to rejoin the battle queue."}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -77,14 +83,26 @@ export function useBattleLeaveGuard({
               Stay in Battle
             </AlertDialogCancel>
             {isArtist ? (
-              <AlertDialogAction
-                onClick={(event) => {
-                  event.preventDefault();
-                  void leaveAndProceed(true);
-                }}
-              >
-                Leave and Forfeit
-              </AlertDialogAction>
+              <>
+                {onQuit && (
+                  <AlertDialogAction
+                    onClick={(event) => {
+                      event.preventDefault();
+                      void leaveAndProceed("quit");
+                    }}
+                  >
+                    Quit and Leave
+                  </AlertDialogAction>
+                )}
+                <AlertDialogAction
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void leaveAndProceed("forfeit");
+                  }}
+                >
+                  Leave and Forfeit
+                </AlertDialogAction>
+              </>
             ) : (
               <AlertDialogAction
                 onClick={(event) => {

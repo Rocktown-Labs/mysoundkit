@@ -51,6 +51,7 @@ import {
   findLiveSessionConflict,
   hasRealtimeKitConfig,
   resolveBattleArtistRole,
+  resolveBattleRoomRole,
   resolveRealtimePreset,
 } from "@/lib/live-experience";
 import type {
@@ -67,6 +68,8 @@ import {
   insertNotificationsForUsers,
   loadLiveExperienceById,
   notificationTypeForKind,
+  BATTLE_RECORD_THRESHOLD_VIEWERS,
+  recordBattleParticipationOutcome,
 } from "@/lib/live-experience-events";
 import { enqueueLiveStartedNotification } from "@/lib/live-notifications";
 import type {
@@ -918,12 +921,11 @@ const badRequest = (message: string) => ({
     },
     roomId: string
   ): Promise<LiveRoomIdentity> => {
-    const user = c.get?.("user");
-    let role: LiveRoomIdentity["role"] = "fan";
+    const user = c.get?.("user"),
+      isAdmin = user?.role === "admin";
+    let role: LiveRoomIdentity["role"] = isAdmin ? "admin" : "fan";
 
-    if (user?.role === "admin") {
-      role = "admin";
-    } else if (user && isDatabaseConfigured()) {
+    if (user && isDatabaseConfigured()) {
       const db = createDb(),
         [experience] = await db
           .select({
@@ -943,7 +945,8 @@ const badRequest = (message: string) => ({
 
       if (
         experience?.kind === "party" &&
-        experience.createdByUserId === user.id
+        experience.createdByUserId === user.id &&
+        !isAdmin
       ) {
         role = "host";
       } else if (
@@ -967,12 +970,12 @@ const badRequest = (message: string) => ({
                   )
             )
             .limit(1);
-        role =
-          resolveBattleArtistRole({
-            challengerArtistUserId: battle?.challengerArtistUserId,
-            opponentArtistUserId: battle?.opponentArtistUserId,
-            userId: user.id,
-          }) ?? role;
+        role = resolveBattleRoomRole({
+          challengerArtistUserId: battle?.challengerArtistUserId,
+          isAdmin,
+          opponentArtistUserId: battle?.opponentArtistUserId,
+          userId: user.id,
+        });
       }
     }
 
@@ -1144,6 +1147,7 @@ const badRequest = (message: string) => ({
           title: battles.title,
           updatedAt: battles.updatedAt,
           viewerCount: battles.viewerCount,
+          winnerUserId: battles.winnerUserId,
         })
         .from(battles)
         .where(or(eq(battles.id, roomId), eq(battles.externalBattleId, roomId)))
@@ -1413,6 +1417,13 @@ const badRequest = (message: string) => ({
       tracklist = currentLiveRound
         ? [currentLiveRound.artistATrack, currentLiveRound.artistBTrack]
         : [];
+
+    coordination.winnerUserId = battle.winnerUserId;
+
+    if (battle.status === "completed" || battle.status === "archived") {
+      coordination.phase = "ended";
+      coordination.phaseEndsAt = null;
+    }
 
     if (battleOutcome) {
       coordination.phase = "ended";
@@ -2269,27 +2280,28 @@ app.post("/experiences/:experienceId/join", async (c) => {
         experience.createdByUserId === user.id ? "host" : "listener";
     } else if (experience.battleId) {
       const [battle] = await createDb()
-        .select({
-          challengerArtistUserId: battles.challengerArtistUserId,
-          opponentArtistUserId: battles.opponentArtistUserId,
-        })
-        .from(battles)
-        .where(eq(battles.id, experience.battleId))
-        .limit(1);
+          .select({
+            challengerArtistUserId: battles.challengerArtistUserId,
+            opponentArtistUserId: battles.opponentArtistUserId,
+          })
+          .from(battles)
+          .where(eq(battles.id, experience.battleId))
+          .limit(1),
+        battleRole = resolveBattleRoomRole({
+          challengerArtistUserId: battle?.challengerArtistUserId,
+          isAdmin: user.role === "admin",
+          opponentArtistUserId: battle?.opponentArtistUserId,
+          userId: user.id,
+        });
       participantRole =
-        user.role === "admin"
-          ? "host"
-          : resolveBattleArtistRole({
-                challengerArtistUserId: battle?.challengerArtistUserId,
-                opponentArtistUserId: battle?.opponentArtistUserId,
-                userId: user.id,
-              })
-            ? "artist"
+        battleRole === "artist_a" || battleRole === "artist_b"
+          ? "artist"
+          : battleRole === "admin"
+            ? "host"
             : "listener";
-      const battleRoom = await getDurableRoomState(
-        c,
-        experience.battleId
-      ).catch(() => null);
+      const battleRoom = await getDurableRoomState(c, experienceId).catch(
+        () => null
+      );
       activeArtistUserId =
         battleRoom?.battle?.coordination?.activeArtistUserId ?? null;
       const battlePhase = battleMediaPhase(
@@ -2555,14 +2567,20 @@ app.post("/rooms/:roomId/battle/disposition", async (c) => {
   }
 
   const roomId = c.req.param("roomId"),
+    liveRooms = c.env.LIVE_ROOMS,
     identity = await resolveLiveRoomIdentity(c, roomId),
     disposition = parsed.data as LiveRoomBattleDisposition,
     experience = await loadLiveExperienceById(roomId),
     battleId = experience?.battleId ?? roomId;
   try {
-    const room = await c.env.LIVE_ROOMS.getByName(
-      roomId
-    ).resolveBattleDisposition(roomId, identity, disposition);
+    const audienceUserIds = await retryDurableObjectCall(() =>
+        liveRooms.getByName(roomId).getBattleAudienceUserIds(roomId)
+      ),
+      room = await retryDurableObjectCall(() =>
+        liveRooms
+          .getByName(roomId)
+          .resolveBattleDisposition(roomId, identity, disposition)
+      );
     if (isDatabaseConfigured()) {
       const db = createDb(),
         [battle] = await db
@@ -2585,6 +2603,9 @@ app.post("/rooms/:roomId/battle/disposition", async (c) => {
             .update(battles)
             .set({
               endedAt: new Date(),
+              isRanked:
+                (experience?.peakViewerCount ?? 0) >=
+                BATTLE_RECORD_THRESHOLD_VIEWERS,
               outcome: disposition.kind,
               outcomeReason: disposition.reason,
               outcomeUserId: disposition.affectedUserId ?? null,
@@ -2611,29 +2632,63 @@ app.post("/rooms/:roomId/battle/disposition", async (c) => {
             .where(eq(battleQueueEntries.battleId, battle.id)),
         ]);
 
+        await recordBattleParticipationOutcome({
+          affectedUserId: disposition.affectedUserId,
+          battleId: battle.id,
+          kind: disposition.kind,
+          peakViewerCount: experience?.peakViewerCount ?? 0,
+        });
+
         if (c.env.BATTLE_DIRECTORY) {
           await c.env.BATTLE_DIRECTORY.getByName("public")
             .publish(battle.id)
             .catch(() => 0);
         }
 
-        if (disposition.kind === "ducked" && disposition.affectedUserId) {
-          await notify(
-            {
-              actorUserId: identity.userId,
-              data: {
-                actorName: identity.displayName,
-                battleId: battle.id,
-                battleTitle: battle.title,
+        const affectedArtistName =
+            room.battle?.artists.find(
+              (artist) => artist.id === disposition.affectedUserId
+            )?.name ?? null,
+          outcomeRecordedAt = room.battle?.outcome?.recordedAt ?? Date.now(),
+          notificationRecipients = [
+            ...(disposition.affectedUserId &&
+            (disposition.kind === "ducked" || disposition.kind === "forfeited")
+              ? [
+                  {
+                    audience: "artist" as const,
+                    userId: disposition.affectedUserId,
+                  },
+                ]
+              : []),
+            ...audienceUserIds.map((userId) => ({
+              audience: "viewer" as const,
+              userId,
+            })),
+          ];
+
+        await Promise.all(
+          notificationRecipients.map(({ audience, userId }) =>
+            notify(
+              {
+                actorUserId: null,
+                data: {
+                  affectedArtistName,
+                  affectedUserId: disposition.affectedUserId ?? null,
+                  audience,
+                  battleId: battle.id,
+                  battleTitle: battle.title,
+                  kind: disposition.kind,
+                  reason: disposition.reason,
+                },
+                entity: { id: battle.id, type: "battle" },
+                eventId: `${battle.id}:outcome:${outcomeRecordedAt}:${audience}:${userId}`,
+                recipientUserId: userId,
+                type: "battle.outcome",
               },
-              entity: { id: battle.id, type: "battle" },
-              eventId: `${battle.id}:${disposition.affectedUserId}`,
-              recipientUserId: disposition.affectedUserId,
-              type: "battle.ducked",
-            },
-            { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
-          );
-        }
+              { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+            )
+          )
+        );
       }
     }
     return c.json(room, HttpStatusCodes.OK);
@@ -2682,9 +2737,8 @@ app.post("/rooms/:roomId/battle/kit", async (c) => {
       .select({ id: battleRounds.id })
       .from(battleRounds)
       .where(eq(battleRounds.battleId, battle?.id ?? battleId))
-      .limit(1);
-
-  const canRepairLiveBattle = battle?.status === "live" && !existingRound;
+      .limit(1),
+    canRepairLiveBattle = battle?.status === "live" && !existingRound;
   if (!battle || (battle.status !== "scheduled" && !canRepairLiveBattle)) {
     return c.json(
       {
@@ -2795,6 +2849,60 @@ app.post("/rooms/:roomId/battle/kit", async (c) => {
   );
 });
 
+const persistBattleTrackSelection = async ({
+  battleId,
+  db,
+  role,
+  trackId,
+}: {
+  battleId: string;
+  db: ReturnType<typeof createDb>;
+  role: "artist_a" | "artist_b";
+  trackId: string;
+}) => {
+  const rounds = await db
+    .select({
+      id: battleRounds.id,
+      status: battleRounds.status,
+      trackOneId: battleRounds.trackOneId,
+      trackTwoId: battleRounds.trackTwoId,
+    })
+    .from(battleRounds)
+    .where(eq(battleRounds.battleId, battleId))
+    .orderBy(asc(battleRounds.roundNumber));
+
+  const targetRound =
+      rounds.find((round) => round.status === "upcoming") ??
+      rounds.find((round) => round.status === "active"),
+    trackKey = role === "artist_a" ? "trackOneId" : "trackTwoId",
+    sourceRound = rounds.find((round) => round[trackKey] === trackId),
+    targetTrackId = targetRound?.[trackKey];
+
+  if (!targetRound || targetTrackId === trackId) {
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(battleRounds)
+      .set(
+        role === "artist_a" ? { trackOneId: trackId } : { trackTwoId: trackId }
+      )
+      .where(eq(battleRounds.id, targetRound.id));
+
+    if (sourceRound && sourceRound.id !== targetRound.id && targetTrackId) {
+      await tx
+        .update(battleRounds)
+        .set(
+          role === "artist_a"
+            ? { trackOneId: targetTrackId }
+            : { trackTwoId: targetTrackId }
+        )
+        .where(eq(battleRounds.id, sourceRound.id));
+    }
+  });
+};
+
 app.post("/rooms/:roomId/battle/track", async (c) => {
   const user = c.get("user");
   if (!isAuthenticatedUser(user) || !c.env.LIVE_ROOMS) {
@@ -2819,6 +2927,14 @@ app.post("/rooms/:roomId/battle/track", async (c) => {
       body.trackId,
       identity
     );
+    const experience = await loadLiveExperienceById(roomId),
+      battleId = experience?.battleId ?? roomId;
+    await persistBattleTrackSelection({
+      battleId,
+      db: createDb(),
+      role: identity.role,
+      trackId: body.trackId,
+    });
     return c.json(room, HttpStatusCodes.OK);
   } catch (error) {
     return c.json(
@@ -3081,6 +3197,7 @@ app.post("/rooms/:roomId/queue", async (c) => {
   }
 
   const roomId = c.req.param("roomId"),
+    identity = await resolveLiveRoomIdentity(c, roomId),
     db = createDb(),
     [battle] = await db
       .select({
@@ -3098,6 +3215,16 @@ app.post("/rooms/:roomId/queue", async (c) => {
   if (battle.status === "completed" || battle.status === "archived") {
     return c.json(
       { message: "This battle is no longer accepting new queue entries." },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+
+  if (identity.role === "artist_a" || identity.role === "artist_b") {
+    return c.json(
+      {
+        message:
+          "Battle artists enter through the authenticated artist room; they do not join the viewer queue.",
+      },
       HttpStatusCodes.CONFLICT
     );
   }
@@ -3142,10 +3269,9 @@ app.post("/rooms/:roomId/queue", async (c) => {
       target: [battleQueueEntries.battleId, battleQueueEntries.userId],
     });
 
-  const identity = await resolveLiveRoomIdentity(c, roomId),
-    room = conflictBattleId
-      ? await getDurableRoomState(c, roomId)
-      : await c.env.LIVE_ROOMS.getByName(roomId).queueViewer(roomId, identity);
+  const room = conflictBattleId
+    ? await getDurableRoomState(c, roomId)
+    : await c.env.LIVE_ROOMS.getByName(roomId).queueViewer(roomId, identity);
 
   return c.json(room ?? null, HttpStatusCodes.OK);
 });

@@ -82,8 +82,8 @@ describe("battle round voting winner resolution", () => {
     expect(roundVoteWinner(round, false)).toBeNull();
   });
 
-  it("breaks a tied tiebreaker round toward the first track", () => {
-    expect(roundVoteWinner(round, true)).toBe("track_a");
+  it("leaves a tied tiebreaker round as a draw", () => {
+    expect(roundVoteWinner(round, true)).toBeNull();
   });
 });
 
@@ -94,7 +94,7 @@ describe("battle record eligibility", () => {
         battleId: "battle_123",
         peakViewerCount: 500,
       })
-    ).resolves.toEqual({ losses: 0, skipped: true, wins: 0 });
+    ).resolves.toEqual({ losses: 0, skipped: true, ties: 0, wins: 0 });
   });
 });
 

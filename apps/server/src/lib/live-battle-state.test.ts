@@ -7,7 +7,7 @@ import {
   phaseDuration,
   transitionBattle,
 } from "@/lib/live-battle-state";
-import type { BattlePhase } from "@/lib/live-battle-state";
+import type { BattlePhase, BattleStateHost } from "@/lib/live-battle-state";
 import type { LiveBattleRound, LiveRoomArtist } from "@/lib/live-room-data";
 
 const artists: [LiveRoomArtist, LiveRoomArtist] = [
@@ -59,7 +59,7 @@ const artists: [LiveRoomArtist, LiveRoomArtist] = [
   host = (
     format: "best_of_3" | "best_of_5" | "best_of_7" = "best_of_3",
     admissionBatchSize = 50
-  ) => {
+  ): BattleStateHost => {
     const coordination = createBattleCoordination({
       admissionBatchSize,
       battleId: "battle-1",
@@ -77,6 +77,7 @@ const artists: [LiveRoomArtist, LiveRoomArtist] = [
     });
     return {
       battle: {
+        artistControlsByUserId: {},
         artists,
         currentRoundId: "round-1",
         rounds: [makeRound(1), makeRound(2), makeRound(3), makeRound(4, true)],
@@ -97,6 +98,41 @@ describe("live battle state machine", () => {
     const started = transitionBattle(state, 10);
     expect(started.coordination.phase).toBe("round_intro");
     expect(started.coordination.phaseEndsAt).toBe(20);
+  });
+
+  it("applies each artist's queued track when the next round opens", () => {
+    const state = host();
+    state.battle.artistControlsByUserId = {
+      "artist-a": {
+        availableTrackIds: ["a-2"],
+        currentTrackId: null,
+        selectedNextTrackId: "a-2",
+        usedTrackIds: [],
+      },
+      "artist-b": {
+        availableTrackIds: ["b-2"],
+        currentTrackId: null,
+        selectedNextTrackId: "b-2",
+        usedTrackIds: [],
+      },
+    };
+    state.coordination.artistReadyUserIds = ["artist-a", "artist-b"];
+    state.coordination.phaseEndsAt = 10;
+
+    const next = transitionBattle(state, 10),
+      round = next.battle.rounds.find((entry) => entry.number === 1);
+
+    expect(round?.artistATrack.id).toBe("a-2");
+    expect(round?.artistBTrack.id).toBe("b-2");
+    expect(
+      next.battle.rounds.find((entry) => entry.number === 2)?.artistATrack.id
+    ).toBe("a-1");
+    expect(
+      next.battle.artistControlsByUserId?.["artist-a"]?.usedTrackIds
+    ).toEqual(["a-2"]);
+    expect(
+      next.battle.artistControlsByUserId?.["artist-a"]?.selectedNextTrackId
+    ).toBeNull();
   });
 
   it("uses persisted phase timestamps and transitions without timer ticks", () => {
@@ -468,6 +504,24 @@ describe("full battle timeline", () => {
     state = advanceOne(state);
     expect(state.coordination.phase).toBe("between_rounds");
     expect(state.coordination.roundNumber).toBe(2);
+    expect(state.coordination.artistReadyUserIds).toEqual([]);
+  });
+
+  it("starts the next round when the intermission timer elapses without both artists ready", () => {
+    const state = startOpen(2);
+    state.coordination = {
+      ...state.coordination,
+      artistReadyUserIds: ["artist-a"],
+      phase: "between_rounds",
+      phaseEndsAt: 10,
+      phaseStartedAt: 0,
+      roundNumber: 2,
+    };
+
+    const next = transitionBattle(state, 10);
+
+    expect(next.coordination.phase).toBe("round_intro");
+    expect(next.coordination.artistReadyUserIds).toEqual(["artist-a"]);
   });
 
   it("ends after the scheduled rounds when one artist leads despite tied rounds", () => {
@@ -488,7 +542,7 @@ describe("full battle timeline", () => {
     expect(state.coordination.winnerUserId).toBe("artist-a");
   });
 
-  it("resolves tied tiebreaker voting consistently toward artist A", () => {
+  it("ends a tied tiebreaker as a draw", () => {
     let state = startOpen(2);
     state = {
       ...state,
@@ -507,10 +561,10 @@ describe("full battle timeline", () => {
 
     expect(
       state.battle.rounds.find((round) => round.number === 4)?.winnerArtistId
-    ).toBe("artist-a");
+    ).toBeNull();
 
     state = advanceOne(state);
     expect(state.coordination.phase).toBe("battle_result");
-    expect(state.coordination.winnerUserId).toBe("artist-a");
+    expect(state.coordination.winnerUserId).toBeNull();
   });
 });
