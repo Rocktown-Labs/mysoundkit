@@ -40,6 +40,8 @@
 
 ### Fixed
 
+- Fixed battle kits and scheduled battle promotion: kit saves now refresh the current list, duplicate cover-asset joins are collapsed to one track, accepted requests leave Outgoing, public live routes show real upcoming battle cards with participant avatars and status, and Use Kit locks the selected lineup when entering the waiting room.
+- Added shareable upcoming battle invites: signed-out fans retain the battle through signup and Premium checkout, automatically follow the referring artist, and receive replay-ready in-app and email notifications linked to the replay.
 - Fixed battle challenge lifecycle handling: pending requests now expire after seven days, stale requests are reconciled by reads and the scheduled sweep, and senders can cancel pending outgoing requests from the dashboard. Battle requests now use optimistic TanStack DB state, while expired/declined/canceled requests and stale scheduled battles can be cleared safely.
 - Removed duplicate payout/workspace prompts from the dashboard and payments page; payout setup now lives in the artist activation guide while Stripe account controls remain on Payments.
 - Fixed Battle Kit creation affordances to require Artist Premium and four released, playable tracks before setup.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  dedupeBattleKitTracks,
   evaluateBattleKitReadiness,
   validateBattleKitTracks,
 } from "./battle-kits";
@@ -13,6 +14,19 @@ const mainTracks = (count: number) =>
   }));
 
 describe("Battle Kit readiness", () => {
+  it("keeps only the first copy of each track", () => {
+    expect(
+      dedupeBattleKitTracks([
+        { id: "kit-track-1", trackId: "track-1" },
+        { id: "kit-track-1-cover-duplicate", trackId: "track-1" },
+        { id: "kit-track-2", trackId: "track-2" },
+      ])
+    ).toEqual([
+      { id: "kit-track-1", trackId: "track-1" },
+      { id: "kit-track-2", trackId: "track-2" },
+    ]);
+  });
+
   it.each([
     ["best_of_3", 3],
     ["best_of_5", 5],

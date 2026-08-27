@@ -462,6 +462,11 @@ describe("SoundKit public read API", () => {
         featuredRank?: number | null;
         genre: string;
         isFeatured: boolean;
+        participants: {
+          avatarUrl: string | null;
+          name: string;
+          username: string | null;
+        }[];
         status: string;
         viewerCount: number;
       }[]
@@ -482,6 +487,15 @@ describe("SoundKit public read API", () => {
     );
     expect(body.find((battle) => battle.isFeatured)?.featuredRank).toEqual(
       expect.any(Number)
+    );
+    expect(body[0]?.participants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          avatarUrl: expect.anything(),
+          name: expect.any(String),
+          username: expect.any(String),
+        }),
+      ])
     );
   });
 

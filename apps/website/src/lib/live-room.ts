@@ -160,6 +160,7 @@ const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
     path:
       | "chat"
       | "vote"
+      | "battle/kit"
       | "battle/track"
       | "party/playback"
       | "queue"
@@ -260,6 +261,10 @@ export const useLiveRoom = (roomId: string) => {
         }
       },
     }),
+    battleKitMutation = useMutation({
+      mutationFn: (body: { kitId: string }) =>
+        postLiveRoom(roomId, "battle/kit", body),
+    }),
     battleTrackMutation = useMutation({
       mutationFn: (body: { trackId: string }) =>
         postLiveRoom(roomId, "battle/track", body),
@@ -304,6 +309,7 @@ export const useLiveRoom = (roomId: string) => {
     });
 
   return {
+    battleKit: battleKitMutation,
     battleTrack: battleTrackMutation,
     chat: chatMutation,
     chatMessages: sortChatMessages(query.data?.chat ?? []),

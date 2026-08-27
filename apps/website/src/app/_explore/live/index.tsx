@@ -2,6 +2,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarClock, Zap } from "lucide-react";
 
+import { BattleCard } from "@/components/explore/battle-card";
 import {
   ExploreCollectionGrid,
   ExploreCollectionSection,
@@ -17,6 +18,7 @@ import {
   useListeningPartiesQuery,
   usePublicLiveExperiencesQuery,
 } from "@/lib/soundkit-api-hooks";
+import type { BattleSummary } from "@/lib/soundkit-api-hooks";
 
 interface LiveHubSearch {
   genre?: string;
@@ -26,6 +28,7 @@ interface LiveHubSearch {
 }
 
 interface LiveHubItem {
+  battle?: BattleSummary;
   genre: string | null;
   href: "/live/battles/$id" | "/live/parties/$id" | "/live/streams/$id";
   id: string;
@@ -67,6 +70,51 @@ function formatLiveHubViewers(count: number): string {
 }
 
 function LiveHubCard({ item }: { item: LiveHubItem }) {
+  if (item.kind === "battle" && item.battle) {
+    const tracks = item.battle.tracks ?? [];
+    return (
+      <div className="w-full min-w-0">
+        <BattleCard
+          currentRound={item.battle.round?.current ?? 1}
+          genre={item.battle.genre}
+          id={item.battle.id}
+          isLive={item.battle.status === "live"}
+          isPremiumUser={false}
+          isVoting={item.battle.round?.isVoting ?? false}
+          joinMode={item.battle.joinMode}
+          participants={item.battle.participants}
+          phaseEndsAt={item.battle.phaseEndsAt}
+          queueSize={item.battle.queueSize}
+          showActions={false}
+          startsAt={item.battle.startsAt}
+          status={item.battle.status}
+          title={item.battle.title}
+          totalRounds={item.battle.round?.total ?? 1}
+          track1={
+            tracks[0]
+              ? {
+                  artist: tracks[0].artist,
+                  cover: tracks[0].cover ?? "",
+                  title: tracks[0].title,
+                  votes: tracks[0].votes,
+                }
+              : undefined
+          }
+          track2={
+            tracks[1]
+              ? {
+                  artist: tracks[1].artist,
+                  cover: tracks[1].cover ?? "",
+                  title: tracks[1].title,
+                  votes: tracks[1].votes,
+                }
+              : undefined
+          }
+        />
+      </div>
+    );
+  }
+
   const isLive = item.status === "live",
     posterImage =
       item.kind === "battle"
@@ -165,10 +213,11 @@ function LiveHubPage() {
         (battle) => battle.status === "live" || battle.status === "scheduled"
       )
       .map((battle) => ({
+        battle,
         genre: battle.genre,
         href: "/live/battles/$id",
         id: battle.id,
-        kind: "battle",
+        kind: "battle" as const,
         startsAt: battle.startsAt ?? null,
         status: battle.status,
         title: battle.title,

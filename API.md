@@ -117,7 +117,7 @@ Base path for domain APIs:
 ### Onboarding
 
 - `POST /v1/onboarding/artist`
-- `POST /v1/onboarding/fan`
+- `POST /v1/onboarding/fan` (supports safe battle-share return paths and referring-artist attribution)
 
 ### Discover
 
@@ -193,8 +193,8 @@ Set `ADMIN_EMAILS` to a comma-separated email allowlist. Allowlisted accounts re
 
 ### Battles
 
-- `GET /v1/battles`
-- `GET /v1/battles/{battleId}`
+- `GET /v1/battles` (live and scheduled battle summaries include participant identity/avatar data)
+- `GET /v1/battles/{battleId}` (live and scheduled battle summaries include participant identity/avatar data)
 - `DELETE /v1/battles/{battleId}` (delete a scheduled battle when you are a participant)
 - `GET /v1/battles/challenges`
 - `POST /v1/battles/challenge`

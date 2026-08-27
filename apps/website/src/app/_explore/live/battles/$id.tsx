@@ -1,7 +1,11 @@
 "use client";
 /* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, unicorn/consistent-function-scoping */
 
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useRouter,
+} from "@tanstack/react-router";
 import {
   ArrowLeft,
   CalendarClock,
@@ -21,7 +25,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import { BattleArtistControlPanel } from "@/components/live/battle-artist-control-panel";
@@ -40,6 +44,15 @@ import { Progress } from "@/components/ui/progress";
 import { useBattleLeaveGuard } from "@/hooks/use-battle-leave-guard";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
+import {
+  clearBattleKitSelection,
+  readBattleKitSelection,
+} from "@/lib/battle-kit-selection";
+import {
+  completeBattleShareReferral,
+  rememberBattleShareReferral,
+} from "@/lib/battle-share";
 import type { LiveBattleRound, LiveRoomArtist } from "@/lib/live-room";
 import { useLiveRoom } from "@/lib/live-room";
 
@@ -162,7 +175,7 @@ function BattleStageVisual({
         alt="Upcoming battle"
         className="absolute inset-0 size-full object-cover opacity-25"
         height={720}
-        src="/music-battle-live-performance-video.jpg"
+        src="/soundkit-default-banner.svg"
         width={1280}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/30" />
@@ -212,12 +225,28 @@ function BattleStageVisual({
 
 function BattlePage() {
   const { id } = Route.useParams(),
+    referrerUsername =
+      typeof window === "undefined"
+        ? undefined
+        : new URLSearchParams(window.location.search).get("ref") ?? undefined,
     router = useRouter(),
-    { battleTrack, chat, chatMessages, leave, query, queue, vote } =
+    { data: session } = authClient.useSession(),
+    {
+      battleKit,
+      battleTrack,
+      chat,
+      chatMessages,
+      leave,
+      query,
+      queue,
+      vote,
+    } =
       useLiveRoom(id),
     [isChatOpen, setIsChatOpen] = useState(true),
     [isFollowingBattle, setIsFollowingBattle] = useState(false),
     [previewUser, setPreviewUser] = useState<UserPreviewData | null>(null),
+    selectedBattleKit = useRef(readBattleKitSelection()),
+    battleKitApplied = useRef(false),
     {
       containerRef: videoContainerRef,
       isFullscreen,
@@ -249,6 +278,49 @@ function BattlePage() {
     });
 
   useEffect(() => {
+    if (!referrerUsername) {
+      return;
+    }
+
+    rememberBattleShareReferral({
+      battleId: id,
+      returnPath: `/live/battles/${encodeURIComponent(id)}`,
+      senderUsername: referrerUsername.trim().toLowerCase(),
+    });
+    if (session?.user?.id) {
+      void completeBattleShareReferral();
+    }
+  }, [id, referrerUsername, session?.user?.id]);
+
+  useEffect(() => {
+    const selection = selectedBattleKit.current;
+    if (
+      battleKitApplied.current ||
+      !selection ||
+      !battle ||
+      !isScheduled ||
+      !session?.user?.id ||
+      (selection.battleId && selection.battleId !== id)
+    ) {
+      return;
+    }
+
+    battleKitApplied.current = true;
+    void battleKit
+      .mutateAsync({ kitId: selection.kitId })
+      .then(() => {
+        clearBattleKitSelection();
+        toast({
+          description: "Your selected kit is locked for this battle.",
+          title: "Battle Kit selected",
+        });
+      })
+      .catch(() => {
+        battleKitApplied.current = false;
+      });
+  }, [battleKit, battle, id, isScheduled, session?.user?.id]);
+
+  useEffect(() => {
     if (!isAdmitted) {
       return;
     }
@@ -263,6 +335,11 @@ function BattlePage() {
   }, [id, isAdmitted]);
 
   const handleJoinQueue = () => {
+    if (!session?.user) {
+      void router.navigate({ to: "/signup/fan/credentials" });
+      return;
+    }
+
     if (!queue.mutate) {
       return;
     }
@@ -317,7 +394,7 @@ function BattlePage() {
   if (!currentRound) {
     if (isScheduled) {
       return (
-        <LiveRoomAccessGuard roomTitle={room.title}>
+        <LiveRoomAccessGuard allowPublic={isScheduled} roomTitle={room.title}>
           <LiveTwitchShell
             chatPanel={
               <LiveChatPanel
@@ -401,7 +478,9 @@ function BattlePage() {
                           size="sm"
                         >
                           <ListPlus className="size-3.5" />
-                          Join Queue
+                          {session?.user
+                            ? "Join Queue"
+                            : "Sign up to Join Queue"}
                         </Button>
                       )}
                     </div>

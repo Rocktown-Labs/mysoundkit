@@ -119,69 +119,45 @@ function GenreBattleCard({
 }) {
   const tracks = battle.tracks ?? [];
 
-  if (tracks.length >= 2) {
-    return (
-      <div className="w-[280px] shrink-0 md:w-[300px]">
-        <BattleCard
-          currentRound={battle.round?.current ?? 1}
-          genre={battle.genre}
-          id={battle.id}
-          isLive={battle.status === "live"}
-          isPremiumUser={isPremiumUser}
-          isVoting={battle.round?.isVoting ?? false}
-          joinMode={battle.joinMode}
-          phaseEndsAt={battle.phaseEndsAt}
-          queueSize={battle.queueSize}
-          title={battle.title}
-          totalRounds={battle.round?.total ?? 1}
-          track1={{
-            artist: tracks[0].artist,
-            cover: tracks[0].cover ?? "",
-            title: tracks[0].title,
-            votes: tracks[0].votes,
-          }}
-          track2={{
-            artist: tracks[1].artist,
-            cover: tracks[1].cover ?? "",
-            title: tracks[1].title,
-            votes: tracks[1].votes,
-          }}
-        />
-      </div>
-    );
-  }
-
   return (
-    <Link
-      className="block w-[280px] shrink-0 md:w-[300px]"
-      params={{ id: battle.id }}
-      to="/live/battles/$id"
-    >
-      <Card className="h-full border-border/40 bg-card/60 transition-colors hover:border-primary/50">
-        <CardContent className="space-y-4 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <Badge variant="secondary">{battle.genre}</Badge>
-            <Badge
-              variant={battle.status === "live" ? "destructive" : "outline"}
-            >
-              {battle.status}
-            </Badge>
-          </div>
-          <div>
-            <h3 className="line-clamp-2 font-semibold text-base">
-              {battle.title}
-            </h3>
-            <p className="mt-1 text-muted-foreground text-xs">
-              {battle.format.replaceAll("_", " ")}
-            </p>
-          </div>
-          <div className="flex items-center gap-1 text-muted-foreground text-xs">
-            <Eye className="size-3" />
-            {battle.viewerCount.toLocaleString()} viewers
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+    <div className="w-[280px] shrink-0 md:w-[300px]">
+      <BattleCard
+        currentRound={battle.round?.current ?? 1}
+        genre={battle.genre}
+        id={battle.id}
+        isLive={battle.status === "live"}
+        isPremiumUser={isPremiumUser}
+        isVoting={battle.round?.isVoting ?? false}
+        joinMode={battle.joinMode}
+        participants={battle.participants}
+        phaseEndsAt={battle.phaseEndsAt}
+        queueSize={battle.queueSize}
+        startsAt={battle.startsAt}
+        status={battle.status}
+        title={battle.title}
+        totalRounds={battle.round?.total ?? 1}
+        track1={
+          tracks[0]
+            ? {
+                artist: tracks[0].artist,
+                cover: tracks[0].cover ?? "",
+                title: tracks[0].title,
+                votes: tracks[0].votes,
+              }
+            : undefined
+        }
+        track2={
+          tracks[1]
+            ? {
+                artist: tracks[1].artist,
+                cover: tracks[1].cover ?? "",
+                title: tracks[1].title,
+                votes: tracks[1].votes,
+              }
+            : undefined
+        }
+      />
+    </div>
   );
 }
 

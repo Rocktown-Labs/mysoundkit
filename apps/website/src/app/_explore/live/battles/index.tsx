@@ -15,7 +15,7 @@ export const Route = createFileRoute("/_explore/live/battles/")({
 function LiveBattlesPage() {
   return (
     <BattleViewAll
-      description="Watch battles happening right now"
+      description="Watch battles happening now and see upcoming matchups"
       title="Live Battles"
       type="live"
     />

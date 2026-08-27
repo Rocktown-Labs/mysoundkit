@@ -4,9 +4,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertCircle,
   Flag,
+  MoreHorizontal,
   Music,
   Plus,
   Search,
+  Share2,
   Swords,
   Trash2,
   Trophy,
@@ -37,6 +39,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -54,8 +62,17 @@ import {
   useDbBattleChallenges,
   useDbBattles,
 } from "@/lib/data-db";
-import { musicGenres } from "@/lib/music-genres";
 import {
+  clearBattleKitSelection,
+  readBattleKitSelection,
+  rememberBattleKitSelection,
+} from "@/lib/battle-kit-selection";
+import { musicGenres } from "@/lib/music-genres";
+import { absoluteSiteUrl } from "@/lib/seo";
+import { shareLink } from "@/lib/share";
+import type { BattleSummary } from "@/lib/soundkit-api-hooks";
+import {
+  useBattleKitsQuery,
   useBattleOpponentsQuery,
   useDeleteLiveExperienceMutation,
   useGenresQuery,
@@ -72,6 +89,7 @@ function BattleHubPage() {
     tracksQuery = useTracksQuery(),
     battlesDb = useDbBattles(),
     battleChallengesDb = useDbBattleChallenges(),
+    battleKitsQuery = useBattleKitsQuery(),
     genresQuery = useGenresQuery(),
     deleteExperience = useDeleteLiveExperienceMutation(),
     { clearChallenge, createChallenge, deleteBattle, updateChallenge } =
@@ -81,7 +99,13 @@ function BattleHubPage() {
     [deletingBattleId, setDeletingBattleId] = useState<string | null>(null),
     [pendingChallengeId, setPendingChallengeId] = useState<string | null>(null),
     [creatingChallenge, setCreatingChallenge] = useState(false),
+    [selectedBattleKitId, setSelectedBattleKitId] = useState<string | null>(
+      () => readBattleKitSelection()?.kitId ?? null
+    ),
     battles = battlesDb.data,
+    selectedBattleKit = battleKitsQuery.data?.find(
+      (kit) => kit.id === selectedBattleKitId
+    ),
     targetBattle = battles.find((battle) => battle.id === cancellingBattleId),
     availableGenres =
       genresQuery.data && genresQuery.data.length > 0
@@ -122,6 +146,49 @@ function BattleHubPage() {
         });
       }
       setDeletingBattleId(null);
+    },
+    handleShareBattle = async (battle: BattleSummary) => {
+      const senderUsername = meQuery.data?.user.username;
+      if (!senderUsername) {
+        toast({
+          description: "Your artist profile is still being set up.",
+          title: "Unable to share battle",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const shareUrl = absoluteSiteUrl(
+          `/live/battles/${battle.id}?ref=${encodeURIComponent(senderUsername)}`
+        ),
+        participantNames = battle.participants
+          .map((participant) => participant.name)
+          .join(" vs "),
+        shareText = participantNames
+          ? `${participantNames} are battling on SoundKit. Join the waiting room.`
+          : `${battle.title} is coming up on SoundKit. Join the waiting room.`,
+        outcome = await shareLink({
+          text: shareText,
+          title: `${battle.title} is coming up on SoundKit`,
+          url: shareUrl,
+        });
+
+      if (outcome === "unsupported") {
+        toast({
+          description: "Sharing is not supported on this device.",
+          title: "Unable to share battle",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        description:
+          outcome === "copied"
+            ? "Battle invite link copied to your clipboard."
+            : "Battle invite ready to share.",
+        title: "Battle shared",
+      });
     };
 
   useEffect(() => {
@@ -129,10 +196,12 @@ function BattleHubPage() {
   }, [defaultGenre]);
 
   const incomingRequests = battleChallengesDb.data.filter(
-      (challenge) => challenge.direction === "incoming"
+      (challenge) =>
+        challenge.direction === "incoming" && challenge.status !== "accepted"
     ),
     outgoingRequests = battleChallengesDb.data.filter(
-      (challenge) => challenge.direction === "outgoing"
+      (challenge) =>
+        challenge.direction === "outgoing" && challenge.status !== "accepted"
     ),
     candidateArtists = artistsQuery.data ?? [],
     liveBattles = battles.filter((battle) => battle.status === "live"),
@@ -256,6 +325,13 @@ function BattleHubPage() {
           proposedTimeLabel: proposedTimeLabel || null,
           status: "pending" as const,
         };
+
+      if (selectedBattleKitId) {
+        rememberBattleKitSelection({
+          kitId: selectedBattleKitId,
+          opponentUsername: opponent.replace(/^@/u, "").toLowerCase(),
+        });
+      }
 
       void (async () => {
         setCreatingChallenge(true);
@@ -602,6 +678,14 @@ function BattleHubPage() {
                             size="sm"
                           >
                             <Link
+                              onClick={() => {
+                                if (selectedBattleKitId) {
+                                  rememberBattleKitSelection({
+                                    battleId: battle.id,
+                                    kitId: selectedBattleKitId,
+                                  });
+                                }
+                              }}
                               params={{ id: battle.id }}
                               to="/live/battles/$id"
                             >
@@ -624,6 +708,29 @@ function BattleHubPage() {
                             <Flag className="mr-1 size-3.5" />
                             {isLive ? "Forfeit" : "Cancel"}
                           </Button>
+                          {isLive ? null : (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  aria-label={`More actions for ${battle.title}`}
+                                  size="icon"
+                                  variant="outline"
+                                >
+                                  <MoreHorizontal />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    void handleShareBattle(battle)
+                                  }
+                                >
+                                  <Share2 data-icon="inline-start" />
+                                  Share upcoming battle
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </div>
                       </div>
                     );
@@ -741,7 +848,13 @@ function BattleHubPage() {
                     <Label htmlFor="format">Battle Format</Label>
                     <Select
                       value={selectedFormat}
-                      onValueChange={setSelectedFormat}
+                      onValueChange={(value) => {
+                        setSelectedFormat(value);
+                        if (selectedBattleKit && selectedBattleKit.format !== value) {
+                          clearBattleKitSelection();
+                          setSelectedBattleKitId(null);
+                        }
+                      }}
                     >
                       <SelectTrigger id="format">
                         <SelectValue />
@@ -758,6 +871,46 @@ function BattleHubPage() {
                         </SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="battleKit">Battle Kit</Label>
+                    <Select
+                      value={selectedBattleKitId ?? "none"}
+                      onValueChange={(value) => {
+                        if (value === "none") {
+                          clearBattleKitSelection();
+                          setSelectedBattleKitId(null);
+                          return;
+                        }
+
+                        const kit = battleKitsQuery.data?.find(
+                          (candidate) => candidate.id === value
+                        );
+                        setSelectedBattleKitId(value);
+                        rememberBattleKitSelection({ kitId: value });
+                        if (kit) {
+                          setSelectedFormat(kit.format);
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="battleKit">
+                        <SelectValue placeholder="Choose a kit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No kit selected</SelectItem>
+                        {battleKitsQuery.data?.map((kit) => (
+                          <SelectItem key={kit.id} value={kit.id}>
+                            {kit.name} · {kit.format.replaceAll("_", " ")}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedBattleKit
+                        ? `${selectedBattleKit.name} will be ready when you enter your scheduled battle.`
+                        : "Choose a ready kit to load automatically when you enter your scheduled battle."}
+                    </p>
                   </div>
 
                   <div className="space-y-2 pt-2">

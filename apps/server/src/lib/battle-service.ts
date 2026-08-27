@@ -6,7 +6,7 @@ import {
   userNotifications,
   webhookEvents,
 } from "@soundkit/db/schema/app";
-import { and, eq, gte, lte, or } from "drizzle-orm";
+import { and, eq, gte, isNotNull, lte, or } from "drizzle-orm";
 
 import { getBattleChallengeExpiryCutoff } from "@/lib/battle-challenge-lifecycle";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
@@ -219,14 +219,6 @@ const reminderEventTypes = new Set([
         queue: emailQueue,
         resultsSummary,
       });
-      await insertBattleNotifications({
-        battleId: battle.id,
-        eventId,
-        message: `${battle.title} is complete. Open the recap to review the results.`,
-        recipientUserIds,
-        title: "Battle Results Ready",
-        type: "battle_results",
-      });
 
       return "processed";
     }
@@ -390,6 +382,7 @@ export const runBattleServiceSweep = async ({
           .where(
             and(
               eq(battles.status, "completed"),
+              isNotNull(battles.replayVideoId),
               gte(battles.endedAt, resultsFloor),
               lte(battles.endedAt, now)
             )

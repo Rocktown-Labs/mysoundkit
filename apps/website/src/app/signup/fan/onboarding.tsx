@@ -13,6 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { API_V1_URL } from "@/lib/api";
+import {
+  clearBattleShareReferral,
+  readBattleShareReferral,
+} from "@/lib/battle-share";
 import { FAN_ONBOARDING_DRAFT_KEY } from "@/lib/onboarding-flow";
 import { fallbackBillingPlans } from "@/lib/pricing-flow";
 import { useBillingPlansQuery, useGenresQuery } from "@/lib/soundkit-api-hooks";
@@ -114,6 +118,7 @@ function FanOnboardingPage() {
       setIsSubmitting(true);
       setFinalizationStatus("saving");
       setErrorMessage(null);
+      const battleShareReferral = readBattleShareReferral();
       try {
         const response = await fetch(`${API_V1_URL}/onboarding/fan`, {
             body: JSON.stringify({
@@ -121,6 +126,8 @@ function FanOnboardingPage() {
               country,
               genrePreferences: selectedGenres,
               mediaLayout,
+              referrerUsername: battleShareReferral?.senderUsername,
+              returnPath: battleShareReferral?.returnPath,
               selectedPlanCode,
               state: stateValue,
               username,
@@ -140,6 +147,7 @@ function FanOnboardingPage() {
           return;
         }
         window.localStorage.removeItem(FAN_ONBOARDING_DRAFT_KEY);
+        clearBattleShareReferral();
         posthog.capture("onboarding_completed", {
           account_type: "fan",
           genre_count: selectedGenres.length,
@@ -154,7 +162,7 @@ function FanOnboardingPage() {
           window.location.assign(payload.checkoutUrl);
           return;
         }
-        await router.navigate({ to: "/" });
+        window.location.assign(battleShareReferral?.returnPath ?? "/");
       } catch {
         setErrorMessage("Unable to reach SoundKit. Please try again.");
       } finally {
