@@ -1,4 +1,4 @@
-/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, prefer-named-capture-group */
+/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-await, require-unicode-regexp, prefer-named-capture-group */
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
@@ -323,6 +323,64 @@ test.describe("main application surfaces", () => {
     if ((page.viewportSize()?.width ?? 0) >= 1024) {
       await expect(page.getByRole("combobox")).toHaveCount(4);
     }
+  });
+
+  test("track management stays in the three-dot actions", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/tracks");
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Tracks" })
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("Edit Track", { exact: true })).toHaveCount(0);
+    await expect(
+      page.locator('a[href*="/dashboard/tracks/"][href$="/edit"]')
+    ).toHaveCount(0);
+
+    await page
+      .getByRole("button", { name: "Actions for Summer Nights" })
+      .click();
+    await expect(
+      page.getByRole("menuitem", { name: "Edit track details" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("menuitem", { name: "Manage audio files" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("menuitem", { name: "Retry media processing" })
+    ).toBeVisible();
+    await page.getByRole("menuitem", { name: "Edit track details" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Edit track details" })
+    ).toBeVisible();
+    await expect(page.getByLabel("Track name")).toHaveValue("Summer Nights");
+    await expect(page.getByLabel("Visibility")).toBeVisible();
+    await expect(page.getByLabel("Allow downloads")).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await page
+      .getByRole("button", { name: "Actions for Summer Nights" })
+      .click();
+    await page.getByRole("menuitem", { name: "Manage audio files" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Manage audio files" })
+    ).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await gotoWithViteRetry(page, "/dashboard/tracks/track_summer_nights/edit");
+    await expect(page).toHaveURL(/\/dashboard\/tracks\/track_summer_nights$/);
   });
 
   test("videos route renders URL-backed filters without crashing", async ({

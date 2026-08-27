@@ -273,7 +273,14 @@ const requireUploadUser = async (request: Request) => {
         }),
         "track-source": route({
           clientMetadataSchema: z.object({ trackId: z.string().min(1) }),
-          fileTypes: ["audio/*", "application/octet-stream"],
+          fileTypes: [
+            "audio/*",
+            "application/octet-stream",
+            "application/vnd.rar",
+            "application/x-rar-compressed",
+            "application/x-tar",
+            "application/zip",
+          ],
           maxFileSize: 1024 * 1024 * 1024 * 2,
           multipart: true,
           multipleFiles: true,

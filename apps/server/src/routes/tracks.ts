@@ -105,10 +105,10 @@ import {
   updateTrackBodySchema,
 } from "@/lib/schemas";
 import { createSellerAccountLink, isSellerEnabled } from "@/lib/seller";
-import { resolveTrackCoverAssetFromRows } from "@/lib/track-asset-resolver";
 import {
   resolveTrackAsset,
   resolveTrackAssetFromRows,
+  resolveTrackCoverAssetFromRows,
 } from "@/lib/track-asset-resolver";
 import { notifyTrackLive } from "@/lib/track-notifications";
 import type { AppEnv } from "@/lib/types";
@@ -1594,8 +1594,14 @@ app.openapi(
         isrc: body.isrc,
         listeningAccess: body.listeningAccess,
         musicalKey: body.musicalKey,
-        price: body.price?.toFixed(2),
-        priceCents: body.priceCents,
+        price:
+          body.isForSale === false
+            ? null
+            : body.price === undefined
+              ? undefined
+              : body.price.toFixed(2),
+        priceCents:
+          body.isForSale === false ? null : (body.priceCents ?? undefined),
         productionStatus: body.productionStatus,
         publishedAt:
           body.isPublic === true
@@ -1604,11 +1610,17 @@ app.openapi(
               ? null
               : undefined,
         purchaseMode: body.purchaseMode,
-        releaseAt: body.releaseAt ? new Date(body.releaseAt) : undefined,
+        releaseAt:
+          body.releaseAt === ""
+            ? null
+            : body.releaseAt
+              ? new Date(body.releaseAt)
+              : undefined,
         releaseStrategy:
           body.isPublic === true && existingTrack.releaseStrategy === "private"
             ? "publish_when_ready"
             : body.releaseStrategy,
+        streamingLinks: body.streamingLinks,
         title: body.title,
         updatedAt: new Date(),
       })

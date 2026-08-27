@@ -4,7 +4,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Download,
-  Edit,
   ExternalLink,
   Share2,
   Play,
@@ -18,22 +17,20 @@ import {
   Save,
   Plus,
   Clock3,
-  Tags,
   Rocket,
-  ImagePlus,
   MoreVertical,
   Repeat,
-  Settings2,
-  Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import {
+  TrackCardQuickMenuItems,
   TrackCreditsEditor,
-  TrackMonetizeToggle,
   TrackQuickActionDialogs,
+  editableTrackFromDetail,
 } from "@/components/dashboard/track-quick-actions";
+import type { QuickActionDialogName } from "@/components/dashboard/track-quick-actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,7 +44,6 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -793,9 +789,8 @@ function TrackCollaboratorsPanel({
 }
 
 function TrackDetailPage() {
-  const [activeDialog, setActiveDialog] = useState<
-      null | "cover" | "credits" | "genre" | "status" | "swap"
-    >(null),
+  const [activeDialog, setActiveDialog] =
+      useState<null | QuickActionDialogName>(null),
     { id } = Route.useParams(),
     [isTranscribing, setIsTranscribing] = useState(false),
     processTrackMutation = useProcessTrackMutation(id),
@@ -1029,47 +1024,23 @@ function TrackDetailPage() {
                   Play
                 </Button>
               ) : null}
-              <Link params={{ id }} to="/dashboard/tracks/$id/edit">
-                <Button type="button" variant="outline">
-                  <Edit className="mr-2 size-4" />
-                  Edit
-                </Button>
-              </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild={true}>
                   <Button type="button" variant="outline">
                     <MoreVertical className="mr-1 size-4" />
-                    Quick actions
+                    Track actions
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => setActiveDialog("cover")}>
-                    <ImagePlus className="mr-2 size-4" />
-                    Change cover art
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setActiveDialog("swap")}>
-                    <Repeat className="mr-2 size-4" />
-                    Swap main file
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setActiveDialog("genre")}>
-                    <Tags className="mr-2 size-4" />
-                    Change genre
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setActiveDialog("status")}>
-                    <Settings2 className="mr-2 size-4" />
-                    Change release status
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setActiveDialog("credits")}>
-                    <Users className="mr-2 size-4" />
-                    Edit credits
-                  </DropdownMenuItem>
+                  <TrackCardQuickMenuItems
+                    onOpenAction={setActiveDialog}
+                    track={{
+                      id: trackQueryData.id,
+                      isForSale: trackQueryData.isForSale,
+                    }}
+                  />
                 </DropdownMenuContent>
               </DropdownMenu>
-              <TrackMonetizeToggle
-                isForSale={Boolean(trackQueryData.isForSale)}
-                onToggled={() => trackQuery.refetch()}
-                trackId={trackQueryData.id}
-              />
               {isLive ? (
                 <Button asChild={true} type="button" variant="outline">
                   <a href={publicTrackPath}>
@@ -1190,12 +1161,12 @@ function TrackDetailPage() {
 
       <TrackQuickActionDialogs
         activeDialog={activeDialog}
+        assets={assets}
         collaborators={collaborators}
-        currentGenre={trackQueryData.genre}
-        isLive={isLive}
         mediaReady={mediaReady}
         onClose={() => setActiveDialog(null)}
         onSaved={() => trackQuery.refetch()}
+        track={editableTrackFromDetail(trackQueryData)}
         trackId={trackQueryData.id}
       />
     </div>
