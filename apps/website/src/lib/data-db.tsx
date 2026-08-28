@@ -485,6 +485,7 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         queryFn: async () =>
           rpcJson(await communityPostsGet({ param: { communityId } })),
         queryKey: ["soundkit-db", scopeKey, "community-posts", communityId],
+        refetchInterval: 5_000,
         schema: communityPostSchema,
       })
     ),
@@ -520,6 +521,7 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         queryFn: async () =>
           rpcJson(await communityMembersGet({ param: { communityId } })),
         queryKey: ["soundkit-db", scopeKey, "community-members", communityId],
+        refetchInterval: 10_000,
         schema: communityMemberSchema,
       })
     ),
@@ -1399,15 +1401,11 @@ export const useDbCommunities = () => {
 };
 
 export const useDbCommunity = (communityId: string) => {
-  const collection = useDataDb().communities,
-    result = useLiveQuery(
-      (q) =>
-        q
-          .from({ community: collection })
-          .where(({ community }) => eq(community.id, communityId)),
-      [communityId]
-    );
-  return { ...result, community: result.data?.[0] ?? null };
+  const result = useDbCommunities();
+  return {
+    ...result,
+    community: result.data.find((community) => community.id === communityId) ?? null,
+  };
 };
 
 export const useDbCommunityActions = () => {
@@ -1586,12 +1584,13 @@ export const useSendDbCommunityMessage = (
             const previous =
                 communityMessageQueues.get(communityId) ?? Promise.resolve(),
               persistMessage = async () => {
-                await rpcJson(
+                const createdMessage = await rpcJson(
                   await communityMessagesPost({
                     json: { body, clientMessageId: id },
                     param: { communityId },
                   })
                 );
+                collection.utils.writeUpsert(createdMessage);
               },
               queued = previous.then(persistMessage, persistMessage);
             communityMessageQueues.set(communityId, queued);

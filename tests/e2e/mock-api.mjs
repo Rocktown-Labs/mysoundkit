@@ -324,6 +324,54 @@ const normalizeGenre = (value) =>
       trackCount: 4,
     },
   ],
+  mockCommunities = [
+    {
+      artist: {
+        avatarUrl: "/soundkit-default-avatar.svg",
+        name: "Luna Eclipse",
+        username: "luna-eclipse",
+      },
+      artistUserId: "artist_luna_eclipse",
+      coverImageUrl: "/summer-music-album-cover.webp",
+      currency: "USD",
+      description: "Release notes, studio conversations, and listening rooms.",
+      genre: { id: "genre-hip-hop", name: "Hip-Hop", slug: "hip-hop" },
+      id: "community_luna",
+      isMember: false,
+      isOwner: false,
+      memberCount: 128,
+      monthlyPriceCents: 0,
+      name: "Luna Eclipse Circle",
+      slug: "luna-eclipse-circle",
+      updatedAt: "2026-08-28T12:00:00.000Z",
+    },
+  ],
+  mockCommunityMessages = [],
+  mockCommunityPosts = [],
+  mockCommunityMembers = [
+    {
+      avatarUrl: "/soundkit-default-avatar.svg",
+      joinedAt: "2026-07-01T12:00:00.000Z",
+      name: "Luna Eclipse",
+      role: "owner",
+      userId: "artist_luna_eclipse",
+      username: "luna-eclipse",
+    },
+  ],
+  mockNotificationSettings = {
+    communityMentions: true,
+    communityPosts: true,
+    emailCollaborations: true,
+    emailComments: true,
+    emailFollowers: true,
+    emailLive: true,
+    emailMessages: true,
+    emailSales: true,
+    emailTrackProcessing: true,
+    pushMentions: true,
+    pushMessages: true,
+    pushReleases: true,
+  },
   mockArtists = [
     {
       avatarUrl: "/soundkit-default-avatar.svg",
@@ -1383,6 +1431,161 @@ export const createMockApiServer = async ({
         },
         webOrigin
       );
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/me/notification-settings"
+    ) {
+      json(response, 200, mockNotificationSettings, webOrigin);
+      return;
+    }
+
+    if (
+      request.method === "PATCH" &&
+      url.pathname === "/v1/me/notification-settings"
+    ) {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        Object.assign(mockNotificationSettings, JSON.parse(bodyText || "{}"));
+        json(response, 200, mockNotificationSettings, webOrigin);
+      });
+      return;
+    }
+
+    if (
+      url.pathname === "/v1/communities" ||
+      url.pathname === "/v1/communities/"
+    ) {
+      json(response, 200, mockCommunities, webOrigin);
+      return;
+    }
+
+    const communityDetailMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)$/
+    );
+    if (communityDetailMatch && request.method === "GET") {
+      const community = mockCommunities.find(
+        (entry) => entry.id === communityDetailMatch[1]
+      );
+      json(
+        response,
+        community ? 200 : 404,
+        community ?? { message: "Community not found." },
+        webOrigin
+      );
+      return;
+    }
+
+    const communityJoinMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)\/join$/
+    );
+    if (communityJoinMatch && request.method === "POST") {
+      const community = mockCommunities.find(
+        (entry) => entry.id === communityJoinMatch[1]
+      );
+      if (community && !community.isMember) {
+        community.isMember = true;
+        community.memberCount += 1;
+        mockCommunityMembers.push({
+          avatarUrl: "/summer-music-album-cover.webp",
+          joinedAt: new Date().toISOString(),
+          name: "Complete Artist",
+          role: "member",
+          userId: "user_complete",
+          username: "complete_artist",
+        });
+      }
+      json(
+        response,
+        community ? 201 : 404,
+        community
+          ? { message: "Community joined." }
+          : { message: "Community not found." },
+        webOrigin
+      );
+      return;
+    }
+
+    const communityMessagesMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)\/messages$/
+    );
+    if (communityMessagesMatch) {
+      if (request.method === "GET") {
+        json(response, 200, mockCommunityMessages, webOrigin);
+        return;
+      }
+      if (request.method === "POST") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            message = {
+              author: {
+                avatarUrl: "/summer-music-album-cover.webp",
+                name: "Complete Artist",
+                username: "complete_artist",
+              },
+              body: body.body,
+              createdAt: new Date().toISOString(),
+              id: body.clientMessageId ?? `mock-message-${Date.now()}`,
+              userId: "user_complete",
+            };
+          mockCommunityMessages.push(message);
+          json(response, 201, message, webOrigin);
+        });
+        return;
+      }
+    }
+
+    const communityPostsMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)\/posts$/
+    );
+    if (communityPostsMatch) {
+      if (request.method === "GET") {
+        json(response, 200, mockCommunityPosts, webOrigin);
+        return;
+      }
+      if (request.method === "POST") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            post = {
+              author: {
+                avatarUrl: "/summer-music-album-cover.webp",
+                name: "Complete Artist",
+                username: "complete_artist",
+              },
+              body: body.body ?? null,
+              createdAt: new Date().toISOString(),
+              id: `mock-post-${Date.now()}`,
+              isPinned: false,
+              mediaUrl: null,
+              metadata: null,
+              postType: body.postType ?? "text",
+              userId: "user_complete",
+            };
+          mockCommunityPosts.push(post);
+          json(response, 201, post, webOrigin);
+        });
+        return;
+      }
+    }
+
+    const communityMembersMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)\/members$/
+    );
+    if (communityMembersMatch && request.method === "GET") {
+      json(response, 200, mockCommunityMembers, webOrigin);
       return;
     }
 

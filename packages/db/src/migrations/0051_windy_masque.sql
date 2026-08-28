@@ -1,0 +1,2 @@
+ALTER TABLE "notification_settings" ADD COLUMN "community_mentions" boolean DEFAULT true NOT NULL;--> statement-breakpoint
+ALTER TABLE "notification_settings" ADD COLUMN "community_posts" boolean DEFAULT true NOT NULL;
