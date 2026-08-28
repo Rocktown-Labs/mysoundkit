@@ -946,7 +946,15 @@ export function BattlePage({
     battle = room?.battle,
     phase = battle?.coordination?.phase,
     canonicalRoomId = battle?.coordination?.battleId ?? id,
-    isAdmin = room?.role === "admin",
+    artistRole =
+      room?.role === "artist_a" || room?.role === "artist_b"
+        ? room.role
+        : session?.user?.id === battle?.artists[0]?.id
+          ? "artist_a"
+          : session?.user?.id === battle?.artists[1]?.id
+            ? "artist_b"
+            : null,
+    isAdmin = room?.role === "admin" || session?.user?.role === "admin",
     isScheduled =
       room?.status === "upcoming" ||
       phase === "scheduled" ||
@@ -955,7 +963,7 @@ export function BattlePage({
     isBattleActive = Boolean(phase && !isPreStartBattle && phase !== "ended"),
     viewerQueueStatus = battle?.viewerQueueStatus ?? null,
     isAdmitted = viewerQueueStatus === "admitted",
-    isArtist = Boolean(room?.role === "artist_a" || room?.role === "artist_b"),
+    isArtist = artistRole !== null,
     isQueued =
       viewerQueueStatus === "queued" || viewerQueueStatus === "waiting",
     readyArtistUserIds = battle?.coordination?.artistReadyUserIds ?? [],
@@ -1001,9 +1009,9 @@ export function BattlePage({
     });
 
   const currentArtistId =
-      room?.role === "artist_a"
+      artistRole === "artist_a"
         ? battle?.artists[0]?.id
-        : room?.role === "artist_b"
+        : artistRole === "artist_b"
           ? battle?.artists[1]?.id
           : null,
     currentArtistReady = Boolean(
@@ -1062,6 +1070,36 @@ export function BattlePage({
     isArtist,
     phase,
     room?.status,
+    router,
+  ]);
+
+  useEffect(() => {
+    if (
+      !artistView ||
+      query.isLoading ||
+      query.isError ||
+      !room ||
+      !battle ||
+      isArtist ||
+      isAdmin
+    ) {
+      return;
+    }
+
+    void router.navigate({
+      params: { id },
+      replace: true,
+      to: "/live/battles/$id",
+    });
+  }, [
+    artistView,
+    battle,
+    id,
+    isAdmin,
+    isArtist,
+    query.isError,
+    query.isLoading,
+    room,
     router,
   ]);
 
@@ -1205,10 +1243,10 @@ export function BattlePage({
       <div className="flex min-h-[50vh] items-center justify-center p-6">
         <Card className="max-w-lg text-center">
           <CardHeader>
-            <CardTitle>Artist room access required</CardTitle>
+            <CardTitle>Opening public battle room</CardTitle>
             <CardDescription>
-              This route is reserved for the two artists assigned to this
-              battle. Join the public room as a viewer instead.
+              This account is not assigned to this battle. Sending you to the
+              viewer room now.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1318,22 +1356,21 @@ export function BattlePage({
                     </Button>
                   )}
                 </div>
-                {(room.role === "artist_a" || room.role === "artist_b") &&
-                  battle.coordination?.format && (
-                    <ArtistBattlePreparation
-                      format={battle.coordination.format}
-                      isReady={currentArtistReady}
-                      lockedKitId={lockedBattleKitId ?? null}
-                      onLock={handleLockBattleKit}
-                      onMediaSetupSaved={setMediaDeviceSelection}
-                      onReady={async (ready) => {
-                        await battleReady.mutateAsync({ ready });
-                      }}
-                      pending={
-                        battleReady.isPending || battleDisposition.isPending
-                      }
-                    />
-                  )}
+                {artistRole && battle.coordination?.format && (
+                  <ArtistBattlePreparation
+                    format={battle.coordination.format}
+                    isReady={currentArtistReady}
+                    lockedKitId={lockedBattleKitId ?? null}
+                    onLock={handleLockBattleKit}
+                    onMediaSetupSaved={setMediaDeviceSelection}
+                    onReady={async (ready) => {
+                      await battleReady.mutateAsync({ ready });
+                    }}
+                    pending={
+                      battleReady.isPending || battleDisposition.isPending
+                    }
+                  />
+                )}
                 <BattleLifecycleControls
                   artists={battle.artists}
                   compact
@@ -1657,11 +1694,7 @@ export function BattlePage({
             videoDeviceId={mediaDeviceSelection?.videoDeviceId}
             phase={phase}
             showHeader={false}
-            viewerOnly={
-              room.role !== "admin" &&
-              room.role !== "artist_a" &&
-              room.role !== "artist_b"
-            }
+            viewerOnly={!isAdmin && !isArtist}
           />
         )}
 
@@ -2073,15 +2106,9 @@ export function BattlePage({
             artists={battle.artists}
             currentUserId={session?.user?.id}
             hasSelectedKit={Boolean(lockedBattleKitId)}
-            isAdmin={room.role === "admin"}
+            isAdmin={isAdmin}
             isArtist={isArtist}
-            isReady={Boolean(
-              readyArtistUserIds.includes(
-                room.role === "artist_a"
-                  ? battle.artists[0].id
-                  : battle.artists[1].id
-              )
-            )}
+            isReady={currentArtistReady}
             onDisposition={handleBattleDisposition}
             onReady={async (ready) => {
               await battleReady.mutateAsync({ ready });
@@ -2092,10 +2119,10 @@ export function BattlePage({
             roundNumber={battle.coordination?.roundNumber}
           />
 
-          {(room.role === "artist_a" || room.role === "artist_b") && (
+          {artistRole && (
             <BattleArtistControlPanel
               artistId={
-                room.role === "artist_a"
+                artistRole === "artist_a"
                   ? battle.artists[0].id
                   : battle.artists[1].id
               }
