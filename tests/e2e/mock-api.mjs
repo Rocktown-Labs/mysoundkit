@@ -553,6 +553,20 @@ export const createMockApiServer = async ({
 
       const challenges = [
         {
+          challengerUsername: "mattalvis",
+          createdAt: "2026-08-28T08:00:00.000Z",
+          direction: "incoming",
+          expiresAt: "2026-09-04T08:00:00.000Z",
+          format: "best_of_3",
+          genre: "Hip-Hop",
+          id: "mock-incoming-challenge",
+          message: "Let’s run it.",
+          opponentUsername: "complete_artist",
+          proposedDate: "2026-08-29T20:00:00.000Z",
+          proposedTimeLabel: "Aug 29, 2026, 8:00 PM",
+          status: "pending",
+        },
+        {
           challengerUsername: "complete_artist",
           createdAt: "2026-07-01T12:00:00.000Z",
           direction: "outgoing",
@@ -1288,13 +1302,54 @@ export const createMockApiServer = async ({
       }
 
       if (request.method === "PATCH") {
-        mockBattleChallenges[challengeIndex].status = "canceled";
-        json(
-          response,
-          200,
-          { message: "Battle challenge canceled." },
-          webOrigin
-        );
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            status = body.status === "accepted" ? "accepted" : body.status;
+          mockBattleChallenges[challengeIndex].status = status;
+          if (status === "accepted") {
+            const challenge = mockBattleChallenges[challengeIndex],
+              battleId = `mock-battle-${challenge.id}`;
+            if (!mockBattles.some((battle) => battle.id === battleId)) {
+              mockBattles.push({
+                format: challenge.format,
+                genre: challenge.genre,
+                id: battleId,
+                isFeatured: false,
+                joinMode: "watch_now",
+                participants: [
+                  {
+                    avatarUrl: "/soundkit-default-avatar.svg",
+                    id: "mock-artist-mattalvis",
+                    name: "Matt Alvis",
+                    username: challenge.challengerUsername,
+                  },
+                  {
+                    avatarUrl: "/soundkit-default-avatar.svg",
+                    id: "user_complete",
+                    name: "Complete Artist",
+                    username: "complete_artist",
+                  },
+                ],
+                startsAt: challenge.proposedDate,
+                status: "scheduled",
+                title: "Artist Battle - Hip-Hop",
+                tracks: [],
+                viewerCount: 0,
+                visibility: "public",
+              });
+            }
+          }
+          json(
+            response,
+            200,
+            { message: `Battle challenge ${status}.` },
+            webOrigin
+          );
+        });
         return;
       }
     }
@@ -1326,6 +1381,30 @@ export const createMockApiServer = async ({
             (challenge) => challenge.direction === "outgoing"
           ),
         },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/battles/opponents"
+    ) {
+      const normalizedQuery = (url.searchParams.get("q") ?? "")
+        .replace(/^@+/u, "")
+        .toLowerCase();
+      json(
+        response,
+        200,
+        normalizedQuery && "new-opponent".includes(normalizedQuery)
+          ? [
+              {
+                genre: "Hip-Hop",
+                name: "New Opponent",
+                username: "new-opponent",
+              },
+            ]
+          : [],
         webOrigin
       );
       return;

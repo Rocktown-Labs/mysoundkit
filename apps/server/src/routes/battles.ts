@@ -735,7 +735,8 @@ app.openapi(
     }
 
     const { genre, q } = c.req.valid("query"),
-      searchPattern = `%${q.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`,
+      normalizedQuery = q.replace(/^@+/u, ""),
+      searchPattern = `%${normalizedQuery.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`,
       candidates = await createDb()
         .select({
           genre: genres.slug,
@@ -752,7 +753,7 @@ app.openapi(
         .where(
           and(
             eq(userProfiles.accountType, "artist"),
-            q
+            normalizedQuery
               ? or(
                   ilike(userProfiles.displayName, searchPattern),
                   ilike(userProfiles.username, searchPattern)

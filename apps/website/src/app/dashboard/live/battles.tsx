@@ -287,9 +287,10 @@ function BattleHubPage() {
         form = new FormData(formElement),
         opponent =
           targetUsername.trim() ||
-          String(form.get("opponentUsername") ?? "").trim();
+          String(form.get("opponentUsername") ?? "").trim(),
+        normalizedOpponent = opponent.replace(/^@+/u, "");
 
-      if (!opponent) {
+      if (!normalizedOpponent) {
         toast({
           description: "Choose or search for an artist to challenge.",
           title: "Opponent Required",
@@ -328,7 +329,7 @@ function BattleHubPage() {
           genre: selectedGenre,
           id: crypto.randomUUID(),
           message: message || null,
-          opponentUsername: opponent.replace(/^@/u, ""),
+          opponentUsername: normalizedOpponent,
           proposedDate: proposedDate || null,
           proposedTimeLabel: proposedTimeLabel || null,
           status: "pending" as const,
@@ -337,7 +338,7 @@ function BattleHubPage() {
       if (selectedBattleKitId) {
         rememberBattleKitSelection({
           kitId: selectedBattleKitId,
-          opponentUsername: opponent.replace(/^@/u, "").toLowerCase(),
+          opponentUsername: normalizedOpponent.toLowerCase(),
         });
       }
 
@@ -349,14 +350,14 @@ function BattleHubPage() {
               format,
               genre: selectedGenre,
               message,
-              opponentUsername: opponent,
+              opponentUsername: normalizedOpponent,
               proposedDate,
               proposedTimeLabel,
             },
             optimistic,
           }).isPersisted.promise;
           toast({
-            description: `Battle challenge request sent to @${opponent}.`,
+            description: `Battle challenge request sent to @${normalizedOpponent}.`,
             title: "Challenge Sent",
           });
           setTargetUsername("");
