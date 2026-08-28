@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   Check,
   Flag,
-  Hand,
   HelpCircle,
   LogOut,
   ShieldAlert,
@@ -81,12 +80,9 @@ export function BattleLifecycleControls({
   artists,
   compact = false,
   currentUserId,
-  hasSelectedKit,
   isAdmin,
   isArtist,
-  isReady,
   onDisposition,
-  onReady,
   pending,
   phase,
   readyArtistUserIds,
@@ -95,12 +91,9 @@ export function BattleLifecycleControls({
   artists: [LiveRoomArtist, LiveRoomArtist];
   compact?: boolean;
   currentUserId?: string;
-  hasSelectedKit: boolean;
   isAdmin: boolean;
   isArtist: boolean;
-  isReady: boolean;
   onDisposition: (disposition: Disposition) => Promise<void>;
-  onReady: (ready: boolean) => Promise<void>;
   pending: boolean;
   phase: string;
   readyArtistUserIds: string[];
@@ -293,23 +286,6 @@ export function BattleLifecycleControls({
               )}
 
               <div className="flex flex-wrap gap-2 sm:ml-auto">
-                {isArtist && isReadinessPhase && (
-                  <Button
-                    className="gap-1.5"
-                    disabled={pending || (!hasSelectedKit && !isReady)}
-                    onClick={() => void onReady(!isReady)}
-                    size="sm"
-                    type="button"
-                    variant={isReady ? "secondary" : "default"}
-                  >
-                    <Hand className="size-3.5" />
-                    {isReady
-                      ? "Not ready"
-                      : (hasSelectedKit
-                        ? "I’m ready"
-                        : "Select kit first")}
-                  </Button>
-                )}
                 {canCancel && (
                   <Button
                     className="gap-1.5"

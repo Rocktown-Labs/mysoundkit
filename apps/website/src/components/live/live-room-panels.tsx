@@ -33,6 +33,7 @@ import type { UserPreviewData } from "./user-profile-preview-modal";
 const EMPTY_ARTIST_USER_IDS: string[] = [];
 
 interface LiveChatPanelProps {
+  artistAvatarUrls?: Record<string, string | null>;
   artistUserIds?: string[];
   className?: string;
   disabled?: boolean;
@@ -45,6 +46,7 @@ interface LiveChatPanelProps {
 }
 
 export function LiveChatPanel({
+  artistAvatarUrls = {},
   artistUserIds = EMPTY_ARTIST_USER_IDS,
   className = "",
   disabled,
@@ -125,6 +127,7 @@ export function LiveChatPanel({
                     )}
                     {messages.map((chatMessage) => {
                       const isMe =
+                          chatMessage.userId === meUser?.id ||
                           chatMessage.userName.toLowerCase() === "you" ||
                           chatMessage.userName === meUser?.displayName ||
                           chatMessage.userName === meProfile?.displayName,
@@ -146,7 +149,11 @@ export function LiveChatPanel({
                           ? (meProfile?.avatarUrl ??
                             meUser?.avatarUrl ??
                             "/soundkit-default-avatar.svg")
-                          : "/soundkit-default-avatar.svg",
+                          : (chatMessage.avatarUrl ??
+                            (chatMessage.userId
+                              ? artistAvatarUrls[chatMessage.userId]
+                              : null) ??
+                            "/soundkit-default-avatar.svg"),
                         handleOpenProfile = () => {
                           if (isMe && meUser) {
                             setPreviewUser({
@@ -173,7 +180,7 @@ export function LiveChatPanel({
                             });
                           } else {
                             setPreviewUser({
-                              avatarUrl: "/soundkit-default-avatar.svg",
+                              avatarUrl: userAvatar,
                               displayName: chatMessage.userName,
                               role: isHost
                                 ? "Host & Creator"
@@ -194,11 +201,11 @@ export function LiveChatPanel({
                           scrollAnchor={isMe}
                         >
                           <div
-                            className={`group flex items-start gap-2.5 rounded-md p-1.5 transition-colors hover:bg-muted/40 ${
+                            className={`group flex items-start gap-2.5 rounded-lg p-1.5 transition-colors hover:bg-muted/40 ${
                               isBot
                                 ? "bg-purple-600 text-white hover:bg-purple-600"
                                 : isArtistMessage
-                                  ? "border-l-2 border-amber-400/80 bg-amber-400/10"
+                                  ? "bg-amber-400/15"
                                   : ""
                             }`}
                           >
@@ -234,7 +241,7 @@ export function LiveChatPanel({
                                     isBot
                                       ? "text-white hover:text-white"
                                       : isArtistMessage
-                                        ? "text-amber-300 hover:text-amber-200"
+                                        ? "text-white hover:text-white"
                                         : "text-foreground hover:text-primary"
                                   }`}
                                   onClick={handleOpenProfile}
@@ -252,7 +259,7 @@ export function LiveChatPanel({
                                 </span>
                               </div>
                               <p
-                                className={`mt-0.5 break-words leading-relaxed ${isBot ? "text-white" : "text-muted-foreground/90"}`}
+                                className={`mt-0.5 break-words leading-relaxed ${isBot || isArtistMessage ? "font-semibold text-white" : "text-muted-foreground/90"}`}
                               >
                                 {chatMessage.message}
                               </p>

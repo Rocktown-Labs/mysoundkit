@@ -12,6 +12,7 @@ export type LiveRoomViewerRole =
   | "host";
 
 export interface LiveRoomChatMessage {
+  avatarUrl?: string | null;
   chatScope?: "battle" | "waiting_room";
   id: string;
   message: string;
@@ -72,6 +73,7 @@ export interface LiveRoomState {
     chatStarted?: boolean;
     coordination?: {
       activeArtistUserId: string | null;
+      artistPresentUserIds?: string[];
       artistReadyUserIds?: string[];
       battleId: string;
       format: "best_of_3" | "best_of_5" | "best_of_7";
