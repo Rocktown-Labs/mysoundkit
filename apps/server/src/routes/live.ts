@@ -52,7 +52,10 @@ import {
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreSlug } from "@/lib/genre-catalog";
-import { createBattleCoordination } from "@/lib/live-battle-state";
+import {
+  createBattleCoordination,
+  isBattleTerminalState,
+} from "@/lib/live-battle-state";
 import type {
   BattleCancellationReason,
   BattleOutcomeKind,
@@ -846,9 +849,9 @@ const badRequest = (message: string) => ({
       status =
         battle.status === "live"
           ? "live"
-          : (battle.status === "completed"
+          : battle.status === "completed"
             ? "ended"
-            : "scheduled"),
+            : "scheduled",
       startsAt = (battle.startsAt ?? battle.createdAt).toISOString(),
       [createdExperience] = await db
         .insert(liveExperiences)
@@ -1635,9 +1638,9 @@ const badRequest = (message: string) => ({
       status:
         battle.status === "completed" || battle.status === "archived"
           ? "ended"
-          : (battle.status === "live"
+          : battle.status === "live"
             ? "live"
-            : "upcoming"),
+            : "upcoming",
       summary:
         "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
       title: resolveArtistBattleTitle(battle.title, battle.genre ?? "Hip Hop"),
@@ -1762,16 +1765,16 @@ const badRequest = (message: string) => ({
     const roomStatus: LiveRoomState["status"] =
       experience.status === "ended"
         ? "ended"
-        : (experience.status === "live"
+        : experience.status === "live"
           ? "live"
-          : "upcoming");
+          : "upcoming";
 
     const summary =
       experience.kind === "stream"
         ? `Live creator broadcast by ${hostName} on SoundKit.`
-        : (experience.kind === "party"
+        : experience.kind === "party"
           ? `Live listening party hosted by ${hostName}.`
-          : `Live event on SoundKit.`);
+          : `Live event on SoundKit.`;
 
     return {
       chat: [],
@@ -1814,9 +1817,9 @@ const badRequest = (message: string) => ({
               reconnectUntil: experience.reconnectUntil?.getTime() ?? null,
               replayStatus: experience.replayPublishedAt
                 ? "available"
-                : (experience.recordingStatus
+                : experience.recordingStatus
                   ? "processing"
-                  : "none"),
+                  : "none",
             }
           : undefined,
       summary,
@@ -1933,9 +1936,9 @@ const badRequest = (message: string) => ({
       party.status === "canceled" ||
       party.experienceStatus === "ended"
         ? "ended"
-        : (party.status === "live" || party.experienceStatus === "live"
+        : party.status === "live" || party.experienceStatus === "live"
           ? "live"
-          : "upcoming");
+          : "upcoming";
 
     return {
       chat: [],
@@ -2304,9 +2307,9 @@ const buildCreateExperienceResponse = ({
       body.source === "obs" &&
       body.scheduleMode === "asap"
         ? "waiting_for_ingest"
-        : (body.scheduleMode === "asap"
+        : body.scheduleMode === "asap"
           ? "ready"
-          : "scheduled"),
+          : "scheduled",
     title: body.title.trim(),
     visibility: body.visibility,
   },
@@ -2319,9 +2322,9 @@ const buildCreateExperienceResponse = ({
       body.source === "obs" &&
       body.scheduleMode === "asap"
         ? "scheduled"
-        : (body.scheduleMode === "asap"
+        : body.scheduleMode === "asap"
           ? "live"
-          : "scheduled"),
+          : "scheduled",
   },
   notifications: buildNotificationFanout({
     experienceId,
@@ -2516,6 +2519,7 @@ app.post("/experiences/:experienceId/join", async (c) => {
             challengerArtistUserId: battles.challengerArtistUserId,
             format: battles.format,
             opponentArtistUserId: battles.opponentArtistUserId,
+            status: battles.status,
           })
           .from(battles)
           .where(eq(battles.id, experience.battleId))
@@ -2529,9 +2533,9 @@ app.post("/experiences/:experienceId/join", async (c) => {
       participantRole =
         battleRole === "artist_a" || battleRole === "artist_b"
           ? "artist"
-          : (battleRole === "admin"
+          : battleRole === "admin"
             ? "host"
-            : "listener");
+            : "listener";
       if (participantRole === "artist") {
         const [lineup] = await createDb()
           .select({ format: battleLineupSnapshots.format })
@@ -2556,6 +2560,20 @@ app.post("/experiences/:experienceId/join", async (c) => {
       const battleRoom = await getDurableRoomState(c, experienceId).catch(
         () => null
       );
+      if (
+        battle?.status === "completed" ||
+        battle?.status === "archived" ||
+        battleRoom?.status === "ended" ||
+        battleRoom?.battle?.coordination?.phase === "ended"
+      ) {
+        return c.json(
+          {
+            message:
+              "This battle has ended. The result is available to view, but the room cannot be re-entered.",
+          },
+          HttpStatusCodes.CONFLICT
+        );
+      }
       activeArtistUserId =
         battleRoom?.battle?.coordination?.activeArtistUserId ?? null;
       const battlePhase = battleMediaPhase(
@@ -2666,7 +2684,37 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
     experience = await loadLiveExperienceById(experienceId),
     battleId = experience?.battleId ?? experienceId,
     botAction = parseResult.data.action as LiveRoomBattleBotAction,
-    liveRooms = c.env.LIVE_ROOMS,
+    liveRooms = c.env.LIVE_ROOMS;
+
+  if (isDatabaseConfigured()) {
+    const db = createDb(),
+      [battle] = await db
+        .select({ status: battles.status })
+        .from(battles)
+        .where(
+          or(
+            eq(battles.id, battleId),
+            eq(battles.externalBattleId, battleId),
+            eq(battles.externalBattleId, experienceId)
+          )
+        )
+        .limit(1);
+    if (isBattleTerminalState({ status: battle?.status })) {
+      return c.json(
+        {
+          message:
+            "This battle has ended. BattleBot cannot reopen or change the room.",
+        },
+        HttpStatusCodes.CONFLICT
+      );
+    }
+  }
+
+  const roomState = liveRooms
+      ? await retryDurableObjectCall(() =>
+          liveRooms.getByName(experienceId).getState(experienceId)
+        )
+      : null,
     preflightRoom =
       liveRooms &&
       (botAction === "start_battle" || botAction === "move_lobby_to_round")
@@ -2676,6 +2724,20 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
               .announceBattleBotAction(experienceId, botAction)
           )
         : null;
+  if (
+    roomState?.status === "ended" ||
+    roomState?.battle?.coordination?.phase === "ended" ||
+    preflightRoom?.status === "ended" ||
+    preflightRoom?.battle?.coordination?.phase === "ended"
+  ) {
+    return c.json(
+      {
+        message:
+          "This battle has ended. BattleBot cannot reopen or change the room.",
+      },
+      HttpStatusCodes.CONFLICT
+    );
+  }
   if (preflightRoom?.battle?.coordination?.phase === "waiting_room") {
     return c.json(
       {
@@ -2690,6 +2752,15 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
     battleId,
     participants: parseResult.data.participants,
   });
+  if (result.battleEnded) {
+    return c.json(
+      {
+        message:
+          "This battle has ended. BattleBot cannot reopen or change the room.",
+      },
+      HttpStatusCodes.CONFLICT
+    );
+  }
   if (liveRooms && !preflightRoom) {
     await retryDurableObjectCall(() =>
       liveRooms
@@ -2738,11 +2809,37 @@ app.post("/rooms/:roomId/battle/ready", async (c) => {
   try {
     const roomId = c.req.param("roomId"),
       identity = await resolveLiveRoomIdentity(c, roomId),
-      room = await c.env.LIVE_ROOMS.getByName(roomId).setArtistReady(
-        roomId,
-        identity,
-        parsed.data.ready
-      );
+      experience = await loadLiveExperienceById(roomId),
+      battleId = experience?.battleId ?? roomId;
+
+    if (isDatabaseConfigured()) {
+      const db = createDb(),
+        [battle] = await db
+          .select({ status: battles.status })
+          .from(battles)
+          .where(
+            or(
+              eq(battles.id, battleId),
+              eq(battles.externalBattleId, battleId),
+              eq(battles.externalBattleId, roomId)
+            )
+          )
+          .limit(1);
+      if (isBattleTerminalState({ status: battle?.status })) {
+        return c.json(
+          {
+            message: "This battle has ended. The artist room is now read-only.",
+          },
+          HttpStatusCodes.CONFLICT
+        );
+      }
+    }
+
+    const room = await c.env.LIVE_ROOMS.getByName(roomId).setArtistReady(
+      roomId,
+      identity,
+      parsed.data.ready
+    );
     if (
       isDatabaseConfigured() &&
       room.battle?.coordination?.phase === "round_intro"
@@ -2826,6 +2923,30 @@ app.post("/rooms/:roomId/battle/disposition", async (c) => {
     disposition = parsed.data as LiveRoomBattleDisposition,
     experience = await loadLiveExperienceById(roomId),
     battleId = experience?.battleId ?? roomId;
+
+  if (isDatabaseConfigured()) {
+    const db = createDb(),
+      [battle] = await db
+        .select({ status: battles.status })
+        .from(battles)
+        .where(
+          or(
+            eq(battles.id, battleId),
+            eq(battles.externalBattleId, battleId),
+            eq(battles.externalBattleId, roomId)
+          )
+        )
+        .limit(1);
+    if (isBattleTerminalState({ status: battle?.status })) {
+      return c.json(
+        {
+          message: "This battle has ended and its result is already locked.",
+        },
+        HttpStatusCodes.CONFLICT
+      );
+    }
+  }
+
   try {
     const audienceUserIds = await retryDurableObjectCall(() =>
         liveRooms.getByName(roomId).getBattleAudienceUserIds(roomId)
@@ -3003,6 +3124,21 @@ app.post("/rooms/:roomId/battle/kit", async (c) => {
     );
   }
 
+  const roomState = await c.env.LIVE_ROOMS?.getByName(roomId)
+    .getState(roomId)
+    .catch(() => null);
+  if (
+    roomState?.status === "ended" ||
+    roomState?.battle?.coordination?.phase === "ended"
+  ) {
+    return c.json(
+      {
+        message: "This battle has ended. The artist room is now read-only.",
+      },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+
   const role = resolveBattleArtistRole({
     challengerArtistUserId: battle.challengerArtistUserId,
     opponentArtistUserId: battle.opponentArtistUserId,
@@ -3164,6 +3300,32 @@ app.post("/rooms/:roomId/battle/track", async (c) => {
   const roomId = c.req.param("roomId"),
     body = (await c.req.json().catch(() => ({}))) as { trackId?: string },
     identity = await resolveLiveRoomIdentity(c, roomId);
+
+  if (isDatabaseConfigured()) {
+    const experience = await loadLiveExperienceById(roomId),
+      battleId = experience?.battleId ?? roomId,
+      db = createDb(),
+      [battle] = await db
+        .select({ status: battles.status })
+        .from(battles)
+        .where(
+          or(
+            eq(battles.id, battleId),
+            eq(battles.externalBattleId, battleId),
+            eq(battles.externalBattleId, roomId)
+          )
+        )
+        .limit(1);
+    if (isBattleTerminalState({ status: battle?.status })) {
+      return c.json(
+        {
+          message: "This battle has ended. The artist room is now read-only.",
+        },
+        HttpStatusCodes.CONFLICT
+      );
+    }
+  }
+
   if (
     !body.trackId ||
     !(identity.role === "artist_a" || identity.role === "artist_b")
@@ -3225,9 +3387,9 @@ app.post("/rooms/:roomId/party/playback", async (c) => {
       roomId,
       body.type === "track_changed"
         ? { trackId: body.trackId ?? "", type: body.type }
-        : (body.type === "replay"
+        : body.type === "replay"
           ? { trackId: body.trackId, type: body.type }
-          : { type: body.type }),
+          : { type: body.type },
       identity
     );
     return c.json(room, HttpStatusCodes.OK);

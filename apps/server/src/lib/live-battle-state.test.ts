@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   advanceBattleToNow,
   createBattleCoordination,
+  isBattleTerminalState,
   phaseDuration,
   transitionBattle,
 } from "@/lib/live-battle-state";
@@ -86,6 +87,20 @@ const artists: [LiveRoomArtist, LiveRoomArtist] = [
       coordination,
     };
   };
+
+describe("battle terminal state", () => {
+  it("treats ended room and persisted battle statuses as terminal", () => {
+    expect(isBattleTerminalState({ phase: "ended", status: "live" })).toBe(
+      true
+    );
+    expect(
+      isBattleTerminalState({ phase: "voting", status: "completed" })
+    ).toBe(true);
+    expect(isBattleTerminalState({ phase: "voting", status: "live" })).toBe(
+      false
+    );
+  });
+});
 
 describe("live battle state machine", () => {
   it("cancels when both artists are not ready by the waiting-room deadline", () => {

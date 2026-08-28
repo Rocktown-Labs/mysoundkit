@@ -152,6 +152,18 @@ export const cancelBattleForNoShow = (
   },
 });
 
+export const isBattleTerminalState = ({
+  phase,
+  status,
+}: {
+  phase?: BattlePhase | null;
+  status?: string | null;
+}) =>
+  phase === "ended" ||
+  status === "ended" ||
+  status === "completed" ||
+  status === "archived";
+
 export const phaseDuration = (
   phase: BattlePhase,
   durations: BattleDurations

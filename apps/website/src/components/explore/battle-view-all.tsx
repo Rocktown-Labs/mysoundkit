@@ -395,16 +395,17 @@ export function BattleViewAll({
   }, [regionType, region, genre, sort]);
 
   const liveBattleSections = useMemo(() => {
-      const eligible = battleSummaries.filter(
-          (battle) =>
-            (battle.status === "live" || battle.status === "scheduled") &&
-            matchesSelectedGenre(battle, genre)
+      const eligible = battleSummaries.filter((battle) =>
+          matchesSelectedGenre(battle, genre)
+        ),
+        active = eligible.filter(
+          (battle) => battle.status === "live" || battle.status === "scheduled"
         ),
         live = sortedLiveBattles(
-          eligible.filter((battle) => battle.status === "live"),
+          active.filter((battle) => battle.status === "live"),
           sort
         ),
-        upcoming = eligible
+        upcoming = active
           .filter((battle) => battle.status === "scheduled")
           .toSorted((first, second) => {
             const firstTime = first.startsAt
@@ -417,19 +418,24 @@ export function BattleViewAll({
               ? secondTime - firstTime
               : firstTime - secondTime;
           }),
-        featured = eligible
+        featured = active
           .filter((battle) => battle.isFeatured)
           .toSorted(
             (first, second) =>
               (first.featuredRank ?? Number.MAX_SAFE_INTEGER) -
               (second.featuredRank ?? Number.MAX_SAFE_INTEGER)
           ),
-        byGenre = groupBattlesByGenre(eligible, genres).filter(
+        completed = eligible.filter(
+          (battle) =>
+            battle.status === "completed" || battle.status === "archived"
+        ),
+        byGenre = groupBattlesByGenre(active, genres).filter(
           (section) => section.battles.length > 0
         );
 
       return {
         byGenre,
+        completed,
         featured,
         live,
         total: eligible.length,
@@ -476,6 +482,14 @@ export function BattleViewAll({
             isPremiumUser={isPremiumUser}
             showViewAll={false}
             title="Live Now"
+          />
+          <BattleRail
+            battles={liveBattleSections.completed}
+            emptyMessage="No completed battle results yet."
+            hideWhenEmpty
+            isPremiumUser={isPremiumUser}
+            showViewAll={false}
+            title="Recent Results"
           />
           {liveBattleSections.byGenre.map((section) => (
             <BattleRail

@@ -8,6 +8,7 @@ import {
   battleArtistsArePresent,
   battleArtistsAreReady,
   createBattleCoordination,
+  isBattleTerminalState,
   isVotingPhase,
   PRODUCTION_BATTLE_DURATIONS,
 } from "@/lib/live-battle-state";
@@ -94,6 +95,12 @@ const BATTLE_BOT_USER_ID = "soundkit-battlebot",
       leftValues.every((value, index) => value === rightValues[index])
     );
   },
+  isEndedBattleRoom = (room: LiveRoomState) =>
+    room.kind === "battle" &&
+    isBattleTerminalState({
+      phase: room.battle?.coordination?.phase,
+      status: room.status,
+    }),
   battleBotMessageForPhase = (room: LiveRoomState, phase: BattlePhase) => {
     const artists = room.battle?.artists ?? [],
       activeArtist = artists.find(
@@ -141,7 +148,13 @@ const BATTLE_BOT_USER_ID = "soundkit-battlebot",
         if (outcome) {
           return null;
         }
-        return "Battle complete. Thanks for watching — the replay will be available when processing finishes.";
+
+        const winner = room.battle?.artists.find(
+          (artist) => artist.id === room.battle?.coordination?.winnerUserId
+        );
+        return winner
+          ? `BattleBot: ${winner.name} won the battle. The final result is locked, and this room is now read-only.`
+          : "BattleBot: The battle is complete and ended in a tie. The final result is locked, and this room is now read-only.";
       }
       default: {
         return null;
@@ -223,7 +236,8 @@ export class LiveRoomDurableObject extends DurableObject {
           !storedState ||
           storedState.id !== room.id ||
           storedState.kind !== room.kind ||
-          storedState.title !== room.title;
+          storedState.title !== room.title ||
+          (isEndedBattleRoom(room) && !isEndedBattleRoom(storedState));
 
       if (shouldReplaceStoredState) {
         await this.persist(room);
@@ -487,14 +501,18 @@ export class LiveRoomDurableObject extends DurableObject {
         await this.ctx.storage.get<LiveRoomState>(STATE_STORAGE_KEY);
     let roomToPersist = room;
     const shouldRepairBattleRounds =
-      storedState &&
-      room.kind === "battle" &&
-      room.battle &&
-      room.battle.rounds.length > 0 &&
-      (!storedState.battle || storedState.battle.rounds.length === 0);
+        storedState &&
+        room.kind === "battle" &&
+        room.battle &&
+        room.battle.rounds.length > 0 &&
+        (!storedState.battle || storedState.battle.rounds.length === 0),
+      shouldRepairTerminalState =
+        isEndedBattleRoom(room) &&
+        (!storedState || !isEndedBattleRoom(storedState));
 
     if (
       shouldRepairBattleRounds &&
+      !shouldRepairTerminalState &&
       storedState?.battle &&
       room.kind === "battle" &&
       room.battle
@@ -519,7 +537,8 @@ export class LiveRoomDurableObject extends DurableObject {
       storedState.id !== roomToPersist.id ||
       storedState.kind !== roomToPersist.kind ||
       storedState.title !== roomToPersist.title ||
-      shouldRepairBattleRounds;
+      shouldRepairBattleRounds ||
+      shouldRepairTerminalState;
 
     if (!shouldReplaceStoredState) {
       return {
@@ -733,11 +752,7 @@ export class LiveRoomDurableObject extends DurableObject {
     await this.persist(nextRoom);
     const announcedRoom = await this.appendBotChatMessage(
       nextRoom,
-      `BattleBot: ${outcomeLabel} ${
-        disposition.reason === "ducked"
-          ? "No ratings were changed."
-          : "No battle rating was recorded."
-      }`
+      `BattleBot: ${outcomeLabel} The room is now closed. No new turns, votes, or lineup changes are available.`
     );
     await this.broadcastStateChange(room, announcedRoom);
     return this.publicState(announcedRoom, identity);
@@ -750,6 +765,9 @@ export class LiveRoomDurableObject extends DurableObject {
     this.requestedRoomId = roomId;
     const room = await this.loadState();
     if (!(room.kind === "battle" && room.battle?.coordination)) {
+      return this.publicState(room);
+    }
+    if (isEndedBattleRoom(room)) {
       return this.publicState(room);
     }
 
@@ -836,6 +854,11 @@ export class LiveRoomDurableObject extends DurableObject {
     if (!(room.kind === "battle" && room.battle?.coordination)) {
       throw new Error("Battle kit selection is not available in this room.");
     }
+    if (isEndedBattleRoom(room)) {
+      throw new Error(
+        "This battle has ended. The artist room is now read-only."
+      );
+    }
 
     const artist = room.battle.artists.find((entry) => entry.id === userId);
     if (!artist) {
@@ -876,6 +899,11 @@ export class LiveRoomDurableObject extends DurableObject {
     const room = await this.loadState();
     if (!(room.kind === "battle" && room.battle?.coordination)) {
       throw new Error("Battle controls are not available in this room.");
+    }
+    if (isEndedBattleRoom(room)) {
+      throw new Error(
+        "This battle has ended. The artist room is now read-only."
+      );
     }
 
     const artist = room.battle.artists.find(
@@ -1390,6 +1418,7 @@ export class LiveRoomDurableObject extends DurableObject {
 
     if (
       identity &&
+      !isEndedBattleRoom(room) &&
       (role === "artist_a" || role === "artist_b") &&
       room.battle?.artistControlsByUserId?.[identity.userId]
     ) {
