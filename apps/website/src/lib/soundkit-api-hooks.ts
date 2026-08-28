@@ -2472,10 +2472,11 @@ export const useVideoQuery = (videoId: string) =>
 
 export const useVideoAnalyticsQuery = (
   videoId: string,
-  range: "7d" | "28d" | "90d" | "12m" = "28d"
+  range: "7d" | "28d" | "90d" | "12m" = "28d",
+  enabled = true
 ) =>
   useQuery({
-    enabled: videoId.length > 0,
+    enabled: enabled && videoId.length > 0,
     queryFn: async (): Promise<VideoAnalytics> =>
       rpcJson(
         await videoAnalyticsGet({ param: { videoId }, query: { range } })

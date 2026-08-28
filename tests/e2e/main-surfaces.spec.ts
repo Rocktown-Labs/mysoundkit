@@ -431,6 +431,104 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("Arkansas, USA")).toBeVisible();
   });
 
+  test("external video analytics explains unavailable playback milestones", async ({
+    context,
+    page,
+  }) => {
+    const analyticsRequests = [];
+    page.on("request", (request) => {
+      if (
+        request.url().includes("/v1/videos/video_all_votes_matter/analytics")
+      ) {
+        analyticsRequests.push(request.url());
+      }
+    });
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/videos");
+    await page
+      .getByRole("link", { exact: true, name: "All Votes Matter" })
+      .click();
+
+    await expect(page).toHaveURL(
+      /\/dashboard\/videos\/video_all_votes_matter$/
+    );
+    await expect(
+      page.getByRole("heading", { exact: true, name: "All Votes Matter" })
+    ).toBeVisible();
+    await expect(page.getByText("External source analytics")).toBeVisible();
+    await expect(
+      page.getByText(
+        /external players do not send reliable playback milestones/i
+      )
+    ).toBeVisible();
+    await expect
+      .poll(() => analyticsRequests.length, {
+        message: "external videos should not request first-party analytics",
+      })
+      .toBe(0);
+  });
+
+  test("hosted video analytics exposes a retryable failure", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    let shouldFail = true;
+    await page.route(
+      "**/v1/videos/video_midnight_vibes_mv/analytics*",
+      async (route) => {
+        if (!shouldFail) {
+          await route.continue();
+          return;
+        }
+
+        await route.fulfill({
+          body: JSON.stringify({
+            code: "service_unavailable",
+            message: "Analytics backend is warming up.",
+          }),
+          contentType: "application/json",
+          status: 503,
+        });
+      }
+    );
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/videos");
+    await page
+      .getByRole("link", { exact: true, name: "Midnight Vibes" })
+      .click();
+
+    await expect(
+      page.getByText("Analytics are temporarily unavailable.")
+    ).toBeVisible();
+    await expect(
+      page.getByText("Analytics backend is warming up.")
+    ).toBeVisible();
+
+    shouldFail = false;
+    await page.getByRole("button", { name: "Retry analytics" }).click();
+    await expect(page.getByText("Arkansas, USA")).toBeVisible();
+  });
+
   test("explore collection routes support shared all-results views", async ({
     page,
   }) => {
