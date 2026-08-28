@@ -137,7 +137,7 @@ export type NotificationEvent = NotificationEventBase &
           videoId: string;
           videoTitle: string;
         };
-        type: "video.comment.created";
+        type: "video.comment.created" | "video.comment.mentioned";
       }
     | {
         data: {
@@ -654,6 +654,26 @@ export const defineNotificationEvent = (
           message: `${event.data.actorName} commented: “${messagePreview(event.data.commentPreview)}”`,
           title: "New comment",
           type: "video_comment",
+        },
+        preference: "comments",
+      };
+    }
+    case "video.comment.mentioned": {
+      return {
+        channels: { email: "immediate", inApp: true },
+        email: {
+          body: `${event.data.actorName} mentioned you in a comment on ${event.data.videoTitle}: “${messagePreview(event.data.commentPreview)}”`,
+          ctaLabel: "View mention",
+          eyebrow: "You were mentioned",
+          heading: `${event.data.actorName} mentioned you`,
+          previewText: `${event.data.actorName} mentioned you in a comment on ${event.data.videoTitle}.`,
+          subject: `${event.data.actorName} mentioned you on SoundKit`,
+        },
+        inApp: {
+          link: `/videos/${event.data.videoId}#comments`,
+          message: `${event.data.actorName} mentioned you: “${messagePreview(event.data.commentPreview)}”`,
+          title: "You were mentioned",
+          type: "video_mention",
         },
         preference: "comments",
       };

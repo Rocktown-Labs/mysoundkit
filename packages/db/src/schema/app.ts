@@ -1628,6 +1628,7 @@ export const videoComments = pgTable(
     body: text("body").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     id: text("id").primaryKey(),
+    parentCommentId: text("parent_comment_id"),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -1635,7 +1636,13 @@ export const videoComments = pgTable(
       .notNull()
       .references(() => videos.id, { onDelete: "cascade" }),
   },
-  (table) => [index("video_comments_video_id_idx").on(table.videoId)]
+  (table) => [
+    index("video_comments_video_id_idx").on(table.videoId),
+    index("video_comments_video_parent_idx").on(
+      table.videoId,
+      table.parentCommentId
+    ),
+  ]
 );
 
 export const muxAssets = pgTable(

@@ -75,6 +75,18 @@ const normalizeGenre = (value) =>
 
     return null;
   },
+  mockVideoComments = [
+    {
+      authorAvatarUrl: "/soundkit-default-avatar.svg",
+      authorName: "MusicFan99",
+      authorUsername: "musicfan99",
+      body: "Incredible production quality!",
+      createdAt: "2026-05-26T12:00:00.000Z",
+      id: "comment-1",
+      parentCommentId: null,
+      userId: "user_other_artist",
+    },
+  ],
   liveRoom = (roomId, session) => {
     const isBattle = roomId.includes("battle"),
       isStream = roomId.includes("stream"),
@@ -1203,18 +1215,65 @@ export const createMockApiServer = async ({
       /^\/v1\/videos\/([^/]+)\/comments$/
     );
     if (videoCommentsMatch) {
+      if (request.method === "GET") {
+        json(response, 200, mockVideoComments, webOrigin);
+        return;
+      }
+      if (request.method === "POST") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            parent = body.parentCommentId
+              ? mockVideoComments.find(
+                  (comment) => comment.id === body.parentCommentId
+                )
+              : null;
+          if (body.parentCommentId && !parent) {
+            json(
+              response,
+              400,
+              { message: "The comment you are replying to does not exist." },
+              webOrigin
+            );
+            return;
+          }
+          const comment = {
+            authorAvatarUrl: "/summer-music-album-cover.webp",
+            authorName: "Complete Artist",
+            authorUsername: "complete_artist",
+            body: body.body,
+            createdAt: new Date().toISOString(),
+            id: body.clientCommentId ?? `mock-comment-${Date.now()}`,
+            parentCommentId: body.parentCommentId ?? null,
+            userId: "user_complete",
+          };
+          mockVideoComments.push(comment);
+          json(response, 201, comment, webOrigin);
+        });
+        return;
+      }
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/messages/people") {
+      const query = (url.searchParams.get("q") ?? "").toLowerCase();
       json(
         response,
         200,
-        [
-          {
-            authorAvatarUrl: "/soundkit-default-avatar.svg",
-            authorName: "MusicFan99",
-            body: "Incredible production quality!",
-            createdAt: "2026-05-26T12:00:00.000Z",
-            id: "comment-1",
-          },
-        ],
+        "musicfan99".startsWith(query) || query.includes("fan")
+          ? [
+              {
+                avatarUrl: "/soundkit-default-avatar.svg",
+                displayName: "Music Fan",
+                email: null,
+                stageName: null,
+                userId: "user_other_artist",
+                username: "musicfan99",
+              },
+            ]
+          : [],
         webOrigin
       );
       return;

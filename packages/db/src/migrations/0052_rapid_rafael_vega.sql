@@ -1,0 +1,2 @@
+ALTER TABLE "video_comments" ADD COLUMN "parent_comment_id" text;--> statement-breakpoint
+CREATE INDEX "video_comments_video_parent_idx" ON "video_comments" USING btree ("video_id","parent_comment_id");

@@ -348,7 +348,9 @@ test.describe("main application surfaces", () => {
 
     await gotoWithViteRetry(page, "/communities/community_luna");
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText("Join Luna Eclipse Circle?")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("Join Luna Eclipse Circle?")).toBeVisible({
+      timeout: 60_000,
+    });
     await page.getByRole("button", { name: "Join for free" }).click();
     await expect(page.getByRole("dialog")).toBeHidden({ timeout: 60_000 });
     await expect(
@@ -664,7 +666,9 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("To: @stale-artist")).toHaveCount(0);
 
     await page.getByLabel("Opponent").fill("@new-opponent");
-    await expect(page.getByText("@new-opponent", { exact: false })).toBeVisible();
+    await expect(
+      page.getByText("@new-opponent", { exact: false })
+    ).toBeVisible();
     await page.getByLabel("Date").fill("2026-09-30");
     await page.getByLabel("Time").fill("20:00");
     await page.getByRole("button", { name: "Send Battle Request" }).click();
@@ -802,6 +806,48 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { name: /the pulse of soundkit/i })
     ).toBeVisible();
+  });
+
+  test("video comments support mentions and nested replies", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/videos/video-1");
+    await expect(page.getByText("Comments & Chat").first()).toBeVisible({
+      timeout: 60_000,
+    });
+    const commentInput = page.getByRole("textbox", {
+      name: "Write a comment",
+    });
+    await commentInput.fill("Great work @mu");
+    await expect(
+      page.getByRole("button", { name: /Music Fan\s*@musicfan99/i })
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: /Music Fan\s*@musicfan99/i })
+      .click();
+    await expect(commentInput).toHaveValue("Great work @musicfan99 ");
+    await commentInput.fill("Great work @musicfan99");
+    await commentInput.press("Enter");
+    await expect(page.getByText("Great work @musicfan99")).toBeVisible();
+
+    await page.getByRole("button", { name: "Reply" }).first().click();
+    const replyInput = page.getByRole("textbox", { name: "Write a reply" });
+    await expect(page.getByText(/Replying to/)).toBeVisible();
+    await replyInput.fill("Thanks for listening!");
+    await replyInput.press("Enter");
+    await expect(page.getByText("Thanks for listening!")).toBeVisible();
   });
 
   test("assigned artists are notified and routed to their live battle room", async ({
