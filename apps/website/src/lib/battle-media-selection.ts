@@ -7,6 +7,34 @@ export interface BattleMediaDeviceSelection {
   videoDeviceId: string;
 }
 
+export interface AvailableBattleMediaDevice {
+  deviceId: string;
+  kind: string;
+}
+
+export const resolveBattleMediaDeviceSelection = (
+  devices: AvailableBattleMediaDevice[],
+  preferred: Partial<BattleMediaDeviceSelection> = {}
+): BattleMediaDeviceSelection => {
+  const firstDeviceId = (kind: AvailableBattleMediaDevice["kind"]) =>
+    devices.find((device) => device.kind === kind)?.deviceId ?? "";
+
+  return {
+    audioDeviceId:
+      devices.find(
+        (device) =>
+          device.kind === "audioinput" &&
+          device.deviceId === preferred.audioDeviceId
+      )?.deviceId ?? firstDeviceId("audioinput"),
+    videoDeviceId:
+      devices.find(
+        (device) =>
+          device.kind === "videoinput" &&
+          device.deviceId === preferred.videoDeviceId
+      )?.deviceId ?? firstDeviceId("videoinput"),
+  };
+};
+
 const isBattleMediaDeviceSelection = (
   value: unknown
 ): value is BattleMediaDeviceSelection => {

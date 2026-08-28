@@ -74,6 +74,7 @@ import type { BattleMediaDeviceSelection } from "@/lib/battle-media-selection";
 import {
   readBattleMediaDeviceSelection,
   rememberBattleMediaDeviceSelection,
+  resolveBattleMediaDeviceSelection,
 } from "@/lib/battle-media-selection";
 import {
   clearBattleReturnIntent,
@@ -444,18 +445,21 @@ function BattleDeviceSetup({
       let acquiredStream: MediaStream | null = null;
       try {
         const devicesBeforeRequest = await refreshDevices(),
-          validVideoDeviceId = devicesBeforeRequest.some(
-            (device) =>
-              device.kind === "videoinput" && device.deviceId === videoDeviceId
-          )
-            ? videoDeviceId
-            : "",
-          validAudioDeviceId = devicesBeforeRequest.some(
-            (device) =>
-              device.kind === "audioinput" && device.deviceId === audioDeviceId
-          )
-            ? audioDeviceId
-            : "",
+          availableDeviceSelection = resolveBattleMediaDeviceSelection(
+            devicesBeforeRequest,
+            {
+              audioDeviceId,
+              videoDeviceId,
+            }
+          ),
+          validVideoDeviceId =
+            availableDeviceSelection.videoDeviceId === videoDeviceId
+              ? videoDeviceId
+              : "",
+          validAudioDeviceId =
+            availableDeviceSelection.audioDeviceId === audioDeviceId
+              ? audioDeviceId
+              : "",
           constraints = {
             audio: validAudioDeviceId
               ? { deviceId: { exact: validAudioDeviceId } }
@@ -489,16 +493,21 @@ function BattleDeviceSetup({
             stream.getVideoTracks()[0]?.getSettings().deviceId ?? "",
           streamAudioDeviceId =
             stream.getAudioTracks()[0]?.getSettings().deviceId ?? "",
+          refreshedDeviceSelection = resolveBattleMediaDeviceSelection(
+            devices,
+            {
+              audioDeviceId: validAudioDeviceId,
+              videoDeviceId: validVideoDeviceId,
+            }
+          ),
           nextVideoDevice =
             streamVideoDeviceId ||
             validVideoDeviceId ||
-            devices.find((device) => device.kind === "videoinput")?.deviceId ||
-            "",
+            refreshedDeviceSelection.videoDeviceId,
           nextAudioDevice =
             streamAudioDeviceId ||
             validAudioDeviceId ||
-            devices.find((device) => device.kind === "audioinput")?.deviceId ||
-            "",
+            refreshedDeviceSelection.audioDeviceId,
           selection = {
             audioDeviceId: nextAudioDevice,
             videoDeviceId: nextVideoDevice,
