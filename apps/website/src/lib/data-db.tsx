@@ -803,7 +803,6 @@ export const useDbBattleActions = () => {
         }>({
           mutationFn: async ({ body }) => {
             await rpcJson(await battleChallengePost({ json: body }));
-            await battleChallenges.utils.refetch();
           },
           onMutate: ({ optimistic }) => {
             battleChallenges.insert(optimistic);
@@ -824,10 +823,9 @@ export const useDbBattleActions = () => {
                 param: { challengeId },
               })
             );
-            await Promise.all([
-              battleChallenges.utils.refetch(),
-              battles.utils.refetch(),
-            ]);
+            if (status === "accepted") {
+              await battles.utils.refetch();
+            }
           },
           onMutate: ({ challengeId, status }) => {
             battleChallenges.update(challengeId, (draft) => {
@@ -844,7 +842,6 @@ export const useDbBattleActions = () => {
             await rpcJson(
               await battleChallengeDelete({ param: { challengeId } })
             );
-            await battleChallenges.utils.refetch();
           },
           onMutate: (challengeId) => {
             battleChallenges.delete(challengeId);
@@ -857,10 +854,7 @@ export const useDbBattleActions = () => {
         createOptimisticAction<string>({
           mutationFn: async (battleId) => {
             await rpcJson(await battleDelete({ param: { battleId } }));
-            await Promise.all([
-              battles.utils.refetch(),
-              battleChallenges.utils.refetch(),
-            ]);
+            await battleChallenges.utils.refetch();
           },
           onMutate: (battleId) => {
             battles.delete(battleId);
