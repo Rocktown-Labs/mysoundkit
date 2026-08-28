@@ -1019,9 +1019,9 @@ const badRequest = (message: string) => ({
           status:
             party.status === "live"
               ? "live"
-              : party.status === "ended" || party.status === "canceled"
+              : (party.status === "ended" || party.status === "canceled"
                 ? "ended"
-                : "scheduled",
+                : "scheduled"),
         })
         .onConflictDoNothing()
         .returning();
@@ -1045,28 +1045,40 @@ const badRequest = (message: string) => ({
   ): Promise<LiveRoomIdentity> => {
     const user = c.get?.("user"),
       isAdmin = user?.role === "admin";
-    let role: LiveRoomIdentity["role"] = isAdmin ? "admin" : "fan";
+    let role: LiveRoomIdentity["role"] = isAdmin ? "admin" : "fan",
 
+     avatarUrl: string | null = null;
     if (user && isDatabaseConfigured()) {
       const db = createDb(),
-        [experience] = await db
-          .select({
-            battleId: liveExperiences.battleId,
-            createdByUserId: liveExperiences.createdByUserId,
-            kind: liveExperiences.kind,
-          })
-          .from(liveExperiences)
-          .where(
-            or(
-              eq(liveExperiences.id, roomId),
-              eq(liveExperiences.streamInputId, roomId),
-              eq(liveExperiences.battleId, roomId)
+        [experiences, profiles] = await Promise.all([
+          db
+            .select({
+              battleId: liveExperiences.battleId,
+              createdByUserId: liveExperiences.createdByUserId,
+              kind: liveExperiences.kind,
+            })
+            .from(liveExperiences)
+            .where(
+              or(
+                eq(liveExperiences.id, roomId),
+                eq(liveExperiences.streamInputId, roomId),
+                eq(liveExperiences.battleId, roomId)
+              )
             )
-          )
-          .limit(1);
+            .limit(1),
+          db
+            .select({ avatarUrl: userProfiles.avatarUrl })
+            .from(userProfiles)
+            .where(eq(userProfiles.userId, user.id))
+            .limit(1),
+        ]),
+        experience = experiences[0],
+        profile = profiles[0];
+      avatarUrl = profile?.avatarUrl ?? null;
 
-      const [party] = !experience
-        ? await db
+      const [party] = experience
+        ? []
+        : await db
             .select({ hostUserId: listeningParties.hostUserId })
             .from(listeningParties)
             .where(
@@ -1075,8 +1087,7 @@ const badRequest = (message: string) => ({
                 eq(listeningParties.liveRoomId, roomId)
               )
             )
-            .limit(1)
-        : [];
+            .limit(1);
 
       if (
         ((experience?.kind === "party" &&
@@ -1113,6 +1124,7 @@ const badRequest = (message: string) => ({
     }
 
     return {
+      avatarUrl,
       displayName: user?.name?.trim() || "Listener",
       role,
       userId: user?.id ?? "anonymous",
@@ -1135,6 +1147,10 @@ const badRequest = (message: string) => ({
     headers.set("x-soundkit-live-room-id", roomId);
     headers.set("x-soundkit-live-user-id", identity.userId);
     headers.set("x-soundkit-live-display-name", identity.displayName);
+    headers.set(
+      "x-soundkit-live-avatar-url",
+      identity.avatarUrl ?? "/soundkit-default-avatar.svg"
+    );
     headers.set("x-soundkit-live-role", identity.role ?? "fan");
     return c.env.LIVE_ROOMS.getByName(roomId).fetch(
       new Request(`https://live-room.soundkit.internal/ws`, {
@@ -1821,6 +1837,10 @@ const badRequest = (message: string) => ({
         .select({
           createdAt: listeningParties.createdAt,
           description: listeningParties.description,
+          experienceMediaAvailable: liveExperiences.meetingId,
+          experienceStartedAt: liveExperiences.startedAt,
+          experienceStatus: liveExperiences.status,
+          experienceViewerCount: liveExperiences.viewerCount,
           hostUserId: listeningParties.hostUserId,
           id: listeningParties.id,
           liveRoomId: listeningParties.liveRoomId,
@@ -1829,10 +1849,6 @@ const badRequest = (message: string) => ({
           startedAt: listeningParties.startedAt,
           status: listeningParties.status,
           title: listeningParties.title,
-          experienceMediaAvailable: liveExperiences.meetingId,
-          experienceStartedAt: liveExperiences.startedAt,
-          experienceStatus: liveExperiences.status,
-          experienceViewerCount: liveExperiences.viewerCount,
         })
         .from(listeningParties)
         .leftJoin(
@@ -2439,7 +2455,10 @@ app.post("/experiences/:experienceId/join", async (c) => {
   if (!experience && isDatabaseConfigured()) {
     const db = createDb(),
       [party] = await db
-        .select({ id: listeningParties.id, liveRoomId: listeningParties.liveRoomId })
+        .select({
+          id: listeningParties.id,
+          liveRoomId: listeningParties.liveRoomId,
+        })
         .from(listeningParties)
         .where(
           or(
@@ -2456,7 +2475,10 @@ app.post("/experiences/:experienceId/join", async (c) => {
           roomId: experienceId,
         });
       } catch {
-        return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
+        return c.json(
+          realtimeSetupRequired,
+          HttpStatusCodes.SERVICE_UNAVAILABLE
+        );
       }
     }
   }
@@ -2492,6 +2514,7 @@ app.post("/experiences/:experienceId/join", async (c) => {
       const [battle] = await createDb()
           .select({
             challengerArtistUserId: battles.challengerArtistUserId,
+            format: battles.format,
             opponentArtistUserId: battles.opponentArtistUserId,
           })
           .from(battles)
@@ -2509,6 +2532,27 @@ app.post("/experiences/:experienceId/join", async (c) => {
           : (battleRole === "admin"
             ? "host"
             : "listener");
+      if (participantRole === "artist") {
+        const [lineup] = await createDb()
+          .select({ format: battleLineupSnapshots.format })
+          .from(battleLineupSnapshots)
+          .where(
+            and(
+              eq(battleLineupSnapshots.artistUserId, user.id),
+              eq(battleLineupSnapshots.battleId, experience.battleId)
+            )
+          )
+          .limit(1);
+        if (!lineup || lineup.format !== battle?.format) {
+          return c.json(
+            {
+              message:
+                "Lock a Battle Kit made for this battle format before entering the artist stage.",
+            },
+            HttpStatusCodes.CONFLICT
+          );
+        }
+      }
       const battleRoom = await getDurableRoomState(c, experienceId).catch(
         () => null
       );

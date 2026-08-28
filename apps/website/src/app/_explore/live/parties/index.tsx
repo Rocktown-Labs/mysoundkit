@@ -165,8 +165,9 @@ function LivePartiesPage() {
         <CreateFanPartyDialog />
       </section>
 
-      <div className="hidden lg:block">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <RegionSelectors
+          className="contents"
           onChange={(next) => {
             void navigate({
               search: (previous) => ({ ...previous, ...next }),
@@ -175,16 +176,16 @@ function LivePartiesPage() {
           region={region}
           regionType={regionType}
         />
+        <LiveCollectionFilters
+          className="contents"
+          onChange={(next) => {
+            void navigate({
+              search: (previous) => ({ ...previous, ...next, view: "all" }),
+            });
+          }}
+          value={{ genre, sort }}
+        />
       </div>
-
-      <LiveCollectionFilters
-        onChange={(next) => {
-          void navigate({
-            search: (previous) => ({ ...previous, ...next, view: "all" }),
-          });
-        }}
-        value={{ genre, sort }}
-      />
 
       {view === "all" ? (
         <ExploreCollectionGrid

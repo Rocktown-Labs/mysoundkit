@@ -2,7 +2,9 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   battles,
   battleChallenges,
+  battleParticipations,
   battleQueueEntries,
+  liveExperiences,
   userNotifications,
   webhookEvents,
 } from "@soundkit/db/schema/app";
@@ -20,6 +22,138 @@ const reminderLookaheadMs = 30 * 60 * 1000,
   liveTransitionLookbackMs = 15 * 60 * 1000,
   resultsLookbackMs = 7 * 24 * 60 * 60 * 1000,
   sweepLimit = 100;
+
+export const finalizeBattleNoShow = async ({
+  audienceUserIds,
+  battleId,
+  recordedAt,
+}: {
+  audienceUserIds?: string[];
+  battleId: string;
+  recordedAt: number;
+}) => {
+  if (!isDatabaseConfigured()) {
+    return { skipped: true };
+  }
+
+  const db = createDb(),
+    [battle] = await db
+      .select({
+        challengerArtistUserId: battles.challengerArtistUserId,
+        id: battles.id,
+        opponentArtistUserId: battles.opponentArtistUserId,
+        outcome: battles.outcome,
+        outcomeReason: battles.outcomeReason,
+        status: battles.status,
+        title: battles.title,
+      })
+      .from(battles)
+      .where(
+        or(eq(battles.id, battleId), eq(battles.externalBattleId, battleId))
+      )
+      .limit(1);
+
+  if (!battle) {
+    return { skipped: true };
+  }
+
+  const alreadyFinalized =
+    (battle.status === "completed" || battle.status === "archived") &&
+    !(
+      battle.outcome === "canceled" &&
+      battle.outcomeReason === "artist_unavailable"
+    );
+  if (alreadyFinalized) {
+    return { skipped: false };
+  }
+
+  const finishedAt = new Date(recordedAt),
+    artistUserIds = [
+      battle.challengerArtistUserId,
+      battle.opponentArtistUserId,
+    ].filter((userId): userId is string => Boolean(userId)),
+    recipients = [
+      ...new Set([...(audienceUserIds ?? []), ...artistUserIds]),
+    ].filter((userId) => userId !== "anonymous");
+
+  await Promise.all([
+    db
+      .update(battles)
+      .set({
+        endedAt: finishedAt,
+        isRanked: false,
+        outcome: "canceled",
+        outcomeReason: "artist_unavailable",
+        outcomeUserId: null,
+        status: "archived",
+        updatedAt: finishedAt,
+        winnerUserId: null,
+      })
+      .where(eq(battles.id, battle.id)),
+    db
+      .update(liveExperiences)
+      .set({
+        endsAt: finishedAt,
+        ingestStatus: "disconnected",
+        status: "ended",
+        updatedAt: finishedAt,
+      })
+      .where(eq(liveExperiences.battleId, battle.id)),
+    db
+      .update(battleQueueEntries)
+      .set({
+        completedAt: finishedAt,
+        leftAt: finishedAt,
+        status: "removed",
+        updatedAt: finishedAt,
+      })
+      .where(eq(battleQueueEntries.battleId, battle.id)),
+  ]);
+
+  if (artistUserIds.length > 0) {
+    await db
+      .insert(battleParticipations)
+      .values(
+        artistUserIds.map((userId) => ({
+          battleId: battle.id,
+          id: crypto.randomUUID(),
+          isRanked: false,
+          result: "canceled" as const,
+          roundsPlayed: 0,
+          roundsWon: 0,
+          userId,
+        }))
+      )
+      .onConflictDoUpdate({
+        set: {
+          isRanked: false,
+          result: "canceled",
+          roundsPlayed: 0,
+          roundsWon: 0,
+          updatedAt: finishedAt,
+        },
+        target: [battleParticipations.battleId, battleParticipations.userId],
+      });
+  }
+
+  if (recipients.length > 0) {
+    await db
+      .insert(userNotifications)
+      .values(
+        recipients.map((userId) => ({
+          id: `battle_outcome:${battle.id}:${recordedAt}:${userId}`,
+          link: `/live/battles/${encodeURIComponent(battle.id)}`,
+          message: `${battle.title} was canceled because both artists did not arrive and become ready before the waiting-room deadline. No ratings were changed.`,
+          title: "Battle canceled",
+          type: "battle_outcome",
+          userId,
+        }))
+      )
+      .onConflictDoNothing();
+  }
+
+  return { battleId: battle.id, skipped: false };
+};
 
 type BattleServiceStatus = "ignored" | "processed";
 

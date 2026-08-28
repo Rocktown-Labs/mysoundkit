@@ -38,6 +38,12 @@ import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { UserProfilePreviewModal } from "@/components/live/user-profile-preview-modal";
 import type { UserPreviewData } from "@/components/live/user-profile-preview-modal";
 import { AppImage } from "@/components/ui/app-image";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -291,17 +297,29 @@ function BattleStartStatus({
   artists,
   phase,
   phaseEndsAt,
+  presentArtistUserIds,
   readyArtistUserIds,
   serverNow,
 }: {
   artists: [LiveRoomArtist, LiveRoomArtist];
   phase?: string;
   phaseEndsAt: number | null | undefined;
+  presentArtistUserIds: string[];
   readyArtistUserIds: string[];
   serverNow?: number;
 }) {
-  const allArtistsReady = readyArtistUserIds.length >= artists.length,
-    timerLabel = phase === "scheduled" ? "Battle opens in" : "Battle starts in";
+  const allArtistsReady = artists.every((artist) =>
+      readyArtistUserIds.includes(artist.id)
+    ),
+    allArtistsPresent = artists.every((artist) =>
+      presentArtistUserIds.includes(artist.id)
+    ),
+    timerLabel =
+      phase === "scheduled"
+        ? "Battle opens in"
+        : phase === "waiting_room"
+          ? "Waiting room closes in"
+          : "Battle starts in";
 
   return (
     <div className="mx-auto w-full max-w-2xl rounded-xl border border-border/60 bg-background/50 p-3 text-center">
@@ -323,24 +341,28 @@ function BattleStartStatus({
           ) : (
             <Users className="size-3.5" />
           )}
-          {allArtistsReady ? "Ready" : `${readyArtistUserIds.length}/2 ready`}
+          {allArtistsReady && allArtistsPresent
+            ? "Ready"
+            : `${readyArtistUserIds.length}/2 ready · ${presentArtistUserIds.length}/2 in room`}
         </Badge>
       </div>
       <div className="mt-2 flex flex-wrap justify-center gap-1.5">
         {artists.map((artist) => {
-          const isReady = readyArtistUserIds.includes(artist.id);
+          const isPresent = presentArtistUserIds.includes(artist.id),
+            isReady = readyArtistUserIds.includes(artist.id);
           return (
             <Badge
-              className="max-w-44 gap-1.5 truncate text-[10px]"
+              className="max-w-56 gap-1.5 truncate text-[10px]"
               key={artist.id}
-              variant={isReady ? "secondary" : "outline"}
+              variant={isReady && isPresent ? "secondary" : "outline"}
             >
-              {isReady ? (
+              {isReady && isPresent ? (
                 <CheckCircle2 className="size-3 text-emerald-400" />
               ) : (
                 <span className="size-1.5 rounded-full bg-muted-foreground/50" />
               )}
-              {artist.name} · {isReady ? "Ready" : "Preparing"}
+              {artist.name} ·{" "}
+              {isPresent ? (isReady ? "Ready" : "Preparing") : "Not in room"}
             </Badge>
           );
         })}
@@ -688,6 +710,7 @@ function ArtistBattlePreparation({
     kitsQuery = useBattleKitsQuery({ format, ready: true }),
     kits = kitsQuery.data ?? [],
     [draftKitId, setDraftKitId] = useState(lockedKitId ?? ""),
+    [isSetupOpen, setIsSetupOpen] = useState(!isReady),
     [mediaSetupSaved, setMediaSetupSaved] = useState(false),
     [saveError, setSaveError] = useState<string | null>(null),
     draftKit = kits.find((kit) => kit.id === draftKitId),
@@ -714,40 +737,55 @@ function ArtistBattlePreparation({
     handleMediaSetupSaved = (selection: BattleMediaDeviceSelection) => {
       setMediaSetupSaved(true);
       onMediaSetupSaved(selection);
+    },
+    handleReady = async (ready: boolean) => {
+      await onReady(ready);
+      setIsSetupOpen(!ready);
     };
 
   return (
     <Card className="border-primary/30 bg-primary/5 shadow-sm">
-      <CardHeader className="gap-2 pb-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-2.5">
-            <div className="mt-0.5 rounded-md bg-primary/15 p-2 text-primary">
-              <Disc3 className="size-4" />
-            </div>
-            <div>
-              <CardTitle className="text-sm">
-                Prepare your battle lineup
-              </CardTitle>
-              <CardDescription className="mt-1 text-xs">
-                {formatDetails.label} · {formatDetails.rounds}. Choose a
-                battle-ready kit before the room opens.
-              </CardDescription>
-            </div>
-          </div>
-          <Badge
-            className="gap-1.5 text-[10px]"
-            variant={isLocked ? "default" : "outline"}
-          >
-            {isLocked ? (
-              <LockKeyhole className="size-3" />
-            ) : (
-              <Swords className="size-3" />
-            )}
-            {isLocked ? "Kit locked" : "Artist only"}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3 pt-0">
+      <Accordion
+        collapsible
+        onValueChange={(value) => setIsSetupOpen(value === "setup")}
+        type="single"
+        value={isSetupOpen ? "setup" : ""}
+      >
+        <AccordionItem className="border-0" value="setup">
+          <CardHeader className="gap-2 pb-3">
+            <AccordionTrigger className="items-start gap-3 py-0 hover:no-underline [&>svg]:mt-1 [&>svg]:text-muted-foreground">
+              <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-3 text-left">
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-0.5 rounded-md bg-primary/15 p-2 text-primary">
+                    <Disc3 className="size-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm">
+                      {isReady ? "Ready for battle" : "Prepare your battle lineup"}
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs">
+                      {isReady
+                        ? `${formatDetails.label} kit and media permissions saved.`
+                        : `${formatDetails.label} · ${formatDetails.rounds}. Choose a battle-ready kit before the room opens.`}
+                    </CardDescription>
+                  </div>
+                </div>
+                <Badge
+                  className="gap-1.5 text-[10px]"
+                  variant={isReady ? "default" : isLocked ? "secondary" : "outline"}
+                >
+                  {isReady || isLocked ? (
+                    <LockKeyhole className="size-3" />
+                  ) : (
+                    <Swords className="size-3" />
+                  )}
+                  {isReady ? "Ready" : isLocked ? "Kit locked" : "Setup needed"}
+                </Badge>
+              </div>
+            </AccordionTrigger>
+          </CardHeader>
+          <AccordionContent className="px-6 pb-6 pt-0">
+            <div className="space-y-3">
         {kitsQuery.isLoading && (
           <div className="rounded-lg border border-dashed border-border/70 bg-background/40 p-3 text-xs text-muted-foreground">
             Loading your {formatDetails.label} Battle Kits...
@@ -885,7 +923,7 @@ function ArtistBattlePreparation({
           <Button
             className="gap-1.5"
             disabled={pending || !isLocked || !mediaSetupSaved}
-            onClick={() => void onReady(!isReady)}
+            onClick={() => void handleReady(!isReady)}
             size="sm"
             type="button"
             variant={isReady ? "secondary" : "default"}
@@ -896,7 +934,10 @@ function ArtistBattlePreparation({
         </div>
 
         {saveError && <p className="text-xs text-destructive">{saveError}</p>}
-      </CardContent>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </Card>
   );
 }
@@ -1272,6 +1313,9 @@ export function BattlePage({
         <LiveTwitchShell
           chatPanel={
             <LiveChatPanel
+              artistAvatarUrls={Object.fromEntries(
+                battle.artists.map((artist) => [artist.id, artist.avatarUrl])
+              )}
               artistUserIds={battle.artists.map((artist) => artist.id)}
               disabled={chat.isPending}
               fillHeight
@@ -1315,6 +1359,9 @@ export function BattlePage({
                     artists={battle.artists}
                     phase={phase}
                     phaseEndsAt={battle.coordination?.phaseEndsAt}
+                    presentArtistUserIds={
+                      battle.coordination?.artistPresentUserIds ?? []
+                    }
                     readyArtistUserIds={readyArtistUserIds}
                     serverNow={room.serverNow}
                   />
@@ -1375,14 +1422,9 @@ export function BattlePage({
                   artists={battle.artists}
                   compact
                   currentUserId={session?.user?.id}
-                  hasSelectedKit={Boolean(lockedBattleKitId)}
                   isAdmin={isAdmin}
                   isArtist={isArtist}
-                  isReady={currentArtistReady}
                   onDisposition={handleBattleDisposition}
-                  onReady={async (ready) => {
-                    await battleReady.mutateAsync({ ready });
-                  }}
                   pending={battleReady.isPending || battleDisposition.isPending}
                   phase={phase ?? "waiting_room"}
                   readyArtistUserIds={readyArtistUserIds}
@@ -1460,14 +1502,9 @@ export function BattlePage({
                   artists={battle.artists}
                   compact
                   currentUserId={session?.user?.id}
-                  hasSelectedKit={Boolean(lockedBattleKitId)}
                   isAdmin={isAdmin}
                   isArtist={isArtist}
-                  isReady={currentArtistReady}
                   onDisposition={handleBattleDisposition}
-                  onReady={async (ready) => {
-                    await battleReady.mutateAsync({ ready });
-                  }}
                   pending={battleReady.isPending || battleDisposition.isPending}
                   phase={phase ?? "waiting_room"}
                   readyArtistUserIds={readyArtistUserIds}
@@ -1549,6 +1586,9 @@ export function BattlePage({
 
   const chatPanel = (
       <LiveChatPanel
+        artistAvatarUrls={Object.fromEntries(
+          battle.artists.map((artist) => [artist.id, artist.avatarUrl])
+        )}
         artistUserIds={battle.artists.map((artist) => artist.id)}
         disabled={chat.isPending}
         extraHeaderAction={
@@ -2105,14 +2145,9 @@ export function BattlePage({
           <BattleLifecycleControls
             artists={battle.artists}
             currentUserId={session?.user?.id}
-            hasSelectedKit={Boolean(lockedBattleKitId)}
             isAdmin={isAdmin}
             isArtist={isArtist}
-            isReady={currentArtistReady}
             onDisposition={handleBattleDisposition}
-            onReady={async (ready) => {
-              await battleReady.mutateAsync({ ready });
-            }}
             pending={battleReady.isPending || battleDisposition.isPending}
             phase={phase ?? "waiting_room"}
             readyArtistUserIds={readyArtistUserIds}
