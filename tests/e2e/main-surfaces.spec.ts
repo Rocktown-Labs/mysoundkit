@@ -685,6 +685,33 @@ test.describe("main application surfaces", () => {
     });
   });
 
+  test("artist listening parties use a private artist room", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/live/parties/single-album-party");
+    if ((await page.getByText("Artist room", { exact: true }).count()) === 0) {
+      await page.reload({ waitUntil: "domcontentloaded" });
+    }
+    await expect(page).toHaveURL(
+      /\/dashboard\/live\/parties\/join\/single-album-party\/artistview$/
+    );
+    await expect(page.getByText("Artist room", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Repeat current track" })
+    ).toBeVisible();
+    await expect(page.getByText("Party Chat", { exact: true })).toBeVisible();
+  });
+
   test("fans can join a battle queue without navigating away", async ({
     context,
     page,

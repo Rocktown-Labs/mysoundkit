@@ -4,6 +4,9 @@
 
 ### Added
 
+- Added a separated artist listening-party room at `/dashboard/live/parties/join/:roomId/artistview` with RealtimeKit camera/microphone controls, artist chat, synchronized playback/repeat controls, and a public viewer room that stays media-free until the party is live.
+- Added live-room notifications for hosted listening parties so artists can jump from the global live-room popup into their authenticated artist room when the party starts.
+- Added RealtimeKit meeting provisioning and live-experience records for scheduled listening parties, keeping party status, audience counts, discovery, and room state synchronized.
 - Added per-round artist readiness with timer fallback, private Battle Kit track status and next-song selection, tie-aware battle results, and ranked-versus-practice participation records in the artist dashboard.
 - Added an authenticated artist battle room at `/dashboard/live/battles/join/:roomId/artistview`, with artist-scoped waiting-room chat, Battle Kit/readiness controls, reconnect-safe media, and admin-only outcome controls.
 - Added a branded “You Ducked the Smoke” transactional email template and idempotent notification flow for ducked, forfeited, platform-canceled, and viewer battle outcomes.
@@ -51,6 +54,7 @@
 
 ### Fixed
 
+- Fixed listening-party discovery to retain live rooms after their scheduled start, prevent public viewers from receiving host playback controls, validate party track changes server-side, and push playback updates to connected listeners over the room WebSocket.
 - Fixed track management by removing the broken full-page edit flow, preserving legacy edit URLs as redirects, allowing release dates and external links to be cleared or updated, and correctly clearing stale prices when monetization is disabled.
 - Fixed live battle room reads against older preview databases by probing optional outcome and winner columns and selecting safe null fallbacks until the production schema rollout completes.
 - Fixed live battle entry to distinguish assigned battlers from viewers, route artists to their control room, fall back safely from unauthorized artist URLs, and notify participants when their battle goes live.

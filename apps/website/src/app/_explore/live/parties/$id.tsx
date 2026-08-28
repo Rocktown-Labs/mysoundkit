@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp */
 
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import {
   Bookmark,
   BookmarkCheck,
@@ -23,24 +23,21 @@ import {
   Sparkles,
   Volume2,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import { LiveCreatorPanel } from "@/components/live/live-creator-panel";
 import { LiveChatPanel } from "@/components/live/live-room-panels";
 import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
+import { PartyMediaStage } from "@/components/live/party-media-stage";
 import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
+import { useDbSavedTrackActions, useDbSavedTrackIds } from "@/lib/data-db";
 import { useLiveRoom } from "@/lib/live-room";
-import {
-  useDbSavedTrackActions,
-  useDbSavedTrackIds,
-} from "@/lib/data-db";
-import { useMeQuery } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_explore/live/parties/$id")({
@@ -87,9 +84,20 @@ const getLyricClass = (lineId: string, text: string) => {
 };
 
 function ListeningPartyDetailPage() {
-  const { id } = Route.useParams(),
+  const { id } = Route.useParams();
+  return <ListeningPartyPage roomId={id} />;
+}
+
+export function ListeningPartyPage({
+  artistView = false,
+  roomId,
+}: {
+  artistView?: boolean;
+  roomId: string;
+}) {
+  const id = roomId,
+    router = useRouter(),
     { chat, chatMessages, partyPlayback, query } = useLiveRoom(id),
-    meQuery = useMeQuery(),
     [isChatOpen, setIsChatOpen] = useState(true),
     {
       containerRef: videoContainerRef,
@@ -123,16 +131,7 @@ function ListeningPartyDetailPage() {
           room.tracklist.findIndex((track) => track.id === currentTrack?.id)
         )
       : 0,
-    isHost = Boolean(
-      room?.role === "host" ||
-      Boolean(
-        room &&
-        meQuery.data?.user &&
-        [meQuery.data.user.displayName, meQuery.data.user.username].includes(
-          room.hostName
-        )
-      )
-    ),
+    isHost = artistView && room?.role === "host",
     isCurrentLiked = currentTrack ? likedTrackIds.has(currentTrack.id) : false,
     handleToggleLike = (trackId: string, trackTitle: string) => {
       setLikedTrackIds((prev) => {
@@ -196,6 +195,18 @@ function ListeningPartyDetailPage() {
       partyPlayback.mutate({ type: isPlaying ? "pause" : "resume" });
     };
 
+  useEffect(() => {
+    if (artistView || !room || room.role !== "host") {
+      return;
+    }
+
+    void router.navigate({
+      params: { roomId: id },
+      replace: true,
+      to: "/dashboard/live/parties/join/$roomId/artistview",
+    });
+  }, [artistView, id, room?.role, router]);
+
   if (query.isLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">
@@ -213,6 +224,20 @@ function ListeningPartyDetailPage() {
         <div className="text-center">
           <p className="font-semibold text-sm">
             {query.error?.message ?? "Listening party offline"}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (artistView && room.role !== "host") {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center p-6">
+        <div className="max-w-lg rounded-xl border border-primary/30 bg-card p-6 text-center shadow-xl">
+          <h2 className="font-bold text-lg">Artist room access required</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            This route is reserved for the artist hosting this listening party.
+            Join the public room to watch and chat instead.
           </p>
         </div>
       </div>
@@ -371,18 +396,24 @@ function ListeningPartyDetailPage() {
                 {/* Player Controls Bar */}
                 <div className="flex items-center justify-between gap-3 bg-black/60 border border-white/10 p-2.5 rounded-xl">
                   <div className="flex items-center gap-3 min-w-0">
-                    <Button
-                      className="size-9 rounded-full bg-primary text-primary-foreground hover:scale-105 transition shrink-0 shadow-md"
-                      onClick={handleTogglePlayback}
-                      size="icon"
-                      variant="default"
-                    >
-                      {isPlaying ? (
-                        <Pause className="size-4 fill-current" />
-                      ) : (
-                        <Play className="size-4 fill-current translate-x-0.5" />
-                      )}
-                    </Button>
+                    {isHost ? (
+                      <Button
+                        className="size-9 rounded-full bg-primary text-primary-foreground hover:scale-105 transition shrink-0 shadow-md"
+                        onClick={handleTogglePlayback}
+                        size="icon"
+                        variant="default"
+                      >
+                        {isPlaying ? (
+                          <Pause className="size-4 fill-current" />
+                        ) : (
+                          <Play className="size-4 fill-current translate-x-0.5" />
+                        )}
+                      </Button>
+                    ) : (
+                      <Badge className="h-9 px-3" variant="secondary">
+                        <Radio className="mr-1.5 size-3.5" /> Synced
+                      </Badge>
+                    )}
                     <div className="min-w-0">
                       <p className="font-bold text-xs sm:text-sm text-white truncate max-w-[200px] sm:max-w-[260px]">
                         {currentTrack?.title ?? room.title}
@@ -400,7 +431,8 @@ function ListeningPartyDetailPage() {
                         className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
                         onClick={() => handleReplayTrack()}
                         size="icon"
-                        title="Replay Current Track"
+                        aria-label="Repeat current track"
+                        title="Repeat Current Track"
                         variant="ghost"
                       >
                         <RotateCcw className="size-3.5" />
@@ -661,7 +693,10 @@ function ListeningPartyDetailPage() {
     );
 
   return (
-    <LiveRoomAccessGuard roomTitle={room.title}>
+    <LiveRoomAccessGuard
+      allowPublic={artistView && isHost}
+      roomTitle={room.title}
+    >
       <LiveTwitchShell
         chatPanel={chatPanel}
         defaultChatOpen={true}
@@ -669,14 +704,30 @@ function ListeningPartyDetailPage() {
         onChatOpenChange={setIsChatOpen}
         videoNode={videoNode}
       >
+        {(artistView || room.party?.playback.mediaAvailable) && (
+          <PartyMediaStage
+            artistAvatarUrl="/soundkit-default-avatar.svg"
+            artistName={hostName}
+            artistUserId={room.party?.playback.hostUserId ?? ""}
+            enabled={
+              artistView ||
+              (Boolean(room.party?.playback.mediaAvailable) &&
+                room.status === "live")
+            }
+            experienceId={id}
+            viewerOnly={!artistView}
+          />
+        )}
         <LiveCreatorPanel
           creator={{
             displayName: hostName,
             followersCount: 3200,
             username: hostUsername,
           }}
-          isLive
-          statusLabel="Listening Premiere"
+          isLive={room.status === "live"}
+          statusLabel={
+            artistView ? "Artist Control Room" : "Listening Premiere"
+          }
           title={room.title}
           viewerCount={room.viewerCount}
         />

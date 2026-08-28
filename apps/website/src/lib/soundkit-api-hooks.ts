@@ -1749,8 +1749,9 @@ export const usePublicLiveExperiencesQuery = (
     refetchInterval: 10_000,
   });
 
-export const useMyLiveExperiencesQuery = () =>
+export const useMyLiveExperiencesQuery = (enabled = true) =>
   useQuery({
+    enabled,
     queryFn: async () => rpcJson(await liveMyExperiencesGet()),
     queryKey: ["live", "experiences", "me"],
     refetchInterval: 5000,

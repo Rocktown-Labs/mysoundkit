@@ -136,8 +136,10 @@ export function LiveChatPanel({
                           (chatMessage.userId !== undefined &&
                             artistUserIds.includes(chatMessage.userId)) ||
                           chatMessage.userRole === "artist_a" ||
-                          chatMessage.userRole === "artist_b",
+                          chatMessage.userRole === "artist_b" ||
+                          chatMessage.userRole === "host",
                         isHost =
+                          chatMessage.userRole === "host" ||
                           chatMessage.userName.toLowerCase().includes("host") ||
                           chatMessage.userName.toLowerCase().includes("artist"),
                         userAvatar = isMe

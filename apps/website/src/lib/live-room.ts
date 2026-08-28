@@ -98,6 +98,7 @@ export interface LiveRoomState {
   party?: {
     playback: {
       hostMode: "off_camera" | "on_camera";
+      mediaAvailable?: boolean;
       hostUserId: string;
       playbackState: "paused" | "playing";
       positionMs: number;
@@ -238,6 +239,7 @@ export const useLiveRoom = (roomId: string) => {
     socket.addEventListener("message", (event) => {
       const payload = JSON.parse(String(event.data)) as {
         message?: LiveRoomChatMessage;
+        playback?: NonNullable<LiveRoomState["party"]>["playback"];
         room?: LiveRoomState;
         type?: string;
       };
@@ -249,6 +251,22 @@ export const useLiveRoom = (roomId: string) => {
           liveRoomKey(roomId),
           (room) =>
             appendChatMessage(room, payload.message as LiveRoomChatMessage)
+        );
+      } else if (
+        payload.type === "party.playback_changed" &&
+        payload.playback
+      ) {
+        const { playback } = payload;
+        queryClient.setQueryData<LiveRoomState | undefined>(
+          liveRoomKey(roomId),
+          (room) =>
+            room && room.party
+              ? {
+                  ...room,
+                  currentTrackId: playback.trackId ?? room.currentTrackId,
+                  party: { playback },
+                }
+              : room
         );
       }
     });
