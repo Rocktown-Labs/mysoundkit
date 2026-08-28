@@ -5,10 +5,8 @@ import { useCallback, useMemo, useState } from "react";
 import { LibraryEmptyState } from "@/components/explore/library-empty-state";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  useLibrarySavedQuery,
-  useRemoveSavedTrackMutation,
-} from "@/lib/soundkit-api-hooks";
+import { useDbSavedTrackActions } from "@/lib/data-db";
+import { useLibrarySavedQuery } from "@/lib/soundkit-api-hooks";
 
 import { createSavedTrackColumns } from "./-columns";
 import type { SavedTrack } from "./-columns";
@@ -21,18 +19,28 @@ export const Route = createFileRoute("/_explore/library/saved/")({
 function SavedTracksPage() {
   const { data = [], isLoading } = useLibrarySavedQuery(),
     { toast } = useToast(),
-    removeSavedTrackMutation = useRemoveSavedTrackMutation(),
+    { remove } = useDbSavedTrackActions(),
     [removingTrackId, setRemovingTrackId] = useState<string>(),
+    [optimisticallyRemovedTrackIds, setOptimisticallyRemovedTrackIds] =
+      useState<Set<string>>(() => new Set()),
     handleRemoveTrack = useCallback(
       async (track: SavedTrack) => {
         setRemovingTrackId(track.id);
+        setOptimisticallyRemovedTrackIds((current) =>
+          new Set(current).add(track.id)
+        );
         try {
-          await removeSavedTrackMutation.mutateAsync(track.id);
+          await remove(track.id).isPersisted.promise;
           toast({
             description: `Removed "${track.title}" from your Saved Tracks.`,
             title: "Track removed",
           });
         } catch {
+          setOptimisticallyRemovedTrackIds((current) => {
+            const next = new Set(current);
+            next.delete(track.id);
+            return next;
+          });
           toast({
             description: "Could not remove this track. Please try again.",
             title: "Remove failed",
@@ -42,7 +50,10 @@ function SavedTracksPage() {
           setRemovingTrackId(undefined);
         }
       },
-      [removeSavedTrackMutation, toast]
+      [remove, toast]
+    ),
+    visibleData = data.filter(
+      (track) => !optimisticallyRemovedTrackIds.has(track.id)
     ),
     columns = useMemo(
       () =>
@@ -72,8 +83,8 @@ function SavedTracksPage() {
         </p>
       </div>
 
-      {isLoading || data.length > 0 ? (
-        <DataTable columns={columns} data={data} />
+      {isLoading || visibleData.length > 0 ? (
+        <DataTable columns={columns} data={visibleData} />
       ) : (
         <LibraryEmptyState
           actionHref="/tracks"

@@ -349,7 +349,10 @@ function FloatingChatBarClient() {
           description: `Proposal for "${projectTitle}" sent! Collaborator has 24h to accept.`,
           title: "Collaboration Proposal Sent",
         });
-        messagesQuery.refetch();
+        await Promise.all([
+          messagesQuery.refetch(),
+          conversationsQuery.refetch(),
+        ]);
       } catch {
         toast({
           description: "Failed to send collaboration proposal.",
@@ -386,7 +389,10 @@ function FloatingChatBarClient() {
                 : "Collaboration cancelled.",
           title: "Status Updated",
         });
-        messagesQuery.refetch();
+        await Promise.all([
+          messagesQuery.refetch(),
+          conversationsQuery.refetch(),
+        ]);
       } catch {
         toast({
           description: "Failed to respond to collaboration.",

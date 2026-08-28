@@ -316,7 +316,10 @@ function MessagesPageClient() {
                 : "Collaboration cancelled.",
           title: "Status Updated",
         });
-        messagesQuery.refetch();
+        await Promise.all([
+          messagesQuery.refetch(),
+          conversationsQuery.refetch(),
+        ]);
       } catch {
         toast({
           description: "Failed to respond to collaboration.",
@@ -358,7 +361,10 @@ function MessagesPageClient() {
           description: `Invitation sent for "${title}".`,
           title: "Collab proposal sent",
         });
-        messagesQuery.refetch();
+        await Promise.all([
+          messagesQuery.refetch(),
+          conversationsQuery.refetch(),
+        ]);
       } catch (error) {
         toast({
           description:
@@ -1242,7 +1248,10 @@ function MessagesPageClient() {
         conversationId={selectedId}
         onOpenChange={setIsCollaborationOpen}
         onSuccess={() => {
-          messagesQuery.refetch();
+          void Promise.all([
+            messagesQuery.refetch(),
+            conversationsQuery.refetch(),
+          ]);
         }}
         open={isCollaborationOpen}
       />

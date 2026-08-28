@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useMemo } from "react";
 
 import { AudioPlayerProvider } from "@/components/audio-player-provider";
 import { CartProvider } from "@/components/cart-provider";
@@ -30,10 +30,9 @@ const AppDevtools = import.meta.env.DEV
   : null;
 
 export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
-  const [queryClient, setQueryClient] = useState(() => new QueryClient()),
-    { data: session } = authClient.useSession(),
-    scopeKey = session?.user.id ?? "anonymous";
-  void setQueryClient;
+  const { data: session } = authClient.useSession(),
+    scopeKey = session?.user.id ?? "anonymous",
+    queryClient = useMemo(() => new QueryClient(), [scopeKey]);
 
   return (
     <QueryClientProvider client={queryClient}>

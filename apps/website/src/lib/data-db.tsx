@@ -21,6 +21,8 @@ import type { ReactNode } from "react";
 import { z } from "zod";
 
 import { API_V1_URL, apiClient, rpcJson } from "./api";
+import { reconcileCollections } from "./mutation-reconciliation";
+import { soundkitQueryKeys } from "./soundkit-api-hooks";
 import type {
   CreateBattleChallengeBody,
   LibrarySavedTrack,
@@ -35,6 +37,7 @@ const notificationsGet = apiClient.v1.notifications.index.$get,
   videoCommentsPost = apiClient.v1.videos[":videoId"].comments.$post,
   librarySavedGet = apiClient.v1.library.saved.$get,
   librarySaveTrackPost = apiClient.v1.library.saved[":trackId"].$post,
+  librarySaveTrackDelete = apiClient.v1.library.saved[":trackId"].$delete,
   libraryPlaylistsGet = apiClient.v1.library.playlists.$get,
   libraryPlaylistsPost = apiClient.v1.library.playlists.$post,
   libraryPlaylistDelete = apiClient.v1.library.playlists[":id"].$delete,
@@ -794,7 +797,7 @@ export const useDbBattles = () => {
 };
 
 export const useDbBattleActions = () => {
-  const { battleChallenges, battles } = useDataDb(),
+  const { battleChallenges, battles, queryClient } = useDataDb(),
     createChallenge = useMemo(
       () =>
         createOptimisticAction<{
@@ -803,12 +806,18 @@ export const useDbBattleActions = () => {
         }>({
           mutationFn: async ({ body }) => {
             await rpcJson(await battleChallengePost({ json: body }));
+            await Promise.all([
+              battleChallenges.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.battles,
+              }),
+            ]);
           },
           onMutate: ({ optimistic }) => {
             battleChallenges.insert(optimistic);
           },
         }),
-      [battleChallenges]
+      [battleChallenges, queryClient]
     ),
     updateChallenge = useMemo(
       () =>
@@ -823,9 +832,13 @@ export const useDbBattleActions = () => {
                 param: { challengeId },
               })
             );
-            if (status === "accepted") {
-              await battles.utils.refetch();
-            }
+            await Promise.all([
+              battleChallenges.utils.refetch(),
+              battles.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.battles,
+              }),
+            ]);
           },
           onMutate: ({ challengeId, status }) => {
             battleChallenges.update(challengeId, (draft) => {
@@ -833,7 +846,7 @@ export const useDbBattleActions = () => {
             });
           },
         }),
-      [battleChallenges, battles]
+      [battleChallenges, battles, queryClient]
     ),
     clearChallenge = useMemo(
       () =>
@@ -842,25 +855,37 @@ export const useDbBattleActions = () => {
             await rpcJson(
               await battleChallengeDelete({ param: { challengeId } })
             );
+            await Promise.all([
+              battleChallenges.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.battles,
+              }),
+            ]);
           },
           onMutate: (challengeId) => {
             battleChallenges.delete(challengeId);
           },
         }),
-      [battleChallenges]
+      [battleChallenges, queryClient]
     ),
     deleteBattle = useMemo(
       () =>
         createOptimisticAction<string>({
           mutationFn: async (battleId) => {
             await rpcJson(await battleDelete({ param: { battleId } }));
-            await battleChallenges.utils.refetch();
+            await Promise.all([
+              battles.utils.refetch(),
+              battleChallenges.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.battles,
+              }),
+            ]);
           },
           onMutate: (battleId) => {
             battles.delete(battleId);
           },
         }),
-      [battleChallenges, battles]
+      [battleChallenges, battles, queryClient]
     );
 
   return { clearChallenge, createChallenge, deleteBattle, updateChallenge };
@@ -879,7 +904,7 @@ export const useDbNotifications = () => {
 };
 
 export const useDbNotificationActions = () => {
-  const { getNotifications, notificationStats } = useDataDb(),
+  const { getNotifications, notificationStats, queryClient } = useDataDb(),
     collection = getNotifications(),
     markRead = useMemo(
       () =>
@@ -890,6 +915,12 @@ export const useDbNotificationActions = () => {
                 param: { notificationId },
               })
             );
+            await Promise.all([
+              reconcileCollections(collection, notificationStats),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.notifications,
+              }),
+            ]);
           },
           onMutate: (notificationId) => {
             const notification = collection.toArray.find(
@@ -909,13 +940,19 @@ export const useDbNotificationActions = () => {
             }
           },
         }),
-      [collection, notificationStats]
+      [collection, notificationStats, queryClient]
     ),
     markAllRead = useMemo(
       () =>
         createOptimisticAction<void>({
           mutationFn: async () => {
             await rpcJson(await notificationsReadAllPost());
+            await Promise.all([
+              reconcileCollections(collection, notificationStats),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.notifications,
+              }),
+            ]);
           },
           onMutate: () => {
             for (const notification of collection.toArray) {
@@ -932,13 +969,19 @@ export const useDbNotificationActions = () => {
             }
           },
         }),
-      [collection, notificationStats]
+      [collection, notificationStats, queryClient]
     ),
     clearAll = useMemo(
       () =>
         createOptimisticAction<void>({
           mutationFn: async () => {
             await rpcJson(await notificationsClearPost());
+            await Promise.all([
+              reconcileCollections(collection, notificationStats),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.notifications,
+              }),
+            ]);
           },
           onMutate: () => {
             collection.delete(
@@ -951,7 +994,7 @@ export const useDbNotificationActions = () => {
             }
           },
         }),
-      [collection, notificationStats]
+      [collection, notificationStats, queryClient]
     );
 
   return { clearAll, markAllRead, markRead };
@@ -1024,7 +1067,7 @@ export const useDbPlaylists = () => {
 };
 
 export const useDbPlaylistActions = () => {
-  const collection = useDataDb().playlists,
+  const { playlists: collection, queryClient } = useDataDb(),
     create = useMemo(
       () =>
         createOptimisticAction<{
@@ -1038,6 +1081,15 @@ export const useDbPlaylistActions = () => {
                 json: { clientPlaylistId: id, description, title },
               })
             );
+            await Promise.all([
+              collection.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryPlaylists,
+              }),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryOverview,
+              }),
+            ]);
           },
           onMutate: ({ description, id, title }) => {
             collection.insert({
@@ -1049,19 +1101,28 @@ export const useDbPlaylistActions = () => {
             });
           },
         }),
-      [collection]
+      [collection, queryClient]
     ),
     deletePlaylist = useMemo(
       () =>
         createOptimisticAction<string>({
           mutationFn: async (id) => {
             await rpcJson(await libraryPlaylistDelete({ param: { id } }));
+            await Promise.all([
+              collection.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryPlaylists,
+              }),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryOverview,
+              }),
+            ]);
           },
           onMutate: (id) => {
             collection.delete(id);
           },
         }),
-      [collection]
+      [collection, queryClient]
     );
 
   return {
@@ -1089,7 +1150,7 @@ export const useDbPlaylistTracks = (playlistId: string) => {
 };
 
 export const useDbPlaylistTrackActions = (playlistId: string) => {
-  const { getPlaylistTracks } = useDataDb(),
+  const { getPlaylistTracks, queryClient } = useDataDb(),
     collection = useMemo(
       () => getPlaylistTracks(playlistId),
       [getPlaylistTracks, playlistId]
@@ -1114,7 +1175,15 @@ export const useDbPlaylistTrackActions = (playlistId: string) => {
                 param: { id: playlistId },
               })
             );
-            await collection.utils.refetch();
+            await Promise.all([
+              collection.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryPlaylist(playlistId),
+              }),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryPlaylists,
+              }),
+            ]);
           },
           onMutate: (track) => {
             if (!collection.toArray.some((item) => item.id === track.id)) {
@@ -1122,7 +1191,7 @@ export const useDbPlaylistTrackActions = (playlistId: string) => {
             }
           },
         }),
-      [collection, playlistId]
+      [collection, playlistId, queryClient]
     ),
     remove = useMemo(
       () =>
@@ -1133,13 +1202,21 @@ export const useDbPlaylistTrackActions = (playlistId: string) => {
                 param: { id: playlistId, trackId },
               })
             );
-            await collection.utils.refetch();
+            await Promise.all([
+              collection.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryPlaylist(playlistId),
+              }),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryPlaylists,
+              }),
+            ]);
           },
           onMutate: (trackId) => {
             collection.delete(trackId);
           },
         }),
-      [collection, playlistId]
+      [collection, playlistId, queryClient]
     );
 
   return { add, remove };
@@ -1152,12 +1229,42 @@ export const useDbSavedTrackIds = () => {
 };
 
 export const useDbSavedTrackActions = () => {
-  const collection = useDataDb().savedTrackIds,
+  const { queryClient, savedTrackIds: collection } = useDataDb(),
+    remove = useMemo(
+      () =>
+        createOptimisticAction<string>({
+          mutationFn: async (trackId) => {
+            await rpcJson(await librarySaveTrackDelete({ param: { trackId } }));
+            await Promise.all([
+              collection.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: ["library", "saved"],
+              }),
+              queryClient.invalidateQueries({
+                queryKey: ["library", "overview"],
+              }),
+            ]);
+          },
+          onMutate: (trackId) => {
+            collection.delete(trackId);
+          },
+        }),
+      [collection, queryClient]
+    ),
     toggle = useMemo(
       () =>
         createOptimisticAction<string>({
           mutationFn: async (trackId) => {
             await rpcJson(await librarySaveTrackPost({ param: { trackId } }));
+            await Promise.all([
+              collection.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: ["library", "saved"],
+              }),
+              queryClient.invalidateQueries({
+                queryKey: ["library", "overview"],
+              }),
+            ]);
           },
           onMutate: (trackId) => {
             const existing = collection.toArray.some(
@@ -1170,9 +1277,9 @@ export const useDbSavedTrackActions = () => {
             }
           },
         }),
-      [collection]
+      [collection, queryClient]
     );
-  return { toggle };
+  return { remove, toggle };
 };
 
 export const useDbFollowing = () => {
@@ -1211,6 +1318,7 @@ export const useDbFollowActions = () => {
               await requestProfileFollow(username, "POST");
             }
             await Promise.all([
+              collection.utils.refetch(),
               queryClient.invalidateQueries({
                 queryKey: ["artists", username],
               }),
@@ -1260,6 +1368,7 @@ export const useDbFollowActions = () => {
               await requestProfileFollow(username, "DELETE");
             }
             await Promise.all([
+              collection.utils.refetch(),
               queryClient.invalidateQueries({
                 queryKey: ["artists", username],
               }),
@@ -1322,6 +1431,7 @@ export const useDbCommunityActions = () => {
         createOptimisticAction<string>({
           mutationFn: async (communityId) => {
             await rpcJson(await communityJoinPost({ param: { communityId } }));
+            await collection.utils.refetch();
           },
           onMutate: (communityId) => {
             collection.update(communityId, (draft) => {
@@ -1348,6 +1458,7 @@ export const useDbCommunityActions = () => {
             await rpcJson(
               await communityPatch({ json, param: { communityId } })
             );
+            await collection.utils.refetch();
           },
           onMutate: ({ communityId, ...changes }) => {
             collection.update(communityId, (draft) => {
@@ -1494,6 +1605,7 @@ export const useSendDbCommunityMessage = (
             if (outcome.error) {
               throw outcome.error;
             }
+            await collection.utils.refetch();
           },
           onMutate: ({ body, id }) => {
             collection.insert({
@@ -1571,6 +1683,7 @@ export const useDbCommunityModeration = (communityId: string) => {
                 param: { communityId, userId },
               })
             );
+            await members.utils.refetch();
           },
           onMutate: ({ role, userId }) => {
             members.update(userId, (draft) => {
@@ -1589,6 +1702,10 @@ export const useDbCommunityModeration = (communityId: string) => {
                 param: { communityId, userId },
               })
             );
+            await Promise.all([
+              members.utils.refetch(),
+              communities.utils.refetch(),
+            ]);
           },
           onMutate: (userId) => {
             members.delete(userId);
@@ -1612,6 +1729,11 @@ export const useDbCommunityModeration = (communityId: string) => {
                 param: { communityId, userId: member.userId },
               })
             );
+            await Promise.all([
+              members.utils.refetch(),
+              bans.utils.refetch(),
+              communities.utils.refetch(),
+            ]);
           },
           onMutate: ({ member, reason }) => {
             members.delete(member.userId);
@@ -1637,12 +1759,13 @@ export const useDbCommunityModeration = (communityId: string) => {
             await rpcJson(
               await communityBanDelete({ param: { communityId, userId } })
             );
+            await Promise.all([members.utils.refetch(), bans.utils.refetch()]);
           },
           onMutate: (userId) => {
             bans.delete(userId);
           },
         }),
-      [bans, communityId]
+      [bans, communityId, members]
     );
   return { ban, remove, setRole, unban };
 };

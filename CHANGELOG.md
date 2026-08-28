@@ -54,6 +54,7 @@
 
 ### Fixed
 
+- Fixed website mutation reconciliation so optimistic notifications, challenge requests, saved tracks, follows, playlists, communities, community messages, and conversation read state are read back from the server before completion; overlapping TanStack Query caches now invalidate together and failed settings/read mutations roll back cleanly.
 - Fixed accepted battle invitations so the new scheduled battle is reconciled into Upcoming without a failed optimistic refetch, and normalized battle challenge usernames with or without `@`.
 - Fixed project and community discovery cards to use the shared frameless treatment while retaining useful community descriptions.
 - Fixed public Live Creators and Live Parties filters so region, genre, and sort controls share the same four-column desktop row as Live Battles.
