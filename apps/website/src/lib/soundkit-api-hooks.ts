@@ -269,6 +269,10 @@ type UpdateMeProfileBody = InferRequestType<typeof meProfilePatch>["json"];
 type UpdateNotificationSettingsBody = InferRequestType<
   typeof meNotificationSettingsPatch
 >["json"];
+type NotificationSettings = InferResponseType<
+  typeof meNotificationSettingsGet,
+  200
+>;
 export type BattleSummary = InferResponseType<typeof battlesGet, 200>[number];
 export type BattleParticipant = BattleSummary["participants"][number];
 export type BattleChallengesResponse = InferResponseType<
@@ -548,14 +552,15 @@ export const useCreateAdCampaignMutation = () => {
         body: JSON.stringify(body),
         method: "POST",
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adCampaigns,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adAdminCampaigns,
-      });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adCampaigns,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adAdminCampaigns,
+        }),
+      ]),
   });
 };
 
@@ -614,14 +619,15 @@ export const useImportStripePlanMutation = () => {
   return useMutation({
     mutationFn: async (body: ImportStripePlanBody) =>
       rpcJson(await adminImportStripePlanPost({ json: body })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adminPayments,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adminOverview,
-      });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adminPayments,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adminOverview,
+        }),
+      ]),
   });
 };
 
@@ -631,14 +637,15 @@ export const useSyncStripePlansMutation = () => {
   return useMutation({
     mutationFn: async (body: SyncStripePlansBody = {}) =>
       rpcJson(await adminSyncStripePlansPost({ json: body })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adminPayments,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adminOverview,
-      });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adminPayments,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adminOverview,
+        }),
+      ]),
   });
 };
 
@@ -648,11 +655,10 @@ export const useBackfillTrackDurationsMutation = () => {
   return useMutation({
     mutationFn: async (body: BackfillTrackDurationsBody) =>
       rpcJson(await adminBackfillTrackDurationsPost({ json: body })),
-    onSuccess: () => {
+    onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.adminOverview,
-      });
-    },
+      }),
   });
 };
 
@@ -700,8 +706,14 @@ export const useUpdateMeProfileMutation = () => {
   return useMutation({
     mutationFn: async (body: UpdateMeProfileBody) =>
       rpcJson(await meProfilePatch({ json: body })),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me }),
+        queryClient.invalidateQueries({ queryKey: ["artists"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-profile"] }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network }),
+      ]);
+    },
   });
 };
 
@@ -717,10 +729,33 @@ export const useUpdateNotificationSettingsMutation = () => {
   return useMutation({
     mutationFn: async (body: UpdateNotificationSettingsBody) =>
       rpcJson(await meNotificationSettingsPatch({ json: body })),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
+    onError: (_error, _body, context) => {
+      const rollback = context as OptimisticRollback | undefined;
+      queryClient.setQueryData(
+        soundkitQueryKeys.meNotificationSettings,
+        rollback?.previousNotificationSettings
+      );
+    },
+    onMutate: async (body) => {
+      await queryClient.cancelQueries({
         queryKey: soundkitQueryKeys.meNotificationSettings,
-      }),
+      });
+      const previousNotificationSettings =
+        queryClient.getQueryData<NotificationSettings>(
+          soundkitQueryKeys.meNotificationSettings
+        );
+      queryClient.setQueryData<NotificationSettings | undefined>(
+        soundkitQueryKeys.meNotificationSettings,
+        (settings) => (settings ? { ...settings, ...body } : settings)
+      );
+      return { previousNotificationSettings };
+    },
+    onSuccess: (settings) => {
+      queryClient.setQueryData(
+        soundkitQueryKeys.meNotificationSettings,
+        settings
+      );
+    },
   });
 };
 
@@ -786,7 +821,9 @@ export const useFriendRequestsQuery = () =>
   });
 
 interface OptimisticRollback {
+  previousConversations?: ConversationSummary[];
   previousNetwork?: NetworkResponse;
+  previousNotificationSettings?: NotificationSettings;
   previousProject?: PublicProjectSummary;
   previousProjects?: ProjectSummary[];
   previousRequests?: FriendRequestSummary[];
@@ -856,11 +893,14 @@ export const useCreateFriendRequestMutation = () => {
       );
       return { previousNetwork, previousRequests };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.friendRequests,
-      });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.friends });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.friendRequests,
+        }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.friends }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network }),
+      ]);
     },
   });
 };
@@ -970,14 +1010,17 @@ export const useRespondFriendRequestMutation = () => {
       );
       return { previousNetwork, previousRequests };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.friendRequests,
-      });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.friends });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.conversations,
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.friendRequests,
+        }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.friends }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.conversations,
+        }),
+      ]);
     },
   });
 };
@@ -1025,13 +1068,40 @@ export const useMarkConversationReadMutation = () => {
   return useMutation({
     mutationFn: async (conversationId: string) =>
       rpcJson(await conversationReadPost({ param: { conversationId } })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
+    onError: (_error, _conversationId, context) => {
+      const rollback = context as OptimisticRollback | undefined;
+      queryClient.setQueryData(
+        soundkitQueryKeys.conversations,
+        rollback?.previousConversations
+      );
+    },
+    onMutate: async (conversationId) => {
+      await queryClient.cancelQueries({
         queryKey: soundkitQueryKeys.conversations,
       });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.notifications,
-      });
+      const previousConversations = queryClient.getQueryData<
+        ConversationSummary[]
+      >(soundkitQueryKeys.conversations);
+      queryClient.setQueryData<ConversationSummary[] | undefined>(
+        soundkitQueryKeys.conversations,
+        (conversations) =>
+          conversations?.map((conversation) =>
+            conversation.id === conversationId
+              ? { ...conversation, unreadCount: 0 }
+              : conversation
+          )
+      );
+      return { previousConversations };
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.conversations,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.notifications,
+        }),
+      ]);
     },
   });
 };
@@ -1091,14 +1161,15 @@ export const useCreateMessageMutation = (conversationId: string) => {
           param: { conversationId },
         })
       ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.conversationMessages(conversationId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.conversations,
-      });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.conversationMessages(conversationId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.conversations,
+        }),
+      ]),
   });
 };
 
@@ -1155,16 +1226,17 @@ export const useFollowArtistMutation = (username: string) => {
   return useMutation({
     mutationFn: async (): Promise<ArtistFollowResponse> =>
       rpcJson(await artistFollowPost({ param: { username } })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.artist(username),
-      });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.artists() });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.notifications,
-      });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.artist(username),
+        }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.artists() }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.notifications,
+        }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network }),
+      ]),
   });
 };
 
@@ -1173,13 +1245,14 @@ export const useUnfollowArtistMutation = (username: string) => {
   return useMutation({
     mutationFn: async (): Promise<ArtistFollowResponse> =>
       rpcJson(await artistFollowDelete({ param: { username } })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.artist(username),
-      });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.artists() });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.artist(username),
+        }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.artists() }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network }),
+      ]),
   });
 };
 
@@ -1298,13 +1371,18 @@ export const useUpdateTrackMutation = (trackId: string) => {
       }
       return { previousTrack };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.tracksPrefix,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.track(trackId),
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.tracksPrefix,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.track(trackId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["track-detail", trackId],
+        }),
+      ]);
     },
   });
 };
@@ -1347,15 +1425,15 @@ export const useDeleteTrackMutation = () => {
       );
       return { previousTracks };
     },
-    onSuccess: (_, trackId) => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.tracksPrefix,
-      });
-      queryClient.refetchQueries({
+    onSuccess: async (_, trackId) => {
+      await queryClient.refetchQueries({
         queryKey: soundkitQueryKeys.tracksPrefix,
       });
       queryClient.removeQueries({
         queryKey: soundkitQueryKeys.track(trackId),
+      });
+      queryClient.removeQueries({
+        queryKey: ["track-detail", trackId],
       });
     },
   });
@@ -1385,13 +1463,18 @@ export const useSettleTrackMutation = () => {
       body: SettleTrackBody;
       trackId: string;
     }) => rpcJson(await trackSettlePost({ json: body, param: { trackId } })),
-    onSuccess: (_, { trackId }) => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.tracksPrefix,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.track(trackId),
-      });
+    onSuccess: async (_, { trackId }) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.tracksPrefix,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.track(trackId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["track-detail", trackId],
+        }),
+      ]);
     },
   });
 };
@@ -1419,13 +1502,18 @@ export const useRetryTrackMediaProcessingMutation = (trackId: string) => {
   return useMutation({
     mutationFn: async () =>
       rpcJson(await trackMediaProcessingRetryPost({ param: { trackId } })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.trackMediaProcessing(trackId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.track(trackId),
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.trackMediaProcessing(trackId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.track(trackId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.tracksPrefix,
+        }),
+      ]);
     },
   });
 };
@@ -1546,11 +1634,16 @@ export const useUpdateProjectMutation = (projectId: string) => {
       }
       return { previousProject };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.project(projectId),
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.project(projectId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.publicProject(projectId),
+        }),
+      ]);
     },
   });
 };
@@ -1597,11 +1690,15 @@ export const useDeleteProjectMutation = () => {
       );
       return { previousProjects };
     },
-    onSuccess: (_, projectId) => {
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects });
-      queryClient.refetchQueries({ queryKey: soundkitQueryKeys.projects });
+    onSuccess: async (_, projectId) => {
+      await queryClient.refetchQueries({
+        queryKey: soundkitQueryKeys.projects,
+      });
       queryClient.removeQueries({
         queryKey: soundkitQueryKeys.project(projectId),
+      });
+      queryClient.removeQueries({
+        queryKey: soundkitQueryKeys.publicProject(projectId),
       });
     },
   });
@@ -1762,9 +1859,8 @@ export const useDeleteLiveExperienceMutation = () => {
   return useMutation({
     mutationFn: async (experienceId: string) =>
       rpcJson(await liveExperienceDelete({ param: { experienceId } })),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["live", "experiences"] });
-    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["live", "experiences"] }),
   });
 };
 
@@ -1792,11 +1888,10 @@ export const useCreateBattleKitMutation = () => {
   return useMutation({
     mutationFn: async (body: InferRequestType<typeof battleKitsPost>["json"]) =>
       rpcJson(await battleKitsPost({ json: body })),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
+    onSuccess: () =>
+      queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.battleKits,
-      });
-    },
+      }),
   });
 };
 
@@ -1809,10 +1904,10 @@ export const useUpdateBattleKitMutation = () => {
     }: InferRequestType<typeof battleKitPatch>["json"] & { kitId: string }) =>
       rpcJson(await battleKitPatch({ json: body, param: { kitId } })),
     onSuccess: (kit) => {
-      void queryClient.invalidateQueries({
+      queryClient.setQueryData(soundkitQueryKeys.battleKit(kit.id), kit);
+      return queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.battleKits,
       });
-      void queryClient.setQueryData(soundkitQueryKeys.battleKit(kit.id), kit);
     },
   });
 };
@@ -1822,11 +1917,10 @@ export const useDeleteBattleKitMutation = () => {
   return useMutation({
     mutationFn: async (kitId: string) =>
       rpcJson(await battleKitDelete({ param: { kitId } })),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
+    onSuccess: () =>
+      queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.battleKits,
-      });
-    },
+      }),
   });
 };
 
@@ -2033,10 +2127,11 @@ export const useUpdateWorkspaceMutation = () => {
           json: { name },
         })
       ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.workspace });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.workspace }),
+      ]),
   });
 };
 
@@ -2116,15 +2211,19 @@ export const useCreateLiveExperienceMutation = () => {
       body: CreateLiveExperienceBody
     ): Promise<LiveExperienceCreateResponse> =>
       rpcJson(await liveExperiencePost({ json: body })),
-    onSuccess: (experience) => {
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.listeningParties,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.liveExperience(experience.experience.id),
-      });
-    },
+    onSuccess: (experience) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.listeningParties,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.liveExperience(experience.experience.id),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["live", "experiences"],
+        }),
+      ]),
   });
 };
 
@@ -2375,12 +2474,13 @@ export const useSubmitOpenVerseMutation = (listingId: string) => {
           param: { listingId },
         })
       ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["open-verses"] });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.openVerse(listingId),
-      });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["open-verses"] }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.openVerse(listingId),
+        }),
+      ]),
   });
 };
 

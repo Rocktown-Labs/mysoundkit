@@ -95,7 +95,11 @@ const makeConversationCollection = (queryClient: QueryClient) =>
         staleTime: 30_000,
       })
     ),
-  makeMessageCollection = (queryClient: QueryClient, conversationId: string) =>
+  makeMessageCollection = (
+    queryClient: QueryClient,
+    conversationId: string,
+    conversations: ReturnType<typeof makeConversationCollection>
+  ) =>
     createCollection(
       queryCollectionOptions<MessageSummary>({
         enabled: Boolean(conversationId),
@@ -123,6 +127,7 @@ const makeConversationCollection = (queryClient: QueryClient) =>
               })
             );
           collection.utils.writeUpsert(created);
+          await conversations.utils.refetch();
           return { refetch: false };
         },
         queryClient,
@@ -179,7 +184,11 @@ const MessagingDbContext = createContext<MessagingDbContextValue | null>(null),
           return existing;
         }
 
-        const collection = makeMessageCollection(queryClient, conversationId);
+        const collection = makeMessageCollection(
+          queryClient,
+          conversationId,
+          conversations
+        );
         messageCollections.set(collectionKey, collection);
         return collection;
       };
@@ -216,13 +225,17 @@ const useMessagingDb = () => {
 };
 
 export const useMessagingConversations = () => {
-  const { conversations } = useMessagingDb();
-  return useLiveQuery((q) =>
-    q
-      .from({ conversation: conversations })
-      .orderBy(({ conversation }) => conversation.updatedAt, "desc")
-      .orderBy(({ conversation }) => conversation.id, "desc")
-  );
+  const { conversations } = useMessagingDb(),
+    result = useLiveQuery((q) =>
+      q
+        .from({ conversation: conversations })
+        .orderBy(({ conversation }) => conversation.updatedAt, "desc")
+        .orderBy(({ conversation }) => conversation.id, "desc")
+    ),
+    refetch = useCallback(async () => {
+      await conversations.utils.refetch();
+    }, [conversations]);
+  return { ...result, refetch };
 };
 
 export const useLiveRoomChat = (roomId: string) => {

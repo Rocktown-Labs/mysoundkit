@@ -54,6 +54,7 @@
 
 ### Fixed
 
+- Fixed website mutation reconciliation so optimistic notifications, challenge requests, saved tracks, follows, playlists, communities, community messages, and conversation read state are read back from the server before completion; overlapping TanStack Query caches now invalidate together and failed settings/read mutations roll back cleanly.
 - Fixed listening-party discovery to retain live rooms after their scheduled start, prevent public viewers from receiving host playback controls, validate party track changes server-side, and push playback updates to connected listeners over the room WebSocket.
 - Fixed the video analytics dashboard to skip unsupported first-party requests for external videos, explain the limitation without an error state, and offer a retry action with the API error for hosted-video failures.
 - Fixed track management by removing the broken full-page edit flow, preserving legacy edit URLs as redirects, allowing release dates and external links to be cleared or updated, and correctly clearing stale prices when monetization is disabled.

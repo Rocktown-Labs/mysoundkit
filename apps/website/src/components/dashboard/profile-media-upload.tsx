@@ -33,6 +33,7 @@ export function ProfileMediaUpload({
     [selectedFile, setSelectedFile] = useState<File | null>(null),
     [selectedObjectUrl, setSelectedObjectUrl] = useState(""),
     [statusMessage, setStatusMessage] = useState<string | null>(null),
+    [statusIsError, setStatusIsError] = useState(false),
     persistUploadedMedia = async ({
       objectKey,
       remoteUrl,
@@ -63,15 +64,33 @@ export function ProfileMediaUpload({
             message?: string;
           } | null;
 
-        void queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me });
+        if (!response.ok) {
+          throw new Error(
+            payload?.message ??
+              `Unable to update ${kind === "avatar" ? "profile photo" : "header image"}.`
+          );
+        }
 
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me }),
+          queryClient.invalidateQueries({ queryKey: ["artists"] }),
+          queryClient.invalidateQueries({ queryKey: ["public-profile"] }),
+          queryClient.invalidateQueries({
+            queryKey: soundkitQueryKeys.network,
+          }),
+        ]);
+
+        setStatusIsError(false);
         setStatusMessage(
           payload?.message ??
             `${kind === "avatar" ? "Profile photo" : "Header image"} updated.`
         );
-      } catch {
+      } catch (error) {
+        setStatusIsError(true);
         setStatusMessage(
-          `${kind === "avatar" ? "Profile photo" : "Header image"} updated.`
+          error instanceof Error
+            ? error.message
+            : `Unable to update ${kind === "avatar" ? "profile photo" : "header image"}.`
         );
       }
     },
@@ -120,6 +139,7 @@ export function ProfileMediaUpload({
 
       setSelectedFile(file);
       setSelectedObjectUrl(URL.createObjectURL(file));
+      setStatusIsError(false);
       setStatusMessage(null);
     },
     uploadCroppedFile = async (croppedFile: File, localPreviewUrl: string) => {
@@ -223,7 +243,9 @@ export function ProfileMediaUpload({
       ) : null}
 
       {statusMessage ? (
-        <p className="text-xs text-emerald-400 font-semibold">
+        <p
+          className={`text-xs font-semibold ${statusIsError ? "text-destructive" : "text-emerald-400"}`}
+        >
           {statusMessage}
         </p>
       ) : null}
