@@ -97,7 +97,27 @@ function PublicBattlePage() {
   return <BattlePage roomId={id} />;
 }
 
-const voteTotal = (round: LiveBattleRound) =>
+const mediaErrorMessage = (error: unknown) => {
+    if (error instanceof Error && !(error instanceof DOMException)) {
+      return error.message;
+    }
+
+    const name = error instanceof DOMException ? error.name : "";
+    if (name === "NotAllowedError" || name === "SecurityError") {
+      return "Camera or microphone access is blocked. Allow both devices in your browser site settings, then try again.";
+    }
+    if (name === "NotFoundError") {
+      return "No camera or microphone was found. Connect both devices, then try again.";
+    }
+    if (name === "NotReadableError") {
+      return "Another app is using your camera or microphone. Close it, then try again.";
+    }
+    if (name === "OverconstrainedError") {
+      return "The saved device is no longer available. SoundKit reset to your browser’s default devices; try again.";
+    }
+    return "We could not access your camera or microphone. Check browser permissions and try again.";
+  },
+  voteTotal = (round: LiveBattleRound) =>
     Object.values(round.voteTotals).reduce((sum, votes) => sum + votes, 0),
   votePercent = (round: LiveBattleRound, artistId: string) => {
     const total = voteTotal(round);
@@ -393,58 +413,108 @@ function BattleDeviceSetup({
 
   const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) {
-      return;
+      return [];
     }
 
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
-    setAudioDevices(devices.filter((device) => device.kind === "audioinput"));
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
+      setAudioDevices(devices.filter((device) => device.kind === "audioinput"));
+      return devices;
+    } catch {
+      return [];
+    }
   }, []);
 
   const requestPermissions = useCallback(
     async (
       videoDeviceId = selectedVideoDeviceId,
       audioDeviceId = selectedAudioDeviceId
-    ) => {
+    ): Promise<BattleMediaDeviceSelection | null> => {
       if (!navigator.mediaDevices?.getUserMedia) {
         setError("This browser does not provide camera and microphone access.");
         setMediaStatus("error");
-        return false;
+        return null;
       }
 
       setMediaStatus("requesting");
       setError(null);
       setSaved(false);
 
+      let acquiredStream: MediaStream | null = null;
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: audioDeviceId ? { deviceId: { exact: audioDeviceId } } : true,
-          video: videoDeviceId ? { deviceId: { exact: videoDeviceId } } : true,
-        });
-        setMediaStream(stream);
-        await refreshDevices();
-        const devices = await navigator.mediaDevices.enumerateDevices(),
+        const devicesBeforeRequest = await refreshDevices(),
+          validVideoDeviceId = devicesBeforeRequest.some(
+            (device) =>
+              device.kind === "videoinput" && device.deviceId === videoDeviceId
+          )
+            ? videoDeviceId
+            : "",
+          validAudioDeviceId = devicesBeforeRequest.some(
+            (device) =>
+              device.kind === "audioinput" && device.deviceId === audioDeviceId
+          )
+            ? audioDeviceId
+            : "",
+          constraints = {
+            audio: validAudioDeviceId
+              ? { deviceId: { exact: validAudioDeviceId } }
+              : true,
+            video: validVideoDeviceId
+              ? { deviceId: { exact: validVideoDeviceId } }
+              : true,
+          };
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          acquiredStream = stream;
+        } catch (mediaError) {
+          const errorName =
+            mediaError instanceof DOMException ? mediaError.name : "";
+          if (
+            errorName !== "OverconstrainedError" &&
+            errorName !== "NotFoundError"
+          ) {
+            throw mediaError;
+          }
+
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: true,
+          });
+          acquiredStream = stream;
+        }
+        const devices = await refreshDevices(),
           nextVideoDevice =
-            videoDeviceId ||
+            validVideoDeviceId ||
             devices.find((device) => device.kind === "videoinput")?.deviceId ||
             "",
           nextAudioDevice =
-            audioDeviceId ||
+            validAudioDeviceId ||
             devices.find((device) => device.kind === "audioinput")?.deviceId ||
-            "";
-        setSelectedVideoDeviceId(nextVideoDevice);
-        setSelectedAudioDeviceId(nextAudioDevice);
+            "",
+          selection = {
+            audioDeviceId: nextAudioDevice,
+            videoDeviceId: nextVideoDevice,
+          };
+        if (!(selection.videoDeviceId && selection.audioDeviceId)) {
+          throw new Error(
+            "SoundKit could not find both a camera and microphone. Connect both devices, then try again."
+          );
+        }
+
+        setMediaStream(stream);
+        setSelectedVideoDeviceId(selection.videoDeviceId);
+        setSelectedAudioDeviceId(selection.audioDeviceId);
         setMediaStatus("ready");
-        return true;
+        return selection;
       } catch (permissionError) {
+        for (const track of acquiredStream?.getTracks() ?? []) {
+          track.stop();
+        }
         setMediaStatus("error");
-        setError(
-          permissionError instanceof DOMException &&
-            permissionError.name === "NotAllowedError"
-            ? "Allow camera and microphone access to continue."
-            : "We could not access the selected camera and microphone."
-        );
-        return false;
+        setError(mediaErrorMessage(permissionError));
+        return null;
       }
     },
     [refreshDevices, selectedAudioDeviceId, selectedVideoDeviceId]
@@ -470,6 +540,10 @@ function BattleDeviceSetup({
       video.srcObject = null;
     };
   }, [mediaStream]);
+
+  useEffect(() => {
+    void refreshDevices();
+  }, [refreshDevices]);
 
   useEffect(() => {
     const savedSelection = readBattleMediaDeviceSelection();
@@ -505,14 +579,14 @@ function BattleDeviceSetup({
           return;
         }
 
-        const restored = await requestPermissions(
+        const restoredSelection = await requestPermissions(
           savedSelection.videoDeviceId,
           savedSelection.audioDeviceId
         );
-        if (restored && !disposed) {
-          rememberBattleMediaDeviceSelection(savedSelection);
+        if (restoredSelection && !disposed) {
+          rememberBattleMediaDeviceSelection(restoredSelection);
           setSaved(true);
-          onSaved(savedSelection);
+          onSaved(restoredSelection);
         }
       } catch {
         if (!disposed) {
@@ -549,6 +623,19 @@ function BattleDeviceSetup({
         selectedAudioDeviceId
       )
     ) {
+      return;
+    }
+
+    const hasSelectedDevices =
+      videoDevices.some(
+        (device) => device.deviceId === selectedVideoDeviceId
+      ) &&
+      audioDevices.some((device) => device.deviceId === selectedAudioDeviceId);
+    if (!hasSelectedDevices) {
+      setMediaStatus("error");
+      setError(
+        "The selected camera or microphone is no longer available. Choose another device and try again."
+      );
       return;
     }
 
@@ -593,7 +680,7 @@ function BattleDeviceSetup({
           )}
         </div>
         <Select
-          disabled={mediaStatus !== "ready"}
+          disabled={mediaStatus === "requesting" || videoDevices.length === 0}
           onValueChange={(value) => {
             setSelectedVideoDeviceId(value);
             void requestPermissions(value, selectedAudioDeviceId);
@@ -645,7 +732,7 @@ function BattleDeviceSetup({
           Choose the input used for your live battle turn.
         </p>
         <Select
-          disabled={mediaStatus !== "ready"}
+          disabled={mediaStatus === "requesting" || audioDevices.length === 0}
           onValueChange={(value) => {
             setSelectedAudioDeviceId(value);
             void requestPermissions(selectedVideoDeviceId, value);
