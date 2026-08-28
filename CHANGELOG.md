@@ -54,6 +54,8 @@
 
 ### Fixed
 
+- Fixed project and community discovery cards to use the shared frameless treatment while retaining useful community descriptions.
+- Fixed public Live Creators and Live Parties filters so region, genre, and sort controls share the same four-column desktop row as Live Battles.
 - Fixed battle waiting rooms to close and cancel automatically when both artists are not present and ready by the deadline, with read-only terminal results, persisted cancellation, and participant notifications.
 - Fixed battle chat artist and BattleBot messages to use clean frameless bubbles, readable white semibold text, and resolved sender avatars.
 - Fixed listening-party discovery to retain live rooms after their scheduled start, prevent public viewers from receiving host playback controls, validate party track changes server-side, and push playback updates to connected listeners over the room WebSocket.

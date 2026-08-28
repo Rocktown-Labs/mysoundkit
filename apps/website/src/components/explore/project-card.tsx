@@ -13,8 +13,8 @@ import type { PublicProjectSummary } from "@/lib/soundkit-api-hooks";
 
 export function ProjectCard({ project }: { project: PublicProjectSummary }) {
   return (
-    <PublicCard className="w-full" framed>
-      <PublicCardThumbnail aspect="square" className="rounded-none">
+    <PublicCard className="w-full">
+      <PublicCardThumbnail aspect="square">
         {project.coverArtUrl ? (
           <AppImage
             alt={`${project.title} cover artwork`}
