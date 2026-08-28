@@ -1,4 +1,5 @@
 import {
+  ClientOnly,
   Outlet,
   createFileRoute,
   useRouterState,
@@ -39,7 +40,11 @@ function DashboardLayout() {
               : "flex flex-1 flex-col"
           }
         >
-          <DashboardHeader />
+          <ClientOnly
+            fallback={<div className="h-16 border-b bg-background" />}
+          >
+            <DashboardHeader />
+          </ClientOnly>
           <main
             className={
               isArtistBattleRoom

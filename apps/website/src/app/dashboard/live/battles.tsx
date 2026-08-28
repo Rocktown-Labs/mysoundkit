@@ -82,6 +82,7 @@ import {
 
 export const Route = createFileRoute("/dashboard/live/battles")({
   component: BattleRoutePage,
+  ssr: false,
 });
 
 function BattleRoutePage() {

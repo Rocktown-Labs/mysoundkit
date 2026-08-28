@@ -73,6 +73,7 @@ const formatDateSafe = (isoString?: string | null) => {
 export const Route = createFileRoute("/dashboard/tracks/")({
   component: TracksPage,
   loader: () => getDashboardTracks(),
+  ssr: false,
 });
 
 function TracksPage() {

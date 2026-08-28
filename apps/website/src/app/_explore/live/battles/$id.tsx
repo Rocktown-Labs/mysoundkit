@@ -740,7 +740,6 @@ function ArtistBattlePreparation({
     },
     handleReady = async (ready: boolean) => {
       await onReady(ready);
-      setIsSetupOpen(!ready);
     };
 
   return (
