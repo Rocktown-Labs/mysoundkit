@@ -633,6 +633,58 @@ test.describe("main application surfaces", () => {
     ).toBeVisible();
   });
 
+  test("assigned artists are notified and routed to their live battle room", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "participant",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/tracks");
+    await expect(
+      page.getByRole("heading", { name: "Your live battle is ready" })
+    ).toBeVisible({ timeout: 60_000 });
+    await page.getByRole("button", { name: /West Coast Showdown/ }).click();
+    await expect(page).toHaveURL(
+      /\/dashboard\/live\/battles\/join\/battle-west-coast-showdown\/artistview$/
+    );
+    await expect(
+      page.getByText("Artist room", { exact: true }).first()
+    ).toBeVisible();
+  });
+
+  test("non-participants fall back from direct artist-room URLs", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "nonparticipant",
+      },
+    ]);
+
+    await gotoWithViteRetry(
+      page,
+      "/dashboard/live/battles/join/battle-waiting-artist/artistview"
+    );
+    await expect(page).toHaveURL(/\/live\/battles\/battle-waiting-artist$/, {
+      timeout: 60_000,
+    });
+  });
+
   test("fans can join a battle queue without navigating away", async ({
     context,
     page,

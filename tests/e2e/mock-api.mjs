@@ -28,7 +28,7 @@ const normalizeGenre = (value) =>
       };
     }
 
-    if (session === "complete") {
+    if (session === "complete" || session === "participant") {
       return {
         accountType: "artist",
         avatarUrl: "/summer-music-album-cover.webp",
@@ -36,6 +36,16 @@ const normalizeGenre = (value) =>
         id: "user_complete",
         onboardingCompletedAt: "2026-05-24T12:00:00.000Z",
         username: "complete_artist",
+      };
+    }
+
+    if (session === "nonparticipant") {
+      return {
+        accountType: "artist",
+        displayName: "Other Artist",
+        id: "user_other_artist",
+        onboardingCompletedAt: "2026-05-24T12:00:00.000Z",
+        username: "other_artist",
       };
     }
 
@@ -105,7 +115,8 @@ const normalizeGenre = (value) =>
       battle: isBattle
         ? {
             artistControls:
-              isWaitingArtistBattle && session === "complete"
+              isWaitingArtistBattle &&
+              (session === "complete" || session === "participant")
                 ? {
                     availableTrackIds: [],
                     currentTrackId: null,
@@ -117,9 +128,15 @@ const normalizeGenre = (value) =>
             artists: [
               {
                 avatarUrl: "/soundkit-default-avatar.svg",
-                id: isWaitingArtistBattle ? "user_complete" : "artist-dj-nova",
+                id:
+                  isWaitingArtistBattle || session === "participant"
+                    ? "user_complete"
+                    : "artist-dj-nova",
                 isMuted: false,
-                name: isWaitingArtistBattle ? "Complete Artist" : "DJ Nova",
+                name:
+                  isWaitingArtistBattle || session === "participant"
+                    ? "Complete Artist"
+                    : "DJ Nova",
                 rank: 1,
                 roundsWon: 1,
                 stagePosition: "left",
@@ -194,7 +211,10 @@ const normalizeGenre = (value) =>
       id: roomId,
       kind,
       role:
-        isWaitingArtistBattle && session === "complete" ? "artist_a" : "fan",
+        (isWaitingArtistBattle || (isBattle && session === "participant")) &&
+        (session === "complete" || session === "participant")
+          ? "artist_a"
+          : "fan",
       serverNow: Date.now(),
       status: isWaitingArtistBattle ? "upcoming" : "live",
       summary: "A live room with chat, track context, and lyrics.",
@@ -575,29 +595,38 @@ export const createMockApiServer = async ({
     }
 
     if (url.pathname === "/auth/get-session") {
-      if (session !== "admin" && session !== "complete") {
+      if (
+        session !== "admin" &&
+        session !== "complete" &&
+        session !== "participant" &&
+        session !== "nonparticipant"
+      ) {
         json(response, 200, null, webOrigin);
         return;
       }
 
+      const authenticatedUser = mockUser(session),
+        isAdminSession = session === "admin";
       json(
         response,
         200,
         {
           session: {
             expiresAt: "2026-07-22T12:00:00.000Z",
-            id: "session_admin",
+            id: `session_${session}`,
             token: "test-token",
-            userId: "user_admin",
+            userId: authenticatedUser.id,
           },
           user: {
             banned: false,
             createdAt: "2026-06-22T12:00:00.000Z",
-            email: "cg@rocktownlabs.com",
+            email: isAdminSession
+              ? "cg@rocktownlabs.com"
+              : "complete@rocktownlabs.com",
             emailVerified: true,
-            id: "user_admin",
-            name: "CG Admin",
-            role: "admin",
+            id: authenticatedUser.id,
+            name: authenticatedUser.displayName,
+            role: isAdminSession ? "admin" : "user",
             updatedAt: "2026-06-22T12:00:00.000Z",
           },
         },
@@ -996,7 +1025,11 @@ export const createMockApiServer = async ({
       /^\/v1\/videos\/([^/]+)\/analytics$/
     );
     if (videoAnalyticsMatch) {
-      const premium = session === "complete" || session === "admin";
+      const premium =
+        session === "complete" ||
+        session === "participant" ||
+        session === "nonparticipant" ||
+        session === "admin";
       json(
         response,
         200,
@@ -1387,7 +1420,11 @@ export const createMockApiServer = async ({
       url.pathname === "/v1/artist-setup-guide" ||
       url.pathname === "/v1/artist-setup-guide/"
     ) {
-      const complete = session === "complete" || session === "admin";
+      const complete =
+        session === "complete" ||
+        session === "participant" ||
+        session === "nonparticipant" ||
+        session === "admin";
       json(
         response,
         200,
@@ -1448,7 +1485,11 @@ export const createMockApiServer = async ({
     }
 
     if (url.pathname === "/v1/me/entitlements") {
-      const complete = session === "complete" || session === "admin";
+      const complete =
+        session === "complete" ||
+        session === "participant" ||
+        session === "nonparticipant" ||
+        session === "admin";
       json(
         response,
         200,
@@ -1543,6 +1584,42 @@ export const createMockApiServer = async ({
       }
 
       json(response, 200, [], webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/live/rooms/queue") {
+      const user = mockUser(session);
+
+      if (!user) {
+        json(
+          response,
+          401,
+          { message: "Authentication is required." },
+          webOrigin
+        );
+        return;
+      }
+
+      json(
+        response,
+        200,
+        {
+          battles: [],
+          participatingBattles:
+            session === "participant"
+              ? [
+                  {
+                    battleId: "battle-west-coast-showdown",
+                    role: "artist_a",
+                    startsAt: null,
+                    status: "live",
+                    title: "West Coast Showdown",
+                  },
+                ]
+              : [],
+        },
+        webOrigin
+      );
       return;
     }
 

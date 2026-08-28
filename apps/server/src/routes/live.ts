@@ -981,12 +981,10 @@ const badRequest = (message: string) => ({
             })
             .from(battles)
             .where(
-              experience?.battleId
-                ? eq(battles.id, battleId)
-                : or(
-                    eq(battles.id, battleId),
-                    eq(battles.externalBattleId, battleId)
-                  )
+              or(
+                eq(battles.id, battleId),
+                eq(battles.externalBattleId, battleId)
+              )
             )
             .limit(1);
         role = resolveBattleRoomRole({
@@ -3055,30 +3053,62 @@ app.get("/rooms/queue", async (c) => {
   }
 
   const db = createDb(),
-    rows = await db
-      .select({
-        battleId: battleQueueEntries.battleId,
-        startsAt: battles.startsAt,
-        status: battles.status,
-        title: battles.title,
-      })
-      .from(battleQueueEntries)
-      .innerJoin(battles, eq(battles.id, battleQueueEntries.battleId))
-      .where(
-        and(
-          eq(battleQueueEntries.userId, user.id),
-          or(
-            eq(battleQueueEntries.status, "queued"),
-            eq(battleQueueEntries.status, "conflict")
+    [rows, participatingRows] = await Promise.all([
+      db
+        .select({
+          battleId: battleQueueEntries.battleId,
+          startsAt: battles.startsAt,
+          status: battles.status,
+          title: battles.title,
+        })
+        .from(battleQueueEntries)
+        .innerJoin(battles, eq(battles.id, battleQueueEntries.battleId))
+        .where(
+          and(
+            eq(battleQueueEntries.userId, user.id),
+            or(
+              eq(battleQueueEntries.status, "queued"),
+              eq(battleQueueEntries.status, "conflict")
+            )
           )
         )
-      )
-      .orderBy(asc(battles.startsAt));
+        .orderBy(asc(battles.startsAt)),
+      db
+        .select({
+          battleId: battles.id,
+          challengerArtistUserId: battles.challengerArtistUserId,
+          opponentArtistUserId: battles.opponentArtistUserId,
+          startsAt: battles.startsAt,
+          status: battles.status,
+          title: battles.title,
+        })
+        .from(battles)
+        .where(
+          and(
+            eq(battles.status, "live"),
+            or(
+              eq(battles.challengerArtistUserId, user.id),
+              eq(battles.opponentArtistUserId, user.id)
+            )
+          )
+        )
+        .orderBy(asc(battles.startsAt)),
+    ]);
 
   return c.json(
     {
       battles: rows.map((row) => ({
         battleId: row.battleId,
+        startsAt: row.startsAt ? row.startsAt.toISOString() : null,
+        status: row.status,
+        title: row.title,
+      })),
+      participatingBattles: participatingRows.map((row) => ({
+        battleId: row.battleId,
+        role:
+          row.challengerArtistUserId === user.id
+            ? ("artist_a" as const)
+            : ("artist_b" as const),
         startsAt: row.startsAt ? row.startsAt.toISOString() : null,
         status: row.status,
         title: row.title,

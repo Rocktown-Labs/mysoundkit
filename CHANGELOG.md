@@ -53,6 +53,7 @@
 
 - Fixed track management by removing the broken full-page edit flow, preserving legacy edit URLs as redirects, allowing release dates and external links to be cleared or updated, and correctly clearing stale prices when monetization is disabled.
 - Fixed live battle room reads against older preview databases by probing optional outcome and winner columns and selecting safe null fallbacks until the production schema rollout completes.
+- Fixed live battle entry to distinguish assigned battlers from viewers, route artists to their control room, fall back safely from unauthorized artist URLs, and notify participants when their battle goes live.
 - Fixed battle-room navigation and layout so pre-start artists can leave safely, active battles guard navigation for every participant, and chat stays independently scrollable within the viewport beside the scrolling battle content.
 - Fixed Dashboard Join Battle routing to keep assigned artists in the authenticated room, public artist links to redirect into that room, fan queue mutations to update room state immediately, and round waiting-room chat to be discarded without losing the initial battle chat.
 - Fixed live battle reconnects by resolving generated live experiences through their canonical battle IDs, restoring artist roles and RealtimeKit permissions after disconnects, allowing participating artists to bypass viewer gates, and keeping kit-based recovery available for empty legacy rooms.

@@ -1,9 +1,10 @@
 "use client";
+/* eslint-disable one-var, sort-vars, react/set-state-in-effect */
 
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useRouterState } from "@tanstack/react-router";
 import { LogIn, Swords } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,25 +25,40 @@ export interface QueuedBattleNotice {
   title: string;
 }
 
-const offerKeyForBattle = (battle: QueuedBattleNotice) =>
-    `${battle.battleId}:${battle.status}`,
-  fetchQueuedBattles = async (): Promise<QueuedBattleNotice[]> => {
+interface ParticipatingBattleNotice extends QueuedBattleNotice {
+  role: "artist_a" | "artist_b";
+}
+
+interface BattleEntryResponse {
+  battles?: QueuedBattleNotice[];
+  participatingBattles?: ParticipatingBattleNotice[];
+}
+
+type BattleEntryKind = "artist" | "viewer";
+
+interface BattleEntryOffer extends QueuedBattleNotice {
+  entryKind: BattleEntryKind;
+}
+
+const emptyParticipatingBattles: ParticipatingBattleNotice[] = [],
+  emptyQueuedBattles: QueuedBattleNotice[] = [],
+  offerKeyForBattle = (battle: BattleEntryOffer) =>
+    `${battle.entryKind}:${battle.battleId}:${battle.status}`,
+  fetchBattleEntryNotices = async (): Promise<BattleEntryResponse> => {
     const response = await fetch(`${API_V1_URL}/live/rooms/queue`, {
       credentials: "include",
     });
 
     if (!response.ok) {
-      throw new Error(`Unable to load queued battles: ${response.status}`);
+      throw new Error(`Unable to load live battle notices: ${response.status}`);
     }
 
-    const payload = (await response.json()) as {
-      battles?: QueuedBattleNotice[];
-    };
-    return payload?.battles ?? [];
+    return (await response.json()) as BattleEntryResponse;
   };
 
 export const isBattlePagePath = (pathname: string, battleId: string) =>
-  pathname === `/live/battles/${battleId}`;
+  pathname === `/live/battles/${battleId}` ||
+  pathname === `/dashboard/live/battles/join/${battleId}/artistview`;
 
 export function BattleQueueCta() {
   const router = useRouter(),
@@ -51,19 +67,30 @@ export function BattleQueueCta() {
     userId = session?.user?.id,
     query = useQuery({
       enabled: Boolean(userId),
-      queryFn: fetchQueuedBattles,
+      queryFn: fetchBattleEntryNotices,
       queryKey: ["live", "rooms", "queue"],
       refetchInterval: 30_000,
     }),
-    queuedBattles = query.data ?? [],
-    liveQueuedBattles = queuedBattles.filter(
-      (battle) => battle.status === "live"
+    battleEntryResponse = query.data,
+    queuedBattles = battleEntryResponse?.battles ?? emptyQueuedBattles,
+    participatingBattles =
+      battleEntryResponse?.participatingBattles ?? emptyParticipatingBattles,
+    liveBattleOffers = useMemo(
+      () => [
+        ...participatingBattles
+          .filter((battle) => battle.status === "live")
+          .map((battle) => ({ ...battle, entryKind: "artist" as const })),
+        ...queuedBattles
+          .filter((battle) => battle.status === "live")
+          .map((battle) => ({ ...battle, entryKind: "viewer" as const })),
+      ],
+      [participatingBattles, queuedBattles]
     ),
-    [singleLiveBattle] = liveQueuedBattles,
+    [singleLiveBattle] = liveBattleOffers,
     isSingleBattleOnPage =
-      liveQueuedBattles.length === 1 &&
+      liveBattleOffers.length === 1 &&
       isBattlePagePath(pathname, singleLiveBattle?.battleId ?? ""),
-    shouldShowModal = liveQueuedBattles.length > 0 && !isSingleBattleOnPage,
+    shouldShowModal = liveBattleOffers.length > 0 && !isSingleBattleOnPage,
     offeredOffers = useRef<Set<string>>(new Set()),
     [open, setOpen] = useState(false);
 
@@ -73,20 +100,18 @@ export function BattleQueueCta() {
     }
 
     const remainingIds = new Set(
-        liveQueuedBattles.map(({ battleId }) => battleId)
+        liveBattleOffers.map(({ battleId }) => battleId)
       ),
       staleOffers = [...offeredOffers.current].filter((key) => {
-        const [battleId] = key.split(":");
+        const [, battleId] = key.split(":");
         return !remainingIds.has(battleId ?? "");
       });
 
-    if (staleOffers.length > 0) {
-      for (const key of staleOffers) {
-        offeredOffers.current.delete(key);
-      }
+    for (const key of staleOffers) {
+      offeredOffers.current.delete(key);
     }
 
-    const newOffers = liveQueuedBattles.filter(
+    const newOffers = liveBattleOffers.filter(
       (battle) => !offeredOffers.current.has(offerKeyForBattle(battle))
     );
 
@@ -96,24 +121,30 @@ export function BattleQueueCta() {
 
     for (const battle of newOffers) {
       offeredOffers.current.add(offerKeyForBattle(battle));
-    }
-
-    if (!shouldShowModal) {
-      return;
-    }
-
-    for (const battle of newOffers) {
       toast({
-        description: `${battle.title} is live now.`,
-        title: "The battle you queued for is live",
+        description:
+          battle.entryKind === "artist"
+            ? `${battle.title} is live. Enter the artist room to compete.`
+            : `${battle.title} is live now. Join the audience queue.`,
+        title:
+          battle.entryKind === "artist"
+            ? "Your battle is live"
+            : "The battle you queued for is live",
       });
     }
-    setOpen(true);
-  }, [isSessionPending, liveQueuedBattles, shouldShowModal, userId]);
+
+    if (shouldShowModal) {
+      setOpen(true);
+    }
+  }, [isSessionPending, liveBattleOffers, shouldShowModal, userId]);
 
   if (!shouldShowModal) {
     return null;
   }
+
+  const hasArtistBattle = liveBattleOffers.some(
+    (battle) => battle.entryKind === "artist"
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -121,20 +152,31 @@ export function BattleQueueCta() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Swords className="size-5 text-primary" />
-            A battle you queued for is live
+            {hasArtistBattle
+              ? "Your live battle is ready"
+              : "A live battle is ready"}
           </DialogTitle>
           <DialogDescription>
-            Join now to stop being on the sideline. You can hop right into the
-            arena.
+            {hasArtistBattle
+              ? "Enter your artist room to compete, or join another battle as a viewer."
+              : "Join the live arena and watch the battle you queued for."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2 py-2">
-          {liveQueuedBattles.map((battle) => (
+          {liveBattleOffers.map((battle) => (
             <Button
-              key={battle.battleId}
+              key={offerKeyForBattle(battle)}
               className="flex h-auto w-full items-center justify-between gap-3 py-3 text-left"
               onClick={() => {
                 setOpen(false);
+                if (battle.entryKind === "artist") {
+                  void router.navigate({
+                    params: { roomId: battle.battleId },
+                    to: "/dashboard/live/battles/join/$roomId/artistview",
+                  });
+                  return;
+                }
+
                 void router.navigate({
                   params: { id: battle.battleId },
                   to: "/live/battles/$id",
@@ -145,9 +187,9 @@ export function BattleQueueCta() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{battle.title}</p>
                 <p className="text-xs text-muted-foreground">
-                  {liveQueuedBattles.length > 1
-                    ? "Choose this battle to enter"
-                    : "The arena is open"}
+                  {battle.entryKind === "artist"
+                    ? "Enter artist room"
+                    : "Join as viewer"}
                 </p>
               </div>
               <LogIn className="size-4 shrink-0 text-primary" />
