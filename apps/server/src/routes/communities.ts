@@ -1,7 +1,13 @@
 /* eslint-disable one-var, sort-vars, unicorn/max-nested-calls, unicorn/no-await-expression-member */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { artistProfiles, genres, userProfiles } from "@soundkit/db/schema/app";
+import {
+  artistProfiles,
+  genres,
+  notificationSettings,
+  userNotifications,
+  userProfiles,
+} from "@soundkit/db/schema/app";
 import {
   communities,
   communityBans,
@@ -778,14 +784,57 @@ app.openapi(
         postType: body.postType,
         userId: user.id,
       },
-      authorMap = await loadCommunityAuthors([user.id]);
-    await createDb().transaction(async (transaction) => {
+      authorMap = await loadCommunityAuthors([user.id]),
+      db = createDb(),
+      [community] = await db
+        .select({ artistUserId: communities.artistUserId })
+        .from(communities)
+        .where(eq(communities.id, communityId))
+        .limit(1);
+    await db.transaction(async (transaction) => {
       await transaction.insert(communityPosts).values(row);
       await transaction
         .update(communities)
         .set({ updatedAt: createdAt })
         .where(eq(communities.id, communityId));
     });
+
+    if (community?.artistUserId === user.id) {
+      const recipients = await db
+        .select({
+          communityPostsEnabled: notificationSettings.communityPosts,
+          userId: communityMembers.userId,
+        })
+        .from(communityMembers)
+        .leftJoin(
+          notificationSettings,
+          eq(notificationSettings.userId, communityMembers.userId)
+        )
+        .where(eq(communityMembers.communityId, communityId));
+      const notificationRecipients = recipients.filter(
+        (recipient) =>
+          recipient.userId !== user.id &&
+          recipient.communityPostsEnabled !== false
+      );
+      if (notificationRecipients.length > 0) {
+        await db
+          .insert(userNotifications)
+          .values(
+            notificationRecipients.map((recipient) => ({
+              actorUserId: user.id,
+              entityId: communityId,
+              entityType: "community",
+              id: `community_post:${row.id}:${recipient.userId}`,
+              link: `/communities/${communityId}`,
+              message: `${authorMap.get(user.id)?.name ?? "The creator"} posted an update in your community.`,
+              title: "New community update",
+              type: "community_post",
+              userId: recipient.userId,
+            }))
+          )
+          .onConflictDoNothing();
+      }
+    }
     return c.json(
       {
         ...row,

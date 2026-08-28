@@ -399,6 +399,8 @@ export const entitlementSummarySchema = z.object({
 });
 
 export const notificationSettingsSchema = z.object({
+  communityMentions: z.boolean(),
+  communityPosts: z.boolean(),
   emailCollaborations: z.boolean(),
   emailComments: z.boolean(),
   emailFollowers: z.boolean(),

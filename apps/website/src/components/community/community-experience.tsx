@@ -28,7 +28,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { apiClient, rpcJson } from "@/lib/api";
@@ -44,10 +53,15 @@ import {
   useDbCommunityPosts,
   useSendDbCommunityMessage,
 } from "@/lib/data-db";
-import { useMeQuery } from "@/lib/soundkit-api-hooks";
+import {
+  useMeQuery,
+  useNotificationSettingsQuery,
+  useUpdateNotificationSettingsMutation,
+} from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 type CommunityChannel = "chat" | "members" | "updates";
+type CommunityNotificationKey = "communityMentions" | "communityPosts";
 
 const defaultCommunitySearch = {
     access: "all",
@@ -89,13 +103,27 @@ export function CommunityExperience({
   communityId: string;
   creatorMode?: boolean;
 }) {
-  const { community, isLoading } = useDbCommunity(communityId),
+  const { community, isLoading, status } = useDbCommunity(communityId),
     meQuery = useMeQuery(),
     navigate = useNavigate(),
     { joinFree } = useDbCommunityActions(),
-    [isJoining, setIsJoining] = useState(false);
+    [isJoining, setIsJoining] = useState(false),
+    [hasJoined, setHasJoined] = useState(false),
+    [joinPromptOpen, setJoinPromptOpen] = useState(false);
 
-  if (isLoading) {
+  useEffect(() => {
+    if (
+      community &&
+      !community.isMember &&
+      !hasJoined &&
+      !community.isOwner &&
+      !creatorMode
+    ) {
+      setJoinPromptOpen(true);
+    }
+  }, [community, creatorMode, hasJoined]);
+
+  if (isLoading || status === "idle" || status === "loading") {
     return (
       <div className="py-16 text-center text-muted-foreground">
         Loading community…
@@ -130,6 +158,7 @@ export function CommunityExperience({
       if (community.monthlyPriceCents === 0) {
         const transaction = joinFree(community.id);
         await transaction.isPersisted.promise;
+        setHasJoined(true);
       } else {
         await beginPaidCommunityCheckout(community.id);
       }
@@ -145,6 +174,7 @@ export function CommunityExperience({
     }
     setIsJoining(false);
     if (community.monthlyPriceCents === 0) {
+      setJoinPromptOpen(false);
       toast({
         description: `Welcome to ${community.name}.`,
         title: "Community joined",
@@ -152,13 +182,22 @@ export function CommunityExperience({
     }
   };
 
-  if (!(community.isMember || community.isOwner || creatorMode)) {
+  if (!(community.isMember || hasJoined || community.isOwner || creatorMode)) {
     return (
-      <CommunityJoinCard
-        community={community}
-        isJoining={isJoining}
-        onJoin={joinCommunity}
-      />
+      <>
+        <CommunityJoinCard
+          community={community}
+          isJoining={isJoining}
+          onJoin={() => setJoinPromptOpen(true)}
+        />
+        <CommunityJoinDialog
+          community={community}
+          isJoining={isJoining}
+          onConfirm={joinCommunity}
+          onOpenChange={setJoinPromptOpen}
+          open={joinPromptOpen}
+        />
+      </>
     );
   }
 
@@ -238,6 +277,64 @@ function CommunityJoinCard({
   );
 }
 
+function CommunityJoinDialog({
+  community,
+  isJoining,
+  onConfirm,
+  onOpenChange,
+  open,
+}: {
+  community: DbCommunity;
+  isJoining: boolean;
+  onConfirm: () => void;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+}) {
+  const price =
+    community.monthlyPriceCents === 0
+      ? "Free"
+      : `${new Intl.NumberFormat("en-US", {
+          currency: community.currency,
+          style: "currency",
+        }).format(community.monthlyPriceCents / 100)}/month`;
+
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Join {community.name}?</DialogTitle>
+          <DialogDescription>
+            Confirm that you want access to this artist-led community. You can
+            manage your community notifications after joining.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-lg border bg-muted/20 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium">Membership</span>
+            <Badge variant="secondary">{price}</Badge>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {community.description ??
+              "Get creator updates, community chat, and member access in one place."}
+          </p>
+        </div>
+        <DialogFooter>
+          <Button onClick={() => onOpenChange(false)} variant="outline">
+            Not now
+          </Button>
+          <Button disabled={isJoining} onClick={onConfirm}>
+            {isJoining
+              ? "Joining…"
+              : community.monthlyPriceCents > 0
+                ? "Continue to checkout"
+                : "Join for free"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function CommunityMemberExperience({
   community,
   currentUser,
@@ -252,11 +349,79 @@ function CommunityMemberExperience({
 }) {
   const [channel, setChannel] = useState<CommunityChannel>("chat"),
     { data: members } = useDbCommunityMembers(community.id),
+    notificationSettingsQuery = useNotificationSettingsQuery(),
+    updateNotificationSettings = useUpdateNotificationSettingsMutation(),
+    [communityNotifications, setCommunityNotifications] = useState({
+      communityMentions: true,
+      communityPosts: true,
+    }),
     canModerate = community.isOwner;
+
+  useEffect(() => {
+    const settings = notificationSettingsQuery.data;
+    if (!settings) {
+      return;
+    }
+    setCommunityNotifications({
+      communityMentions: settings.communityMentions,
+      communityPosts: settings.communityPosts,
+    });
+  }, [
+    notificationSettingsQuery.data?.communityMentions,
+    notificationSettingsQuery.data?.communityPosts,
+  ]);
+
+  const updateCommunityNotification = async (
+    key: CommunityNotificationKey,
+    checked: boolean
+  ) => {
+    const previous = communityNotifications[key];
+    setCommunityNotifications((current) => ({ ...current, [key]: checked }));
+    try {
+      await updateNotificationSettings.mutateAsync({ [key]: checked });
+    } catch (error) {
+      setCommunityNotifications((current) => ({ ...current, [key]: previous }));
+      toast({
+        description:
+          error instanceof Error
+            ? error.message
+            : "Community notification setting could not be saved.",
+        title: "Settings unavailable",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="overflow-hidden rounded-xl border bg-card/40 shadow-xl">
-      <div className="flex min-h-[70vh] flex-col lg:grid lg:grid-cols-[220px_minmax(0,1fr)_240px]">
+      <header className="flex flex-col gap-4 border-b bg-gradient-to-r from-primary/10 via-background to-accent/10 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar className="size-12 border-2 border-primary/30">
+            <AvatarImage
+              alt={`${community.artist.name} profile photo`}
+              src={community.artist.avatarUrl ?? undefined}
+            />
+            <AvatarFallback>
+              {community.artist.name.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <p className="text-muted-foreground text-[11px] uppercase tracking-wider">
+              Artist community
+            </p>
+            <h1 className="truncate font-bold text-xl">{community.name}</h1>
+            <p className="mt-1 line-clamp-2 text-muted-foreground text-sm">
+              {community.description ??
+                `Updates and conversation from ${community.artist.name}.`}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs">
+          <Badge variant="secondary">{community.memberCount.toLocaleString()} members</Badge>
+          {community.genre ? <Badge variant="outline">{community.genre.name}</Badge> : null}
+        </div>
+      </header>
+      <div className="flex min-h-[calc(100vh-13rem)] flex-col lg:grid lg:grid-cols-[240px_minmax(0,1fr)_280px]">
         <aside className="border-b bg-muted/30 p-3 lg:border-b-0 lg:border-r">
           <div className="mb-4 rounded-lg bg-primary/10 p-3">
             <p className="truncate font-semibold">{community.name}</p>
@@ -285,6 +450,44 @@ function CommunityMemberExperience({
               </button>
             ))}
           </nav>
+          <div className="mt-5 border-t pt-4">
+            <p className="mb-3 text-muted-foreground text-[10px] uppercase tracking-wider">
+              Notifications
+            </p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs">Creator posts</span>
+                <Switch
+                  aria-label="Receive creator post notifications"
+                  checked={communityNotifications.communityPosts}
+                  disabled={
+                    notificationSettingsQuery.isLoading ||
+                    updateNotificationSettings.isPending
+                  }
+                  onCheckedChange={(checked) =>
+                    void updateCommunityNotification("communityPosts", checked)
+                  }
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs">Chat mentions</span>
+                <Switch
+                  aria-label="Receive community mention notifications"
+                  checked={communityNotifications.communityMentions}
+                  disabled={
+                    notificationSettingsQuery.isLoading ||
+                    updateNotificationSettings.isPending
+                  }
+                  onCheckedChange={(checked) =>
+                    void updateCommunityNotification(
+                      "communityMentions",
+                      checked
+                    )
+                  }
+                />
+              </div>
+            </div>
+          </div>
           {community.isOwner ? (
             <div className="mt-5 border-t pt-4">
               <Button

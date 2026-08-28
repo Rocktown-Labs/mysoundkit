@@ -197,6 +197,8 @@ const app = new OpenAPIHono<AppEnv>(),
     return activeWorkspace ?? null;
   },
   defaultNotificationSettings = {
+    communityMentions: true,
+    communityPosts: true,
     emailCollaborations: true,
     emailComments: true,
     emailFollowers: true,
@@ -216,6 +218,8 @@ const app = new OpenAPIHono<AppEnv>(),
     const db = createDb(),
       [settings] = await db
         .select({
+          communityMentions: notificationSettings.communityMentions,
+          communityPosts: notificationSettings.communityPosts,
           emailCollaborations: notificationSettings.emailCollaborations,
           emailComments: notificationSettings.emailComments,
           emailFollowers: notificationSettings.emailFollowers,

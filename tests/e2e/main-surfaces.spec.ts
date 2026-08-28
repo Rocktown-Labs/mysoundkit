@@ -325,6 +325,44 @@ test.describe("main application surfaces", () => {
     }
   });
 
+  test("communities ask before joining and support member chat", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/communities/community_luna");
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("Join Luna Eclipse Circle?")).toBeVisible({ timeout: 60_000 });
+    await page.getByRole("button", { name: "Join for free" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden({ timeout: 60_000 });
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Luna Eclipse Circle" })
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(
+      page.getByRole("switch", { name: "Receive creator post notifications" })
+    ).toBeVisible();
+
+    const message = page.getByLabel("Message Luna Eclipse Circle");
+    await message.fill("Hello from the community.");
+    await page.getByRole("button", { name: "Send message" }).click();
+    await expect(page.getByText("Hello from the community.")).toBeVisible();
+
+    await page.getByRole("button", { name: "updates" }).click();
+    await page.getByLabel("Write a community update").fill("New release notes");
+    await page.getByRole("button", { name: "Post update" }).click();
+    await expect(page.getByText("New release notes")).toBeVisible();
+  });
+
   test("track management stays in the three-dot actions", async ({
     context,
     page,

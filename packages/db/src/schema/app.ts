@@ -853,6 +853,8 @@ export const userGenrePreferences = pgTable(
 );
 
 export const notificationSettings = pgTable("notification_settings", {
+  communityMentions: boolean("community_mentions").default(true).notNull(),
+  communityPosts: boolean("community_posts").default(true).notNull(),
   emailCollaborations: boolean("email_collaborations").default(true).notNull(),
   emailComments: boolean("email_comments").default(true).notNull(),
   emailFollowers: boolean("email_followers").default(true).notNull(),

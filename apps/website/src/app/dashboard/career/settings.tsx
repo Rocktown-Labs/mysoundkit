@@ -44,6 +44,8 @@ export const Route = createFileRoute("/dashboard/career/settings")({
 });
 
 const defaultNotificationSettings = {
+  communityMentions: true,
+  communityPosts: true,
   emailCollaborations: true,
   emailComments: true,
   emailFollowers: true,
