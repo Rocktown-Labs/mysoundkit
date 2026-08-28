@@ -8,10 +8,14 @@ const normalizeGenre = (value) =>
       .replaceAll(/[^a-z0-9]+/gu, "-")
       .replaceAll(/^-+|-+$/gu, "")
       .replace(/^hip-hop-rap$/u, "hip-hop"),
+  getClientKey = (request) =>
+    request.headers["x-soundkit-test-id"] ??
+    request.headers["user-agent"] ??
+    "default",
   json = (response, status, body, origin) => {
     response.writeHead(status, {
       "access-control-allow-credentials": "true",
-      "access-control-allow-headers": "content-type,cookie",
+      "access-control-allow-headers": "content-type,cookie,x-soundkit-test-id",
       "access-control-allow-origin": origin,
       "content-type": "application/json",
     });
@@ -592,8 +596,21 @@ export const createMockApiServer = async ({
 } = {}) => {
   const mockBattleChallengesByClient = new Map(),
     mockBattleKitsByClient = new Map(),
+    mockBattlesByClient = new Map(),
+    mockLiveRoomsByClient = new Map(),
+    getMockLiveRoom = (request, roomId, session) => {
+      const clientKey = `${getClientKey(request)}:${roomId}:${session ?? "anonymous"}`,
+        existing = mockLiveRoomsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const room = liveRoom(roomId, session);
+      mockLiveRoomsByClient.set(clientKey, room);
+      return room;
+    },
     getMockBattleChallenges = (request) => {
-      const clientKey = request.headers["user-agent"] ?? "default",
+      const clientKey = getClientKey(request),
         existing = mockBattleChallengesByClient.get(clientKey);
       if (existing) {
         return existing;
@@ -647,7 +664,7 @@ export const createMockApiServer = async ({
       return challenges;
     },
     getMockBattleKits = (request) => {
-      const clientKey = request.headers["user-agent"] ?? "default",
+      const clientKey = getClientKey(request),
         existing = mockBattleKitsByClient.get(clientKey);
       if (existing) {
         return existing;
@@ -657,11 +674,25 @@ export const createMockApiServer = async ({
       mockBattleKitsByClient.set(clientKey, kits);
       return kits;
     },
+    getMockBattles = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockBattlesByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const battles = structuredClone(mockBattles);
+      mockBattlesByClient.set(clientKey, battles);
+      return battles;
+    },
     server = createServer((request, response) => {
     const effectiveOrigin = request.headers.origin || webOrigin;
     response.setHeader("access-control-allow-origin", effectiveOrigin);
     response.setHeader("access-control-allow-credentials", "true");
-    response.setHeader("access-control-allow-headers", "content-type,cookie");
+    response.setHeader(
+      "access-control-allow-headers",
+      "content-type,cookie,x-soundkit-test-id"
+    );
     response.setHeader(
       "access-control-allow-methods",
       "GET,POST,PATCH,PUT,DELETE,OPTIONS"
@@ -1360,9 +1391,10 @@ export const createMockApiServer = async ({
           mockBattleChallenges[challengeIndex].status = status;
           if (status === "accepted") {
             const challenge = mockBattleChallenges[challengeIndex],
-              battleId = `mock-battle-${challenge.id}`;
-            if (!mockBattles.some((battle) => battle.id === battleId)) {
-              mockBattles.push({
+              battleId = `mock-battle-${challenge.id}`,
+              clientBattles = getMockBattles(request);
+            if (!clientBattles.some((battle) => battle.id === battleId)) {
+              clientBattles.push({
                 format: challenge.format,
                 genre: challenge.genre,
                 id: battleId,
@@ -1652,11 +1684,12 @@ export const createMockApiServer = async ({
 
     const battleDeleteMatch = url.pathname.match(/^\/v1\/battles\/([^/]+)$/);
     if (request.method === "DELETE" && battleDeleteMatch) {
-      const battleIndex = mockBattles.findIndex(
-        (battle) => battle.id === battleDeleteMatch[1]
-      );
+      const clientBattles = getMockBattles(request),
+        battleIndex = clientBattles.findIndex(
+          (battle) => battle.id === battleDeleteMatch[1]
+        );
       if (battleIndex >= 0) {
-        mockBattles.splice(battleIndex, 1);
+        clientBattles.splice(battleIndex, 1);
       }
       json(
         response,
@@ -1706,7 +1739,7 @@ export const createMockApiServer = async ({
     }
 
     if (url.pathname === "/v1/battles" || url.pathname === "/v1/battles/") {
-      json(response, 200, mockBattles, webOrigin);
+      json(response, 200, getMockBattles(request), webOrigin);
       return;
     }
 
@@ -1942,7 +1975,12 @@ export const createMockApiServer = async ({
     const liveRoomMatch = url.pathname.match(/^\/v1\/live\/rooms\/([^/]+)$/);
 
     if (liveRoomMatch) {
-      json(response, 200, liveRoom(liveRoomMatch[1], session), webOrigin);
+      json(
+        response,
+        200,
+        getMockLiveRoom(request, liveRoomMatch[1], session),
+        webOrigin
+      );
       return;
     }
 
@@ -1954,7 +1992,7 @@ export const createMockApiServer = async ({
       json(
         response,
         200,
-        liveRoom(liveExperienceMatch[1], session),
+        getMockLiveRoom(request, liveExperienceMatch[1], session),
         webOrigin
       );
       return;
@@ -1993,7 +2031,7 @@ export const createMockApiServer = async ({
       json(
         response,
         200,
-        liveRoom(listeningPartyDetailMatch[1], session),
+        getMockLiveRoom(request, listeningPartyDetailMatch[1], session),
         webOrigin
       );
       return;
@@ -2028,7 +2066,11 @@ export const createMockApiServer = async ({
       });
       request.on("end", () => {
         const body = JSON.parse(bodyText || "{}"),
-          room = liveRoom(liveRoomBattleActionMatch[1], session);
+          room = getMockLiveRoom(
+            request,
+            liveRoomBattleActionMatch[1],
+            session
+          );
         if (liveRoomBattleActionMatch[2] === "ready" && room.battle) {
           room.battle.coordination.artistReadyUserIds = body.ready
             ? [room.battle.artists[0].id]
@@ -2044,7 +2086,11 @@ export const createMockApiServer = async ({
     );
 
     if (liveRoomQueueMutationMatch && request.method === "POST") {
-      const room = liveRoom(liveRoomQueueMutationMatch[1], session);
+      const room = getMockLiveRoom(
+        request,
+        liveRoomQueueMutationMatch[1],
+        session
+      );
       if (room.battle) {
         room.battle.viewerQueueStatus =
           liveRoomQueueMutationMatch[2] === "queue" ? "queued" : null;
@@ -2066,7 +2112,11 @@ export const createMockApiServer = async ({
       });
       request.on("end", () => {
         const body = JSON.parse(bodyText || "{}"),
-          room = liveRoom(liveRoomPartyPlaybackMatch[1], session),
+          room = getMockLiveRoom(
+            request,
+            liveRoomPartyPlaybackMatch[1],
+            session
+          ),
           playback = room.party?.playback;
         if (playback) {
           playback.playbackState =
@@ -2093,7 +2143,7 @@ export const createMockApiServer = async ({
       json(
         response,
         200,
-        liveRoom(liveRoomMutationMatch[1], session),
+        getMockLiveRoom(request, liveRoomMutationMatch[1], session),
         webOrigin
       );
       return;

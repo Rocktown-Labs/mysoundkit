@@ -36,6 +36,12 @@ const gotoWithViteRetry = async (page: Page, path: string) => {
 };
 
 test.describe("main application surfaces", () => {
+  test.beforeEach(async ({ context }, testInfo) => {
+    await context.setExtraHTTPHeaders({
+      "x-soundkit-test-id": `${testInfo.testId}-${testInfo.project.name}`,
+    });
+  });
+
   test("fan can browse discovery, playback, pricing, and signup surfaces", async ({
     page,
   }) => {
