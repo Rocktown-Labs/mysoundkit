@@ -1730,13 +1730,17 @@ export const useBattleOpponentsQuery = ({
 }: {
   genre: string;
   q: string;
-}) =>
-  useQuery({
-    enabled: q.trim().length > 0,
+}) => {
+  const normalizedQuery = q.trim().replace(/^@+/u, "");
+  return useQuery({
+    enabled: normalizedQuery.length > 0,
     queryFn: async () =>
-      rpcJson(await battleOpponentsGet({ query: { genre, q: q.trim() } })),
-    queryKey: ["battle-opponents", genre, q.trim()],
+      rpcJson(
+        await battleOpponentsGet({ query: { genre, q: normalizedQuery } })
+      ),
+    queryKey: ["battle-opponents", genre, normalizedQuery],
   });
+};
 
 export const usePublicLiveExperiencesQuery = (
   kind: "party" | "stream",

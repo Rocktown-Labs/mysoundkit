@@ -54,6 +54,7 @@
 
 ### Fixed
 
+- Fixed accepted battle invitations so the new scheduled battle is reconciled into Upcoming without a failed optimistic refetch, and normalized battle challenge usernames with or without `@`.
 - Fixed project and community discovery cards to use the shared frameless treatment while retaining useful community descriptions.
 - Fixed public Live Creators and Live Parties filters so region, genre, and sort controls share the same four-column desktop row as Live Battles.
 - Fixed battle waiting rooms to close and cancel automatically when both artists are not present and ready by the deadline, with read-only terminal results, persisted cancellation, and participant notifications.

@@ -548,6 +548,33 @@ test.describe("main application surfaces", () => {
     ).toBeVisible();
   });
 
+  test("incoming battle invitations create upcoming battles", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(120_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/live/battles");
+    await expect(page.getByRole("button", { name: "Confirm" })).toBeVisible({
+      timeout: 60_000,
+    });
+    await page.getByRole("button", { name: "Confirm" }).click();
+    await expect(
+      page.getByText("Challenge Accepted", { exact: true })
+    ).toBeVisible();
+    await expect(page.getByText("Request update failed")).toHaveCount(0);
+    await expect(page.getByText("scheduled", { exact: true })).toHaveCount(2);
+  });
+
   test("creator live dashboards expose separate battle party and stream setup", async ({
     context,
     page,
@@ -574,9 +601,9 @@ test.describe("main application surfaces", () => {
       page.getByText(/Review incoming challenge requests/i)
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Enter Artist Room" })
+      page.getByRole("link", { name: "Enter Artist Room" }).first()
     ).toBeVisible();
-    await page.getByRole("link", { name: "Enter Artist Room" }).click();
+    await page.getByRole("link", { name: "Enter Artist Room" }).first().click();
     await expect(page).toHaveURL(
       /\/dashboard\/live\/battles\/join\/battle-waiting-artist\/artistview$/
     );
@@ -592,7 +619,8 @@ test.describe("main application surfaces", () => {
     await page.getByRole("button", { name: "Clear" }).click();
     await expect(page.getByText("To: @stale-artist")).toHaveCount(0);
 
-    await page.getByLabel("Opponent").fill("new-opponent");
+    await page.getByLabel("Opponent").fill("@new-opponent");
+    await expect(page.getByText("@new-opponent", { exact: false })).toBeVisible();
     await page.getByLabel("Date").fill("2026-09-30");
     await page.getByLabel("Time").fill("20:00");
     await page.getByRole("button", { name: "Send Battle Request" }).click();
@@ -601,6 +629,7 @@ test.describe("main application surfaces", () => {
       .getByRole("button", {
         name: "More actions for Artist Battle - Hip-Hop",
       })
+      .first()
       .click();
     await expect(
       page.getByRole("menuitem", { name: "Share upcoming battle" })
