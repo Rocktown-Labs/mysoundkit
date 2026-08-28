@@ -6,6 +6,7 @@ import {
   battles,
   battleStats,
   liveExperiences,
+  listeningParties,
   tracks,
   userNotifications,
   videos,
@@ -147,16 +148,25 @@ export const markExperienceLive = async (experienceId: string) => {
     return null;
   }
 
-  const [updated] = await createDb()
-    .update(liveExperiences)
-    .set({
-      ingestStatus: "connected",
-      startedAt: new Date(),
-      status: "live",
-      updatedAt: new Date(),
-    })
-    .where(eq(liveExperiences.id, experienceId))
-    .returning();
+  const db = createDb(),
+    now = new Date(),
+    [updated] = await db
+      .update(liveExperiences)
+      .set({
+        ingestStatus: "connected",
+        startedAt: now,
+        status: "live",
+        updatedAt: now,
+      })
+      .where(eq(liveExperiences.id, experienceId))
+      .returning();
+
+  if (updated?.kind === "party") {
+    await db
+      .update(listeningParties)
+      .set({ startedAt: now, status: "live", updatedAt: now })
+      .where(eq(listeningParties.liveRoomId, experienceId));
+  }
 
   return updated ?? null;
 };
@@ -166,16 +176,25 @@ export const markExperienceEnded = async (experienceId: string) => {
     return null;
   }
 
-  const [updated] = await createDb()
-    .update(liveExperiences)
-    .set({
-      endsAt: new Date(),
-      ingestStatus: "disconnected",
-      status: "ended",
-      updatedAt: new Date(),
-    })
-    .where(eq(liveExperiences.id, experienceId))
-    .returning();
+  const db = createDb(),
+    now = new Date(),
+    [updated] = await db
+      .update(liveExperiences)
+      .set({
+        endsAt: now,
+        ingestStatus: "disconnected",
+        status: "ended",
+        updatedAt: now,
+      })
+      .where(eq(liveExperiences.id, experienceId))
+      .returning();
+
+  if (updated?.kind === "party") {
+    await db
+      .update(listeningParties)
+      .set({ endedAt: now, status: "ended", updatedAt: now })
+      .where(eq(listeningParties.liveRoomId, experienceId));
+  }
 
   return updated ?? null;
 };
@@ -636,11 +655,20 @@ export const applyMeetingStartedEvent = async (
     return "ignored" as const;
   }
 
-  const [updated] = await createDb()
-    .update(liveExperiences)
-    .set({ status: "live", updatedAt: new Date() })
-    .where(eq(liveExperiences.id, experience.id))
-    .returning();
+  const db = createDb(),
+    now = new Date(),
+    [updated] = await db
+      .update(liveExperiences)
+      .set({ startedAt: now, status: "live", updatedAt: now })
+      .where(eq(liveExperiences.id, experience.id))
+      .returning();
+
+  if (updated?.kind === "party") {
+    await db
+      .update(listeningParties)
+      .set({ startedAt: now, status: "live", updatedAt: now })
+      .where(eq(listeningParties.liveRoomId, experience.id));
+  }
 
   if (updated) {
     const notification = {

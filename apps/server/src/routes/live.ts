@@ -216,10 +216,29 @@ app.delete("/experiences/:experienceId", async (c) => {
       .limit(1);
 
   if (!existing) {
-    return c.json(
-      { message: "Experience not found." },
-      HttpStatusCodes.NOT_FOUND
-    );
+    const [party] = await db
+      .select({ hostUserId: listeningParties.hostUserId })
+      .from(listeningParties)
+      .where(
+        and(
+          eq(listeningParties.liveRoomId, experienceId),
+          eq(listeningParties.hostUserId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (!party) {
+      return c.json(
+        { message: "Experience not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    await db
+      .delete(listeningParties)
+      .where(eq(listeningParties.liveRoomId, experienceId));
+
+    return c.json({ message: "Experience deleted." }, HttpStatusCodes.OK);
   }
 
   if (existing.streamInputId && c.env.CLOUDFLARE_ACCOUNT_ID) {
@@ -237,6 +256,11 @@ app.delete("/experiences/:experienceId", async (c) => {
   }
 
   await db.delete(liveExperiences).where(eq(liveExperiences.id, experienceId));
+  if (existing.kind === "party") {
+    await db
+      .delete(listeningParties)
+      .where(eq(listeningParties.liveRoomId, experienceId));
+  }
 
   return c.json({ message: "Experience deleted." }, HttpStatusCodes.OK);
 });
@@ -1654,6 +1678,7 @@ const badRequest = (message: string) => ({
               playback: {
                 hostMode: "off_camera",
                 hostUserId: experience.createdByUserId,
+                mediaAvailable: true,
                 playbackState: roomStatus === "live" ? "playing" : "paused",
                 positionMs: 0,
                 stateChangedAt: experience.startedAt?.getTime() ?? Date.now(),
@@ -1712,8 +1737,16 @@ const badRequest = (message: string) => ({
           startedAt: listeningParties.startedAt,
           status: listeningParties.status,
           title: listeningParties.title,
+          experienceMediaAvailable: liveExperiences.meetingId,
+          experienceStartedAt: liveExperiences.startedAt,
+          experienceStatus: liveExperiences.status,
+          experienceViewerCount: liveExperiences.viewerCount,
         })
         .from(listeningParties)
+        .leftJoin(
+          liveExperiences,
+          eq(liveExperiences.id, listeningParties.liveRoomId)
+        )
         .where(
           or(
             eq(listeningParties.id, roomId),
@@ -1788,9 +1821,11 @@ const badRequest = (message: string) => ({
     }
 
     const roomStatus: LiveRoomState["status"] =
-      party.status === "ended" || party.status === "canceled"
+      party.status === "ended" ||
+      party.status === "canceled" ||
+      party.experienceStatus === "ended"
         ? "ended"
-        : (party.status === "live"
+        : (party.status === "live" || party.experienceStatus === "live"
           ? "live"
           : "upcoming");
 
@@ -1805,9 +1840,13 @@ const badRequest = (message: string) => ({
         playback: {
           hostMode: "off_camera",
           hostUserId: party.hostUserId,
+          mediaAvailable: Boolean(party.experienceMediaAvailable),
           playbackState: roomStatus === "live" ? "playing" : "paused",
           positionMs: 0,
-          stateChangedAt: party.startedAt?.getTime() ?? Date.now(),
+          stateChangedAt:
+            party.experienceStartedAt?.getTime() ??
+            party.startedAt?.getTime() ??
+            Date.now(),
           trackId: tracklist[0]?.id ?? null,
           trackIndex: 0,
         },
@@ -1818,7 +1857,7 @@ const badRequest = (message: string) => ({
         `Live listening party hosted by ${hostName} on SoundKit.`,
       title: party.title,
       tracklist,
-      viewerCount: 0,
+      viewerCount: party.experienceViewerCount ?? 0,
     };
   },
   seedDurableRoom = async ({
@@ -1899,7 +1938,11 @@ const badRequest = (message: string) => ({
         },
         roomId
       );
-      if (identity.role === "artist_a" || identity.role === "artist_b") {
+      if (
+        identity.role === "artist_a" ||
+        identity.role === "artist_b" ||
+        identity.role === "host"
+      ) {
         return true;
       }
     }

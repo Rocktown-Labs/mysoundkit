@@ -3,7 +3,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useRouterState } from "@tanstack/react-router";
-import { LogIn, Swords } from "lucide-react";
+import { Headphones, LogIn, Swords } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import { useMyLiveExperiencesQuery } from "@/lib/soundkit-api-hooks";
 
 export interface QueuedBattleNotice {
   battleId: string;
@@ -44,6 +45,8 @@ const emptyParticipatingBattles: ParticipatingBattleNotice[] = [],
   emptyQueuedBattles: QueuedBattleNotice[] = [],
   offerKeyForBattle = (battle: BattleEntryOffer) =>
     `${battle.entryKind}:${battle.battleId}:${battle.status}`,
+  offerKeyForParty = (partyId: string, status: string) =>
+    `party:${partyId}:${status}`,
   fetchBattleEntryNotices = async (): Promise<BattleEntryResponse> => {
     const response = await fetch(`${API_V1_URL}/live/rooms/queue`, {
       credentials: "include",
@@ -60,6 +63,10 @@ export const isBattlePagePath = (pathname: string, battleId: string) =>
   pathname === `/live/battles/${battleId}` ||
   pathname === `/dashboard/live/battles/join/${battleId}/artistview`;
 
+export const isListeningPartyPagePath = (pathname: string, partyId: string) =>
+  pathname === `/live/parties/${partyId}` ||
+  pathname === `/dashboard/live/parties/join/${partyId}/artistview`;
+
 export function BattleQueueCta() {
   const router = useRouter(),
     pathname = useRouterState({ select: (state) => state.location.pathname }),
@@ -71,6 +78,7 @@ export function BattleQueueCta() {
       queryKey: ["live", "rooms", "queue"],
       refetchInterval: 30_000,
     }),
+    myExperiencesQuery = useMyLiveExperiencesQuery(Boolean(userId)),
     battleEntryResponse = query.data,
     queuedBattles = battleEntryResponse?.battles ?? emptyQueuedBattles,
     participatingBattles =
@@ -86,11 +94,25 @@ export function BattleQueueCta() {
       ],
       [participatingBattles, queuedBattles]
     ),
+    liveOwnedParties = useMemo(
+      () =>
+        (myExperiencesQuery.data ?? []).filter(
+          (experience) =>
+            experience.kind === "party" && experience.status === "live"
+        ),
+      [myExperiencesQuery.data]
+    ),
     [singleLiveBattle] = liveBattleOffers,
+    [singleLiveParty] = liveOwnedParties,
     isSingleBattleOnPage =
       liveBattleOffers.length === 1 &&
       isBattlePagePath(pathname, singleLiveBattle?.battleId ?? ""),
-    shouldShowModal = liveBattleOffers.length > 0 && !isSingleBattleOnPage,
+    isSinglePartyOnPage =
+      liveOwnedParties.length === 1 &&
+      isListeningPartyPagePath(pathname, singleLiveParty?.id ?? ""),
+    shouldShowModal =
+      (liveBattleOffers.length > 0 && !isSingleBattleOnPage) ||
+      (liveOwnedParties.length > 0 && !isSinglePartyOnPage),
     offeredOffers = useRef<Set<string>>(new Set()),
     [open, setOpen] = useState(false);
 
@@ -99,27 +121,32 @@ export function BattleQueueCta() {
       return;
     }
 
-    const remainingIds = new Set(
-        liveBattleOffers.map(({ battleId }) => battleId)
-      ),
-      staleOffers = [...offeredOffers.current].filter((key) => {
-        const [, battleId] = key.split(":");
-        return !remainingIds.has(battleId ?? "");
-      });
+    const liveOfferKeys = new Set([
+        ...liveBattleOffers.map(offerKeyForBattle),
+        ...liveOwnedParties.map((party) => offerKeyForParty(party.id, party.status)),
+      ]),
+      staleOffers = [...offeredOffers.current].filter(
+        (key) => !liveOfferKeys.has(key)
+      );
 
     for (const key of staleOffers) {
       offeredOffers.current.delete(key);
     }
 
-    const newOffers = liveBattleOffers.filter(
-      (battle) => !offeredOffers.current.has(offerKeyForBattle(battle))
-    );
+    const newBattleOffers = liveBattleOffers.filter(
+        (battle) => !offeredOffers.current.has(offerKeyForBattle(battle))
+      ),
+      newPartyOffers = liveOwnedParties.filter(
+        (party) =>
+          !offeredOffers.current.has(offerKeyForParty(party.id, party.status))
+      ),
+      newOffers = [...newBattleOffers, ...newPartyOffers];
 
     if (newOffers.length === 0) {
       return;
     }
 
-    for (const battle of newOffers) {
+    for (const battle of newBattleOffers) {
       offeredOffers.current.add(offerKeyForBattle(battle));
       toast({
         description:
@@ -132,19 +159,47 @@ export function BattleQueueCta() {
             : "The battle you queued for is live",
       });
     }
+    for (const party of newPartyOffers) {
+      offeredOffers.current.add(offerKeyForParty(party.id, party.status));
+      toast({
+        description: `${party.title} is live now.`,
+        title: "Your listening party is live",
+      });
+    }
 
     if (shouldShowModal) {
       setOpen(true);
     }
-  }, [isSessionPending, liveBattleOffers, shouldShowModal, userId]);
+  }, [
+    isSessionPending,
+    liveBattleOffers,
+    liveOwnedParties,
+    shouldShowModal,
+    userId,
+  ]);
 
   if (!shouldShowModal) {
     return null;
   }
 
   const hasArtistBattle = liveBattleOffers.some(
-    (battle) => battle.entryKind === "artist"
-  );
+      (battle) => battle.entryKind === "artist"
+    ),
+    hasHostedParty = liveOwnedParties.length > 0;
+  let dialogTitle = "A live battle is ready",
+    dialogDescription = "Join the live arena and watch the battle you queued for.";
+
+  if (hasArtistBattle && hasHostedParty) {
+    dialogTitle = "Your live rooms are ready";
+    dialogDescription =
+      "Enter your artist room to compete, or open your hosted listening party.";
+  } else if (hasArtistBattle) {
+    dialogTitle = "Your live battle is ready";
+    dialogDescription = "Enter your artist room to compete.";
+  } else if (hasHostedParty) {
+    dialogTitle = "Your listening party is ready";
+    dialogDescription = "Open your hosted listening party to join the live conversation.";
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -152,15 +207,9 @@ export function BattleQueueCta() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Swords className="size-5 text-primary" />
-            {hasArtistBattle
-              ? "Your live battle is ready"
-              : "A live battle is ready"}
+            {dialogTitle}
           </DialogTitle>
-          <DialogDescription>
-            {hasArtistBattle
-              ? "Enter your artist room to compete, or join another battle as a viewer."
-              : "Join the live arena and watch the battle you queued for."}
-          </DialogDescription>
+          <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
         <div className="space-y-2 py-2">
           {liveBattleOffers.map((battle) => (
@@ -191,6 +240,33 @@ export function BattleQueueCta() {
                     ? "Enter artist room"
                     : "Join as viewer"}
                 </p>
+              </div>
+              <LogIn className="size-4 shrink-0 text-primary" />
+            </Button>
+          ))}
+          {liveOwnedParties.map((party) => (
+            <Button
+              key={offerKeyForParty(party.id, party.status)}
+              className="flex h-auto w-full items-center justify-between gap-3 py-3 text-left"
+              onClick={() => {
+                setOpen(false);
+                void router.navigate({
+                  params: { roomId: party.id },
+                  to: "/dashboard/live/parties/join/$roomId/artistview",
+                });
+              }}
+              variant="outline"
+            >
+              <div className="flex min-w-0 items-start gap-2">
+                <Headphones className="mt-0.5 size-4 shrink-0 text-primary" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">
+                    {party.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Your listening party is live
+                  </p>
+                </div>
               </div>
               <LogIn className="size-4 shrink-0 text-primary" />
             </Button>

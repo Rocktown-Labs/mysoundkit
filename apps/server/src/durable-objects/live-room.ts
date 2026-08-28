@@ -916,6 +916,18 @@ export class LiveRoomDurableObject extends DurableObject {
       throw new Error("Only the party host can control playback.");
     }
 
+    const requestedTrackId =
+        action.type === "track_changed" ||
+        (action.type === "replay" && action.trackId)
+          ? action.trackId
+          : playback.trackId,
+      selectedTrack = requestedTrackId
+        ? room.tracklist.find((track) => track.id === requestedTrackId)
+        : undefined;
+    if (requestedTrackId && !selectedTrack) {
+      throw new Error("The selected track is not part of this party.");
+    }
+
     const now = Date.now(),
       positionMs = this.authoritativePartyPosition(playback, now),
       nextPlayback = {
@@ -923,7 +935,7 @@ export class LiveRoomDurableObject extends DurableObject {
         playbackState:
           action.type === "pause"
             ? ("paused" as const)
-            : action.type === "resume"
+            : action.type === "resume" || action.type === "track_changed"
               ? ("playing" as const)
               : playback.playbackState,
         positionMs:
@@ -931,15 +943,24 @@ export class LiveRoomDurableObject extends DurableObject {
             ? 0
             : positionMs,
         stateChangedAt: now,
-        ...(action.type === "track_changed"
-          ? { trackId: action.trackId }
-          : action.type === "replay" && action.trackId
-            ? { trackId: action.trackId }
-            : {}),
+        trackId: requestedTrackId ?? null,
+        trackIndex: selectedTrack
+          ? room.tracklist.findIndex((track) => track.id === selectedTrack.id)
+          : playback.trackIndex,
       },
       nextRoom: LiveRoomState = {
         ...room,
+        currentTrackId: nextPlayback.trackId ?? room.currentTrackId,
         party: { playback: nextPlayback },
+        tracklist: room.tracklist.map((track, index) => ({
+          ...track,
+          status:
+            track.id === nextPlayback.trackId
+              ? "playing"
+              : index < nextPlayback.trackIndex
+                ? "played"
+                : "queued",
+        })),
       };
 
     await this.persist(nextRoom);

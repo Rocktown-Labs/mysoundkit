@@ -74,6 +74,7 @@ const normalizeGenre = (value) =>
   liveRoom = (roomId, session) => {
     const isBattle = roomId.includes("battle"),
       isStream = roomId.includes("stream"),
+      isParty = !isBattle && !isStream,
       isWaitingArtistBattle = roomId === "battle-waiting-artist";
     let kind = "party",
       title = "Single Album Spotlight";
@@ -210,11 +211,27 @@ const normalizeGenre = (value) =>
       hostName: isStream ? "Neon Pulse" : "Luna Eclipse",
       id: roomId,
       kind,
+      party: isParty
+        ? {
+            playback: {
+              hostMode: "off_camera",
+              hostUserId: "user_complete",
+              mediaAvailable: true,
+              playbackState: "playing",
+              positionMs: 0,
+              stateChangedAt: Date.now(),
+              trackId: track.id,
+              trackIndex: 0,
+            },
+          }
+        : undefined,
       role:
         (isWaitingArtistBattle || (isBattle && session === "participant")) &&
         (session === "complete" || session === "participant")
           ? "artist_a"
-          : "fan",
+          : isParty && session === "complete"
+            ? "host"
+            : "fan",
       serverNow: Date.now(),
       status: isWaitingArtistBattle ? "upcoming" : "live",
       summary: "A live room with chat, track context, and lyrics.",
@@ -1644,6 +1661,31 @@ export const createMockApiServer = async ({
       return;
     }
 
+    const liveExperienceJoinMatch = url.pathname.match(
+      /^\/v1\/live\/experiences\/([^/]+)\/join$/
+    );
+
+    if (liveExperienceJoinMatch && request.method === "POST") {
+      json(
+        response,
+        201,
+        {
+          participant: {
+            authToken: "mock-party-token",
+            meetingId: `meeting-${liveExperienceJoinMatch[1]}`,
+            participantId: `participant-${session ?? "anonymous"}`,
+            presetName:
+              session === "complete"
+                ? "soundkit-party-host"
+                : "soundkit-party-listener",
+          },
+          setupScreen: true,
+        },
+        webOrigin
+      );
+      return;
+    }
+
     const listeningPartyDetailMatch = url.pathname.match(
       /^\/v1\/listening-parties\/([^/]+)$/
     );
@@ -1711,6 +1753,36 @@ export const createMockApiServer = async ({
           liveRoomQueueMutationMatch[2] === "queue" ? 1 : 0;
       }
       json(response, 200, room, webOrigin);
+      return;
+    }
+
+    const liveRoomPartyPlaybackMatch = url.pathname.match(
+      /^\/v1\/live\/rooms\/([^/]+)\/party\/playback$/
+    );
+
+    if (liveRoomPartyPlaybackMatch && request.method === "POST") {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          room = liveRoom(liveRoomPartyPlaybackMatch[1], session),
+          playback = room.party?.playback;
+        if (playback) {
+          playback.playbackState =
+            body.type === "pause"
+              ? "paused"
+              : body.type === "resume"
+                ? "playing"
+                : playback.playbackState;
+          if (body.trackId) {
+            playback.trackId = body.trackId;
+            playback.positionMs = 0;
+          }
+        }
+        json(response, 200, room, webOrigin);
+      });
       return;
     }
 

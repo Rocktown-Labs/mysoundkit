@@ -70,6 +70,7 @@ export interface LiveBattleArtistControls {
 
 export interface LivePartyPlayback {
   hostMode: "off_camera" | "on_camera";
+  mediaAvailable?: boolean;
   hostUserId: string;
   playbackState: "paused" | "playing";
   positionMs: number;

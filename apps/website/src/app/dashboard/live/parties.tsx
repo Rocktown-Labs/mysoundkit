@@ -1,8 +1,14 @@
 "use client";
 
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useRouterState,
+} from "@tanstack/react-router";
 import {
   CalendarDays,
+  ExternalLink,
   Headphones,
   ListMusic,
   MessageSquare,
@@ -50,12 +56,25 @@ import {
   useCreateListeningPartyMutation,
   useDeleteLiveExperienceMutation,
   useListeningPartiesQuery,
+  useMeQuery,
   useProjectsQuery,
 } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/live/parties")({
-  component: DashboardLivePartiesPage,
+  component: DashboardLivePartiesRoute,
 });
+
+function DashboardLivePartiesRoute() {
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
+
+  return pathname.includes("/join/") ? (
+    <Outlet />
+  ) : (
+    <DashboardLivePartiesPage />
+  );
+}
 
 type PartyCreationType = "release_auto" | "artist_manual";
 
@@ -105,9 +124,12 @@ function DashboardLivePartiesPage() {
     [selectedProjectId, setSelectedProjectId] = useState(""),
     partiesQuery = useListeningPartiesQuery(),
     projectsQuery = useProjectsQuery(),
+    meQuery = useMeQuery(),
     createParty = useCreateListeningPartyMutation(),
     deleteExperience = useDeleteLiveExperienceMutation(),
-    parties = partiesQuery.data ?? [],
+    parties = (partiesQuery.data ?? []).filter(
+      (party) => party.hostUserId === meQuery.data?.user.id
+    ),
     projects = projectsQuery.data ?? [],
     selectedProject = projects.find(
       (project) => project.id === selectedProjectId
@@ -503,12 +525,27 @@ function DashboardLivePartiesPage() {
                         <div className="flex items-center gap-1.5 shrink-0">
                           <Button asChild className="h-8 text-xs" size="sm">
                             <Link
-                              params={{
-                                id: partyId,
-                              }}
+                              params={{ roomId: partyId }}
+                              to="/dashboard/live/parties/join/$roomId/artistview"
+                            >
+                              Enter Artist Room
+                            </Link>
+                          </Button>
+                          <Button
+                            asChild
+                            className="size-8 px-0"
+                            size="sm"
+                            title="Open public party room"
+                            variant="outline"
+                          >
+                            <Link
+                              params={{ id: partyId }}
                               to="/live/parties/$id"
                             >
-                              Open Room
+                              <ExternalLink className="size-3.5" />
+                              <span className="sr-only">
+                                Open public party room
+                              </span>
                             </Link>
                           </Button>
                           <Button
