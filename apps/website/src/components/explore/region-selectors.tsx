@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 
 interface RegionSelectorsProps {
+  className?: string;
   onChange: (value: {
     region: string;
     regionType: "global" | "north-america";
@@ -21,12 +22,13 @@ interface RegionSelectorsProps {
 }
 
 export function RegionSelectors({
+  className,
   onChange,
   region,
   regionType,
 }: RegionSelectorsProps) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className={className ?? "grid gap-4 sm:grid-cols-2"}>
       <div className="space-y-2">
         <Label htmlFor="regional-north-america">North America</Label>
         <Select

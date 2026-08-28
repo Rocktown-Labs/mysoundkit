@@ -14,16 +14,18 @@ export interface LiveCollectionFilterValue {
 }
 
 export function LiveCollectionFilters({
+  className,
   onChange,
   value,
 }: {
+  className?: string;
   onChange: (value: LiveCollectionFilterValue) => void;
   value: LiveCollectionFilterValue;
 }) {
   const { data: genres = [] } = useGenresQuery();
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className={className ?? "grid gap-3 sm:grid-cols-2"}>
       <Select
         onValueChange={(genre) => onChange({ ...value, genre })}
         value={normalizeGenreValue(value.genre)}

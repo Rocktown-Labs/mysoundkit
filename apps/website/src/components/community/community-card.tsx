@@ -22,8 +22,8 @@ const formatPrice = (monthlyPriceCents: number) =>
 
 export function CommunityCard({ community }: { community: DbCommunity }) {
   return (
-    <PublicCard className="w-[280px] shrink-0" framed>
-      <PublicCardThumbnail className="rounded-none">
+    <PublicCard className="w-[280px] shrink-0">
+      <PublicCardThumbnail>
         {community.coverImageUrl ? (
           <AppImage
             alt={`${community.name} community cover`}
