@@ -13,6 +13,7 @@ export type LiveRoomViewerRole =
   | "host";
 
 export interface LiveRoomChatMessage {
+  avatarUrl?: string | null;
   chatScope?: "battle" | "waiting_room";
   id: string;
   message: string;

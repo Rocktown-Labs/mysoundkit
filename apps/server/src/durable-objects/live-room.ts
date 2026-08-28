@@ -2,8 +2,11 @@
 import { DurableObject } from "cloudflare:workers";
 
 import type { BattleDirectoryDurableObject } from "@/durable-objects/battle-directory";
+import { finalizeBattleNoShow } from "@/lib/battle-service";
 import {
   advanceBattleToNow,
+  battleArtistsArePresent,
+  battleArtistsAreReady,
   createBattleCoordination,
   isVotingPhase,
   PRODUCTION_BATTLE_DURATIONS,
@@ -53,6 +56,7 @@ export interface LiveRoomBattleDisposition {
 }
 
 export interface LiveRoomIdentity {
+  avatarUrl?: string | null;
   displayName: string;
   role?: LiveRoomViewerRole;
   userId: string;
@@ -74,6 +78,7 @@ const BATTLE_BOT_USER_ID = "soundkit-battlebot",
   CHAT_STORAGE_KEY = "live-room-chat",
   MAX_CHAT_MESSAGES = 80,
   MAX_CHAT_MESSAGE_LENGTH = 500,
+  NO_SHOW_RECONCILED_STORAGE_KEY = "battle-no-show-reconciled-at",
   STATE_STORAGE_KEY = "live-room-state",
   voteVotersKey = (roundId: string) => `vote-voters:${roundId}`,
   jsonResponse = (body: unknown, status = 200) =>
@@ -81,6 +86,14 @@ const BATTLE_BOT_USER_ID = "soundkit-battlebot",
   notFoundResponse = () => jsonResponse({ message: "Not found" }, 404),
   isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null,
+  stringListsEqual = (left?: string[], right?: string[]) => {
+    const leftValues = (left ?? []).toSorted(),
+      rightValues = (right ?? []).toSorted();
+    return (
+      leftValues.length === rightValues.length &&
+      leftValues.every((value, index) => value === rightValues[index])
+    );
+  },
   battleBotMessageForPhase = (room: LiveRoomState, phase: BattlePhase) => {
     const artists = room.battle?.artists ?? [],
       activeArtist = artists.find(
@@ -121,7 +134,11 @@ const BATTLE_BOT_USER_ID = "soundkit-battlebot",
         return "The final round is complete. BattleBot is confirming the battle result.";
       }
       case "ended": {
-        if (room.battle?.coordination?.outcome) {
+        const outcome = room.battle?.coordination?.outcome;
+        if (outcome?.reason === "artist_unavailable") {
+          return "BattleBot canceled the battle because both artists were not present and ready before the waiting-room deadline. No ratings were changed.";
+        }
+        if (outcome) {
           return null;
         }
         return "Battle complete. Thanks for watching — the replay will be available when processing finishes.";
@@ -289,6 +306,7 @@ export class LiveRoomDurableObject extends DurableObject {
         indexes: [attachment.userId],
       });
     }
+    await this.loadState();
     await this.broadcastPresence();
   }
 
@@ -301,7 +319,10 @@ export class LiveRoomDurableObject extends DurableObject {
       await this.persist(nextRoom);
       await this.broadcastStateChange(room, nextRoom);
     }
-    await this.scheduleNextAlarm(nextRoom);
+    const noShowReconciled = await this.reconcileAutomaticNoShow(nextRoom);
+    if (noShowReconciled) {
+      await this.scheduleNextAlarm(nextRoom);
+    }
   }
 
   async getState(roomId: string): Promise<LiveRoomState> {
@@ -365,7 +386,7 @@ export class LiveRoomDurableObject extends DurableObject {
             ...coordination,
             queuedUserIds: [...queuedUserIds, identity.userId],
           }
-        : isAdmissionOpen
+        : (isAdmissionOpen
           ? {
               ...coordination,
               admittedUserIds: [...admittedUserIds, identity.userId],
@@ -373,7 +394,7 @@ export class LiveRoomDurableObject extends DurableObject {
           : {
               ...coordination,
               waitingUserIds: [...waitingUserIds, identity.userId],
-            },
+            }),
       nextRoom = {
         ...room,
         battle: { ...room.battle, coordination: nextCoordination },
@@ -382,9 +403,9 @@ export class LiveRoomDurableObject extends DurableObject {
     this.broadcast({
       type: isScheduled
         ? "battle.viewer_queued"
-        : isAdmissionOpen
+        : (isAdmissionOpen
           ? "battle.viewer_admitted"
-          : "battle.viewer_waiting",
+          : "battle.viewer_waiting"),
       userId: identity.userId,
     });
     return this.publicState(nextRoom, identity);
@@ -585,10 +606,15 @@ export class LiveRoomDurableObject extends DurableObject {
         ? `BattleBot: ${artistName} is ready. ${readyUserIds.size}/2 artists are ready.`
         : `BattleBot: ${artistName} is no longer marked ready.`
     );
-    const bothReady = room.battle.artists.every((artist) =>
-      readyUserIds.has(artist.id)
+    const bothReady = battleArtistsAreReady(
+      room.battle,
+      announcedRoom.battle?.coordination ?? room.battle.coordination
     );
-    if (!bothReady) {
+    const bothPresent = battleArtistsArePresent(
+      room.battle,
+      announcedRoom.battle?.coordination ?? room.battle.coordination
+    );
+    if (!(bothReady && bothPresent)) {
       this.broadcast({ room: this.publicState(announcedRoom), type: "state" });
       this.publishBattleDirectoryUpdate(roomId);
       return this.publicState(announcedRoom, identity);
@@ -728,11 +754,15 @@ export class LiveRoomDurableObject extends DurableObject {
     }
 
     const phase = room.battle.coordination.phase,
+      artistsCanStart =
+        battleArtistsAreReady(room.battle, room.battle.coordination) &&
+        battleArtistsArePresent(room.battle, room.battle.coordination),
       shouldAdvance =
         (action === "open_lobby" && phase === "scheduled") ||
         (action === "move_lobby_to_round" &&
-          (phase === "waiting_room" || phase === "between_rounds")) ||
-        (action === "start_battle" && phase === "waiting_room") ||
+          ((phase === "waiting_room" && artistsCanStart) ||
+            phase === "between_rounds")) ||
+        (action === "start_battle" && phase === "waiting_room" && artistsCanStart) ||
         ((action === "close_voting" || action === "complete_round") &&
           isVotingPhase(phase));
 
@@ -935,9 +965,9 @@ export class LiveRoomDurableObject extends DurableObject {
         playbackState:
           action.type === "pause"
             ? ("paused" as const)
-            : action.type === "resume" || action.type === "track_changed"
+            : (action.type === "resume" || action.type === "track_changed"
               ? ("playing" as const)
-              : playback.playbackState,
+              : playback.playbackState),
         positionMs:
           action.type === "replay" || action.type === "track_changed"
             ? 0
@@ -957,9 +987,9 @@ export class LiveRoomDurableObject extends DurableObject {
           status:
             track.id === nextPlayback.trackId
               ? "playing"
-              : index < nextPlayback.trackIndex
+              : (index < nextPlayback.trackIndex
                 ? "played"
-                : "queued",
+                : "queued"),
         })),
       };
 
@@ -976,6 +1006,7 @@ export class LiveRoomDurableObject extends DurableObject {
         await this.persist(recovered);
         await this.broadcastStateChange(currentRoom, recovered);
       }
+      await this.reconcileAutomaticNoShow(recovered);
       return recovered;
     }
 
@@ -995,6 +1026,7 @@ export class LiveRoomDurableObject extends DurableObject {
         await this.ctx.storage.put(CHAT_STORAGE_KEY, room.chat);
       }
       await this.scheduleNextAlarm(room);
+      await this.reconcileAutomaticNoShow(room);
       return room;
     }
 
@@ -1017,9 +1049,9 @@ export class LiveRoomDurableObject extends DurableObject {
       format = (existingCoordination?.format ??
         (regularRoundCount === 7
           ? "best_of_7"
-          : regularRoundCount === 5
+          : (regularRoundCount === 5
             ? "best_of_5"
-            : "best_of_3")) as BattleCoordination["format"],
+            : "best_of_3"))) as BattleCoordination["format"],
       scheduledStartAt = room.startsAt ? Date.parse(room.startsAt) : null,
       shouldWaitForScheduledStart =
         room.status === "upcoming" &&
@@ -1040,15 +1072,20 @@ export class LiveRoomDurableObject extends DurableObject {
               phaseEndsAt: scheduledStartAt,
               phaseStartedAt: Date.now(),
             }
-          : existingCoordination?.phase === "waiting_room"
+          : (existingCoordination?.phase === "waiting_room" &&
+              !existingCoordination.phaseEndsAt
             ? {
-                phaseEndsAt: null,
+                phaseEndsAt:
+                  existingCoordination.phaseStartedAt +
+                  existingCoordination.durations.waitingRoomMs,
               }
-            : {}),
+            : {})),
         admissionBatchSize:
           room.battle.coordination?.admissionBatchSize ??
           this.battleAdmissionBatchSize(),
         admittedUserIds: room.battle.coordination?.admittedUserIds ?? [],
+        artistPresentUserIds:
+          room.battle.coordination?.artistPresentUserIds ?? [],
         artistReadyUserIds: room.battle.coordination?.artistReadyUserIds ?? [],
         removedUserIds: room.battle.coordination?.removedUserIds ?? [],
         requiredVoterUserIds:
@@ -1076,10 +1113,26 @@ export class LiveRoomDurableObject extends DurableObject {
   ): LiveRoomState {
     if (room.kind === "battle" && room.battle?.coordination) {
       const coordination = room.battle.coordination,
-        next = advanceBattleToNow({ battle: room.battle, coordination }, now),
+        artistPresentUserIds =
+          coordination.phase === "waiting_room"
+            ? this.connectedArtistUserIds(room)
+            : coordination.artistPresentUserIds,
+        coordinationWithPresence =
+          coordination.phase === "waiting_room"
+            ? { ...coordination, artistPresentUserIds }
+            : coordination,
+        next = advanceBattleToNow(
+          { battle: room.battle, coordination: coordinationWithPresence },
+          now
+        ),
+        presenceChanged =
+          !stringListsEqual(
+            coordination.artistPresentUserIds,
+            next.coordination.artistPresentUserIds
+          ) && coordination.phase === "waiting_room",
         changed =
           next.coordination.lastTransitionVersion !==
-          coordination.lastTransitionVersion;
+            coordination.lastTransitionVersion || presenceChanged;
 
       if (changed) {
         const nextRound = next.battle.rounds.find(
@@ -1227,9 +1280,9 @@ export class LiveRoomDurableObject extends DurableObject {
           phase === "round_intro" ||
           phase === "between_rounds"
             ? "open"
-            : phase === "ended" || phase === "battle_result"
+            : (phase === "ended" || phase === "battle_result"
               ? "close"
-              : "sync",
+              : "sync"),
         activeArtistUserId: next.battle.coordination.activeArtistUserId,
         phase,
         type: "battle.bot_stage_control",
@@ -1263,7 +1316,15 @@ export class LiveRoomDurableObject extends DurableObject {
         }
       }
     }
+    const battleEnded =
+      announcedRoom.kind === "battle" &&
+      announcedRoom.battle?.coordination?.phase === "ended";
     this.broadcast({ room: this.publicState(announcedRoom), type: "state" });
+    if (battleEnded) {
+      for (const socket of this.ctx.getWebSockets()) {
+        socket.close(4000, "The battle room has ended.");
+      }
+    }
     if (announcedRoom.kind === "battle") {
       this.publishBattleDirectoryUpdate(announcedRoom.id);
     }
@@ -1361,6 +1422,7 @@ export class LiveRoomDurableObject extends DurableObject {
     message: string
   ): Promise<LiveRoomState> {
     const chatMessage: LiveRoomChatMessage = {
+        avatarUrl: "/soundkit-default-avatar.svg",
         chatScope: this.chatScopeForRoom(room),
         id: `${BATTLE_BOT_USER_ID}:${crypto.randomUUID()}`,
         message,
@@ -1402,6 +1464,7 @@ export class LiveRoomDurableObject extends DurableObject {
     }
 
     const chatMessage: LiveRoomChatMessage = {
+        avatarUrl: identity.avatarUrl,
         chatScope: this.chatScopeForRoom(room),
         id: crypto.randomUUID(),
         message,
@@ -1575,6 +1638,82 @@ export class LiveRoomDurableObject extends DurableObject {
     return new Response(null, { status: 101, webSocket: client });
   }
 
+  private connectedArtistUserIds(room: LiveRoomState): string[] {
+    const artistIds = new Set(
+      room.battle?.artists.map((artist) => artist.id) ?? []
+    );
+    return [
+      ...new Set(
+        this.ctx
+          .getWebSockets()
+          .map(
+            (socket) =>
+              (
+                socket.deserializeAttachment() as LiveRoomSocketAttachment | null
+              )?.userId
+          )
+          .filter(
+            (userId): userId is string =>
+              typeof userId === "string" && artistIds.has(userId)
+          )
+      ),
+    ];
+  }
+
+  private async reconcileAutomaticNoShow(
+    room: LiveRoomState
+  ): Promise<boolean> {
+    const outcome = room.battle?.coordination?.outcome;
+    if (
+      !outcome ||
+      outcome.kind !== "canceled" ||
+      outcome.reason !== "artist_unavailable"
+    ) {
+      return true;
+    }
+
+    const reconciledAt =
+      await this.ctx.storage.get<number>(NO_SHOW_RECONCILED_STORAGE_KEY);
+    if (reconciledAt === outcome.recordedAt) {
+      return true;
+    }
+
+    try {
+      const artistIds = new Set(
+          room.battle?.artists.map((artist) => artist.id) ?? []
+        ),
+        coordination = room.battle?.coordination,
+        audienceUserIds = [
+          ...(coordination?.admittedUserIds ?? []),
+          ...(coordination?.queuedUserIds ?? []),
+          ...(coordination?.waitingUserIds ?? []),
+          ...(coordination?.requiredVoterUserIds ?? []),
+        ].filter(
+          (userId, index, userIds) =>
+            userId !== "anonymous" &&
+            !artistIds.has(userId) &&
+            userIds.indexOf(userId) === index
+        );
+      await finalizeBattleNoShow({
+        audienceUserIds,
+        battleId: room.battle?.coordination?.battleId ?? room.id,
+        recordedAt: outcome.recordedAt,
+      });
+      await this.ctx.storage.put(
+        NO_SHOW_RECONCILED_STORAGE_KEY,
+        outcome.recordedAt
+      );
+      return true;
+    } catch (error) {
+      console.error("Automatic battle no-show reconciliation failed", {
+        battleId: room.battle?.coordination?.battleId ?? room.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.ctx.storage.setAlarm(Date.now() + 60_000);
+      return false;
+    }
+  }
+
   private async broadcastPresence() {
     const room = await this.loadState();
     this.broadcast({
@@ -1655,6 +1794,7 @@ export class LiveRoomDurableObject extends DurableObject {
   private identityFromRequest(request: Request): LiveRoomIdentity {
     const role = request.headers.get("x-soundkit-live-role");
     return {
+      avatarUrl: request.headers.get("x-soundkit-live-avatar-url"),
       displayName:
         request.headers.get("x-soundkit-live-display-name") ?? "Listener",
       role:

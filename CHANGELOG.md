@@ -54,6 +54,8 @@
 
 ### Fixed
 
+- Fixed battle waiting rooms to close and cancel automatically when both artists are not present and ready by the deadline, with read-only terminal results, persisted cancellation, and participant notifications.
+- Fixed battle chat artist and BattleBot messages to use clean frameless bubbles, readable white semibold text, and resolved sender avatars.
 - Fixed listening-party discovery to retain live rooms after their scheduled start, prevent public viewers from receiving host playback controls, validate party track changes server-side, and push playback updates to connected listeners over the room WebSocket.
 - Fixed the video analytics dashboard to skip unsupported first-party requests for external videos, explain the limitation without an error state, and offer a retry action with the API error for hosted-video failures.
 - Fixed track management by removing the broken full-page edit flow, preserving legacy edit URLs as redirects, allowing release dates and external links to be cleared or updated, and correctly clearing stale prices when monetization is disabled.

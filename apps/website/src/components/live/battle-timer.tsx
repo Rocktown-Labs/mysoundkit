@@ -13,20 +13,24 @@ export function BattleTimer({
   phaseEndsAt,
   serverNow,
 }: BattleTimerProps) {
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now()),
+    [clockOffset, setClockOffset] = useState(0);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    setClockOffset(serverNow ? serverNow - Date.now() : 0);
+  }, [serverNow]);
+
   const remainingMs = useMemo(() => {
       if (!phaseEndsAt) {
         return 0;
       }
-      const clockOffset = serverNow ? serverNow - now : 0;
       return Math.max(0, phaseEndsAt - (now + clockOffset));
-    }, [now, phaseEndsAt, serverNow]),
+    }, [clockOffset, now, phaseEndsAt]),
     totalSeconds = Math.ceil(remainingMs / 1000),
     minutes = Math.floor(totalSeconds / 60),
     seconds = totalSeconds % 60;
