@@ -710,8 +710,9 @@ export function ListeningPartyPage({
             artistName={hostName}
             artistUserId={room.party?.playback.hostUserId ?? ""}
             enabled={
-              Boolean(room.party?.playback.mediaAvailable) &&
-              (artistView || room.status === "live")
+              artistView ||
+              (Boolean(room.party?.playback.mediaAvailable) &&
+                room.status === "live")
             }
             experienceId={id}
             viewerOnly={!artistView}

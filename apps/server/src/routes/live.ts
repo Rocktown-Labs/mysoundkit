@@ -958,6 +958,85 @@ const badRequest = (message: string) => ({
 
     return result;
   },
+  ensureListeningPartyLiveExperience = async ({
+    env,
+    roomId,
+  }: {
+    env: AppEnv["Bindings"];
+    roomId: string;
+  }) => {
+    if (!isDatabaseConfigured()) {
+      return null;
+    }
+
+    const db = createDb(),
+      [party] = await db
+        .select()
+        .from(listeningParties)
+        .where(
+          or(
+            eq(listeningParties.id, roomId),
+            eq(listeningParties.liveRoomId, roomId)
+          )
+        )
+        .limit(1);
+    if (!party?.liveRoomId) {
+      return null;
+    }
+
+    const [existing] = await db
+      .select()
+      .from(liveExperiences)
+      .where(eq(liveExperiences.id, party.liveRoomId))
+      .limit(1);
+    if (existing) {
+      return existing;
+    }
+
+    const meeting = await createRealtimeMeeting({
+        env,
+        kind: "party",
+        title: party.title,
+      }),
+      [created] = await db
+        .insert(liveExperiences)
+        .values({
+          ...buildLiveExperienceInsert({
+            battleId: null,
+            battleKitId: null,
+            createdByUserId: party.hostUserId,
+            genre: null,
+            id: party.liveRoomId,
+            kind: "party",
+            meetingId: meeting.id,
+            playlistId: party.playlistId,
+            projectId: party.projectId,
+            source: "playlist",
+            startsAt: party.scheduledStartAt.toISOString(),
+            title: party.title,
+            visibility: "public",
+          }),
+          status:
+            party.status === "live"
+              ? "live"
+              : party.status === "ended" || party.status === "canceled"
+                ? "ended"
+                : "scheduled",
+        })
+        .onConflictDoNothing()
+        .returning();
+
+    if (created) {
+      return created;
+    }
+
+    const [raced] = await db
+      .select()
+      .from(liveExperiences)
+      .where(eq(liveExperiences.id, party.liveRoomId))
+      .limit(1);
+    return raced ?? null;
+  },
   resolveLiveRoomIdentity = async (
     c: {
       get?: (key: "user") => AuthenticatedUser | null;
@@ -986,16 +1065,29 @@ const badRequest = (message: string) => ({
           )
           .limit(1);
 
+      const [party] = !experience
+        ? await db
+            .select({ hostUserId: listeningParties.hostUserId })
+            .from(listeningParties)
+            .where(
+              or(
+                eq(listeningParties.id, roomId),
+                eq(listeningParties.liveRoomId, roomId)
+              )
+            )
+            .limit(1)
+        : [];
+
       if (
-        experience?.kind === "party" &&
-        experience.createdByUserId === user.id &&
+        ((experience?.kind === "party" &&
+          experience.createdByUserId === user.id) ||
+          (party && party.hostUserId === user.id)) &&
         !isAdmin
       ) {
         role = "host";
       } else if (
-        !experience ||
-        experience.battleId ||
-        experience.kind === "battle"
+        !party &&
+        (!experience || experience.battleId || experience.kind === "battle")
       ) {
         const battleId = experience?.battleId ?? roomId,
           [battle] = await db
@@ -2339,12 +2431,37 @@ app.post("/experiences/:experienceId/join", async (c) => {
     );
   }
 
-  const experienceId = c.req.param("experienceId"),
-    kind = liveKindFromExperienceId(experienceId);
+  const experienceId = c.req.param("experienceId");
   let experience = isDatabaseConfigured()
     ? await loadLiveExperienceById(experienceId)
     : null;
 
+  if (!experience && isDatabaseConfigured()) {
+    const db = createDb(),
+      [party] = await db
+        .select({ id: listeningParties.id, liveRoomId: listeningParties.liveRoomId })
+        .from(listeningParties)
+        .where(
+          or(
+            eq(listeningParties.id, experienceId),
+            eq(listeningParties.liveRoomId, experienceId)
+          )
+        )
+        .limit(1);
+
+    if (party) {
+      try {
+        experience = await ensureListeningPartyLiveExperience({
+          env: c.env,
+          roomId: experienceId,
+        });
+      } catch {
+        return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
+      }
+    }
+  }
+
+  const kind = experience?.kind ?? liveKindFromExperienceId(experienceId);
   if (!experience && kind === "battle") {
     experience = await ensureBattleLiveExperience({
       env: c.env,
