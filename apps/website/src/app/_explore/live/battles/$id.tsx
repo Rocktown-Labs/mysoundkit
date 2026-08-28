@@ -485,11 +485,17 @@ function BattleDeviceSetup({
           acquiredStream = stream;
         }
         const devices = await refreshDevices(),
+          streamVideoDeviceId =
+            stream.getVideoTracks()[0]?.getSettings().deviceId ?? "",
+          streamAudioDeviceId =
+            stream.getAudioTracks()[0]?.getSettings().deviceId ?? "",
           nextVideoDevice =
+            streamVideoDeviceId ||
             validVideoDeviceId ||
             devices.find((device) => device.kind === "videoinput")?.deviceId ||
             "",
           nextAudioDevice =
+            streamAudioDeviceId ||
             validAudioDeviceId ||
             devices.find((device) => device.kind === "audioinput")?.deviceId ||
             "",
