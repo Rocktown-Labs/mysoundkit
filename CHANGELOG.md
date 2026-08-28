@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added accessible video comment mentions with username autocomplete, server-validated public targets, mention notifications that respect recipient preferences, and nested replies with parent context.
 - Added a separated artist listening-party room at `/dashboard/live/parties/join/:roomId/artistview` with RealtimeKit camera/microphone controls, artist chat, synchronized playback/repeat controls, and a public viewer room that stays media-free until the party is live.
 - Added live-room notifications for hosted listening parties so artists can jump from the global live-room popup into their authenticated artist room when the party starts.
 - Added RealtimeKit meeting provisioning and live-experience records for scheduled listening parties, keeping party status, audience counts, discovery, and room state synchronized.
@@ -54,6 +55,7 @@
 
 ### Fixed
 
+- Fixed TanStack DB collection cleanup during auth-scope remounts so live queries stay attached to their active collection and optimistic comment writes remain visible after authentication resolves.
 - Fixed community entry so opening a community confirms membership before granting access, free joins reconcile immediately, the member view uses the available page height, creator updates notify opted-in members, and community chat/posts stay fresh through TanStack DB polling and direct writes.
 - Fixed website mutation reconciliation so optimistic notifications, challenge requests, saved tracks, follows, playlists, communities, community messages, and conversation read state are read back from the server before completion; overlapping TanStack Query caches now invalidate together and failed settings/read mutations roll back cleanly.
 - Fixed accepted battle invitations so the new scheduled battle is reconciled into Upcoming without a failed optimistic refetch, and normalized battle challenge usernames with or without `@`.

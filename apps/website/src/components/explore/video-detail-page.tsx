@@ -2,8 +2,8 @@
 /* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, prefer-named-capture-group */
 
 import { Link, useRouter } from "@tanstack/react-router";
-import { ArrowLeft, PanelRightClose, Video } from "lucide-react";
-import React, { useState } from "react";
+import { ArrowLeft, PanelRightClose, Reply, Video, X } from "lucide-react";
+import React, { useMemo, useState } from "react";
 
 import { VideoCard } from "@/components/explore/video-card";
 import type { ExploreVideoCardData } from "@/components/explore/video-card";
@@ -17,16 +17,138 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SoundKitVideoPlayer } from "@/components/video/soundkit-video-player";
 import { toast } from "@/hooks/use-toast";
 import { authClient } from "@/lib/auth-client";
+import type { DbVideoComment } from "@/lib/data-db";
 import { useCreateDbVideoComment, useDbVideoComments } from "@/lib/data-db";
-import { useVideoQuery, useVideosQuery } from "@/lib/soundkit-api-hooks";
+import {
+  useMeQuery,
+  usePeopleSearchQuery,
+  useVideoQuery,
+  useVideosQuery,
+} from "@/lib/soundkit-api-hooks";
+
+const mentionTokenPattern = /(?:^|\s)@([a-z0-9][a-z0-9_-]{0,39})$/iu,
+  mentionRenderPattern = /@[a-z0-9][a-z0-9_-]{0,39}/giu,
+  renderCommentBody = (body: string) => {
+    const nodes: React.ReactNode[] = [];
+    let cursor = 0;
+
+    for (const match of body.matchAll(mentionRenderPattern)) {
+      const [mention] = match,
+        mentionStart = match.index ?? cursor;
+      if (mentionStart > cursor) {
+        nodes.push(
+          <React.Fragment key={`comment-text-${mentionStart}`}>
+            {body.slice(cursor, mentionStart)}
+          </React.Fragment>
+        );
+      }
+      nodes.push(
+        <span
+          className="font-semibold text-primary"
+          key={`comment-mention-${mentionStart}`}
+        >
+          {mention}
+        </span>
+      );
+      cursor = mentionStart + mention.length;
+    }
+    if (cursor < body.length) {
+      nodes.push(
+        <React.Fragment key={`comment-text-${body.length}`}>
+          {body.slice(cursor)}
+        </React.Fragment>
+      );
+    }
+    return nodes.length > 0 ? nodes : body;
+  };
+
+function VideoCommentItem({
+  comment,
+  depth,
+  onReply,
+  repliesByParent,
+}: {
+  comment: DbVideoComment;
+  depth: number;
+  onReply: (comment: DbVideoComment) => void;
+  repliesByParent: Map<string, DbVideoComment[]>;
+}) {
+  const replies = repliesByParent.get(comment.id) ?? [];
+
+  return (
+    <div className={depth > 0 ? "ml-6 border-l border-border/50 pl-3" : ""}>
+      <div className="flex gap-2.5 rounded-lg border border-border/30 bg-background/50 p-2.5 text-xs">
+        <Avatar className="mt-0.5 size-6 shrink-0">
+          <AvatarImage
+            src={comment.authorAvatarUrl ?? "/soundkit-default-avatar.svg"}
+          />
+          <AvatarFallback>
+            {(comment.authorName ?? "A").slice(0, 1)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="font-semibold">{comment.authorName ?? "User"}</p>
+            {comment.authorUsername ? (
+              <span className="text-[10px] text-muted-foreground">
+                @{comment.authorUsername}
+              </span>
+            ) : null}
+            <span className="text-[10px] text-muted-foreground">
+              {new Date(comment.createdAt).toLocaleDateString()}
+            </span>
+          </div>
+          <p className="mt-1 break-words text-muted-foreground leading-relaxed">
+            {renderCommentBody(comment.body)}
+          </p>
+          <Button
+            className="mt-1 h-6 px-1.5 text-[10px] text-muted-foreground"
+            onClick={() => onReply(comment)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Reply className="mr-1 size-3" />
+            Reply
+          </Button>
+        </div>
+      </div>
+      {depth < 4
+        ? replies.map((reply) => (
+            <div className="mt-2" key={reply.id}>
+              <VideoCommentItem
+                comment={reply}
+                depth={depth + 1}
+                onReply={onReply}
+                repliesByParent={repliesByParent}
+              />
+            </div>
+          ))
+        : null}
+    </div>
+  );
+}
 
 export function VideoDetailPage({ lookupId }: { lookupId: string }) {
   const id = lookupId,
     router = useRouter(),
     [isChatOpen, setIsChatOpen] = useState(true),
+    [replyTo, setReplyTo] = useState<DbVideoComment | null>(null),
     { data: video, isPending: isVideoPending } = useVideoQuery(id),
     commentsQuery = useDbVideoComments(id),
     comments = commentsQuery.data,
+    repliesByParent = useMemo(() => {
+      const grouped = new Map<string, DbVideoComment[]>();
+      for (const comment of comments) {
+        if (!comment.parentCommentId) {
+          continue;
+        }
+        const replies = grouped.get(comment.parentCommentId) ?? [];
+        replies.push(comment);
+        grouped.set(comment.parentCommentId, replies);
+      }
+      return grouped;
+    }, [comments]),
     isCommentsPending = commentsQuery.isLoading,
     { data: videoList } = useVideosQuery({
       limit: 12,
@@ -34,7 +156,8 @@ export function VideoDetailPage({ lookupId }: { lookupId: string }) {
       regionType: "global",
       scope: "public",
     }),
-    { data: session } = authClient.useSession();
+    { data: session } = authClient.useSession(),
+    meQuery = useMeQuery();
 
   if (isVideoPending || !video) {
     return (
@@ -95,32 +218,17 @@ export function VideoDetailPage({ lookupId }: { lookupId: string }) {
               </p>
             )}
             {comments && comments.length > 0 ? (
-              comments.map((c) => (
-                <div
-                  className="flex gap-2.5 rounded-lg border border-border/30 bg-background/50 p-2.5 text-xs"
-                  key={c.id}
-                >
-                  <Avatar className="size-6 shrink-0 mt-0.5">
-                    <AvatarImage
-                      src={c.authorAvatarUrl ?? "/soundkit-default-avatar.svg"}
-                    />
-                    <AvatarFallback>
-                      {(c.authorName ?? "A").slice(0, 1)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-semibold">{c.authorName ?? "User"}</p>
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(c.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-muted-foreground leading-relaxed break-words">
-                      {c.body}
-                    </p>
-                  </div>
-                </div>
-              ))
+              comments
+                .filter((comment) => !comment.parentCommentId)
+                .map((comment) => (
+                  <VideoCommentItem
+                    comment={comment}
+                    depth={0}
+                    key={comment.id}
+                    onReply={setReplyTo}
+                    repliesByParent={repliesByParent}
+                  />
+                ))
             ) : (
               <p className="py-6 text-center text-xs text-muted-foreground">
                 No comments yet. Start the conversation!
@@ -136,7 +244,11 @@ export function VideoDetailPage({ lookupId }: { lookupId: string }) {
               avatarUrl: session?.user.image,
               id: session?.user.id ?? "",
               name: session?.user.name,
+              username: meQuery.data?.user.username,
             }}
+            onCancelReply={() => setReplyTo(null)}
+            onPosted={() => setReplyTo(null)}
+            replyTo={replyTo}
             sessionUserId={session?.user.id ?? null}
             videoId={video.id}
           />
@@ -253,15 +365,36 @@ export function VideoDetailPage({ lookupId }: { lookupId: string }) {
 
 function VideoCommentForm({
   author,
+  onCancelReply,
+  onPosted,
+  replyTo,
   sessionUserId,
   videoId,
 }: {
-  author: { avatarUrl?: string | null; id: string; name?: string | null };
+  author: {
+    avatarUrl?: string | null;
+    id: string;
+    name?: string | null;
+    username?: string | null;
+  };
+  onCancelReply: () => void;
+  onPosted: () => void;
+  replyTo: DbVideoComment | null;
   sessionUserId: string | null;
   videoId: string;
 }) {
   const [draft, setDraft] = useState(""),
+    mentionQuery = mentionTokenPattern.exec(draft)?.[1] ?? "",
+    mentionSearch = usePeopleSearchQuery(mentionQuery),
+    suggestions = (mentionSearch.data ?? []).filter(
+      (person) => person.username && person.username.length > 0
+    ),
     createComment = useCreateDbVideoComment(videoId, author),
+    insertMention = (username: string) => {
+      setDraft((current) =>
+        current.replace(/(^|\s)@[a-z0-9][a-z0-9_-]{0,39}$/iu, `$1@${username} `)
+      );
+    },
     submit = async (event: React.FormEvent) => {
       event.preventDefault();
       const body = draft.trim();
@@ -269,11 +402,19 @@ function VideoCommentForm({
         return;
       }
 
+      const transaction = createComment.mutate(body, {
+        parentCommentId: replyTo?.id ?? null,
+      });
+      if (!transaction) {
+        toast({
+          description: "Unable to queue comment.",
+          title: "Comment Failed",
+          variant: "destructive",
+        });
+        return;
+      }
+
       try {
-        const transaction = createComment.mutate(body);
-        if (!transaction) {
-          throw new Error("Unable to queue comment.");
-        }
         await transaction.isPersisted.promise;
       } catch (error) {
         toast({
@@ -287,9 +428,12 @@ function VideoCommentForm({
         return;
       }
       setDraft("");
+      onPosted();
       toast({
-        description: "Your comment was posted.",
-        title: "Comment Posted",
+        description: replyTo
+          ? "Your reply was posted."
+          : "Your comment was posted.",
+        title: replyTo ? "Reply Posted" : "Comment Posted",
       });
     };
 
@@ -309,21 +453,70 @@ function VideoCommentForm({
   }
 
   return (
-    <form className="flex items-center gap-2" onSubmit={submit}>
-      <Input
-        className="h-8 text-xs"
-        onChange={(e) => setDraft(e.target.value)}
-        placeholder="Say something nice..."
-        value={draft}
-      />
-      <Button
-        className="h-8 px-3 text-xs"
-        disabled={draft.trim().length === 0 || createComment.isPending}
-        size="sm"
-        type="submit"
-      >
-        Post
-      </Button>
-    </form>
+    <div className="relative">
+      {replyTo ? (
+        <div className="mb-2 flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-[11px]">
+          <span className="truncate text-muted-foreground">
+            Replying to <strong>{replyTo.authorName ?? "User"}</strong>
+          </span>
+          <Button
+            aria-label="Cancel reply"
+            className="size-5"
+            onClick={onCancelReply}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            <X className="size-3" />
+          </Button>
+        </div>
+      ) : null}
+      {mentionQuery.length >= 2 && suggestions.length > 0 ? (
+        <ul
+          aria-label="Mention suggestions"
+          className="absolute right-0 bottom-full left-0 z-10 mb-1 rounded-md border bg-popover p-1 shadow-md"
+        >
+          {suggestions.slice(0, 6).map((person) => (
+            <li key={person.userId}>
+              <button
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted"
+                onClick={() => insertMention(person.username)}
+                type="button"
+              >
+                <Avatar className="size-5">
+                  <AvatarImage src={person.avatarUrl ?? undefined} />
+                  <AvatarFallback>
+                    {person.displayName.slice(0, 1)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="min-w-0 truncate">
+                  <strong>{person.displayName}</strong>
+                  <span className="ml-1 text-muted-foreground">
+                    @{person.username}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <form className="flex items-center gap-2" onSubmit={submit}>
+        <Input
+          aria-label={replyTo ? "Write a reply" : "Write a comment"}
+          className="h-8 text-xs"
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder={replyTo ? "Write a reply..." : "Say something nice..."}
+          value={draft}
+        />
+        <Button
+          className="h-8 px-3 text-xs"
+          disabled={draft.trim().length === 0 || createComment.isPending}
+          size="sm"
+          type="submit"
+        >
+          Post
+        </Button>
+      </form>
+    </div>
   );
 }

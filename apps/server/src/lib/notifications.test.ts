@@ -106,6 +106,32 @@ describe("notification product-event policy", () => {
     expect(harness.deliveries.size).toBe(0);
   });
 
+  it("formats mention notifications as in-app and email activity", async () => {
+    const harness = createHarness(),
+      result = await harness.dispatch({
+        actorUserId: "commenter_1",
+        data: {
+          actorName: "Mika",
+          commentId: "comment_mention_1",
+          commentPreview: "@recipient_1 this mix is ready",
+          videoId: "video_1",
+          videoTitle: "Midnight Visual",
+        },
+        entity: { id: "video_1", type: "video" },
+        eventId: "comment_mention_1",
+        recipientUserId: "recipient_1",
+        type: "video.comment.mentioned",
+      });
+
+    expect(result).toEqual({ email: "enqueued", inApp: "created" });
+    expect(harness.inApp[0]?.definition.inApp).toMatchObject({
+      link: "/videos/video_1#comments",
+      title: "You were mentioned",
+      type: "video_mention",
+    });
+    expect(harness.deliveries.size).toBe(1);
+  });
+
   it("suppresses every channel for self-notifications", async () => {
     const harness = createHarness(),
       result = await harness.dispatch({

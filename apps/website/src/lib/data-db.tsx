@@ -4,7 +4,6 @@ import { queryCollectionOptions } from "@tanstack/query-db-collection";
 import {
   createCollection,
   createOptimisticAction,
-  eq,
   useLiveInfiniteQuery,
   useLiveQuery,
 } from "@tanstack/react-db";
@@ -15,6 +14,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
@@ -86,9 +86,11 @@ const notificationsGet = apiClient.v1.notifications.index.$get,
   videoCommentSchema = z.object({
     authorAvatarUrl: z.string().nullable(),
     authorName: z.string().nullable(),
+    authorUsername: z.string().nullable(),
     body: z.string(),
     createdAt: z.string(),
     id: z.string(),
+    parentCommentId: z.string().nullable(),
     userId: z.string(),
   }),
   savedTrackIdSchema = z.object({ id: z.string() }),
@@ -375,6 +377,7 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
                   json: {
                     body: comment.body,
                     clientCommentId: comment.id,
+                    parentCommentId: comment.parentCommentId,
                   },
                   param: { videoId },
                 })
@@ -383,8 +386,11 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
               ...created,
               authorAvatarUrl: created.authorAvatarUrl ?? null,
               authorName: created.authorName ?? null,
+              authorUsername: created.authorUsername ?? null,
+              parentCommentId: created.parentCommentId ?? null,
             });
           }
+          await collection.utils.refetch();
           return { refetch: false };
         },
         queryClient,
@@ -396,6 +402,8 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
             ...comment,
             authorAvatarUrl: comment.authorAvatarUrl ?? null,
             authorName: comment.authorName ?? null,
+            authorUsername: comment.authorUsername ?? null,
+            parentCommentId: comment.parentCommentId ?? null,
           }));
         },
         queryKey: ["soundkit-db", scopeKey, "video-comments", videoId],
@@ -485,7 +493,7 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         queryFn: async () =>
           rpcJson(await communityPostsGet({ param: { communityId } })),
         queryKey: ["soundkit-db", scopeKey, "community-posts", communityId],
-        refetchInterval: 5_000,
+        refetchInterval: 5000,
         schema: communityPostSchema,
       })
     ),
@@ -766,12 +774,25 @@ export function DataDbProvider({
   const [collections] = useState(() =>
       createCollections(queryClient, scopeKey)
     ),
+    cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null),
     value = useMemo(
       () => ({ ...collections, queryClient, scopeKey }),
       [collections, queryClient, scopeKey]
     );
 
-  useEffect(() => () => collections.cleanup(), [collections]);
+  useEffect(() => {
+    if (cleanupTimerRef.current) {
+      clearTimeout(cleanupTimerRef.current);
+      cleanupTimerRef.current = null;
+    }
+
+    return () => {
+      cleanupTimerRef.current = setTimeout(() => {
+        collections.cleanup();
+        cleanupTimerRef.current = null;
+      }, 0);
+    };
+  }, [collections]);
 
   return (
     <DataDbContext.Provider value={value}>{children}</DataDbContext.Provider>
@@ -1022,20 +1043,33 @@ export const useDbVideoComments = (videoId: string) => {
 
 export const useCreateDbVideoComment = (
   videoId: string,
-  author: { avatarUrl?: string | null; id: string; name?: string | null }
+  author: {
+    avatarUrl?: string | null;
+    id: string;
+    name?: string | null;
+    username?: string | null;
+  }
 ) => {
   const { getComments } = useDataDb(),
     collection = useMemo(() => getComments(videoId), [getComments, videoId]),
     [isPending, setIsPending] = useState(false),
     mutate = useCallback(
-      (body: string, options?: { onError?: (error: unknown) => void }) => {
+      (
+        body: string,
+        options?: {
+          onError?: (error: unknown) => void;
+          parentCommentId?: string | null;
+        }
+      ) => {
         const id = crypto.randomUUID(),
           optimisticComment: DbVideoComment = {
             authorAvatarUrl: author.avatarUrl ?? null,
             authorName: author.name ?? "You",
+            authorUsername: author.username ?? null,
             body,
             createdAt: new Date().toISOString(),
             id,
+            parentCommentId: options?.parentCommentId ?? null,
             userId: author.id,
           };
         setIsPending(true);
@@ -1052,7 +1086,7 @@ export const useCreateDbVideoComment = (
           return null;
         }
       },
-      [author.avatarUrl, author.id, author.name, collection]
+      [author.avatarUrl, author.id, author.name, author.username, collection]
     );
   return { isPending, mutate };
 };
@@ -1404,7 +1438,8 @@ export const useDbCommunity = (communityId: string) => {
   const result = useDbCommunities();
   return {
     ...result,
-    community: result.data.find((community) => community.id === communityId) ?? null,
+    community:
+      result.data.find((community) => community.id === communityId) ?? null,
   };
 };
 

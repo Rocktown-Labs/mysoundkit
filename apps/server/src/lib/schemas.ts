@@ -2265,15 +2265,18 @@ export const directVideoUploadResponseSchema = z.object({
 export const videoCommentSchema = z.object({
   authorAvatarUrl: z.string().nullable().optional(),
   authorName: z.string().nullable().optional(),
+  authorUsername: z.string().nullable().optional(),
   body: z.string(),
   createdAt: z.string(),
   id: z.string(),
+  parentCommentId: z.string().nullable(),
   userId: z.string(),
 });
 
 export const createVideoCommentBodySchema = z.object({
-  body: z.string().min(1).max(2000),
+  body: z.string().trim().min(1).max(2000),
   clientCommentId: z.string().uuid().optional(),
+  parentCommentId: z.string().trim().min(1).max(120).nullable().optional(),
 });
 
 export const createPlaylistBodySchema = z.object({
