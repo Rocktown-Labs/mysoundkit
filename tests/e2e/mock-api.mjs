@@ -609,7 +609,12 @@ export const createMockApiServer = async ({
   const mockBattleChallengesByClient = new Map(),
     mockBattleKitsByClient = new Map(),
     mockBattlesByClient = new Map(),
+    mockCommunityCommunitiesByClient = new Map(),
+    mockCommunityMembersByClient = new Map(),
+    mockCommunityMessagesByClient = new Map(),
+    mockCommunityPostsByClient = new Map(),
     mockLiveRoomsByClient = new Map(),
+    mockVideoCommentsByClient = new Map(),
     getMockLiveRoom = (request, roomId, session) => {
       const clientKey = `${getClientKey(request)}:${roomId}:${session ?? "anonymous"}`,
         existing = mockLiveRoomsByClient.get(clientKey);
@@ -620,6 +625,61 @@ export const createMockApiServer = async ({
       const room = liveRoom(roomId, session);
       mockLiveRoomsByClient.set(clientKey, room);
       return room;
+    },
+    getMockCommunityCommunities = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockCommunityCommunitiesByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const communities = structuredClone(mockCommunities);
+      mockCommunityCommunitiesByClient.set(clientKey, communities);
+      return communities;
+    },
+    getMockCommunityMembers = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockCommunityMembersByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const members = structuredClone(mockCommunityMembers);
+      mockCommunityMembersByClient.set(clientKey, members);
+      return members;
+    },
+    getMockCommunityMessages = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockCommunityMessagesByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const messages = structuredClone(mockCommunityMessages);
+      mockCommunityMessagesByClient.set(clientKey, messages);
+      return messages;
+    },
+    getMockCommunityPosts = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockCommunityPostsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const posts = structuredClone(mockCommunityPosts);
+      mockCommunityPostsByClient.set(clientKey, posts);
+      return posts;
+    },
+    getMockVideoComments = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockVideoCommentsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const comments = structuredClone(mockVideoComments);
+      mockVideoCommentsByClient.set(clientKey, comments);
+      return comments;
     },
     getMockBattleChallenges = (request) => {
       const clientKey = getClientKey(request),
@@ -1216,7 +1276,7 @@ export const createMockApiServer = async ({
     );
     if (videoCommentsMatch) {
       if (request.method === "GET") {
-        json(response, 200, mockVideoComments, webOrigin);
+        json(response, 200, getMockVideoComments(request), webOrigin);
         return;
       }
       if (request.method === "POST") {
@@ -1226,8 +1286,9 @@ export const createMockApiServer = async ({
         });
         request.on("end", () => {
           const body = JSON.parse(bodyText || "{}"),
+            comments = getMockVideoComments(request),
             parent = body.parentCommentId
-              ? mockVideoComments.find(
+              ? comments.find(
                   (comment) => comment.id === body.parentCommentId
                 )
               : null;
@@ -1250,7 +1311,7 @@ export const createMockApiServer = async ({
             parentCommentId: body.parentCommentId ?? null,
             userId: "user_complete",
           };
-          mockVideoComments.push(comment);
+          comments.push(comment);
           json(response, 201, comment, webOrigin);
         });
         return;
@@ -1552,7 +1613,7 @@ export const createMockApiServer = async ({
       url.pathname === "/v1/communities" ||
       url.pathname === "/v1/communities/"
     ) {
-      json(response, 200, mockCommunities, webOrigin);
+      json(response, 200, getMockCommunityCommunities(request), webOrigin);
       return;
     }
 
@@ -1560,7 +1621,7 @@ export const createMockApiServer = async ({
       /^\/v1\/communities\/([^/]+)$/
     );
     if (communityDetailMatch && request.method === "GET") {
-      const community = mockCommunities.find(
+      const community = getMockCommunityCommunities(request).find(
         (entry) => entry.id === communityDetailMatch[1]
       );
       json(
@@ -1576,13 +1637,13 @@ export const createMockApiServer = async ({
       /^\/v1\/communities\/([^/]+)\/join$/
     );
     if (communityJoinMatch && request.method === "POST") {
-      const community = mockCommunities.find(
+      const community = getMockCommunityCommunities(request).find(
         (entry) => entry.id === communityJoinMatch[1]
       );
       if (community && !community.isMember) {
         community.isMember = true;
         community.memberCount += 1;
-        mockCommunityMembers.push({
+        getMockCommunityMembers(request).push({
           avatarUrl: "/summer-music-album-cover.webp",
           joinedAt: new Date().toISOString(),
           name: "Complete Artist",
@@ -1607,7 +1668,7 @@ export const createMockApiServer = async ({
     );
     if (communityMessagesMatch) {
       if (request.method === "GET") {
-        json(response, 200, mockCommunityMessages, webOrigin);
+        json(response, 200, getMockCommunityMessages(request), webOrigin);
         return;
       }
       if (request.method === "POST") {
@@ -1628,7 +1689,7 @@ export const createMockApiServer = async ({
               id: body.clientMessageId ?? `mock-message-${Date.now()}`,
               userId: "user_complete",
             };
-          mockCommunityMessages.push(message);
+          getMockCommunityMessages(request).push(message);
           json(response, 201, message, webOrigin);
         });
         return;
@@ -1640,7 +1701,7 @@ export const createMockApiServer = async ({
     );
     if (communityPostsMatch) {
       if (request.method === "GET") {
-        json(response, 200, mockCommunityPosts, webOrigin);
+        json(response, 200, getMockCommunityPosts(request), webOrigin);
         return;
       }
       if (request.method === "POST") {
@@ -1665,7 +1726,7 @@ export const createMockApiServer = async ({
               postType: body.postType ?? "text",
               userId: "user_complete",
             };
-          mockCommunityPosts.push(post);
+          getMockCommunityPosts(request).push(post);
           json(response, 201, post, webOrigin);
         });
         return;
@@ -1676,7 +1737,7 @@ export const createMockApiServer = async ({
       /^\/v1\/communities\/([^/]+)\/members$/
     );
     if (communityMembersMatch && request.method === "GET") {
-      json(response, 200, mockCommunityMembers, webOrigin);
+      json(response, 200, getMockCommunityMembers(request), webOrigin);
       return;
     }
 
