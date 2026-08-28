@@ -57,6 +57,41 @@ const emptyParticipatingBattles: ParticipatingBattleNotice[] = [],
     }
 
     return (await response.json()) as BattleEntryResponse;
+  },
+  getLiveRoomDialogCopy = ({
+    hasArtistBattle,
+    hasHostedParty,
+  }: {
+    hasArtistBattle: boolean;
+    hasHostedParty: boolean;
+  }) => {
+    if (hasArtistBattle && hasHostedParty) {
+      return {
+        description:
+          "Enter your artist room to compete, or open your hosted listening party.",
+        title: "Your live rooms are ready",
+      };
+    }
+
+    if (hasArtistBattle) {
+      return {
+        description: "Enter your artist room to compete.",
+        title: "Your live battle is ready",
+      };
+    }
+
+    if (hasHostedParty) {
+      return {
+        description:
+          "Open your hosted listening party to join the live conversation.",
+        title: "Your listening party is ready",
+      };
+    }
+
+    return {
+      description: "Join the live arena and watch the battle you queued for.",
+      title: "A live battle is ready",
+    };
   };
 
 export const isBattlePagePath = (pathname: string, battleId: string) =>
@@ -123,7 +158,9 @@ export function BattleQueueCta() {
 
     const liveOfferKeys = new Set([
         ...liveBattleOffers.map(offerKeyForBattle),
-        ...liveOwnedParties.map((party) => offerKeyForParty(party.id, party.status)),
+        ...liveOwnedParties.map((party) =>
+          offerKeyForParty(party.id, party.status)
+        ),
       ]),
       staleOffers = [...offeredOffers.current].filter(
         (key) => !liveOfferKeys.has(key)
@@ -185,21 +222,9 @@ export function BattleQueueCta() {
   const hasArtistBattle = liveBattleOffers.some(
       (battle) => battle.entryKind === "artist"
     ),
-    hasHostedParty = liveOwnedParties.length > 0;
-  let dialogTitle = "A live battle is ready",
-    dialogDescription = "Join the live arena and watch the battle you queued for.";
-
-  if (hasArtistBattle && hasHostedParty) {
-    dialogTitle = "Your live rooms are ready";
-    dialogDescription =
-      "Enter your artist room to compete, or open your hosted listening party.";
-  } else if (hasArtistBattle) {
-    dialogTitle = "Your live battle is ready";
-    dialogDescription = "Enter your artist room to compete.";
-  } else if (hasHostedParty) {
-    dialogTitle = "Your listening party is ready";
-    dialogDescription = "Open your hosted listening party to join the live conversation.";
-  }
+    hasHostedParty = liveOwnedParties.length > 0,
+    { description: dialogDescription, title: dialogTitle } =
+      getLiveRoomDialogCopy({ hasArtistBattle, hasHostedParty });
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
