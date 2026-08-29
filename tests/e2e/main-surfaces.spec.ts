@@ -790,6 +790,30 @@ test.describe("main application surfaces", () => {
     ).toBeVisible();
   });
 
+  test("public projects load cards and project details", async ({ page }) => {
+    test.setTimeout(90_000);
+
+    await gotoWithViteRetry(
+      page,
+      "/projects?region=all&regionType=north-america&view=all"
+    );
+    await expect(
+      page.getByRole("heading", { name: "All Projects" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { exact: true, name: "After Dark" })
+    ).toBeVisible({ timeout: 60_000 });
+
+    await page.getByRole("link", { exact: true, name: "After Dark" }).click();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "After Dark" })
+    ).toBeVisible();
+    await expect(page.getByText("Tracklist (2 Songs)")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Stream Summer Nights" })
+    ).toBeVisible();
+  });
+
   test("incoming battle invitations create upcoming battles", async ({
     context,
     page,

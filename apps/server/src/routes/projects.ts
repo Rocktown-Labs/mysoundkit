@@ -111,9 +111,39 @@ const projectOrderBy = (sort?: string) => {
 
     return desc(projects.updatedAt);
   },
+  projectMatchesRegion = (
+    project: ProjectSummary,
+    region: ReturnType<typeof resolveExploreRegion>,
+    regionSlug: string | null
+  ) => {
+    if (region.kind === "global") {
+      return true;
+    }
+
+    if (region.kind === "unknown") {
+      return false;
+    }
+
+    if (region.kind === "state") {
+      return project.regionSlug === regionSlug;
+    }
+
+    if (region.kind === "country") {
+      return (
+        region.name === "United States" &&
+        project.regionSlug?.startsWith("us-") === true
+      );
+    }
+
+    return (
+      region.scope === "north-america" &&
+      project.regionSlug?.startsWith("us-") === true
+    );
+  },
   projectMatchesExploreFilters = (
     project: ProjectSummary,
-    query: PublicProjectExploreQuery
+    query: PublicProjectExploreQuery,
+    regionAlreadyFiltered = false
   ) => {
     const genreSlug = genreSlugFromExploreFilter(query.genre),
       region = resolveExploreRegion(query),
@@ -131,14 +161,9 @@ const projectOrderBy = (sort?: string) => {
     }
 
     if (
-      region.kind === "unknown" ||
-      region.kind === "country" ||
-      region.kind === "continent"
+      !regionAlreadyFiltered &&
+      !projectMatchesRegion(project, region, regionSlug)
     ) {
-      return false;
-    }
-
-    if (regionSlug && project.regionSlug !== regionSlug) {
       return false;
     }
 
@@ -323,7 +348,7 @@ app.openapi(
     for (const { project } of rows) {
       const summary = await buildProjectSummary(project);
 
-      if (projectMatchesExploreFilters(summary, query)) {
+      if (projectMatchesExploreFilters(summary, query, true)) {
         summaries.push(summary);
       }
     }

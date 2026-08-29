@@ -1267,6 +1267,37 @@ export const createMockApiServer = async ({
       return;
     }
 
+    const publicProjectDetailMatch = url.pathname.match(
+      /^\/v1\/projects\/public\/([^/]+)$/
+    );
+    if (publicProjectDetailMatch) {
+      const project = mockProjects.find(
+        (entry) => entry.id === publicProjectDetailMatch[1]
+      );
+      if (!project) {
+        json(response, 404, { message: "Project not found." }, webOrigin);
+        return;
+      }
+
+      json(
+        response,
+        200,
+        {
+          ...project,
+          assets: [],
+          collaborators: [],
+          tracks: mockTracks.slice(0, 2).map((track) => ({
+            ...track,
+            artistUsername: project.artistUsername,
+            playbackUrl: "/demo-audio/fantasy26.wav",
+            previewUrl: null,
+          })),
+        },
+        webOrigin
+      );
+      return;
+    }
+
     if (url.pathname === "/v1/tracks" || url.pathname === "/v1/tracks/") {
       const requestedGenre = url.searchParams.get("genre"),
         tracks =
