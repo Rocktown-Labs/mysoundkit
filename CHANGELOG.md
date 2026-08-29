@@ -56,6 +56,7 @@
 ### Fixed
 
 - Fixed notification mark-read, mark-all-read, and clear actions to update TanStack DB collections and unread counts immediately, revalidate authoritative server state on success or failure, and keep the notification menu synchronized during concurrent updates.
+- Fixed battle chat presence to use the same Presence provider and freshness window as floating chat and Dashboard Messages, including periodic refreshes and local expiration of stale users.
 - Fixed TanStack DB collection cleanup during auth-scope remounts so live queries stay attached to their active collection and optimistic comment writes remain visible after authentication resolves.
 - Fixed concurrent community and video-comment browser smoke fixtures so Strict Mode remounts do not invalidate active live queries.
 - Fixed community entry so opening a community confirms membership before granting access, free joins reconcile immediately, the member view uses the available page height, creator updates notify opted-in members, and community chat/posts stay fresh through TanStack DB polling and direct writes.

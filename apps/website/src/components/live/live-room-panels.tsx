@@ -16,9 +16,10 @@ import {
   Send,
   Shield,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { LiveRoomState, LiveRoomTrack } from "@/lib/live-room";
+import { usePresence } from "@/lib/presence-context";
 import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
 import { AppImage } from "../ui/app-image";
@@ -62,6 +63,7 @@ export function LiveChatPanel({
     meQuery = useMeQuery(),
     meUser = meQuery.data?.user,
     meProfile = meUser,
+    { isUserOnline, registerPresenceUsers } = usePresence(),
     send = () => {
       const trimmedMessage = message.trim();
       if (!trimmedMessage) {
@@ -71,6 +73,35 @@ export function LiveChatPanel({
       onSend(trimmedMessage);
       setMessage("");
     };
+
+  const presenceUserIdsKey = [
+      ...artistUserIds,
+      ...messages.flatMap((chatMessage) =>
+        chatMessage.userId ? [chatMessage.userId] : []
+      ),
+    ].join("|"),
+    presenceUserIdsRef = useRef<{ ids: string[]; key: string }>({
+      ids: [],
+      key: "",
+    });
+
+  if (presenceUserIdsRef.current.key !== presenceUserIdsKey) {
+    presenceUserIdsRef.current = {
+      ids: [
+        ...new Set([
+          ...artistUserIds,
+          ...messages.flatMap((chatMessage) =>
+            chatMessage.userId ? [chatMessage.userId] : []
+          ),
+        ]),
+      ],
+      key: presenceUserIdsKey,
+    };
+  }
+
+  useEffect(() => {
+    return registerPresenceUsers(presenceUserIdsRef.current.ids);
+  }, [presenceUserIdsKey, registerPresenceUsers]);
 
   return (
     <>
@@ -145,6 +176,9 @@ export function LiveChatPanel({
                           chatMessage.userRole === "host" ||
                           chatMessage.userName.toLowerCase().includes("host") ||
                           chatMessage.userName.toLowerCase().includes("artist"),
+                        isChatUserOnline = chatMessage.userId
+                          ? isUserOnline(chatMessage.userId)
+                          : false,
                         userAvatar = isMe
                           ? (meProfile?.avatarUrl ??
                             meUser?.avatarUrl ??
@@ -249,6 +283,15 @@ export function LiveChatPanel({
                                 >
                                   {chatMessage.userName}
                                 </button>
+                                {chatMessage.userId && !isBot && (
+                                  <span
+                                    aria-label={`${chatMessage.userName} is ${isChatUserOnline ? "online" : "offline"}`}
+                                    className={`size-1.5 rounded-full ${isChatUserOnline ? "bg-emerald-400" : "bg-muted-foreground/50"}`}
+                                    title={
+                                      isChatUserOnline ? "Online" : "Offline"
+                                    }
+                                  />
+                                )}
                                 <span className="text-[10px] text-muted-foreground">
                                   {new Date(
                                     chatMessage.sentAt

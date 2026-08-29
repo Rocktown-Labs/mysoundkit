@@ -413,6 +413,30 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("New battle invitation")).toBeVisible();
   });
 
+  test("battle chat uses the shared presence source", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/live/battles/battle-waiting-artist");
+    await expect(page.getByText("Waiting Room Chat")).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page.getByLabel("MC Rhythm is online")).toBeVisible({
+      timeout: 60_000,
+    });
+  });
+
   test("communities ask before joining and support member chat", async ({
     context,
     page,

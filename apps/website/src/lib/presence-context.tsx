@@ -14,6 +14,7 @@ import { API_V1_URL } from "./api";
 import { useMeQuery } from "./soundkit-api-hooks";
 
 const ACTIVE_PRESENCE_INTERVAL_MS = 60_000,
+  PRESENCE_ACTIVE_THRESHOLD_MS = 90_000,
   LEASE_DURATION_MS = 25_000,
   LEASE_RENEWAL_INTERVAL_MS = 10_000,
   PRESENCE_CHANNEL_NAME = "soundkit-presence",
@@ -38,7 +39,11 @@ interface PresenceBroadcast {
   users: Record<string, UserPresenceInfo>;
 }
 
-const noopCleanup = (): undefined => undefined,
+const isFreshPresence = (presence: UserPresenceInfo) =>
+    presence.isOnline &&
+    presence.status !== "offline" &&
+    Date.now() - presence.lastSeen < PRESENCE_ACTIVE_THRESHOLD_MS,
+  noopCleanup = (): undefined => undefined,
   PresenceContext = createContext<PresenceContextValue>({
     getUserPresence: () => undefined,
     isUserOnline: () => false,
@@ -304,9 +309,12 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
         socketRef.current.send(JSON.stringify({ type: "heartbeat" }));
       } else {
         void sendHeartbeat("online");
-        void fetchTargetedPresence();
         connectSocket();
       }
+      // The Presence DO broadcasts a user's own status, not every watched
+      // user's status. Poll the same authoritative endpoint for all watched
+      // users so battle chat and direct messages share one freshness window.
+      void fetchTargetedPresence();
     }, ACTIVE_PRESENCE_INTERVAL_MS);
     leaseIntervalRef.current = setInterval(() => {
       if (isVisible() && claimLease()) {
@@ -352,7 +360,8 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
         if (userId && targetUserId === userId) {
           return true;
         }
-        return Boolean(onlineUsers[targetUserId]?.isOnline);
+        const presence = onlineUsers[targetUserId];
+        return presence ? isFreshPresence(presence) : false;
       },
       [onlineUsers, userId]
     ),
@@ -364,14 +373,17 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
         if (userId && targetUserId === userId) {
           return { isOnline: true, lastSeen: Date.now(), status: "online" };
         }
-        return onlineUsers[targetUserId];
+        const presence = onlineUsers[targetUserId];
+        return presence
+          ? { ...presence, isOnline: isFreshPresence(presence) }
+          : undefined;
       },
       [onlineUsers, userId]
     ),
     onlineUserIds = useMemo(
       () =>
         Object.entries(onlineUsers)
-          .filter(([, presence]) => presence.isOnline)
+          .filter(([, presence]) => isFreshPresence(presence))
           .map(([id]) => id),
       [onlineUsers]
     ),
