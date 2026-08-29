@@ -5,11 +5,13 @@ import type { ReactNode } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
 import { ExploreCollectionGrid } from "@/components/explore/explore-collection";
+import { ProjectCard } from "@/components/explore/project-card";
 import { TrackCard } from "@/components/explore/track-card";
 import { Button } from "@/components/ui/button";
 import { InfiniteScrollSentinel } from "@/components/ui/infinite-scroll-sentinel";
 import {
   useGenresQuery,
+  usePublicProjectsQuery,
   useTracksInfiniteQuery,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
@@ -82,6 +84,13 @@ function TracksPage() {
         }),
       });
     },
+    { data: releaseProjects = [], isLoading: isLoadingProjects } =
+      usePublicProjectsQuery({
+        limit: 12,
+        region,
+        regionType,
+        sort: "date-desc",
+      }),
     {
       data: infiniteData,
       fetchNextPage,
@@ -135,33 +144,55 @@ function TracksPage() {
       />
 
       {view === "all" || genre !== "all" ? (
-        <ExploreCollectionGrid
-          empty="No songs found for the selected filters."
-          footer={
-            <InfiniteScrollSentinel
-              fetchNextPage={fetchNextPage}
-              hasNextPage={hasNextPage}
-              isFetchingNextPage={isFetchingNextPage}
-            />
-          }
-          isLoading={isLoadingInfinite}
-          items={allTracks}
-          title={genre === "all" ? "All Songs" : "Matching Songs"}
-        >
-          {(track) => (
-            <TrackCard
-              id={track.id}
-              title={track.title}
-              artist={track.artistName}
-              artistSlug={track.artistUsername ?? "artist"}
-              cover={track.coverArtUrl ?? "/placeholder.svg"}
-              plays={track.plays.toLocaleString()}
-              duration={track.duration}
-              regionSlug={track.regionSlug}
-              slug={track.slug}
-            />
-          )}
-        </ExploreCollectionGrid>
+        <>
+          {sort === "date-desc" && genre === "all" ? (
+            <section className="mb-8 space-y-3">
+              <div>
+                <h2 className="font-semibold text-xl">New Projects</h2>
+                <p className="text-muted-foreground text-sm">
+                  Albums, EPs, mixtapes, and singles released by SoundKit
+                  artists.
+                </p>
+              </div>
+              {isLoadingProjects || releaseProjects.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {releaseProjects.map((project) => (
+                    <ProjectCard key={project.id} project={project} />
+                  ))}
+                </div>
+              ) : (
+                <TrackEmptyState>No new projects found.</TrackEmptyState>
+              )}
+            </section>
+          ) : null}
+          <ExploreCollectionGrid
+            empty="No songs found for the selected filters."
+            footer={
+              <InfiniteScrollSentinel
+                fetchNextPage={fetchNextPage}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+              />
+            }
+            isLoading={isLoadingInfinite}
+            items={allTracks}
+            title={genre === "all" ? "All Songs" : "Matching Songs"}
+          >
+            {(track) => (
+              <TrackCard
+                id={track.id}
+                title={track.title}
+                artist={track.artistName}
+                artistSlug={track.artistUsername ?? "artist"}
+                cover={track.coverArtUrl ?? "/placeholder.svg"}
+                plays={track.plays.toLocaleString()}
+                duration={track.duration}
+                regionSlug={track.regionSlug}
+                slug={track.slug}
+              />
+            )}
+          </ExploreCollectionGrid>
+        </>
       ) : (
         <>
           <div className="mb-10">

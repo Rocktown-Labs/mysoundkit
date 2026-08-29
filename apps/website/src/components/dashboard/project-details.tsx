@@ -1,22 +1,25 @@
-/* eslint-disable one-var, sort-vars */
+/* eslint-disable complexity, one-var, sort-vars */
 import { Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   CheckCircle,
   Clock,
   Download,
-  Edit,
   ExternalLink,
   FolderOpen,
   LoaderCircle,
   MoreVertical,
   Music,
+  Play,
   Rocket,
+  Share2,
   Settings2,
-  Share,
 } from "lucide-react";
 import { useState } from "react";
 
+import { useAudioPlayer } from "@/components/audio-player-provider";
+import { ProjectQuickActionDialogs } from "@/components/dashboard/project-quick-actions";
+import type { ProjectQuickActionName } from "@/components/dashboard/project-quick-actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,6 +55,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
+import { shareLink } from "@/lib/share";
 import {
   useProjectQuery,
   useUpdateProjectMutation,
@@ -98,10 +102,13 @@ const STATUS_META: Record<
   };
 
 export function ProjectDetails({ projectId }: ProjectDetailsProps) {
-  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false),
+  const [activeAction, setActiveAction] =
+      useState<ProjectQuickActionName | null>(null),
+    [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false),
     [selectedStatus, setSelectedStatus] = useState<"draft" | "released">(
       "draft"
     ),
+    { setCurrentTrack, setQueue } = useAudioPlayer(),
     projectQuery = useProjectQuery(projectId),
     updateProjectMutation = useUpdateProjectMutation(projectId),
     project = projectQuery.data;
@@ -147,6 +154,28 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     collaborators = Array.isArray(project.collaborators)
       ? project.collaborators
       : [],
+    playableTracks = project.tracks.filter((track) =>
+      Boolean(track.playbackUrl)
+    ),
+    handlePlay = () => {
+      if (playableTracks.length === 0) {
+        return;
+      }
+
+      const queue = playableTracks.map((track) => ({
+        artist: track.artistName ?? "SoundKit artist",
+        artistHref: track.artistUsername
+          ? `/artist/${track.artistUsername}`
+          : "/dashboard/profile",
+        cover: track.coverArtUrl ?? coverArt ?? "/placeholder.svg",
+        id: track.id,
+        src: track.playbackUrl as string,
+        title: track.title,
+        trackHref: `/dashboard/tracks/${track.id}`,
+      }));
+      setQueue(queue);
+      setCurrentTrack(queue[0]);
+    },
     handleReleaseNow = async () => {
       try {
         await updateProjectMutation.mutateAsync({
@@ -199,26 +228,35 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         });
       }
     },
+    publicProjectPath = `/projects/${project.slug || project.id}`,
     handleShare = async () => {
       const shareUrl =
-        typeof window === "undefined"
-          ? `/projects/${project.id}`
-          : `${window.location.origin}/projects/${project.id}`;
-      if (navigator.clipboard) {
-        try {
-          await navigator.clipboard.writeText(shareUrl);
-          toast({
-            description: "Project link copied to clipboard.",
-            title: "Link copied",
-          });
-        } catch {
-          toast({
-            description: "Could not copy link to clipboard.",
-            title: "Copy failed",
-            variant: "destructive",
-          });
-        }
+          typeof window === "undefined"
+            ? publicProjectPath
+            : `${window.location.origin}${publicProjectPath}`,
+        outcome = await shareLink({
+          text: `${project.title} project`,
+          title: project.title,
+          url: shareUrl,
+        });
+
+      if (outcome === "shared") {
+        return;
       }
+
+      if (outcome === "unsupported") {
+        toast({
+          description: "Sharing is not supported on this device.",
+          title: "Unable to share",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        description: `Project link copied to clipboard: ${shareUrl}`,
+        title: "Link copied",
+      });
     };
 
   return (
@@ -272,28 +310,38 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                 <Button
                   disabled={updateProjectMutation.isPending}
                   onClick={handleReleaseNow}
+                  type="button"
                 >
                   <Rocket className="mr-2 size-4" />
                   Release now
                 </Button>
               ) : null}
-              <Button asChild variant="outline">
-                <Link
-                  params={{ id: projectId }}
-                  to="/dashboard/projects/$id/edit"
-                >
-                  <Edit className="mr-2 size-4" />
-                  Edit metadata
-                </Link>
-              </Button>
+              {playableTracks.length > 0 ? (
+                <Button onClick={handlePlay} type="button">
+                  <Play className="mr-2 size-4" />
+                  Play
+                </Button>
+              ) : null}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild={true}>
-                  <Button aria-label="More project actions" variant="outline">
+                  <Button
+                    aria-label="Project actions"
+                    type="button"
+                    variant="outline"
+                  >
                     <MoreVertical className="mr-2 size-4" />
-                    More actions
+                    Project actions
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setActiveAction("details")}>
+                    <Settings2 className="mr-2 size-4" />
+                    Edit project details
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setActiveAction("cover")}>
+                    <Music className="mr-2 size-4" />
+                    Change cover art
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
                       setSelectedStatus(
@@ -307,15 +355,18 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                   </DropdownMenuItem>
                   {project.isPublic ? (
                     <DropdownMenuItem asChild={true}>
-                      <a href={`/projects/${project.id}`}>
+                      <Link
+                        params={{ id: project.slug || project.id }}
+                        to="/projects/$id"
+                      >
                         <ExternalLink className="mr-2 size-4" />
                         View public page
-                      </a>
+                      </Link>
                     </DropdownMenuItem>
                   ) : null}
                   <DropdownMenuItem onSelect={handleShare}>
-                    <Share className="mr-2 size-4" />
-                    Copy share link
+                    <Share2 className="mr-2 size-4" />
+                    Share project
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -348,6 +399,21 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              {project.isPublic ? (
+                <Button asChild={true} type="button" variant="outline">
+                  <Link
+                    params={{ id: project.slug || project.id }}
+                    to="/projects/$id"
+                  >
+                    <ExternalLink className="mr-2 size-4" />
+                    View public page
+                  </Link>
+                </Button>
+              ) : null}
+              <Button onClick={handleShare} type="button" variant="outline">
+                <Share2 className="mr-2 size-4" />
+                Share
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -482,6 +548,13 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ProjectQuickActionDialogs
+        activeDialog={activeAction}
+        onClose={() => setActiveAction(null)}
+        onSaved={() => projectQuery.refetch()}
+        project={project}
+        projectId={projectId}
+      />
     </div>
   );
 }

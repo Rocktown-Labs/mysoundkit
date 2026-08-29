@@ -15,7 +15,6 @@ import {
   ArrowLeft,
   Check,
   Clock,
-  ExternalLink,
   FolderKanban,
   LoaderCircle,
   MessageSquare,
@@ -35,6 +34,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { PlayerTrack } from "@/components/audio-player-provider";
 import { useAudioPlayer } from "@/components/audio-player-provider";
+import { CollaborationMessageCard } from "@/components/dashboard/message-collaboration-card";
+import type { CollaborationResponseAction } from "@/components/dashboard/message-collaboration-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,13 +52,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useMobile } from "@/hooks/use-mobile";
 import { toast } from "@/hooks/use-toast";
-import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
+import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import {
   useCreateMessageCollectionMutation,
   useMarkConversationReadMutation,
   useMessagingConversations,
   useMessagingMessages,
   useMessagingWorkspace,
+  useRespondCollaborationMutation,
+  useStartCollaborationMutation,
   useStartConversationMutation,
 } from "@/lib/message-db";
 import { usePresence } from "@/lib/presence-context";
@@ -268,6 +271,11 @@ function MessagesPageClient() {
       selectedId,
       meQuery.data?.user.id
     ),
+    startCollaboration = useStartCollaborationMutation(
+      selectedId,
+      meQuery.data?.user.id
+    ),
+    respondCollaboration = useRespondCollaborationMutation(selectedId),
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
@@ -297,22 +305,11 @@ function MessagesPageClient() {
         )
       : [],
     handleRespondCollaboration = async (
-      projectId: string,
+      collaborationId: string,
       action: "accept" | "decline" | "cancel"
     ) => {
       try {
-        const response = await fetch(
-          `${API_V1_URL}/messages/conversations/${encodeURIComponent(selectedId)}/collaborations/${encodeURIComponent(projectId)}/respond`,
-          {
-            body: JSON.stringify({ action }),
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          }
-        );
-        if (!response.ok) {
-          throw new Error("Could not update status.");
-        }
+        await respondCollaboration.mutateAsync({ action, collaborationId });
         toast({
           description:
             action === "accept"
@@ -320,67 +317,51 @@ function MessagesPageClient() {
               : action === "decline"
                 ? "Collaboration declined."
                 : "Collaboration cancelled.",
-          title: "Status Updated",
+          title: "Status updated",
         });
-        await Promise.all([
-          messagesQuery.refetch(),
-          conversationsQuery.refetch(),
-        ]);
-      } catch {
-        toast({
-          description: "Failed to respond to collaboration.",
-          title: "Error",
-          variant: "destructive",
-        });
-      }
-    },
-    handleSendCollabProposal = async ({
-      projectType,
-      title,
-    }: {
-      projectType: "album" | "ep" | "single";
-      title: string;
-    }) => {
-      if (!selectedId) {
-        return;
-      }
-      try {
-        const response = await fetch(
-          `${API_V1_URL}/messages/conversations/${encodeURIComponent(selectedId)}/collaborations`,
-          {
-            body: JSON.stringify({
-              initialTracks: [],
-              isProjectLevel: true,
-              kind: "project",
-              projectType,
-              title,
-            }),
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          }
-        );
-        if (!response.ok) {
-          throw new Error("Failed to send collaboration invite.");
-        }
-        toast({
-          description: `Invitation sent for "${title}".`,
-          title: "Collab proposal sent",
-        });
-        await Promise.all([
-          messagesQuery.refetch(),
-          conversationsQuery.refetch(),
-        ]);
       } catch (error) {
         toast({
           description:
             error instanceof Error
               ? error.message
-              : "Could not send collaboration.",
-          title: "Failed to send proposal",
+              : "Failed to respond to collaboration.",
+          title: "Error",
           variant: "destructive",
         });
       }
+    },
+    handleSendCollabProposal = ({
+      projectType,
+      title,
+    }: {
+      projectType: "album" | "ep" | "mixtape" | "single";
+      title: string;
+    }) => {
+      if (!selectedId) {
+        return;
+      }
+
+      startCollaboration.mutate(
+        { kind: "project", projectType, title },
+        {
+          onError: (error) => {
+            toast({
+              description:
+                error instanceof Error
+                  ? error.message
+                  : "Could not send collaboration.",
+              title: "Failed to send proposal",
+              variant: "destructive",
+            });
+          },
+          onSuccess: () => {
+            toast({
+              description: `Invitation sent for "${title}".`,
+              title: "Collab proposal sent",
+            });
+          },
+        }
+      );
     },
     handleSendMessage = (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -698,11 +679,13 @@ function MessagesPageClient() {
                       const isMine = message.senderId === meQuery.data?.user.id;
                       const hasCollabProposal = message.attachments?.some(
                         (att) =>
+                          Boolean(att.collaboration) ||
                           att.mimeType === "soundkit/collaboration-proposal" ||
                           Boolean(att.sourceProjectId)
                       );
                       const collabAtt = message.attachments?.find(
                         (att) =>
+                          Boolean(att.collaboration) ||
                           att.mimeType === "soundkit/collaboration-proposal" ||
                           Boolean(att.sourceProjectId)
                       );
@@ -720,92 +703,20 @@ function MessagesPageClient() {
                             )}
                           >
                             {hasCollabProposal && collabAtt ? (
-                              <div className="w-full max-w-sm rounded-2xl border-2 border-primary/40 bg-card/95 p-4 shadow-xl space-y-3">
-                                <div className="flex items-center justify-between border-b pb-2">
-                                  <div className="flex items-center gap-2 font-bold text-primary text-sm">
-                                    <FolderKanban className="size-4.5" />
-                                    <span>Shared Collaboration Proposal</span>
-                                  </div>
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[10px]"
-                                  >
-                                    Draft
-                                  </Badge>
-                                </div>
-                                <div>
-                                  <p className="font-bold text-base text-foreground">
-                                    {collabAtt.displayName}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
-                                    <Clock className="size-3.5 text-amber-400" />
-                                    24-Hour Acceptance Window
-                                  </p>
-                                </div>
-                                <div className="flex flex-col gap-2 pt-1">
-                                  {isMine ? (
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 text-xs text-muted-foreground hover:text-destructive w-full"
-                                      onClick={() =>
-                                        handleRespondCollaboration(
-                                          collabAtt.sourceProjectId ?? "",
-                                          "cancel"
-                                        )
-                                      }
-                                    >
-                                      Cancel Invitation
-                                    </Button>
-                                  ) : (
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <Button
-                                        size="sm"
-                                        className="h-8 text-xs gap-1 bg-primary"
-                                        onClick={() =>
-                                          handleRespondCollaboration(
-                                            collabAtt.sourceProjectId ?? "",
-                                            "accept"
-                                          )
-                                        }
-                                      >
-                                        <Check className="size-3.5" />
-                                        Accept Collaboration
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-8 text-xs"
-                                        onClick={() =>
-                                          handleRespondCollaboration(
-                                            collabAtt.sourceProjectId ?? "",
-                                            "decline"
-                                          )
-                                        }
-                                      >
-                                        Decline
-                                      </Button>
-                                    </div>
-                                  )}
-                                  {collabAtt.url && (
-                                    <Button
-                                      asChild
-                                      size="sm"
-                                      variant="secondary"
-                                      className="h-8 text-xs w-full gap-1.5"
-                                    >
-                                      <a
-                                        href={collabAtt.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                      >
-                                        <ExternalLink className="size-3.5" />
-                                        Open Project Workspace
-                                      </a>
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
+                              <CollaborationMessageCard
+                                attachment={collabAtt}
+                                isMine={isMine}
+                                isResponding={respondCollaboration.isPending}
+                                onRespond={(
+                                  collaborationId,
+                                  action: CollaborationResponseAction
+                                ) =>
+                                  void handleRespondCollaboration(
+                                    collaborationId,
+                                    action
+                                  )
+                                }
+                              />
                             ) : (
                               <div
                                 className={cn(
@@ -941,7 +852,7 @@ function MessagesPageClient() {
                       )}
                   </MessageScrollerContent>
                 </MessageScrollerViewport>
-                <MessageScrollerButton />
+                <MessageScrollerButton size="icon" />
               </MessageScroller>
             </MessageScrollerProvider>
 
@@ -1289,6 +1200,7 @@ function MessagesPageClient() {
       {/* Collaboration Dialog */}
       <CollaborationDialog
         conversationId={selectedId}
+        senderId={meQuery.data?.user.id}
         onOpenChange={setIsCollaborationOpen}
         onSuccess={() => {
           void Promise.all([
@@ -1334,49 +1246,55 @@ function CollaborationDialog({
   onOpenChange,
   onSuccess,
   open,
+  senderId,
 }: {
   conversationId: string;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
   open: boolean;
+  senderId?: string;
 }) {
   const [kind, setKind] = useState<"project" | "track">("project"),
     [title, setTitle] = useState(""),
-    [isCreating, setIsCreating] = useState(false),
-    createCollaboration = async (event: FormEvent<HTMLFormElement>) => {
+    startCollaboration = useStartCollaborationMutation(
+      conversationId,
+      senderId
+    ),
+    createCollaboration = (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      setIsCreating(true);
-      try {
-        const response = await fetch(
-          `${API_V1_URL}/messages/conversations/${encodeURIComponent(conversationId)}/collaborations`,
-          {
-            body: JSON.stringify({ kind, title }),
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          }
-        );
-        if (!response.ok) {
-          throw new Error("Could not start the collaboration.");
-        }
-        setTitle("");
-        onOpenChange(false);
-        toast({
-          description: `Collaboration proposal for "${title}" sent! Collaborator has 24 hours to accept.`,
-          title: "Proposal Sent",
-        });
-        if (onSuccess) {
-          onSuccess();
-        }
-      } catch {
-        toast({
-          description: "Failed to send collaboration proposal.",
-          title: "Error",
-          variant: "destructive",
-        });
-      } finally {
-        setIsCreating(false);
+      if (!title.trim() || startCollaboration.isPending) {
+        return;
       }
+
+      const proposalTitle = title.trim();
+      startCollaboration.mutate(
+        {
+          kind,
+          projectType: kind === "project" ? "single" : undefined,
+          title: proposalTitle,
+        },
+        {
+          onError: (error) => {
+            toast({
+              description:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to send collaboration proposal.",
+              title: "Error",
+              variant: "destructive",
+            });
+          },
+          onSuccess: () => {
+            toast({
+              description: `Collaboration proposal for "${proposalTitle}" sent! Collaborator has 24 hours to accept.`,
+              title: "Proposal sent",
+            });
+            onSuccess?.();
+          },
+        }
+      );
+      setTitle("");
+      onOpenChange(false);
     };
 
   return (
@@ -1447,10 +1365,10 @@ function CollaborationDialog({
             </Button>
             <Button
               className="text-xs gap-1.5"
-              disabled={isCreating || !title.trim()}
+              disabled={startCollaboration.isPending || !title.trim()}
               type="submit"
             >
-              {isCreating ? (
+              {startCollaboration.isPending ? (
                 <LoaderCircle className="size-3.5 animate-spin" />
               ) : (
                 <Send className="size-3.5" />

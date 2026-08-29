@@ -7,7 +7,10 @@ import {
   genres,
   openVerseListings,
   playbackSessions,
+  projectAssets,
+  projectCollaborators,
   projectTracks,
+  projects,
   purchases,
   qualifiedStreams,
   trackAssets,
@@ -268,6 +271,33 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
     bindings.MEDIA_BUCKET ??
     (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ??
     null,
+  hasAcceptedProjectAccess = async ({
+    db,
+    trackId,
+    userId,
+  }: {
+    db: ReturnType<typeof createDb>;
+    trackId: string;
+    userId: string;
+  }) => {
+    const [membership] = await db
+      .select({ id: projectCollaborators.id })
+      .from(projectTracks)
+      .innerJoin(
+        projectCollaborators,
+        eq(projectCollaborators.projectId, projectTracks.projectId)
+      )
+      .where(
+        and(
+          eq(projectTracks.trackId, trackId),
+          eq(projectCollaborators.collaboratorUserId, userId),
+          eq(projectCollaborators.invitationStatus, "accepted")
+        )
+      )
+      .limit(1);
+
+    return Boolean(membership);
+  },
   hasPurchasedTrack = async ({
     db,
     trackId,
@@ -1531,14 +1561,12 @@ app.openapi(
               and(
                 eq(trackCollaborators.trackId, trackId),
                 eq(trackCollaborators.collaboratorUserId, user.id),
-                inArray(trackCollaborators.invitationStatus, [
-                  "accepted",
-                  "pending",
-                ])
+                eq(trackCollaborators.invitationStatus, "accepted")
               )
             )
             .limit(1)
-        ).length > 0;
+        ).length > 0 ||
+        (await hasAcceptedProjectAccess({ db, trackId, userId: user.id }));
 
     if (!isOwner && !isCollaborator) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
@@ -1963,14 +1991,12 @@ app.openapi(
               and(
                 eq(trackCollaborators.trackId, trackId),
                 eq(trackCollaborators.collaboratorUserId, user.id),
-                inArray(trackCollaborators.invitationStatus, [
-                  "accepted",
-                  "pending",
-                ])
+                eq(trackCollaborators.invitationStatus, "accepted")
               )
             )
             .limit(1)
-        ).length > 0;
+        ).length > 0 ||
+        (await hasAcceptedProjectAccess({ db, trackId, userId: user.id }));
 
     if (!isOwner && !isCollaborator) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
@@ -2954,14 +2980,12 @@ app.openapi(
               and(
                 eq(trackCollaborators.trackId, trackId),
                 eq(trackCollaborators.collaboratorUserId, user.id),
-                inArray(trackCollaborators.invitationStatus, [
-                  "accepted",
-                  "pending",
-                ])
+                eq(trackCollaborators.invitationStatus, "accepted")
               )
             )
             .limit(1)
-        ).length > 0;
+        ).length > 0 ||
+        (await hasAcceptedProjectAccess({ db, trackId, userId: user.id }));
 
     if (!isOwner && !isCollaborator) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
@@ -3707,22 +3731,38 @@ app.openapi(
         return c.json(await buildTrackDetail(ownedTrack), HttpStatusCodes.OK);
       }
 
-      const [collaboratorRow] = await db
-        .select({ id: trackCollaborators.id })
-        .from(trackCollaborators)
-        .where(
-          and(
-            eq(trackCollaborators.trackId, trackId),
-            eq(trackCollaborators.collaboratorUserId, currentUser.id),
-            inArray(trackCollaborators.invitationStatus, [
-              "accepted",
-              "pending",
-            ])
+      const [collaboratorRow, projectCollaboratorRow] = await Promise.all([
+        db
+          .select({ id: trackCollaborators.id })
+          .from(trackCollaborators)
+          .where(
+            and(
+              eq(trackCollaborators.trackId, trackId),
+              eq(trackCollaborators.collaboratorUserId, currentUser.id),
+              eq(trackCollaborators.invitationStatus, "accepted")
+            )
           )
-        )
-        .limit(1);
+          .limit(1)
+          .then((rows) => rows[0]),
+        db
+          .select({ id: projectCollaborators.id })
+          .from(projectTracks)
+          .innerJoin(
+            projectCollaborators,
+            eq(projectCollaborators.projectId, projectTracks.projectId)
+          )
+          .where(
+            and(
+              eq(projectTracks.trackId, trackId),
+              eq(projectCollaborators.collaboratorUserId, currentUser.id),
+              eq(projectCollaborators.invitationStatus, "accepted")
+            )
+          )
+          .limit(1)
+          .then((rows) => rows[0]),
+      ]);
 
-      if (collaboratorRow) {
+      if (collaboratorRow || projectCollaboratorRow) {
         const [collaboratedTrack] = await db
           .select()
           .from(tracks)
@@ -3779,42 +3819,64 @@ app.openapi(
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
-    const [roleRows, assetRows, licenseRows, creditRows] = await Promise.all([
-        db
-          .select({ role: artistProfileRoles.role })
-          .from(artistProfileRoles)
-          .where(eq(artistProfileRoles.userId, row.ownerUserId)),
-        db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
-        db
-          .select()
-          .from(trackLicenseOptions)
-          .where(eq(trackLicenseOptions.trackId, row.id)),
-        db
-          .select({
-            avatarUrl: userProfiles.avatarUrl,
-            displayName: userProfiles.displayName,
-            id: trackCollaborators.id,
-            legalName: authUser.name,
-            role: trackCollaborators.collaboratorRole,
-            splitBps: trackCollaborators.creditSplitBps,
-            username: userProfiles.username,
-          })
-          .from(trackCollaborators)
-          .leftJoin(
-            userProfiles,
-            eq(userProfiles.userId, trackCollaborators.collaboratorUserId)
-          )
-          .leftJoin(
-            authUser,
-            eq(authUser.id, trackCollaborators.collaboratorUserId)
-          )
-          .where(
-            and(
-              eq(trackCollaborators.trackId, row.id),
-              eq(trackCollaborators.invitationStatus, "accepted")
+    const [roleRows, assetRows, licenseRows, creditRows, projectCoverRows] =
+        await Promise.all([
+          db
+            .select({ role: artistProfileRoles.role })
+            .from(artistProfileRoles)
+            .where(eq(artistProfileRoles.userId, row.ownerUserId)),
+          db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
+          db
+            .select()
+            .from(trackLicenseOptions)
+            .where(eq(trackLicenseOptions.trackId, row.id)),
+          db
+            .select({
+              avatarUrl: userProfiles.avatarUrl,
+              displayName: userProfiles.displayName,
+              id: trackCollaborators.id,
+              legalName: authUser.name,
+              role: trackCollaborators.collaboratorRole,
+              splitBps: trackCollaborators.creditSplitBps,
+              username: userProfiles.username,
+            })
+            .from(trackCollaborators)
+            .leftJoin(
+              userProfiles,
+              eq(userProfiles.userId, trackCollaborators.collaboratorUserId)
             )
-          ),
-      ]),
+            .leftJoin(
+              authUser,
+              eq(authUser.id, trackCollaborators.collaboratorUserId)
+            )
+            .where(
+              and(
+                eq(trackCollaborators.trackId, row.id),
+                eq(trackCollaborators.invitationStatus, "accepted")
+              )
+            ),
+          db
+            .select({ asset: projectAssets })
+            .from(projectTracks)
+            .innerJoin(projects, eq(projects.id, projectTracks.projectId))
+            .innerJoin(
+              projectAssets,
+              and(
+                eq(projectAssets.projectId, projectTracks.projectId),
+                eq(projectAssets.assetKind, "cover_art"),
+                eq(projectAssets.isCurrent, true),
+                inArray(projectAssets.status, ["uploaded", "ready"])
+              )
+            )
+            .where(
+              and(
+                eq(projectTracks.trackId, row.id),
+                eq(projects.isPublic, true)
+              )
+            )
+            .orderBy(sql`${projectAssets.updatedAt} desc`)
+            .limit(1),
+        ]),
       isAuthenticated = isAuthenticatedUser(currentUser),
       entitlements = isAuthenticated
         ? await resolveEntitlements({
@@ -3841,7 +3903,8 @@ app.openapi(
         roleRows.length > 0
           ? roleRows.map((roleRow) => roleRow.role)
           : ["musician"],
-      coverAsset = resolveTrackCoverAssetFromRows(assetRows),
+      coverAsset =
+        resolveTrackCoverAssetFromRows(assetRows) ?? projectCoverRows[0]?.asset,
       firstAudioAsset = resolveTrackAssetFromRows({
         allowLegacyFallback: true,
         assets: assetRows,

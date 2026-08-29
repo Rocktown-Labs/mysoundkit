@@ -95,6 +95,7 @@ import {
 } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { readAudioDurationMs } from "@/lib/media-duration";
+import { projectCoverFile } from "@/lib/project-cover";
 import {
   soundkitQueryKeys,
   useGenresQuery,
@@ -560,7 +561,10 @@ export function NewProjectForm({
           let coverKey = selectedCoverFile ? "" : values.projectCoverObjectKey;
 
           if (selectedCoverFile && !coverKey) {
-            coverKey = await uploadSelectedProjectCover(selectedCoverFile);
+            coverKey = await uploadSelectedProjectCover(
+              selectedCoverFile,
+              values.name
+            );
           }
 
           await updateProjectMutation.mutateAsync({
@@ -618,7 +622,10 @@ export function NewProjectForm({
       let coverKey = values.projectCoverObjectKey;
 
       if (selectedCoverFile && !coverKey) {
-        coverKey = await uploadSelectedProjectCover(selectedCoverFile);
+        coverKey = await uploadSelectedProjectCover(
+          selectedCoverFile,
+          values.name
+        );
       }
 
       if (!coverKey && releaseState.isListed) {
@@ -924,8 +931,9 @@ export function NewProjectForm({
       },
       route: "track-source",
     }),
-    uploadSelectedProjectCover = async (file: File) => {
-      const result = await uploadCoverAsync([file]),
+    uploadSelectedProjectCover = async (file: File, projectTitle: string) => {
+      const namedCover = projectCoverFile(file, projectTitle),
+        result = await uploadCoverAsync([namedCover]),
         uploadedFile = result.files[0];
       if (!uploadedFile) {
         throw new Error(

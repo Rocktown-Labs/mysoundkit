@@ -11,6 +11,7 @@ import {
   projectTracks,
   projects,
   purchases,
+  trackCollaborators,
   mediaProcessingJobs,
   trackAssets,
   tracks,
@@ -51,11 +52,15 @@ import {
   profileRegionCondition,
   resolveExploreRegion,
 } from "@/lib/public-explore";
-import { publishProjectIfMediaReady } from "@/lib/release-notifications";
+import {
+  getProjectReleaseReadiness,
+  publishProjectIfMediaReady,
+} from "@/lib/release-notifications";
 import { sampleProjects } from "@/lib/sample-data";
 import {
   createProjectBodySchema,
   messageResponseSchema,
+  projectWorkspaceAssetBodySchema,
   projectDashboardDetailSchema,
   projectSummarySchema,
   publicExploreQuerySchema,
@@ -241,10 +246,7 @@ app.openapi(
           .where(
             and(
               eq(projectCollaborators.collaboratorUserId, user.id),
-              inArray(projectCollaborators.invitationStatus, [
-                "accepted",
-                "pending",
-              ])
+              eq(projectCollaborators.invitationStatus, "accepted")
             )
           ),
         collaboratorProjectIds = collaboratorRows
@@ -379,11 +381,13 @@ app.openapi(
     tags: ["Projects"],
   }),
   async (c) => {
-    const { projectId } = c.req.valid("param");
+    const { projectId: projectLookup } = c.req.valid("param");
 
     if (!isDatabaseConfigured()) {
       const project = sampleProjects.find(
-        (entry) => entry.id === projectId && entry.isPublic
+        (entry) =>
+          (entry.id === projectLookup || entry.slug === projectLookup) &&
+          entry.isPublic
       );
 
       if (!project) {
@@ -407,7 +411,12 @@ app.openapi(
     const [project] = await createDb()
       .select()
       .from(projects)
-      .where(and(eq(projects.id, projectId), eq(projects.isPublic, true)))
+      .where(
+        and(
+          eq(projects.isPublic, true),
+          or(eq(projects.id, projectLookup), eq(projects.slug, projectLookup))
+        )
+      )
       .limit(1);
 
     if (!project) {
@@ -559,7 +568,7 @@ app.openapi(
       });
 
       const existingTrackIds = body.trackIds,
-        newTrackIds = [];
+        newTrackIds: string[] = [];
 
       for (const newTrack of body.newTracks) {
         const trackId = crypto.randomUUID(),
@@ -722,6 +731,28 @@ app.openapi(
         }
       }
 
+      const projectCreditRows = body.collaborators
+        .filter(
+          (collaborator) =>
+            collaborator.userId && collaborator.userId !== user.id
+        )
+        .flatMap((collaborator) =>
+          newTrackIds.map((trackId) => ({
+            canDelete: false,
+            canEdit: true,
+            canUpload: true,
+            collaboratorRole: collaborator.role,
+            collaboratorUserId: collaborator.userId,
+            id: crypto.randomUUID(),
+            invitationStatus: "accepted" as const,
+            invitedByUserId: user.id,
+            trackId,
+          }))
+        );
+      if (projectCreditRows.length > 0) {
+        await db.insert(trackCollaborators).values(projectCreditRows);
+      }
+
       if (!project) {
         throw new Error("Failed to create project.");
       }
@@ -846,6 +877,10 @@ app.openapi(
         messageResponseSchema,
         "Invalid project media"
       ),
+      [HttpStatusCodes.CONFLICT]: jsonContent(
+        messageResponseSchema,
+        "Project is not ready to release"
+      ),
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         messageResponseSchema,
         "Project not found"
@@ -892,29 +927,40 @@ app.openapi(
       );
     }
 
-    const isCollaborator =
-        (
-          await db
-            .select({ id: projectCollaborators.id })
-            .from(projectCollaborators)
-            .where(
-              and(
-                eq(projectCollaborators.projectId, projectId),
-                eq(projectCollaborators.collaboratorUserId, user.id),
-                inArray(projectCollaborators.invitationStatus, [
-                  "accepted",
-                  "pending",
-                ])
-              )
-            )
-            .limit(1)
-        ).length > 0,
+    const [collaborator] = await db
+        .select({ canEdit: projectCollaborators.canEdit })
+        .from(projectCollaborators)
+        .where(
+          and(
+            eq(projectCollaborators.projectId, projectId),
+            eq(projectCollaborators.collaboratorUserId, user.id),
+            eq(projectCollaborators.invitationStatus, "accepted")
+          )
+        )
+        .limit(1),
+      isCollaborator = collaborator?.canEdit === true,
       isOwner =
         existingProject.ownerUserId === user.id ||
         (organizationId && existingProject.organizationId === organizationId);
 
     if (!isOwner && !isCollaborator) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const releaseRequested =
+      body.isPublic === true ||
+      body.status === "released" ||
+      body.status === "scheduled";
+    if (releaseRequested && !existingProject.isPublic) {
+      const readiness = await getProjectReleaseReadiness({ projectId });
+      if (!readiness.isReady) {
+        return c.json(
+          {
+            message: `Project is not ready to release: ${readiness.missing.join(" ")}`,
+          },
+          HttpStatusCodes.CONFLICT
+        );
+      }
     }
 
     const releaseDatePatch =
@@ -1090,23 +1136,18 @@ app.openapi(
       );
     }
 
-    const isCollaborator =
-        (
-          await db
-            .select({ id: projectCollaborators.id })
-            .from(projectCollaborators)
-            .where(
-              and(
-                eq(projectCollaborators.projectId, projectId),
-                eq(projectCollaborators.collaboratorUserId, user.id),
-                inArray(projectCollaborators.invitationStatus, [
-                  "accepted",
-                  "pending",
-                ])
-              )
-            )
-            .limit(1)
-        ).length > 0,
+    const [collaborator] = await db
+        .select({ canEdit: projectCollaborators.canEdit })
+        .from(projectCollaborators)
+        .where(
+          and(
+            eq(projectCollaborators.projectId, projectId),
+            eq(projectCollaborators.collaboratorUserId, user.id),
+            eq(projectCollaborators.invitationStatus, "accepted")
+          )
+        )
+        .limit(1),
+      isCollaborator = collaborator?.canEdit === true,
       isOwner =
         project.ownerUserId === user.id ||
         (organizationId && project.organizationId === organizationId);
@@ -1164,6 +1205,164 @@ app.openapi(
 app.openapi(
   createRoute({
     method: "post",
+    path: "/{projectId}/assets",
+    request: {
+      body: jsonContentRequired(
+        projectWorkspaceAssetBodySchema,
+        "Project workspace asset"
+      ),
+      params: z.object({ projectId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        projectDashboardDetailSchema,
+        "Project asset registered"
+      ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid project asset"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Project not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Projects"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { projectId } = c.req.valid("param"),
+      body = c.req.valid("json"),
+      db = createDb(),
+      [project] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .limit(1);
+
+    if (!project) {
+      return c.json(
+        { message: "Project not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const [collaborator] = await db
+        .select({ canUpload: projectCollaborators.canUpload })
+        .from(projectCollaborators)
+        .where(
+          and(
+            eq(projectCollaborators.projectId, projectId),
+            eq(projectCollaborators.collaboratorUserId, user.id),
+            eq(projectCollaborators.invitationStatus, "accepted")
+          )
+        )
+        .limit(1),
+      isOwner = project.ownerUserId === user.id,
+      canUpload = isOwner || collaborator?.canUpload === true;
+
+    if (!canUpload) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (
+      !body.objectKey.startsWith(`projects/${user.id}/`) &&
+      !body.objectKey.startsWith(`uploads/${user.id}/`)
+    ) {
+      return c.json(
+        { message: "Uploaded project asset does not belong to this user." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const object = await c.env.MEDIA_BUCKET?.head(body.objectKey);
+    if (c.env.MEDIA_BUCKET && !object) {
+      return c.json(
+        { message: "Uploaded project asset was not found in storage." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const [latestAsset] = await db
+        .select({ version: projectAssets.version })
+        .from(projectAssets)
+        .where(
+          and(
+            eq(projectAssets.projectId, projectId),
+            eq(projectAssets.assetKind, body.assetKind)
+          )
+        )
+        .orderBy(desc(projectAssets.version))
+        .limit(1),
+      now = new Date(),
+      version = (latestAsset?.version ?? 0) + 1,
+      assetId = crypto.randomUUID();
+
+    await db
+      .update(projectAssets)
+      .set({ isCurrent: false, updatedAt: now })
+      .where(
+        and(
+          eq(projectAssets.projectId, projectId),
+          eq(projectAssets.assetKind, body.assetKind),
+          eq(projectAssets.isCurrent, true)
+        )
+      );
+    await claimUploadIntent({
+      entityId: projectId,
+      entityType: "project_asset",
+      objectKey: body.objectKey,
+      userId: user.id,
+    });
+    await db.insert(projectAssets).values({
+      assetKind: body.assetKind,
+      bucketName: getUploadBucketName(),
+      id: assetId,
+      isCurrent: true,
+      metadata: { displayName: body.displayName },
+      mimeType: body.mimeType ?? object?.httpMetadata?.contentType ?? null,
+      objectKey: body.objectKey,
+      projectId,
+      sizeBytes: body.sizeBytes ?? object?.size ?? null,
+      status: "uploaded",
+      storageProvider: "r2",
+      uploaderUserId: user.id,
+      version,
+    });
+    await completeUploadIntent({
+      entityId: projectId,
+      entityType: "project_asset",
+      objectKey: body.objectKey,
+      userId: user.id,
+    });
+
+    const [updatedProject] = await db
+      .update(projects)
+      .set({
+        exportVersion: sql`${projects.exportVersion} + 1`,
+        updatedAt: now,
+      })
+      .where(eq(projects.id, projectId))
+      .returning();
+
+    return c.json(
+      await buildProjectDetail(updatedProject ?? project),
+      HttpStatusCodes.CREATED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
     path: "/{projectId}/export",
     request: { params: z.object({ projectId: z.string() }) },
     responses: {
@@ -1197,18 +1396,36 @@ app.openapi(
         session: isAuthenticatedSession(session) ? session : null,
         user,
       }),
-      [project] = await createDb()
+      db = createDb(),
+      [project] = await db
         .select()
         .from(projects)
-        .where(
-          ownedProjectWhere({ organizationId, projectId, userId: user.id })
-        )
+        .where(eq(projects.id, projectId))
         .limit(1);
     if (!project) {
       return c.json(
         { message: "Project not found." },
         HttpStatusCodes.NOT_FOUND
       );
+    }
+
+    const [collaborator] = await db
+      .select({ canEdit: projectCollaborators.canEdit })
+      .from(projectCollaborators)
+      .where(
+        and(
+          eq(projectCollaborators.projectId, projectId),
+          eq(projectCollaborators.collaboratorUserId, user.id),
+          eq(projectCollaborators.invitationStatus, "accepted")
+        )
+      )
+      .limit(1);
+    const canExport =
+      project.ownerUserId === user.id ||
+      (organizationId && project.organizationId === organizationId) ||
+      collaborator?.canEdit === true;
+    if (!canExport) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
     const result = await ensureProjectExportWorkflow({
@@ -1281,17 +1498,35 @@ app.openapi(
         HttpStatusCodes.NOT_FOUND
       );
     }
-    const [purchase] = await db
-        .select({ id: purchases.id })
-        .from(purchases)
-        .where(
-          and(
-            eq(purchases.projectId, projectId),
-            eq(purchases.buyerUserId, user.id)
+    const [purchase, collaborator] = await Promise.all([
+        db
+          .select({ id: purchases.id })
+          .from(purchases)
+          .where(
+            and(
+              eq(purchases.projectId, projectId),
+              eq(purchases.buyerUserId, user.id)
+            )
           )
-        )
-        .limit(1),
-      canAccess = project.ownerUserId === user.id || Boolean(purchase);
+          .limit(1)
+          .then((rows) => rows[0]),
+        db
+          .select({ id: projectCollaborators.id })
+          .from(projectCollaborators)
+          .where(
+            and(
+              eq(projectCollaborators.projectId, projectId),
+              eq(projectCollaborators.collaboratorUserId, user.id),
+              eq(projectCollaborators.invitationStatus, "accepted")
+            )
+          )
+          .limit(1)
+          .then((rows) => rows[0]),
+      ]),
+      canAccess =
+        project.ownerUserId === user.id ||
+        Boolean(purchase) ||
+        Boolean(collaborator);
     if (!canAccess) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
@@ -1384,8 +1619,7 @@ app.openapi(
           and(
             eq(projectAssets.id, assetId),
             eq(projectAssets.projectId, projectId),
-            eq(projectAssets.assetKind, "release_export"),
-            eq(projectAssets.status, "ready")
+            inArray(projectAssets.status, ["uploaded", "ready"])
           )
         )
         .limit(1);
@@ -1395,17 +1629,36 @@ app.openapi(
         HttpStatusCodes.NOT_FOUND
       );
     }
-    const [purchase] = await db
-      .select({ id: purchases.id })
-      .from(purchases)
-      .where(
-        and(
-          eq(purchases.projectId, projectId),
-          eq(purchases.buyerUserId, user.id)
+    const [purchase, collaborator] = await Promise.all([
+      db
+        .select({ id: purchases.id })
+        .from(purchases)
+        .where(
+          and(
+            eq(purchases.projectId, projectId),
+            eq(purchases.buyerUserId, user.id)
+          )
         )
-      )
-      .limit(1);
-    if (!(project.ownerUserId === user.id || purchase)) {
+        .limit(1)
+        .then((rows) => rows[0]),
+      db
+        .select({ id: projectCollaborators.id })
+        .from(projectCollaborators)
+        .where(
+          and(
+            eq(projectCollaborators.projectId, projectId),
+            eq(projectCollaborators.collaboratorUserId, user.id),
+            eq(projectCollaborators.invitationStatus, "accepted")
+          )
+        )
+        .limit(1)
+        .then((rows) => rows[0]),
+    ]);
+    const canAccessWorkspaceAsset =
+      asset.assetKind !== "release_export" && Boolean(collaborator);
+    if (
+      !(project.ownerUserId === user.id || purchase || canAccessWorkspaceAsset)
+    ) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
     const object = await c.env.MEDIA_BUCKET?.get(asset.objectKey);
@@ -1560,10 +1813,7 @@ app.openapi(
                 and(
                   eq(projectCollaborators.projectId, projectId),
                   eq(projectCollaborators.collaboratorUserId, user.id),
-                  inArray(projectCollaborators.invitationStatus, [
-                    "accepted",
-                    "pending",
-                  ])
+                  eq(projectCollaborators.invitationStatus, "accepted")
                 )
               )
               .limit(1)
@@ -1647,23 +1897,18 @@ app.openapi(
       );
     }
 
-    const isCollaborator =
-        (
-          await db
-            .select({ id: projectCollaborators.id })
-            .from(projectCollaborators)
-            .where(
-              and(
-                eq(projectCollaborators.projectId, projectId),
-                eq(projectCollaborators.collaboratorUserId, user.id),
-                inArray(projectCollaborators.invitationStatus, [
-                  "accepted",
-                  "pending",
-                ])
-              )
-            )
-            .limit(1)
-        ).length > 0,
+    const [collaborator] = await db
+        .select({ canUpload: projectCollaborators.canUpload })
+        .from(projectCollaborators)
+        .where(
+          and(
+            eq(projectCollaborators.projectId, projectId),
+            eq(projectCollaborators.collaboratorUserId, user.id),
+            eq(projectCollaborators.invitationStatus, "accepted")
+          )
+        )
+        .limit(1),
+      isCollaborator = collaborator?.canUpload === true,
       isOwner =
         project.ownerUserId === user.id ||
         (organizationId && project.organizationId === organizationId);
@@ -1673,6 +1918,7 @@ app.openapi(
     }
 
     if (
+      !body.sourceObjectKey.startsWith(`projects/${user.id}/`) &&
       !body.sourceObjectKey.startsWith(`tracks/${user.id}/`) &&
       !body.sourceObjectKey.startsWith(`uploads/${user.id}/`)
     ) {
@@ -1754,6 +2000,39 @@ app.openapi(
       projectId,
       trackId,
     });
+
+    const acceptedProjectCollaborators = await db
+      .select({
+        collaboratorRole: projectCollaborators.collaboratorRole,
+        collaboratorUserId: projectCollaborators.collaboratorUserId,
+      })
+      .from(projectCollaborators)
+      .where(
+        and(
+          eq(projectCollaborators.projectId, projectId),
+          eq(projectCollaborators.invitationStatus, "accepted")
+        )
+      );
+    const trackCollaboratorRows = acceptedProjectCollaborators
+      .filter(
+        (projectCollaborator) =>
+          projectCollaborator.collaboratorUserId &&
+          projectCollaborator.collaboratorUserId !== user.id
+      )
+      .map((projectCollaborator) => ({
+        canDelete: false,
+        canEdit: true,
+        canUpload: true,
+        collaboratorRole: projectCollaborator.collaboratorRole,
+        collaboratorUserId: projectCollaborator.collaboratorUserId,
+        id: crypto.randomUUID(),
+        invitationStatus: "accepted" as const,
+        invitedByUserId: project.ownerUserId,
+        trackId,
+      }));
+    if (trackCollaboratorRows.length > 0) {
+      await db.insert(trackCollaborators).values(trackCollaboratorRows);
+    }
 
     const [updatedProject] = await db
       .update(projects)

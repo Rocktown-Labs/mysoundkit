@@ -43,7 +43,7 @@ export const Route = createFileRoute("/_explore/projects/$id")({
                 image: seoImageUrl(project.coverArtUrl),
                 name: titleText,
                 numTracks: project.trackCount,
-                url: absoluteSiteUrl(`/projects/${project.id}`),
+                url: absoluteSiteUrl(`/projects/${project.slug || project.id}`),
               }),
               type: "application/ld+json",
             },

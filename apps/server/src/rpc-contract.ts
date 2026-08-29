@@ -7,6 +7,7 @@ import {
   analyticsTimeseriesQuerySchema,
   battleEligibilityBodySchema,
   createFriendRequestBodySchema,
+  createCollaborationBodySchema,
   createWorkspaceInvitationBodySchema,
   playlistSchema,
   respondFriendRequestBodySchema,
@@ -49,6 +50,7 @@ import {
   peopleSearchQuerySchema,
   publicSearchQuerySchema,
   reviewLyricsRevisionBodySchema,
+  respondCollaborationBodySchema,
   battleKitQuerySchema,
   createBattleKitBodySchema,
   updateBattleKitBodySchema,
@@ -56,6 +58,7 @@ import {
   updateBattleChallengeBodySchema,
   updateNotificationSettingsBodySchema,
   updateProjectBodySchema,
+  projectWorkspaceAssetBodySchema,
   updateTrackBodySchema,
   usernameAvailabilityQuerySchema,
 } from "./lib/schemas";
@@ -82,6 +85,7 @@ import type {
   battleEligibilitySchema,
   battleKitSchema,
   battleSummarySchema,
+  collaborationCreatedResponseSchema,
   conversationSummarySchema,
   directVideoUploadResponseSchema,
   entitlementSummarySchema,
@@ -111,6 +115,7 @@ import type {
   projectSummarySchema,
   purchasedCatalogDetailSchema,
   purchasedCatalogItemSchema,
+  respondCollaborationResponseSchema,
   sellerOnboardingResponseSchema,
   sellerStatusSchema,
   trackDashboardDetailSchema,
@@ -1253,6 +1258,11 @@ export const rpcContract = new Hono()
     jsonValidator(genericJsonBodySchema),
     (c) => c.json({} as Record<string, unknown>, 201)
   )
+  .post(
+    "/v1/projects/:projectId/assets",
+    jsonValidator(projectWorkspaceAssetBodySchema),
+    (c) => c.json({} as z.infer<typeof projectDashboardDetailSchema>, 201)
+  )
   .get("/v1/projects/:projectId/export", (c) =>
     c.json({} as Record<string, unknown>)
   )
@@ -1306,13 +1316,13 @@ export const rpcContract = new Hono()
   )
   .post(
     "/v1/messages/conversations/:conversationId/collaborations",
-    jsonValidator(genericJsonBodySchema),
-    (c) => c.json({} as Record<string, unknown>, 201)
+    jsonValidator(createCollaborationBodySchema),
+    (c) => c.json({} as z.infer<typeof collaborationCreatedResponseSchema>, 201)
   )
   .post(
     "/v1/messages/conversations/:conversationId/collaborations/:collaborationId/respond",
-    jsonValidator(genericJsonBodySchema),
-    (c) => c.json({} as Record<string, unknown>)
+    jsonValidator(respondCollaborationBodySchema),
+    (c) => c.json({} as z.infer<typeof respondCollaborationResponseSchema>)
   )
   .post(
     "/v1/onboarding/eligibility",

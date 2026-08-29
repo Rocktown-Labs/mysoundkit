@@ -17,6 +17,7 @@ import {
 } from "@/lib/artist-digest";
 import { runBattleServiceSweep } from "@/lib/battle-service";
 import { runCheckoutReconciliation } from "@/lib/checkout-reconciliation";
+import { runCollaborationProposalSweep } from "@/lib/collaboration-sweep";
 import { runCreatorRewardsSettlement } from "@/lib/creator-rewards-settlement";
 import {
   handleEmailDeliveryQueue,
@@ -341,6 +342,7 @@ export default {
           battleDirectory: workerEnv.BATTLE_DIRECTORY,
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
         }),
+        runCollaborationProposalSweep(),
         runOpenVerseSweep({
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
         }),

@@ -37,7 +37,10 @@ export function ProjectCard({ project }: { project: PublicProjectSummary }) {
             className="rounded-full shadow-lg"
             size="icon"
           >
-            <Link params={{ id: project.id }} to="/projects/$id">
+            <Link
+              params={{ id: project.slug || project.id }}
+              to="/projects/$id"
+            >
               <Play aria-hidden="true" className="ml-0.5 size-5 fill-current" />
             </Link>
           </Button>
@@ -59,7 +62,7 @@ export function ProjectCard({ project }: { project: PublicProjectSummary }) {
       <PublicCardMeta className="space-y-0.5">
         <Link
           className="block truncate font-semibold text-sm transition-colors group-hover:text-primary"
-          params={{ id: project.id }}
+          params={{ id: project.slug || project.id }}
           to="/projects/$id"
         >
           {project.title}

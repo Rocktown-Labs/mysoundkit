@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-/* oxlint-disable complexity, one-var, sort-vars */
+/* oxlint-disable complexity, one-var, sort-vars, unicorn/max-nested-calls */
 import { createDb } from "@soundkit/db";
 import {
   genres,
@@ -41,7 +41,9 @@ const mapAssetForDashboard = (
     downloadUrl:
       "trackId" in asset && asset.trackId
         ? `/v1/tracks/${asset.trackId}/assets/${asset.id}/download`
-        : null,
+        : "projectId" in asset && asset.projectId
+          ? `/v1/projects/${asset.projectId}/assets/${asset.id}/download`
+          : null,
     durationMs: "durationMs" in asset ? asset.durationMs : null,
     id: asset.id,
     isCurrent: "isCurrent" in asset ? asset.isCurrent : true,
@@ -54,6 +56,7 @@ const mapAssetForDashboard = (
     sizeBytes: asset.sizeBytes,
     status: asset.status,
     storageProvider: asset.storageProvider,
+    version: "version" in asset ? asset.version : undefined,
   }),
   fileAvailabilityFromAssets = (
     assets: InferSelectModel<typeof trackAssets>[]
@@ -273,25 +276,44 @@ export const buildTrackSummary = async (
           .where(eq(genres.id, row.genreId))
           .limit(1)
       : [],
-    [assetRows, collaboratorRows, playCountRow] = await Promise.all([
-      db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
-      db
-        .select({ id: trackCollaborators.id })
-        .from(trackCollaborators)
-        .where(eq(trackCollaborators.trackId, row.id)),
-      playCountOverride === undefined
-        ? db
-            .select({ count: sql<number>`count(*)::int` })
-            .from(playbackSessions)
-            .where(eq(playbackSessions.trackId, row.id))
-        : Promise.resolve([]),
-    ]),
+    [assetRows, collaboratorRows, playCountRow, publicProjectCoverRows] =
+      await Promise.all([
+        db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
+        db
+          .select({ id: trackCollaborators.id })
+          .from(trackCollaborators)
+          .where(eq(trackCollaborators.trackId, row.id)),
+        playCountOverride === undefined
+          ? db
+              .select({ count: sql<number>`count(*)::int` })
+              .from(playbackSessions)
+              .where(eq(playbackSessions.trackId, row.id))
+          : Promise.resolve([]),
+        db
+          .select({ asset: projectAssets })
+          .from(projectTracks)
+          .innerJoin(projects, eq(projects.id, projectTracks.projectId))
+          .innerJoin(
+            projectAssets,
+            and(
+              eq(projectAssets.projectId, projectTracks.projectId),
+              eq(projectAssets.assetKind, "cover_art"),
+              eq(projectAssets.isCurrent, true),
+              inArray(projectAssets.status, ["uploaded", "ready"])
+            )
+          )
+          .where(
+            and(eq(projectTracks.trackId, row.id), eq(projects.isPublic, true))
+          )
+          .orderBy(sql`${projectAssets.updatedAt} desc`)
+          .limit(1),
+      ]),
     actualPlays =
       playCountOverride === undefined
         ? (playCountRow[0]?.count ?? 0)
         : playCountOverride;
 
-  return mapTrackSummary({
+  const summary = mapTrackSummary({
     artistName: profile?.displayName ?? profile?.userName ?? "SoundKit Artist",
     artistUsername: profile?.username ?? null,
     assets: assetRows,
@@ -301,6 +323,11 @@ export const buildTrackSummary = async (
     regionSlug: regionSlugFromUser(profile?.state) ?? null,
     row,
   });
+
+  const projectCover = publicProjectCoverRows[0]?.asset;
+  return projectCover
+    ? { ...summary, coverArtUrl: publicAssetUrl(projectCover) }
+    : summary;
 };
 
 export const buildTrackDetail = async (
@@ -537,13 +564,25 @@ export const buildProjectDetail = async (
     trackSummaries = [];
 
   for (const trackRow of trackRows) {
-    trackSummaries.push(await buildTrackSummary(trackRow.row));
+    const trackSummary = await buildTrackSummary(trackRow.row);
+    trackSummaries.push({
+      ...trackSummary,
+      coverArtUrl: summary.coverArtUrl ?? trackSummary.coverArtUrl,
+    });
   }
 
   return {
     ...summary,
-    assets: assetRows.map(mapAssetForDashboard),
-    collaborators: collaboratorRows,
+    assets: assetRows
+      .filter(
+        (asset) =>
+          !row.isPublic ||
+          !["attachment", "beat", "concept", "release_export"].includes(
+            asset.assetKind
+          )
+      )
+      .map(mapAssetForDashboard),
+    collaborators: row.isPublic ? [] : collaboratorRows,
     tracks: trackSummaries,
   };
 };
