@@ -216,6 +216,7 @@ function LiveBattleSummaryCard({
         currentRound={battle.round?.current ?? 1}
         format={battle.format}
         genre={battle.genre}
+        hasPlayedTurn={battle.hasPlayedTurn}
         id={battle.id}
         isLive={battle.status === "live"}
         isPremiumUser={isPremiumUser}
@@ -224,6 +225,8 @@ function LiveBattleSummaryCard({
         participants={battle.participants}
         phaseEndsAt={battle.phaseEndsAt}
         queueSize={battle.queueSize}
+        replayStatus={battle.replayStatus}
+        replayVideoId={battle.replayVideoId}
         startsAt={battle.startsAt}
         status={battle.status}
         title={battle.title}
@@ -346,7 +349,7 @@ export function BattleViewAll({
     [genre, setGenre] = useState(() => genreFromSearch ?? DEFAULT_GENRE),
     [sort, setSort] = useState(() => sortFromSearch ?? defaultSort),
     { data: battleSummaries = [], isLoading: isLoadingBattles } =
-      useBattlesQuery({ region, regionType }),
+      useBattlesQuery({ region, regionType, scope: "public" }),
     genresQuery = useGenresQuery(),
     genres = genresQuery.data ?? [],
     entitlementsQuery = useMeEntitlementsQuery(),
@@ -425,10 +428,19 @@ export function BattleViewAll({
               (first.featuredRank ?? Number.MAX_SAFE_INTEGER) -
               (second.featuredRank ?? Number.MAX_SAFE_INTEGER)
           ),
-        completed = eligible.filter(
-          (battle) =>
-            battle.status === "completed" || battle.status === "archived"
-        ),
+        completed = eligible
+          .filter(
+            (battle) =>
+              (battle.status === "completed" || battle.status === "archived") &&
+              battle.hasPlayedTurn &&
+              battle.replayStatus === "available" &&
+              Boolean(battle.replayVideoId)
+          )
+          .toSorted(
+            (first, second) =>
+              Date.parse(second.endedAt ?? second.startsAt ?? "") -
+              Date.parse(first.endedAt ?? first.startsAt ?? "")
+          ),
         byGenre = groupBattlesByGenre(active, genres).filter(
           (section) => section.battles.length > 0
         );
@@ -485,11 +497,11 @@ export function BattleViewAll({
           />
           <BattleRail
             battles={liveBattleSections.completed}
-            emptyMessage="No completed battle results yet."
+            emptyMessage="No published battle replays yet."
             hideWhenEmpty
             isPremiumUser={isPremiumUser}
             showViewAll={false}
-            title="Recent Results"
+            title="Recent Replays"
           />
           {liveBattleSections.byGenre.map((section) => (
             <BattleRail

@@ -164,7 +164,9 @@ function BattleHubPage() {
       }
       setDeletingBattleId(null);
     },
-    handleShareBattle = async (battle: BattleSummary) => {
+    handleShareBattle = async (
+      battle: Pick<BattleSummary, "id" | "participants" | "title">
+    ) => {
       const senderUsername = meQuery.data?.user.username;
       if (!senderUsername) {
         toast({

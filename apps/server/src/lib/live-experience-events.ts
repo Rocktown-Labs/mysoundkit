@@ -22,6 +22,7 @@ import { env } from "@soundkit/env/server";
 import { and, asc, eq, inArray, lte, or } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
+import { battleHasPlayedTurn } from "@/lib/battle-display";
 import type { LiveExperienceKind } from "@/lib/live-experience";
 import type { LiveNotificationQueueMessage } from "@/lib/live-notifications";
 import { notify } from "@/lib/notifications";
@@ -528,7 +529,11 @@ export const applyRecordingStatusUpdate = async (
       .where(eq(liveExperiences.id, experience.id))
       .returning();
 
-  if (updated && downloadUrl) {
+  if (updated && downloadUrl && (await canPublishBattleReplay(updated))) {
+    if (updated.replayPublishedAt) {
+      return "processed" as const;
+    }
+
     if (liveRecordingWorkflow) {
       try {
         await liveRecordingWorkflow.create({
@@ -539,9 +544,13 @@ export const applyRecordingStatusUpdate = async (
           },
         });
       } catch (error) {
-        console.warn("Unable to create live recording workflow", {
+        console.warn("Unable to create live recording workflow; queueing fallback", {
           error: error instanceof Error ? error.message : String(error),
           experienceId: updated.id,
+        });
+        await scheduleLiveRecordingPublish({
+          experience: updated,
+          recordingUrl: downloadUrl,
         });
       }
     } else {
@@ -559,6 +568,32 @@ const LIVE_RECORDING_PUBLISH_JOB_TYPE = "live_recording_publish",
   LIVE_RECORDING_PUBLISH_DELAY_MS = 60 * 60 * 1000,
   LIVE_RECORDING_RETRY_DELAY_MS = 5 * 60 * 1000;
 
+export const canPublishBattleReplay = async (experience: {
+    battleId: string | null;
+    startedAt: Date | null;
+  }) => {
+    if (!experience.battleId) {
+      return true;
+    }
+
+    const db = createDb(),
+      [battle] = await db
+        .select({ outcome: battles.outcome })
+        .from(battles)
+        .where(eq(battles.id, experience.battleId))
+        .limit(1),
+      rounds = await db
+        .select({ status: battleRounds.status })
+        .from(battleRounds)
+        .where(eq(battleRounds.battleId, experience.battleId));
+
+    return battleHasPlayedTurn({
+      experienceStartedAt: experience.startedAt,
+      outcome: battle?.outcome,
+      roundStatuses: rounds.map((round) => round.status),
+    });
+  };
+
 export const scheduleLiveRecordingPublish = async ({
   experience,
   recordingUrl,
@@ -574,31 +609,51 @@ export const scheduleLiveRecordingPublish = async ({
 
   const db = createDb(),
     [existing] = await db
-      .select({ id: workflowJobs.id })
+      .select({ id: workflowJobs.id, status: workflowJobs.status })
       .from(workflowJobs)
       .where(
         and(
           eq(workflowJobs.jobType, LIVE_RECORDING_PUBLISH_JOB_TYPE),
-          eq(workflowJobs.targetId, experience.id),
-          inArray(workflowJobs.status, ["queued", "running"])
+          eq(workflowJobs.targetId, experience.id)
         )
       )
-      .limit(1);
+      .limit(1),
+    scheduledAt = new Date(Date.now() + LIVE_RECORDING_PUBLISH_DELAY_MS);
+
+  if (
+    existing?.status === "completed" ||
+    existing?.status === "queued" ||
+    existing?.status === "running"
+  ) {
+    return null;
+  }
 
   if (existing) {
-    return null;
+    await db
+      .update(workflowJobs)
+      .set({
+        error: null,
+        finishedAt: null,
+        input: { recordingUrl },
+        scheduledAt,
+        startedAt: null,
+        status: "queued",
+      })
+      .where(eq(workflowJobs.id, existing.id));
+    return existing.id;
   }
 
   const [job] = await db
     .insert(workflowJobs)
     .values({
-      id: crypto.randomUUID(),
+      id: `live-recording-${experience.id}`,
       input: { recordingUrl },
       jobType: LIVE_RECORDING_PUBLISH_JOB_TYPE,
-      scheduledAt: new Date(Date.now() + LIVE_RECORDING_PUBLISH_DELAY_MS),
+      scheduledAt,
       targetId: experience.id,
       targetType: "live_experience",
     })
+    .onConflictDoNothing()
     .returning();
 
   return job?.id ?? null;
@@ -1179,6 +1234,7 @@ export const publishExperienceRecordingAsVideo = async ({
     id: string;
     kind: LiveExperienceKind;
     recordingUrl: string | null;
+    startedAt?: Date | null;
     title: string;
   };
   recordingUrl: string;
@@ -1187,23 +1243,39 @@ export const publishExperienceRecordingAsVideo = async ({
     return null;
   }
 
-  const db = createDb(),
-    videoId = `video_live_${experience.id}`,
+  const db = createDb();
+  if (
+    experience.kind === "battle" &&
+    experience.battleId &&
+    !(await canPublishBattleReplay({
+      battleId: experience.battleId,
+      startedAt: experience.startedAt ?? null,
+    }))
+  ) {
+    return null;
+  }
+
+  const videoId = `video_live_${experience.id}`,
     slug = `live-${experience.kind}-${experience.id.replaceAll("_", "-")}`,
     playbackUrl = await copyRecordingToPublicMedia({
       experienceId: experience.id,
       sourceUrl: recordingUrl,
     });
 
+  if (!playbackUrl) {
+    throw new Error("Recording was not copied to durable public media.");
+  }
+
+  const publishedAt = new Date();
   await db
     .insert(videos)
     .values({
-      externalPlaybackUrl: playbackUrl ?? recordingUrl,
+      externalPlaybackUrl: playbackUrl,
       id: videoId,
       isPublic: true,
       ownerUserId: experience.createdByUserId,
       playbackPolicy: "public",
-      publishedAt: new Date(),
+      publishedAt,
       slug,
       sourceProvider: "external",
       status: "ready",
@@ -1211,12 +1283,26 @@ export const publishExperienceRecordingAsVideo = async ({
       videoKind:
         experience.kind === "battle" ? "battle_replay" : "live_recording",
     })
-    .onConflictDoNothing();
+    .onConflictDoUpdate({
+      set: {
+        externalPlaybackUrl: playbackUrl,
+        isPublic: true,
+        playbackPolicy: "public",
+        publishedAt,
+        status: "ready",
+      },
+      target: videos.id,
+    });
+
+  await db
+    .update(liveExperiences)
+    .set({ replayPublishedAt: publishedAt, updatedAt: publishedAt })
+    .where(eq(liveExperiences.id, experience.id));
 
   if (experience.kind === "battle" && experience.battleId) {
     await db
       .update(battles)
-      .set({ replayVideoId: videoId, updatedAt: new Date() })
+      .set({ replayVideoId: videoId, updatedAt: publishedAt })
       .where(eq(battles.id, experience.battleId));
   }
 
@@ -1242,14 +1328,11 @@ const getRecordingMediaHelpers = () => ({
   }) => {
     const { bucket, publicUrl } = getRecordingMediaHelpers();
 
-    if (!bucket) {
+    if (!bucket || !publicUrl) {
       return null;
     }
 
-    const extension = /\.(mp4|mov|webm|mkv|m4v)(?:$|[?#])/iu.test(sourceUrl)
-        ? "mp4"
-        : "mp3",
-      objectKey = `live-recordings/${experienceId}/recording.${extension}`;
+    const extension = "mp4";
 
     try {
       const response = await fetch(sourceUrl);
@@ -1258,9 +1341,10 @@ const getRecordingMediaHelpers = () => ({
         return null;
       }
 
+      const objectKey = `live-recordings/${experienceId}/recording.${extension}`;
       await bucket.put(objectKey, response.body, {
         httpMetadata: {
-          contentType: extension === "mp4" ? "video/mp4" : "audio/mpeg",
+          contentType: response.headers.get("content-type") ?? "video/mp4",
         },
       });
 
@@ -1311,6 +1395,27 @@ export const publishDueLiveRecordings = async ({
         })
         .where(eq(workflowJobs.id, job.id));
       failed += 1;
+      continue;
+    }
+
+    if (
+      experience.kind === "battle" &&
+      experience.battleId &&
+      !(await canPublishBattleReplay({
+        battleId: experience.battleId,
+        startedAt: experience.startedAt,
+      }))
+    ) {
+      await db
+        .update(workflowJobs)
+        .set({
+          error: null,
+          finishedAt: new Date(),
+          output: { reason: "battle_did_not_reach_a_turn", skipped: true },
+          status: "completed",
+        })
+        .where(eq(workflowJobs.id, job.id));
+      done += 1;
       continue;
     }
 

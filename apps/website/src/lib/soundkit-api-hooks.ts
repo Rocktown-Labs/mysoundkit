@@ -1624,6 +1624,7 @@ export const useCreateListeningPartyMutation = () => {
 export interface PublicRegionQuery {
   region?: string;
   regionType?: "global" | "north-america";
+  scope?: "dashboard" | "public";
 }
 
 export const useListeningPartiesQuery = (query: PublicRegionQuery = {}) =>

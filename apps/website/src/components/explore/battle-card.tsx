@@ -1,6 +1,7 @@
 /* eslint-disable one-var, complexity, no-nested-ternary, unicorn/no-nested-ternary */
 import { Link } from "@tanstack/react-router";
-import { CalendarClock, Clock, Lock, Trophy, Users } from "lucide-react";
+import { CalendarClock, Clock, Lock, Play, Trophy, Users } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import {
@@ -27,6 +28,7 @@ interface BattleCardProps {
   endsIn?: string;
   format?: "best_of_3" | "best_of_5" | "best_of_7";
   genre: string;
+  hasPlayedTurn?: boolean;
   id: string;
   isLive?: boolean;
   isPremiumUser?: boolean;
@@ -36,6 +38,8 @@ interface BattleCardProps {
   participants?: BattleParticipant[];
   phaseEndsAt?: string | null;
   queueSize?: number;
+  replayStatus?: "available" | "none" | "processing";
+  replayVideoId?: string | null;
   showActions?: boolean;
   startsAt?: string | null;
   startsIn?: string;
@@ -77,6 +81,38 @@ const emptyParticipants: BattleParticipant[] = [],
           timeStyle: "short",
         });
   };
+
+function BattleCardLink({
+  battleId,
+  children,
+  replayVideoId,
+}: {
+  battleId: string;
+  children: ReactNode;
+  replayVideoId?: string | null;
+}) {
+  if (replayVideoId) {
+    return (
+      <Link
+        className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        params={{ id: replayVideoId }}
+        to="/videos/$id"
+      >
+        {children}
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      params={{ id: battleId }}
+      to="/live/battles/$id"
+    >
+      {children}
+    </Link>
+  );
+}
 
 function BattleParticipantArtwork({
   participants,
@@ -124,6 +160,7 @@ export function BattleCard({
   endsIn,
   format,
   genre,
+  hasPlayedTurn = false,
   id,
   isLive = false,
   isPremiumUser = false,
@@ -133,6 +170,8 @@ export function BattleCard({
   participants = emptyParticipants,
   phaseEndsAt = null,
   queueSize = 0,
+  replayStatus = "none",
+  replayVideoId = null,
   showActions = true,
   startsAt = null,
   startsIn,
@@ -145,6 +184,11 @@ export function BattleCard({
     battleStatus = status ?? (battleIsLive ? "live" : "scheduled"),
     battleIsComplete =
       battleStatus === "archived" || battleStatus === "completed",
+    hasPublishedReplay =
+      battleIsComplete &&
+      hasPlayedTurn &&
+      replayStatus === "available" &&
+      Boolean(replayVideoId),
     canWatchNow = battleIsLive && joinMode === "watch_now",
     resolvedTotalRounds = format
       ? Number(format.replace("best_of_", ""))
@@ -195,10 +239,9 @@ export function BattleCard({
 
   return (
     <PublicCard framed>
-      <Link
-        className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-        params={{ id }}
-        to="/live/battles/$id"
+      <BattleCardLink
+        battleId={id}
+        replayVideoId={hasPublishedReplay ? replayVideoId : null}
       >
         <PublicCardThumbnail className="rounded-none">
           <BattleParticipantArtwork participants={participants} />
@@ -215,17 +258,25 @@ export function BattleCard({
             >
               {battleIsLive
                 ? "Live"
-                : battleIsComplete
-                  ? "Completed"
-                  : battleStatus === "scheduled"
-                    ? "Upcoming"
-                    : battleStatus}
+                : hasPublishedReplay
+                  ? "Replay"
+                  : battleIsComplete
+                    ? "Completed"
+                    : battleStatus === "scheduled"
+                      ? "Upcoming"
+                      : battleStatus}
             </Badge>
             <Badge variant="secondary">{genre}</Badge>
             <Badge variant="outline">{resolvedFormat}</Badge>
           </div>
+          {hasPublishedReplay ? (
+            <div className="absolute right-2 bottom-2 flex items-center gap-1 rounded bg-black/75 px-2 py-1 font-semibold text-[11px] text-white backdrop-blur">
+              <Play aria-hidden="true" className="size-3 fill-current" />
+              Watch Replay
+            </div>
+          ) : null}
         </PublicCardThumbnail>
-      </Link>
+      </BattleCardLink>
 
       <PublicCardMeta className="space-y-2.5 p-3">
         <div className="min-w-0">
@@ -241,13 +292,19 @@ export function BattleCard({
                 ? `Round ${currentRound}/${resolvedTotalRounds}${
                     isVoting ? " · Voting open" : ""
                   }`
-                : battleStatus === "scheduled"
-                  ? timeLabel
-                  : "Battle complete"}
+                : hasPublishedReplay
+                  ? "Battle replay"
+                  : battleIsComplete && !hasPlayedTurn
+                    ? "Ended before first turn"
+                    : battleStatus === "scheduled"
+                      ? timeLabel
+                      : "Replay processing"}
             </span>
             <span className="flex shrink-0 items-center gap-1 tabular-nums">
               {battleIsLive ? (
                 <Clock aria-hidden="true" className="size-3" />
+              ) : hasPublishedReplay ? (
+                <Play aria-hidden="true" className="size-3 fill-current" />
               ) : battleIsComplete ? (
                 <Trophy aria-hidden="true" className="size-3" />
               ) : (
@@ -255,9 +312,11 @@ export function BattleCard({
               )}
               {battleIsLive
                 ? liveTimeLabel
-                : battleIsComplete
-                  ? "Final result"
-                  : (views ?? timeLabel)}
+                : hasPublishedReplay
+                  ? "Watch now"
+                  : battleIsComplete
+                    ? "No replay"
+                    : (views ?? timeLabel)}
             </span>
           </div>
           <Progress
@@ -266,7 +325,14 @@ export function BattleCard({
           />
         </div>
 
-        {showActions && (battleIsLive || battleStatus === "scheduled") ? (
+        {showActions && hasPublishedReplay ? (
+          <Button asChild className="w-full" size="sm">
+            <Link params={{ id: replayVideoId ?? "" }} to="/videos/$id">
+              <Play aria-hidden="true" data-icon="inline-start" />
+              Watch Replay
+            </Link>
+          </Button>
+        ) : showActions && (battleIsLive || battleStatus === "scheduled") ? (
           isPremiumUser ? (
             <Button asChild className="w-full" size="sm">
               <Link params={{ id }} to="/live/battles/$id">

@@ -1397,9 +1397,11 @@ export const battleParticipantSchema = z.object({
 });
 
 export const battleSummarySchema = z.object({
+  endedAt: z.string().nullable().optional(),
   featuredRank: z.number().int().positive().nullable().optional(),
   format: z.enum(["best_of_3", "best_of_5", "best_of_7"]),
   genre: z.string(),
+  hasPlayedTurn: z.boolean().default(false),
   id: z.string(),
   isFeatured: z.boolean().default(false),
   joinMode: z.enum(["watch_now", "waiting_room"]).default("watch_now"),
@@ -1432,6 +1434,12 @@ export const battleSummarySchema = z.object({
     .default([]),
   viewerCount: z.number(),
   visibility: z.enum(["public", "premium_only"]),
+  outcome: z
+    .enum(["canceled", "ducked", "forfeited", "quit"])
+    .nullable()
+    .optional(),
+  replayStatus: z.enum(["available", "none", "processing"]).default("none"),
+  replayVideoId: z.string().nullable().optional(),
 });
 
 export const battleChallengeStatusSchema = z.enum([

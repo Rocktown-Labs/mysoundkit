@@ -6,6 +6,8 @@
 
 - Added project collaboration workspaces with accepted-only access, 24-hour proposals, optimistic `/collab` commands, typed attachments, beats/concepts, versioned assets, master-to-track processing, release readiness checks, publication propagation, project slugs, shared artwork, credits, and public project discovery.
 - Added project cover naming as `{project-name}-cover.{ext}` and a project-assets upload path that stores beats and concepts directly until a master is selected.
+- Added activity-aware battle replay status, published-only Recent Replays discovery, replay video links, read-only ended-battle states, and durable RealtimeKit recording publication with retry-safe association to battles.
+- Added concise BattleBot round, vote, readiness, result, and no-show status messages without per-vote chat spam.
 - Added a shared route-aware floating `[Nav | Chat]` utility with synchronized dashboard messaging, mobile-safe mini-player defaults, and global presence indicators in battle chat.
 - Added presence and messaging regression coverage for Durable Object heartbeats, reconnect state, cross-surface conversations, and responsive player behavior.
 - Added accessible video comment mentions with username autocomplete, server-validated public targets, mention notifications that respect recipient preferences, and nested replies with parent context.

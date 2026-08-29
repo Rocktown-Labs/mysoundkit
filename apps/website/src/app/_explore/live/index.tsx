@@ -84,6 +84,7 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
           currentRound={item.battle.round?.current ?? 1}
           format={item.battle.format}
           genre={item.battle.genre}
+          hasPlayedTurn={item.battle.hasPlayedTurn}
           id={item.battle.id}
           isLive={item.battle.status === "live"}
           isPremiumUser={false}
@@ -92,6 +93,8 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
           participants={item.battle.participants}
           phaseEndsAt={item.battle.phaseEndsAt}
           queueSize={item.battle.queueSize}
+          replayStatus={item.battle.replayStatus}
+          replayVideoId={item.battle.replayVideoId}
           showActions={false}
           startsAt={item.battle.startsAt}
           status={item.battle.status}
@@ -219,7 +222,7 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
 function LiveHubPage() {
   const navigate = Route.useNavigate(),
     search = Route.useSearch(),
-    battlesQuery = useBattlesQuery(),
+    battlesQuery = useBattlesQuery({ scope: "public" }),
     genresQuery = useGenresQuery(),
     partiesQuery = useListeningPartiesQuery(),
     streamsQuery = usePublicLiveExperiencesQuery("stream"),
@@ -341,15 +344,18 @@ function LiveHubPage() {
             {(item) => <LiveHubCard item={item} />}
           </ExploreCollectionSection>
           <ExploreCollectionSection
-            empty="No completed battle results yet."
+            empty="No published battle replays yet."
             hideWhenEmpty
             items={allItems.filter(
               (item) =>
                 item.kind === "battle" &&
-                (item.status === "completed" || item.status === "archived")
+                (item.status === "completed" || item.status === "archived") &&
+                item.battle?.hasPlayedTurn &&
+                item.battle.replayStatus === "available" &&
+                Boolean(item.battle.replayVideoId)
             )}
             layout="landscape"
-            title="Recent Battle Results"
+            title="Recent Replays"
           >
             {(item) => <LiveHubCard item={item} />}
           </ExploreCollectionSection>

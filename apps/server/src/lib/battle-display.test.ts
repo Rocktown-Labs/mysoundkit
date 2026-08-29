@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   battleDemandScore,
+  battleHasPlayedTurn,
   formatArtistBattleTitle,
+  isDurableReplayPlaybackUrl,
   rankFeaturedBattleIds,
   resolveArtistBattleTitle,
+  resolveBattleReplayStatus,
 } from "./battle-display";
 
 describe("battle display helpers", () => {
@@ -18,6 +21,72 @@ describe("battle display helpers", () => {
     expect(resolveArtistBattleTitle("Summer Showdown", "Electronic")).toBe(
       "Summer Showdown"
     );
+  });
+
+  it("requires a real turn before exposing a battle as replay activity", () => {
+    expect(
+      battleHasPlayedTurn({
+        outcome: "canceled",
+        roundStatuses: [],
+      })
+    ).toBe(false);
+    expect(
+      battleHasPlayedTurn({
+        outcome: "quit",
+        roundStatuses: ["active"],
+      })
+    ).toBe(true);
+    expect(
+      battleHasPlayedTurn({
+        outcome: null,
+        roundStatuses: ["upcoming", "completed"],
+      })
+    ).toBe(true);
+    expect(
+      battleHasPlayedTurn({
+        experienceStartedAt: new Date(),
+        outcome: "canceled",
+        roundStatuses: [],
+      })
+    ).toBe(true);
+  });
+
+  it("only treats copied media paths as durable replay URLs", () => {
+    expect(
+      isDurableReplayPlaybackUrl(
+        "https://media.mysoundkit.com/media/live-recordings/battle-1/recording.mp4"
+      )
+    ).toBe(true);
+    expect(
+      isDurableReplayPlaybackUrl(
+        "https://api.realtime.cloudflare.com/download/1"
+      )
+    ).toBe(false);
+    expect(isDurableReplayPlaybackUrl(null)).toBe(false);
+  });
+
+  it("distinguishes available, processing, and missing replays", () => {
+    expect(
+      resolveBattleReplayStatus({
+        recordingStatus: "UPLOADED",
+        replayPublishedAt: null,
+        replayVideoAvailable: true,
+      })
+    ).toBe("available");
+    expect(
+      resolveBattleReplayStatus({
+        recordingStatus: "UPLOADING",
+        replayPublishedAt: null,
+        replayVideoAvailable: false,
+      })
+    ).toBe("processing");
+    expect(
+      resolveBattleReplayStatus({
+        recordingStatus: null,
+        replayPublishedAt: null,
+        replayVideoAvailable: false,
+      })
+    ).toBe("none");
   });
 
   it("uses viewers for live demand and queue size for scheduled demand", () => {

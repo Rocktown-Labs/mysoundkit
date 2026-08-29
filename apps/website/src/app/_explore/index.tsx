@@ -215,6 +215,7 @@ function LocalExplorePage() {
     regionalLiveQuery = {
       region: regionSlug,
       regionType: exploreRegionType,
+      scope: "public" as const,
     } as const,
     { data: battles = [], isLoading: isLoadingBattles } =
       useBattlesQuery(regionalLiveQuery),
@@ -817,6 +818,7 @@ function BattleSummaryCard({ battle }: { battle: BattleSummary }) {
         currentRound={battle.round?.current ?? 1}
         format={battle.format}
         genre={battle.genre}
+        hasPlayedTurn={battle.hasPlayedTurn}
         id={battle.id}
         isLive={battle.status === "live"}
         isPremiumUser={battle.visibility !== "premium_only"}
@@ -825,6 +827,8 @@ function BattleSummaryCard({ battle }: { battle: BattleSummary }) {
         participants={battle.participants}
         phaseEndsAt={battle.phaseEndsAt}
         queueSize={battle.queueSize}
+        replayStatus={battle.replayStatus}
+        replayVideoId={battle.replayVideoId}
         startsAt={battle.startsAt}
         status={battle.status}
         title={battle.title}
