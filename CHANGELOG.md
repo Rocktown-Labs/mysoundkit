@@ -56,6 +56,7 @@
 ### Fixed
 
 - Fixed TanStack DB collection cleanup during auth-scope remounts so live queries stay attached to their active collection and optimistic comment writes remain visible after authentication resolves.
+- Fixed concurrent community and video-comment browser smoke fixtures so Strict Mode remounts do not invalidate active live queries.
 - Fixed community entry so opening a community confirms membership before granting access, free joins reconcile immediately, the member view uses the available page height, creator updates notify opted-in members, and community chat/posts stay fresh through TanStack DB polling and direct writes.
 - Fixed browser smoke isolation for concurrent battle state, kept artist readiness toggles available after marking ready, and ensured interactive dashboard routes avoid pre-hydration actions.
 - Fixed website mutation reconciliation so optimistic notifications, challenge requests, saved tracks, follows, playlists, communities, community messages, and conversation read state are read back from the server before completion; overlapping TanStack Query caches now invalidate together and failed settings/read mutations roll back cleanly.
