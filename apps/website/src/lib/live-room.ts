@@ -84,6 +84,7 @@ export interface LiveRoomState {
       winnerUserId: string | null;
     };
     currentRoundId: string;
+    hasPlayedTurn?: boolean;
     outcome?: {
       affectedUserId?: string | null;
       kind: "canceled" | "ducked" | "forfeited" | "quit";
@@ -92,6 +93,8 @@ export interface LiveRoomState {
     };
     phase?: string;
     queueSize?: number;
+    replayStatus?: "available" | "none" | "processing";
+    replayVideoId?: string | null;
     viewerQueueStatus?: "admitted" | "queued" | "waiting" | null;
     waitingRoomCount?: number;
     rounds: LiveBattleRound[];

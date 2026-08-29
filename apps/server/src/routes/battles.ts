@@ -12,7 +12,9 @@ import {
   battleStats,
   battles,
   genres,
+  liveExperiences,
   trackAssets,
+  videos,
   trackLyrics,
   tracks,
   userProfiles,
@@ -40,9 +42,12 @@ import {
   hasBattleChallengeExpired,
 } from "@/lib/battle-challenge-lifecycle";
 import {
+  battleHasPlayedTurn,
   formatArtistBattleTitle,
+  isDurableReplayPlaybackUrl,
   rankFeaturedBattleIds,
   resolveArtistBattleTitle,
+  resolveBattleReplayStatus,
 } from "@/lib/battle-display";
 import {
   dedupeBattleKitTracks,
@@ -112,10 +117,13 @@ const featuredBattleLimit = 6,
 
 interface BattleFeedRow {
   challengerArtistUserId: string | null;
+  endedAt: Date | null;
   format: "best_of_3" | "best_of_5" | "best_of_7";
   genre: string;
   id: string;
   opponentArtistUserId: string | null;
+  outcome: "canceled" | "ducked" | "forfeited" | "quit" | null;
+  replayVideoId: string | null;
   startsAt: Date | null;
   status: "scheduled" | "live" | "completed" | "archived";
   title: string;
@@ -155,44 +163,71 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
 
     const db = createDb(),
       battleIds = battleRows.map((battle) => battle.id),
-      [roundRows, queueRows] = await Promise.all([
-        db
-          .select({
-            battleId: battleRounds.battleId,
-            id: battleRounds.id,
-            isTiebreaker: battleRounds.isTiebreaker,
-            roundNumber: battleRounds.roundNumber,
-            status: battleRounds.status,
-            trackOneId: battleRounds.trackOneId,
-            trackOneVotes: battleRounds.trackOneVotes,
-            trackTwoId: battleRounds.trackTwoId,
-            trackTwoVotes: battleRounds.trackTwoVotes,
-            votingEndsAt: battleRounds.votingEndsAt,
-          })
-          .from(battleRounds)
-          .where(inArray(battleRounds.battleId, battleIds))
-          .orderBy(asc(battleRounds.roundNumber)),
-        db
-          .select({
-            battleId: battleQueueEntries.battleId,
-            queueSize: sql<number>`count(*)::int`,
-          })
-          .from(battleQueueEntries)
-          .where(
-            and(
-              inArray(battleQueueEntries.battleId, battleIds),
-              or(
-                eq(battleQueueEntries.status, "queued"),
-                eq(battleQueueEntries.status, "conflict")
+      replayVideoIds = battleRows
+        .map((battle) => battle.replayVideoId)
+        .filter((videoId): videoId is string => Boolean(videoId)),
+      [roundRows, queueRows, experienceRows, replayVideoRows] =
+        await Promise.all([
+          db
+            .select({
+              battleId: battleRounds.battleId,
+              id: battleRounds.id,
+              isTiebreaker: battleRounds.isTiebreaker,
+              roundNumber: battleRounds.roundNumber,
+              status: battleRounds.status,
+              trackOneId: battleRounds.trackOneId,
+              trackOneVotes: battleRounds.trackOneVotes,
+              trackTwoId: battleRounds.trackTwoId,
+              trackTwoVotes: battleRounds.trackTwoVotes,
+              votingEndsAt: battleRounds.votingEndsAt,
+            })
+            .from(battleRounds)
+            .where(inArray(battleRounds.battleId, battleIds))
+            .orderBy(asc(battleRounds.roundNumber)),
+          db
+            .select({
+              battleId: battleQueueEntries.battleId,
+              queueSize: sql<number>`count(*)::int`,
+            })
+            .from(battleQueueEntries)
+            .where(
+              and(
+                inArray(battleQueueEntries.battleId, battleIds),
+                or(
+                  eq(battleQueueEntries.status, "queued"),
+                  eq(battleQueueEntries.status, "conflict")
+                )
               )
             )
-          )
-          .groupBy(battleQueueEntries.battleId),
-      ]),
+            .groupBy(battleQueueEntries.battleId),
+          db
+            .select({
+              battleId: liveExperiences.battleId,
+              recordingStatus: liveExperiences.recordingStatus,
+              replayPublishedAt: liveExperiences.replayPublishedAt,
+              startedAt: liveExperiences.startedAt,
+            })
+            .from(liveExperiences)
+            .where(inArray(liveExperiences.battleId, battleIds)),
+          replayVideoIds.length > 0
+            ? db
+                .select({
+                  externalPlaybackUrl: videos.externalPlaybackUrl,
+                  id: videos.id,
+                  isPublic: videos.isPublic,
+                  publishedAt: videos.publishedAt,
+                  status: videos.status,
+                  videoKind: videos.videoKind,
+                })
+                .from(videos)
+                .where(inArray(videos.id, replayVideoIds))
+            : [],
+        ]),
       queueSizeByBattleId = new Map(
         queueRows.map((row) => [row.battleId, row.queueSize])
       ),
-      roundsByBattleId = new Map<string, BattleFeedRound[]>();
+      roundsByBattleId = new Map<string, BattleFeedRound[]>(),
+      experienceByBattleId = new Map<string, (typeof experienceRows)[number]>();
 
     for (const round of roundRows) {
       const rounds = roundsByBattleId.get(round.battleId) ?? [];
@@ -200,7 +235,21 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
       roundsByBattleId.set(round.battleId, rounds);
     }
 
-    const participantIds = [
+    for (const experience of experienceRows) {
+      if (!experience.battleId) {
+        continue;
+      }
+
+      const existing = experienceByBattleId.get(experience.battleId);
+      if (!existing || experience.replayPublishedAt || experience.startedAt) {
+        experienceByBattleId.set(experience.battleId, experience);
+      }
+    }
+
+    const replayVideoById = new Map(
+        replayVideoRows.map((video) => [video.id, video])
+      ),
+      participantIds = [
         ...new Set(
           battleRows
             .flatMap((battle) => [
@@ -279,6 +328,15 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
     return battleRows.map((battle) => {
       const rounds = roundsByBattleId.get(battle.id) ?? [],
         currentRound = selectCurrentRound(rounds),
+        experience = experienceByBattleId.get(battle.id),
+        replayVideo = battle.replayVideoId
+          ? replayVideoById.get(battle.replayVideoId)
+          : undefined,
+        hasPlayedTurn = battleHasPlayedTurn({
+          experienceStartedAt: experience?.startedAt,
+          outcome: battle.outcome,
+          roundStatuses: rounds.map((round) => round.status),
+        }),
         participants = [
           battle.challengerArtistUserId,
           battle.opponentArtistUserId,
@@ -322,6 +380,7 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
 
       return {
         ...battle,
+        hasPlayedTurn,
         joinMode:
           battle.status === "live" && currentRound?.status === "active"
             ? ("waiting_room" as const)
@@ -341,6 +400,18 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
         startsAt: battle.startsAt?.toISOString() ?? null,
         title: resolveArtistBattleTitle(battle.title, battle.genre),
         tracks: roundTracks,
+        replayStatus: resolveBattleReplayStatus({
+          recordingStatus: experience?.recordingStatus,
+          replayPublishedAt: experience?.replayPublishedAt,
+          replayVideoAvailable: Boolean(
+            replayVideo?.isPublic &&
+            replayVideo.publishedAt &&
+            replayVideo.status === "ready" &&
+            replayVideo.videoKind === "battle_replay" &&
+            isDurableReplayPlaybackUrl(replayVideo.externalPlaybackUrl)
+          ),
+        }),
+        replayVideoId: battle.replayVideoId,
       };
     });
   },
@@ -376,7 +447,21 @@ app.openapi(
     const query = c.req.valid("query");
 
     if (!isDatabaseConfigured()) {
-      return c.json(sampleBattles, HttpStatusCodes.OK);
+      const sampleRows = sampleBattles.map((battle) => ({
+        ...battle,
+        hasPlayedTurn: battle.status === "live",
+        replayStatus: "none" as const,
+        replayVideoId: null,
+      }));
+      return c.json(
+        query.scope === "public"
+          ? sampleRows.filter(
+              (battle) =>
+                battle.status === "live" || battle.status === "scheduled"
+            )
+          : sampleRows,
+        HttpStatusCodes.OK
+      );
     }
 
     const db = createDb(),
@@ -384,10 +469,13 @@ app.openapi(
       rows = await db
         .select({
           challengerArtistUserId: battles.challengerArtistUserId,
+          endedAt: battles.endedAt,
           format: battles.format,
           genre: genres.name,
           id: battles.id,
           opponentArtistUserId: battles.opponentArtistUserId,
+          outcome: battles.outcome,
+          replayVideoId: battles.replayVideoId,
           startsAt: battles.startsAt,
           status: battles.status,
           title: battles.title,
@@ -416,9 +504,18 @@ app.openapi(
           ...row,
           genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
         }))
-      );
+      ),
+      visibleRows =
+        query.scope === "public"
+          ? enrichedRows.filter(
+              (battle) =>
+                battle.status === "live" ||
+                battle.status === "scheduled" ||
+                (battle.hasPlayedTurn && battle.replayStatus === "available")
+            )
+          : enrichedRows;
 
-    return c.json(rankFeaturedBattles(enrichedRows), HttpStatusCodes.OK);
+    return c.json(rankFeaturedBattles(visibleRows), HttpStatusCodes.OK);
   }
 );
 
@@ -2407,17 +2504,28 @@ app.openapi(
         );
       }
 
-      return c.json(battle, HttpStatusCodes.OK);
+      return c.json(
+        {
+          ...battle,
+          hasPlayedTurn: battle.status === "live",
+          replayStatus: "none" as const,
+          replayVideoId: null,
+        },
+        HttpStatusCodes.OK
+      );
     }
 
     const db = createDb(),
       [row] = await db
         .select({
           challengerArtistUserId: battles.challengerArtistUserId,
+          endedAt: battles.endedAt,
           format: battles.format,
           genre: genres.name,
           id: battles.id,
           opponentArtistUserId: battles.opponentArtistUserId,
+          outcome: battles.outcome,
+          replayVideoId: battles.replayVideoId,
           startsAt: battles.startsAt,
           status: battles.status,
           title: battles.title,

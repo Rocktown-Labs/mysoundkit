@@ -14,6 +14,7 @@ import {
   trackAssets,
   tracks,
   userProfiles,
+  videos,
 } from "@soundkit/db/schema/app";
 import {
   and,
@@ -39,7 +40,12 @@ import type {
   LiveRoomVoteBody,
 } from "@/durable-objects/live-room";
 import { publicAssetUrlFromParts } from "@/lib/asset-urls";
-import { resolveArtistBattleTitle } from "@/lib/battle-display";
+import {
+  battleHasPlayedTurn,
+  isDurableReplayPlaybackUrl,
+  resolveArtistBattleTitle,
+  resolveBattleReplayStatus,
+} from "@/lib/battle-display";
 import { evaluateBattleKitReadiness } from "@/lib/battle-kits";
 import { buildBattleRoundSeeds } from "@/lib/battle-rounds";
 import { loadBattleSchemaCapabilities } from "@/lib/battle-schema-capabilities";
@@ -849,7 +855,7 @@ const badRequest = (message: string) => ({
       status =
         battle.status === "live"
           ? "live"
-          : battle.status === "completed"
+          : battle.status === "completed" || battle.status === "archived"
             ? "ended"
             : "scheduled",
       startsAt = (battle.startsAt ?? battle.createdAt).toISOString(),
@@ -1227,7 +1233,6 @@ const badRequest = (message: string) => ({
       ),
       battleId: battle.id,
       format: battle.format,
-      status: battle.status,
     });
     if (!seeds) {
       return;
@@ -1305,6 +1310,7 @@ const badRequest = (message: string) => ({
           startsAt: battles.startsAt,
           status: battles.status,
           title: battles.title,
+          replayVideoId: battles.replayVideoId,
           updatedAt: battles.updatedAt,
           viewerCount: battles.viewerCount,
           winnerUserId: schemaCapabilities.battleWinner
@@ -1337,7 +1343,7 @@ const badRequest = (message: string) => ({
         .where(eq(battleRounds.battleId, battle.id))
         .orderBy(asc(battleRounds.roundNumber));
 
-    let [roundRows, lineupSnapshots] = await Promise.all([
+    let [roundRows, lineupSnapshots, experienceRows] = await Promise.all([
       loadBattleRoundRows(),
       db
         .select({
@@ -1347,6 +1353,14 @@ const badRequest = (message: string) => ({
         })
         .from(battleLineupSnapshots)
         .where(eq(battleLineupSnapshots.battleId, battle.id)),
+      db
+        .select({
+          recordingStatus: liveExperiences.recordingStatus,
+          replayPublishedAt: liveExperiences.replayPublishedAt,
+          startedAt: liveExperiences.startedAt,
+        })
+        .from(liveExperiences)
+        .where(eq(liveExperiences.battleId, battle.id)),
     ]);
 
     if (roundRows.length === 0) {
@@ -1365,6 +1379,7 @@ const badRequest = (message: string) => ({
             .filter((trackId): trackId is string => Boolean(trackId))
         ),
       ],
+      replayVideoIds = battle.replayVideoId ? [battle.replayVideoId] : [],
       profileIds = [
         ...new Set(
           [battle.challengerArtistUserId, battle.opponentArtistUserId].filter(
@@ -1372,8 +1387,15 @@ const badRequest = (message: string) => ({
           )
         ),
       ],
-      [trackRows, coverRows, profileRows, rankRows, snapshotRows, queueRows] =
-        await Promise.all([
+      [
+        trackRows,
+        coverRows,
+        profileRows,
+        rankRows,
+        snapshotRows,
+        queueRows,
+        replayVideoRows,
+      ] = await Promise.all([
           trackIds.length > 0
             ? db
                 .select({
@@ -1443,6 +1465,19 @@ const badRequest = (message: string) => ({
                 eq(battleQueueEntries.status, "queued")
               )
             ),
+          replayVideoIds.length > 0
+            ? db
+                .select({
+                  externalPlaybackUrl: videos.externalPlaybackUrl,
+                  id: videos.id,
+                  isPublic: videos.isPublic,
+                  publishedAt: videos.publishedAt,
+                  status: videos.status,
+                  videoKind: videos.videoKind,
+                })
+                .from(videos)
+                .where(inArray(videos.id, replayVideoIds))
+            : [],
         ]),
       coverByTrackId = new Map(
         coverRows.map((asset) => [
@@ -1467,6 +1502,24 @@ const badRequest = (message: string) => ({
       rankByUserId = new Map(
         rankRows.map((profile) => [profile.userId, profile.rank])
       ),
+      experience = experienceRows[0],
+      replayVideo = replayVideoRows[0],
+      hasPlayedTurn = battleHasPlayedTurn({
+        experienceStartedAt: experience?.startedAt,
+        outcome: battle.outcome,
+        roundStatuses: roundRows.map((round) => round.status),
+      }),
+      replayStatus = resolveBattleReplayStatus({
+        recordingStatus: experience?.recordingStatus,
+        replayPublishedAt: experience?.replayPublishedAt,
+        replayVideoAvailable: Boolean(
+          replayVideo?.isPublic &&
+            replayVideo.publishedAt &&
+            replayVideo.status === "ready" &&
+            replayVideo.videoKind === "battle_replay" &&
+            isDurableReplayPlaybackUrl(replayVideo.externalPlaybackUrl)
+        ),
+      }),
       artistControlsByUserId: Record<string, LiveBattleArtistControls> =
         Object.fromEntries(
           snapshotRows.map((snapshot) => {
@@ -1622,8 +1675,11 @@ const badRequest = (message: string) => ({
         artists: liveArtists,
         coordination,
         currentRoundId: currentLiveRound?.id ?? "",
+        hasPlayedTurn,
         outcome: battleOutcome,
         queueSize: queueRows.length,
+        replayStatus,
+        replayVideoId: battle.replayVideoId,
         rounds: liveRounds,
         tiePolicy:
           "If the scheduled rounds end tied, SoundKit unlocks one tiebreaker song from each battle kit and runs sudden-death voting.",
@@ -2487,11 +2543,26 @@ app.post("/experiences/:experienceId/join", async (c) => {
   }
 
   const kind = experience?.kind ?? liveKindFromExperienceId(experienceId);
-  if (!experience && kind === "battle") {
-    experience = await ensureBattleLiveExperience({
-      env: c.env,
-      experienceId,
-    });
+  if (!experience && kind === "battle" && isDatabaseConfigured()) {
+    const [battle] = await createDb()
+      .select({ id: battles.id })
+      .from(battles)
+      .where(
+        or(
+          eq(battles.id, experienceId),
+          eq(battles.externalBattleId, experienceId)
+        )
+      )
+      .limit(1);
+    return battle
+      ? c.json(
+          {
+            message:
+              "Battle media is not open yet. Join when the first turn starts.",
+          },
+          HttpStatusCodes.CONFLICT
+        )
+      : c.json({ message: "Battle not found." }, HttpStatusCodes.NOT_FOUND);
   }
 
   const meetingId = experience?.meetingId ?? experienceId;
@@ -2747,11 +2818,54 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
     );
   }
 
+  const opensFirstTurn =
+    (botAction === "move_lobby_to_round" || botAction === "start_battle") &&
+    !experience &&
+    preflightRoom?.battle?.coordination?.roundNumber === 1;
+  if (opensFirstTurn) {
+    try {
+      if (
+        !(await ensureBattleLiveExperience({
+          env: c.env,
+          experienceId,
+        }))
+      ) {
+        return c.json(
+          { message: "Battle not found." },
+          HttpStatusCodes.NOT_FOUND
+        );
+      }
+    } catch {
+      return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
+    }
+  }
+
   const result = await applyBattleBotAction({
     action: botAction,
     battleId,
     participants: parseResult.data.participants,
   });
+  if (
+    (botAction === "move_lobby_to_round" || botAction === "start_battle") &&
+    !experience &&
+    result.nextPhase === "round_active"
+  ) {
+    try {
+      if (
+        !(await ensureBattleLiveExperience({
+          env: c.env,
+          experienceId,
+        }))
+      ) {
+        return c.json(
+          { message: "Battle not found." },
+          HttpStatusCodes.NOT_FOUND
+        );
+      }
+    } catch {
+      return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
+    }
+  }
   if (result.battleEnded) {
     return c.json(
       {
@@ -2809,8 +2923,8 @@ app.post("/rooms/:roomId/battle/ready", async (c) => {
   try {
     const roomId = c.req.param("roomId"),
       identity = await resolveLiveRoomIdentity(c, roomId),
-      experience = await loadLiveExperienceById(roomId),
-      battleId = experience?.battleId ?? roomId;
+      initialExperience = await loadLiveExperienceById(roomId),
+      battleId = initialExperience?.battleId ?? roomId;
 
     if (isDatabaseConfigured()) {
       const db = createDb(),
@@ -2844,7 +2958,12 @@ app.post("/rooms/:roomId/battle/ready", async (c) => {
       isDatabaseConfigured() &&
       room.battle?.coordination?.phase === "round_intro"
     ) {
-      const experience = await loadLiveExperienceById(roomId),
+      const experience =
+          (await loadLiveExperienceById(roomId)) ??
+          (await ensureBattleLiveExperience({
+            env: c.env,
+            experienceId: roomId,
+          })),
         battleId = experience?.battleId ?? roomId,
         db = createDb(),
         [battle] = await db
@@ -2858,11 +2977,12 @@ app.post("/rooms/:roomId/battle/ready", async (c) => {
             )
           )
           .limit(1);
-      if (battle) {
+      if (battle && experience) {
+        const startedAt = new Date();
         await Promise.all([
           db
             .update(battles)
-            .set({ status: "live", updatedAt: new Date() })
+            .set({ status: "live", updatedAt: startedAt })
             .where(eq(battles.id, battle.id)),
           db
             .update(battleRounds)
@@ -2875,12 +2995,8 @@ app.post("/rooms/:roomId/battle/ready", async (c) => {
             ),
           db
             .update(liveExperiences)
-            .set({
-              startedAt: new Date(),
-              status: "live",
-              updatedAt: new Date(),
-            })
-            .where(eq(liveExperiences.battleId, battle.id)),
+            .set({ status: "live", updatedAt: startedAt })
+            .where(eq(liveExperiences.id, experience.id)),
         ]);
         if (c.env.BATTLE_DIRECTORY) {
           await c.env.BATTLE_DIRECTORY.getByName("public")
@@ -3518,6 +3634,13 @@ app.get("/rooms/:roomId", async (c) => {
     return c.json(
       { ...realRoom, role: (await resolveLiveRoomIdentity(c, roomId)).role },
       HttpStatusCodes.OK
+    );
+  }
+
+  if (isDatabaseConfigured()) {
+    return c.json(
+      { message: "Live room not found." },
+      HttpStatusCodes.NOT_FOUND
     );
   }
 

@@ -11,8 +11,9 @@ import {
   trackAssets,
   tracks,
   userProfiles,
+  videos,
 } from "@soundkit/db/schema/app";
-import { and, eq } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 
 import { isAuthenticatedUser } from "@/lib/entitlements";
 import { isPublicTrackArtwork } from "@/lib/media-access";
@@ -149,6 +150,30 @@ app.get("/*", async (c) => {
         Boolean(projectAccess) ||
         (!privateAsset &&
           (publicArtwork || publicStreaming || Boolean(openVerse)));
+    }
+
+    if (!authorized && objectKey.startsWith("live-recordings/")) {
+      const [video] = await db
+        .select({
+          isPublic: videos.isPublic,
+          publishedAt: videos.publishedAt,
+          status: videos.status,
+          videoKind: videos.videoKind,
+        })
+        .from(videos)
+        .where(
+          and(
+            like(videos.externalPlaybackUrl, `%${objectKey}`),
+            eq(videos.isPublic, true),
+            eq(videos.status, "ready")
+          )
+        )
+        .limit(1);
+      authorized = Boolean(
+        video?.publishedAt &&
+        (video.videoKind === "battle_replay" ||
+          video.videoKind === "live_recording")
+      );
     }
 
     if (!authorized) {

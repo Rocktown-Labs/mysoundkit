@@ -43,13 +43,11 @@ export const buildBattleRoundSeeds = ({
   artistB,
   battleId,
   format,
-  status,
 }: {
   artistA?: BattleLineupSnapshotInput;
   artistB?: BattleLineupSnapshotInput;
   battleId: string;
   format: BattleRoundFormat;
-  status: "live" | "scheduled";
 }): BattleRoundSeed[] | null => {
   if (!(artistA && artistB)) {
     return null;
@@ -105,7 +103,7 @@ export const buildBattleRoundSeeds = ({
       id: crypto.randomUUID(),
       isTiebreaker: false,
       roundNumber,
-      status: status === "live" && roundNumber === 1 ? "active" : "upcoming",
+      status: "upcoming",
       trackOneId,
       trackTwoId,
     });

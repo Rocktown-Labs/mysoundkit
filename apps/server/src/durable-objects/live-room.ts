@@ -100,67 +100,146 @@ const BATTLE_BOT_USER_ID = "soundkit-battlebot",
     isBattleTerminalState({
       phase: room.battle?.coordination?.phase,
       status: room.status,
-    }),
-  battleBotMessageForPhase = (room: LiveRoomState, phase: BattlePhase) => {
-    const artists = room.battle?.artists ?? [],
-      activeArtist = artists.find(
-        (artist) => artist.id === room.battle?.coordination?.activeArtistUserId
-      );
+    });
 
-    switch (phase) {
-      case "waiting_room": {
-        return "The battle is live. BattleBot is opening the waiting room and preparing the artists.";
-      }
-      case "round_intro": {
-        return `Round ${room.battle?.coordination?.roundNumber ?? 1} is about to begin. BattleBot is bringing both artists to the stage.`;
-      }
-      case "turn_transition":
-      case "tiebreaker_transition": {
-        return "BattleBot is handing the stage to the next artist.";
-      }
-      case "pre_vote": {
-        return "Both artists have finished their turns. BattleBot is opening the audience vote.";
-      }
-      case "artist_a_turn":
-      case "artist_b_turn":
-      case "tiebreaker_a":
-      case "tiebreaker_b": {
-        return `${activeArtist?.name ?? "The active artist"} has the mic. BattleBot is managing the stage.`;
-      }
-      case "voting":
-      case "tiebreaker_voting": {
-        return "The round is open for voting. BattleBot has muted the artists while the audience decides.";
-      }
-      case "round_result": {
-        return "Voting is closed. BattleBot is tallying the round and preparing the result.";
-      }
-      case "between_rounds": {
-        return "Round complete. BattleBot is resetting the stage and admitting the next audience group.";
-      }
-      case "battle_result": {
-        return "The final round is complete. BattleBot is confirming the battle result.";
-      }
-      case "ended": {
-        const outcome = room.battle?.coordination?.outcome;
-        if (outcome?.reason === "artist_unavailable") {
-          return "BattleBot canceled the battle because both artists were not present and ready before the waiting-room deadline. No ratings were changed.";
-        }
-        if (outcome) {
-          return null;
-        }
+export const battleOutcomeMessage = (room: LiveRoomState) => {
+  const outcome = room.battle?.coordination?.outcome;
+  if (!outcome) {
+    return null;
+  }
 
-        const winner = room.battle?.artists.find(
-          (artist) => artist.id === room.battle?.coordination?.winnerUserId
-        );
-        return winner
-          ? `BattleBot: ${winner.name} won the battle. The final result is locked, and this room is now read-only.`
-          : "BattleBot: The battle is complete and ended in a tie. The final result is locked, and this room is now read-only.";
-      }
-      default: {
-        return null;
-      }
+  const affectedArtist = room.battle?.artists.find(
+      (artist) => artist.id === outcome.affectedUserId
+    ),
+    coordination = room.battle?.coordination,
+    currentRound = room.battle?.rounds.find(
+      (round) => round.number === coordination?.roundNumber
+    ),
+    affectedTrack = affectedArtist
+      ? affectedArtist.id === room.battle?.artists[0]?.id
+        ? currentRound?.artistATrack
+        : currentRound?.artistBTrack
+      : undefined,
+    roundNumber = coordination?.roundNumber ?? 1;
+
+  if (outcome.kind === "canceled") {
+    return outcome.reason === "artist_unavailable"
+      ? "The battle was canceled before the first turn. No result was recorded. The room is now closed."
+      : "The battle was canceled. No result was recorded. The room is now closed.";
+  }
+
+  if (outcome.kind === "ducked") {
+    return `${affectedArtist?.name ?? "The opponent"} did not check in. The battle was canceled before the first turn. The room is now closed.`;
+  }
+
+  const verb = outcome.kind === "forfeited" ? "forfeited" : "quit",
+    trackContext = affectedTrack ? ` while “${affectedTrack.title}” was on stage` : "";
+  return `${affectedArtist?.name ?? "An artist"} ${verb} during Round ${roundNumber}${trackContext}. The battle ended with no rated result. The room is now closed.`;
+};
+
+export const battleBotMessageForPhase = (
+  room: LiveRoomState,
+  phase: BattlePhase
+) => {
+  const battle = room.battle;
+  if (!battle) {
+    return null;
+  }
+
+  const { artists, coordination } = battle,
+    activeArtist = artists.find(
+      (artist) => artist.id === coordination?.activeArtistUserId
+    ),
+    currentRound = coordination
+      ? battle.rounds.find((round) => round.number === coordination.roundNumber)
+      : undefined,
+    roundNumber = coordination?.roundNumber ?? currentRound?.number ?? 1,
+    [artistA, artistB] = artists,
+    votesA = currentRound?.voteTotals[artistA?.id ?? ""] ?? 0,
+    votesB = currentRound?.voteTotals[artistB?.id ?? ""] ?? 0,
+    roundLabel = currentRound?.isTiebreaker
+      ? `Tiebreaker ${roundNumber}`
+      : `Round ${roundNumber}`;
+
+  switch (phase) {
+    case "waiting_room": {
+      return "The lobby is open. Waiting for both artists to check in and lock their Battle Kits.";
     }
-  };
+    case "round_intro": {
+      return `${roundLabel} is next. Both artists are on deck.`;
+    }
+    case "turn_transition":
+    case "tiebreaker_transition": {
+      return activeArtist
+        ? `${roundLabel}: ${activeArtist.name} is up next.`
+        : `${roundLabel}: the stage is changing hands.`;
+    }
+    case "pre_vote": {
+      return `${roundLabel}: both turns are in. Voting opens next.`;
+    }
+    case "artist_a_turn":
+    case "artist_b_turn":
+    case "tiebreaker_a":
+    case "tiebreaker_b": {
+      const activeTrack =
+        activeArtist?.id === artistA?.id
+          ? currentRound?.artistATrack
+          : currentRound?.artistBTrack;
+      return `${roundLabel}: ${activeArtist?.name ?? "The active artist"} is up${activeTrack ? ` with “${activeTrack.title}”` : ""}.`;
+    }
+    case "voting":
+    case "tiebreaker_voting": {
+      const trackNames = currentRound
+        ? ` “${currentRound.artistATrack.title}” vs “${currentRound.artistBTrack.title}”`
+        : "";
+      return `${roundLabel} is open.${trackNames} Vote for the track that takes the round.`;
+    }
+    case "round_result": {
+      if (votesA === votesB) {
+        return `${roundLabel} is tied at ${votesA}–${votesB}.`;
+      }
+
+      const winner = votesA > votesB ? artistA : artistB,
+        winningTrack = votesA > votesB
+          ? currentRound?.artistATrack
+          : currentRound?.artistBTrack;
+      return `${roundLabel} goes to ${winner?.name ?? "the winning artist"}${winningTrack ? ` with “${winningTrack.title}”` : ""}, ${votesA}–${votesB}.`;
+    }
+    case "between_rounds": {
+      return `Round ${Math.max(1, roundNumber - 1)} is complete. The audience is resetting for Round ${roundNumber}.`;
+    }
+    case "battle_result": {
+      const artistAWins = battle.rounds.filter(
+          (round) => round.winnerArtistId === artistA?.id
+        ).length,
+        artistBWins = battle.rounds.filter(
+          (round) => round.winnerArtistId === artistB?.id
+        ).length,
+        winner = artists.find(
+          (artist) => artist.id === coordination?.winnerUserId
+        );
+
+      return winner
+        ? `Battle complete: ${winner.name} wins ${artistAWins}–${artistBWins}.`
+        : `Battle complete: the match ends in a tie at ${artistAWins}–${artistBWins}.`;
+    }
+    case "ended": {
+      const outcomeMessage = battleOutcomeMessage(room);
+      if (outcomeMessage) {
+        const lastMessage = room.chat.at(-1);
+        return lastMessage?.userId === BATTLE_BOT_USER_ID &&
+          lastMessage.message === outcomeMessage
+          ? null
+          : outcomeMessage;
+      }
+
+      return null;
+    }
+    default: {
+      return null;
+    }
+  }
+};
 
 export class LiveRoomDurableObject extends DurableObject {
   private roomState: LiveRoomState | null = null;
@@ -622,8 +701,8 @@ export class LiveRoomDurableObject extends DurableObject {
     const announcedRoom = await this.appendBotChatMessage(
       nextRoom,
       ready
-        ? `BattleBot: ${artistName} is ready. ${readyUserIds.size}/2 artists are ready.`
-        : `BattleBot: ${artistName} is no longer marked ready.`
+        ? `${artistName} is ready. ${readyUserIds.size}/2 artists are ready.`
+        : `${artistName} is no longer marked ready.`
     );
     const bothReady = battleArtistsAreReady(
       room.battle,
@@ -738,21 +817,11 @@ export class LiveRoomDurableObject extends DurableObject {
       },
       status: "ended",
     };
-    const affectedArtist = room.battle.artists.find(
-        (artist) => artist.id === disposition.affectedUserId
-      ),
-      outcomeLabel =
-        disposition.kind === "ducked"
-          ? `${affectedArtist?.name ?? "The opponent"} ducked the battle.`
-          : disposition.kind === "forfeited"
-            ? `${affectedArtist?.name ?? "An artist"} forfeited the battle.`
-            : disposition.kind === "quit"
-              ? `${affectedArtist?.name ?? "An artist"} quit the battle.`
-              : "BattleBot canceled the battle before ratings were recorded.";
     await this.persist(nextRoom);
     const announcedRoom = await this.appendBotChatMessage(
       nextRoom,
-      `BattleBot: ${outcomeLabel} The room is now closed. No new turns, votes, or lineup changes are available.`
+      battleOutcomeMessage(nextRoom) ??
+        "The battle ended. The room is now closed. No new turns, votes, or lineup changes are available."
     );
     await this.broadcastStateChange(room, announcedRoom);
     return this.publicState(announcedRoom, identity);
@@ -815,14 +884,14 @@ export class LiveRoomDurableObject extends DurableObject {
 
     const message =
       action === "open_lobby"
-        ? "BattleBot opened the battle lobby."
+        ? "The battle lobby is open."
         : action === "move_lobby_to_round" || action === "start_battle"
-          ? "BattleBot started the next round and assigned the stage."
+          ? "The next round is being staged."
           : action === "close_voting"
-            ? "BattleBot closed voting and is calculating the result."
+            ? "Voting is closed. The round result is being calculated."
             : action === "complete_round"
-              ? "BattleBot completed the round and is preparing the next transition."
-              : "BattleBot recorded the audience vote snapshot.";
+              ? "The round is complete. The next transition is being prepared."
+              : "The audience vote snapshot is recorded.";
     const nextRoom = await this.appendBotChatMessage(room, message);
     return this.publicState(nextRoom);
   }
@@ -944,9 +1013,12 @@ export class LiveRoomDurableObject extends DurableObject {
     const artistName =
         room.battle.artists.find((entry) => entry.id === identity.userId)
           ?.name ?? "An artist",
+      selectedTrack = room.battle.rounds
+        .flatMap((round) => [round.artistATrack, round.artistBTrack])
+        .find((track) => track.id === trackId),
       announcedRoom = await this.appendBotChatMessage(
         nextRoom,
-        `BattleBot: ${artistName} selected the next track from their locked Battle Kit.`
+        `${artistName} selected “${selectedTrack?.title ?? "a track"}” from their locked Battle Kit.`
       );
     this.broadcastToUser(identity.userId, {
       trackId,
@@ -1602,22 +1674,13 @@ export class LiveRoomDurableObject extends DurableObject {
       };
 
     await this.persist(nextRoom);
-    const announcedRoom = await this.appendBotChatMessage(
-      nextRoom,
-      `BattleBot recorded a vote for ${artist.name}. ${Object.values(
-        nextRounds.find((entry) => entry.id === round.id)?.voteTotals ?? {}
-      ).reduce(
-        (sum, votes) => sum + votes,
-        0
-      )} votes have been cast in this round.`
-    );
     this.broadcast({
       roundId: round.id,
       type: "battle.vote_cast",
       voteTotals: nextRounds.find((entry) => entry.id === round.id)?.voteTotals,
     });
     return {
-      body: { room: this.publicState(announcedRoom, identity) },
+      body: { room: this.publicState(nextRoom, identity) },
       status: 200,
     };
   }

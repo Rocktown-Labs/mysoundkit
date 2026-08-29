@@ -16,6 +16,7 @@ import {
   Mic,
   MicOff,
   Minimize,
+  Play,
   Radio,
   RefreshCw,
   Share2,
@@ -1435,20 +1436,43 @@ export function BattlePage({
 
   const [artistA, artistB] = battle.artists;
 
-  if (isBattleEnded && !currentRound) {
+  if (isBattleEnded) {
+    const replayIsReady =
+      battle.replayStatus === "available" && Boolean(battle.replayVideoId),
+      endedBeforeFirstTurn = battle.hasPlayedTurn === false;
+
     return (
       <LiveRoomAccessGuard allowPublic roomTitle={room.title}>
         <div className="flex min-h-[50vh] items-center justify-center p-6">
           <Card className="max-w-lg text-center">
             <CardHeader>
-              <CardTitle>Battle ended</CardTitle>
+              <CardTitle>
+                {endedBeforeFirstTurn
+                  ? "Battle ended before the first turn"
+                  : "Battle ended"}
+              </CardTitle>
               <CardDescription>
-                This battle is closed and no longer accepts artists, votes, or
-                lineup changes. The result remains available as a read-only
-                record.
+                {endedBeforeFirstTurn
+                  ? "No result was recorded because the first turn never opened."
+                  : replayIsReady
+                    ? "The final result is locked. Watch the published replay to review every turn."
+                    : battle.replayStatus === "processing"
+                      ? "The battle had real activity. Its replay is being prepared for publication."
+                      : "The final result is locked, but no replay has been published for this battle."}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col gap-2">
+              {replayIsReady ? (
+                <Button asChild>
+                  <Link
+                    params={{ id: battle.replayVideoId ?? "" }}
+                    to="/videos/$id"
+                  >
+                    <Play aria-hidden="true" data-icon="inline-start" />
+                    Watch Replay
+                  </Link>
+                </Button>
+              ) : null}
               <Button asChild variant="outline">
                 <Link
                   search={{
@@ -1459,7 +1483,7 @@ export function BattlePage({
                   }}
                   to="/live/battles"
                 >
-                  Browse battle results
+                  Browse recent replays
                 </Link>
               </Button>
             </CardContent>
@@ -1903,7 +1927,7 @@ export function BattlePage({
           </div>
         </div>
 
-        {!isBattleEnded && (
+        {!isBattleEnded && phase !== "round_intro" && (
           <BattleMediaStage
             activeArtistUserId={battle.coordination?.activeArtistUserId}
             artists={battle.artists}

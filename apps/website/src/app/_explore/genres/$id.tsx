@@ -125,6 +125,7 @@ function GenreBattleCard({
         currentRound={battle.round?.current ?? 1}
         format={battle.format}
         genre={battle.genre}
+        hasPlayedTurn={battle.hasPlayedTurn}
         id={battle.id}
         isLive={battle.status === "live"}
         isPremiumUser={isPremiumUser}
@@ -133,6 +134,8 @@ function GenreBattleCard({
         participants={battle.participants}
         phaseEndsAt={battle.phaseEndsAt}
         queueSize={battle.queueSize}
+        replayStatus={battle.replayStatus}
+        replayVideoId={battle.replayVideoId}
         startsAt={battle.startsAt}
         status={battle.status}
         title={battle.title}
@@ -189,7 +192,7 @@ function GenreBattleRail({
 }
 
 function useGenreBattles(genreValue: string) {
-  const { data: battles = [] } = useBattlesQuery(),
+  const { data: battles = [] } = useBattlesQuery({ scope: "public" }),
     entitlementsQuery = useMeEntitlementsQuery(),
     isPremiumUser = Boolean(
       entitlementsQuery.data?.isPremium ||

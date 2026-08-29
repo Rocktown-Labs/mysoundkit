@@ -105,8 +105,11 @@ export interface LiveRoomState {
     waitingRoomCount?: number;
     coordination?: BattleCoordination;
     currentRoundId: string;
+    hasPlayedTurn?: boolean;
     outcome?: BattleOutcome;
     phase?: BattlePhase;
+    replayStatus?: "available" | "none" | "processing";
+    replayVideoId?: string | null;
     rounds: LiveBattleRound[];
     tiePolicy: string;
   };

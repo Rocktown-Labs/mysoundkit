@@ -323,6 +323,12 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { exact: true, name: "Electronic" })
     ).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Recent Replays" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Watch Replay" }).first()
+    ).toHaveAttribute("href", "/videos/video_battle_replay");
     const battleEntryLink = page
       .locator('a[href="/live/battles/battle_west_coast_showdown"]')
       .filter({ hasText: /watch live|join waiting room/i })
@@ -338,6 +344,13 @@ test.describe("main application surfaces", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /vote dj nova/i })
+    ).toBeVisible();
+    await gotoWithViteRetry(page, "/live/battles/battle-completed-result");
+    await expect(
+      page.getByText("Battle ended before the first turn", { exact: true })
+    ).toBeVisible();
+    await expect(
+      page.getByText("No result was recorded because the first turn never opened.")
     ).toBeVisible();
     await gotoWithViteRetry(
       page,
@@ -1087,14 +1100,10 @@ test.describe("main application surfaces", () => {
 
     await gotoWithViteRetry(page, "/live/battles/battle-completed-result");
     await expect(
-      page.getByRole("heading", { name: "Completed Artist Battle" })
+      page.getByText("Battle ended before the first turn", { exact: true })
     ).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText("Read-only result")).toBeVisible();
-    await expect(page.getByText("Battle ended in a tie")).toBeVisible();
     await expect(
-      page.getByText(
-        "BattleBot: The battle is complete. The final result is locked, and this room is now read-only."
-      )
+      page.getByText("No result was recorded because the first turn never opened.")
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /choose next/i })
@@ -1122,8 +1131,11 @@ test.describe("main application surfaces", () => {
     ).toHaveCount(0);
 
     await gotoWithViteRetry(page, "/live/battles");
-    await expect(page.getByText("Recent Results")).toBeVisible();
-    await expect(page.getByText("Completed Artist Battle")).toBeVisible();
+    await expect(page.getByText("Recent Replays")).toBeVisible();
+    await expect(
+      page.getByText("Completed Artist Battle", { exact: true })
+    ).toHaveCount(0);
+    await expect(page.getByText("DJ Nova vs MC Rhythm")).toBeVisible();
 
     await gotoWithViteRetry(
       page,

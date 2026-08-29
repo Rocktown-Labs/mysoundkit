@@ -5,6 +5,7 @@ import type { WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 
 import {
+  canPublishBattleReplay,
   loadLiveExperienceById,
   publishExperienceRecordingAsVideo,
 } from "@/lib/live-experience-events";
@@ -32,9 +33,29 @@ export class LiveRecordingWorkflow extends WorkflowEntrypoint<
         throw new Error("Live experience no longer exists.");
       }
 
+      if (
+        experience.kind === "battle" &&
+        experience.battleId &&
+        !(await canPublishBattleReplay({
+          battleId: experience.battleId,
+          startedAt: experience.startedAt,
+        }))
+      ) {
+        return {
+          experienceId: experience.id,
+          skipped: "battle_did_not_reach_a_turn",
+        };
+      }
+
+      const recordingUrl =
+        experience.recordingUrl ?? event.payload.recordingUrl;
+      if (!recordingUrl) {
+        throw new Error("Recording URL is not available.");
+      }
+
       const videoId = await publishExperienceRecordingAsVideo({
         experience,
-        recordingUrl: event.payload.recordingUrl,
+        recordingUrl,
       });
       if (!videoId) {
         throw new Error("Live replay publication failed.");

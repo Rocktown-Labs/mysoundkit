@@ -217,6 +217,9 @@ const normalizeGenre = (value) =>
                 verified: false,
               },
             ],
+            hasPlayedTurn: isBattle && !isWaitingArtistBattle && !isEndedBattle,
+            replayStatus: "none",
+            replayVideoId: null,
             coordination: isWaitingArtistBattle
               ? {
                   battleId: roomId,
@@ -265,10 +268,10 @@ const normalizeGenre = (value) =>
               {
                 id: `${roomId}-bot-chat-1`,
                 message: isWaitingArtistBattle
-                  ? "BattleBot: both artists are preparing the stage."
+                  ? "The lobby is open. Waiting for both artists to prepare the stage."
                   : isEndedBattle
-                    ? "BattleBot: The battle is complete. The final result is locked, and this room is now read-only."
-                    : "BattleBot: the next round is ready.",
+                    ? "The battle ended before the first turn. No result was recorded. The room is now read-only."
+                    : "The next round is ready.",
                 sentAt: "2026-05-26T11:59:00.000Z",
                 userId: "soundkit-battlebot",
                 userName: "BattleBot",
@@ -530,6 +533,23 @@ const normalizeGenre = (value) =>
       viewCount: "42K",
     },
     {
+      creatorName: "Battle Replay Bot",
+      creatorUsername: "soundkit-battlebot",
+      duration: "12:48",
+      externalPlaybackUrl: "/media/live-recordings/battle-replayed/recording.mp4",
+      genre: "Hip-Hop",
+      id: "video_battle_replay",
+      muxPlaybackId: null,
+      playbackPolicy: "public",
+      sourceProvider: "external",
+      status: "ready",
+      thumbnailUrl: "/music-battle-video-thumbnail.jpg",
+      title: "DJ Nova vs MC Rhythm — Battle Replay",
+      verifiedOnPlatform: true,
+      videoKind: "battle_replay",
+      viewCount: "0",
+    },
+    {
       creatorName: "CG Stewart",
       creatorUsername: "cgstewart",
       duration: "0:00",
@@ -586,9 +606,13 @@ const normalizeGenre = (value) =>
   },
   mockBattles = [
     {
+      endedAt: "2026-08-29T10:30:00.000Z",
       format: "best_of_3",
       genre: "Hip-Hop",
+      hasPlayedTurn: false,
       id: "battle-completed-result",
+      replayStatus: "none",
+      replayVideoId: null,
       isFeatured: false,
       joinMode: "watch_now",
       participants: [
@@ -620,9 +644,48 @@ const normalizeGenre = (value) =>
       visibility: "public",
     },
     {
+      endedAt: "2026-08-29T12:30:00.000Z",
+      format: "best_of_3",
+      genre: "Hip-Hop",
+      hasPlayedTurn: true,
+      id: "battle-replayed",
+      isFeatured: false,
+      joinMode: "watch_now",
+      participants: [
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "mock-artist-dj-nova",
+          name: "DJ Nova",
+          username: "dj-nova",
+        },
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "mock-artist-mc-rhythm",
+          name: "MC Rhythm",
+          username: "mc-rhythm",
+        },
+      ],
+      queueSize: 0,
+      replayStatus: "available",
+      replayVideoId: "video_battle_replay",
+      round: {
+        current: 3,
+        id: "round-3",
+        isVoting: false,
+        status: "completed",
+        total: 3,
+      },
+      status: "completed",
+      title: "DJ Nova vs MC Rhythm",
+      tracks: [],
+      viewerCount: 0,
+      visibility: "public",
+    },
+    {
       featuredRank: 1,
       format: "best_of_5",
       genre: "Hip-Hop",
+      hasPlayedTurn: true,
       id: "battle_west_coast_showdown",
       isFeatured: true,
       joinMode: "waiting_room",
@@ -673,7 +736,10 @@ const normalizeGenre = (value) =>
     {
       format: "best_of_3",
       genre: "Hip-Hop",
+      hasPlayedTurn: false,
       id: "battle-waiting-artist",
+      replayStatus: "none",
+      replayVideoId: null,
       isFeatured: false,
       joinMode: "waiting_room",
       participants: [
@@ -702,7 +768,10 @@ const normalizeGenre = (value) =>
     {
       format: "best_of_3",
       genre: "Hip-Hop",
+      hasPlayedTurn: false,
       id: "battle_upcoming_duel",
+      replayStatus: "none",
+      replayVideoId: null,
       isFeatured: false,
       joinMode: "watch_now",
       participants: [
@@ -2240,7 +2309,19 @@ export const createMockApiServer = async ({
     }
 
     if (url.pathname === "/v1/battles" || url.pathname === "/v1/battles/") {
-      json(response, 200, getMockBattles(request), webOrigin);
+      const battles = getMockBattles(request),
+        visibleBattles =
+          url.searchParams.get("scope") === "public"
+            ? battles.filter(
+                (battle) =>
+                  battle.status === "live" ||
+                  battle.status === "scheduled" ||
+                  (battle.hasPlayedTurn &&
+                    battle.replayStatus === "available" &&
+                    battle.replayVideoId)
+              )
+            : battles;
+      json(response, 200, visibleBattles, webOrigin);
       return;
     }
 
