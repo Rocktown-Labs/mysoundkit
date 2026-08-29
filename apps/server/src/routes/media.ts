@@ -153,7 +153,13 @@ app.get("/*", async (c) => {
 
     if (!authorized) {
       const [projectRow] = await db
-        .select({ asset: projectAssets, project: projects })
+        .select({
+          asset: {
+            assetKind: projectAssets.assetKind,
+            objectKey: projectAssets.objectKey,
+          },
+          project: projects,
+        })
         .from(projectAssets)
         .innerJoin(projects, eq(projects.id, projectAssets.projectId))
         .where(eq(projectAssets.objectKey, objectKey))

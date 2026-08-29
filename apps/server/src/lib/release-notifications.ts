@@ -75,7 +75,6 @@ export const getProjectReleaseReadiness = async ({
         and(
           eq(projectAssets.projectId, projectId),
           eq(projectAssets.assetKind, "cover_art"),
-          eq(projectAssets.isCurrent, true),
           inArray(projectAssets.status, ["uploaded", "ready"]),
           isNotNull(projectAssets.objectKey)
         )

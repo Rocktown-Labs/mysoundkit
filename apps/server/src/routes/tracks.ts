@@ -7,10 +7,8 @@ import {
   genres,
   openVerseListings,
   playbackSessions,
-  projectAssets,
   projectCollaborators,
   projectTracks,
-  projects,
   purchases,
   qualifiedStreams,
   trackAssets,
@@ -31,7 +29,6 @@ import {
   eq,
   gt,
   ilike,
-  inArray,
   isNull,
   ne,
   or,
@@ -49,6 +46,7 @@ import {
 import {
   buildTrackDetail,
   buildTrackSummary,
+  findPublicProjectCoverForTrack,
   ownedTrackWhere,
 } from "@/lib/dashboard-mappers";
 import { notifyCollaboratorInviteEmail } from "@/lib/email-events";
@@ -3819,7 +3817,7 @@ app.openapi(
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
-    const [roleRows, assetRows, licenseRows, creditRows, projectCoverRows] =
+    const [roleRows, assetRows, licenseRows, creditRows, projectCover] =
         await Promise.all([
           db
             .select({ role: artistProfileRoles.role })
@@ -3855,27 +3853,7 @@ app.openapi(
                 eq(trackCollaborators.invitationStatus, "accepted")
               )
             ),
-          db
-            .select({ asset: projectAssets })
-            .from(projectTracks)
-            .innerJoin(projects, eq(projects.id, projectTracks.projectId))
-            .innerJoin(
-              projectAssets,
-              and(
-                eq(projectAssets.projectId, projectTracks.projectId),
-                eq(projectAssets.assetKind, "cover_art"),
-                eq(projectAssets.isCurrent, true),
-                inArray(projectAssets.status, ["uploaded", "ready"])
-              )
-            )
-            .where(
-              and(
-                eq(projectTracks.trackId, row.id),
-                eq(projects.isPublic, true)
-              )
-            )
-            .orderBy(sql`${projectAssets.updatedAt} desc`)
-            .limit(1),
+          findPublicProjectCoverForTrack({ db, trackId: row.id }),
         ]),
       isAuthenticated = isAuthenticatedUser(currentUser),
       entitlements = isAuthenticated
@@ -3903,8 +3881,7 @@ app.openapi(
         roleRows.length > 0
           ? roleRows.map((roleRow) => roleRow.role)
           : ["musician"],
-      coverAsset =
-        resolveTrackCoverAssetFromRows(assetRows) ?? projectCoverRows[0]?.asset,
+      coverAsset = resolveTrackCoverAssetFromRows(assetRows) ?? projectCover,
       firstAudioAsset = resolveTrackAssetFromRows({
         allowLegacyFallback: true,
         assets: assetRows,

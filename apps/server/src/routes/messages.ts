@@ -36,6 +36,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { getDatabaseSchemaCapabilities } from "@/lib/database-schema-capabilities";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import { resolveConversationUnreadCount } from "@/lib/messages-domain";
 import { notify } from "@/lib/notifications";
@@ -1588,16 +1589,19 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    await db
-      .update(collaborationProposals)
-      .set({ respondedAt: new Date(), status: "expired" })
-      .where(
-        and(
-          eq(collaborationProposals.status, "pending"),
-          lte(collaborationProposals.expiresAt, new Date())
-        )
-      );
+    const db = createDb(),
+      capabilities = await getDatabaseSchemaCapabilities(db);
+    if (capabilities.collaborationProposals) {
+      await db
+        .update(collaborationProposals)
+        .set({ respondedAt: new Date(), status: "expired" })
+        .where(
+          and(
+            eq(collaborationProposals.status, "pending"),
+            lte(collaborationProposals.expiresAt, new Date())
+          )
+        );
+    }
 
     const participantRows = await db
       .select({ userId: conversationParticipants.userId })
@@ -1705,7 +1709,7 @@ app.openapi(
               .where(inArray(messageAttachments.messageId, messageIds))
           : [],
       proposalRows =
-        messageIds.length > 0
+        capabilities.collaborationProposals && messageIds.length > 0
           ? await db
               .select()
               .from(collaborationProposals)
@@ -2019,6 +2023,10 @@ app.openapi(
         collaborationCreatedResponseSchema,
         "Collaboration created"
       ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Collaboration schema is not available"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         z.object({ message: z.string() }),
         "Authentication required"
@@ -2036,6 +2044,7 @@ app.openapi(
       body = c.req.valid("json"),
       kind = body.kind ?? "project",
       db = createDb(),
+      capabilities = await getDatabaseSchemaCapabilities(db),
       [convRow] = await db
         .select({
           conversationType: conversations.conversationType,
@@ -2050,6 +2059,16 @@ app.openapi(
 
     if (!participants.some((participant) => participant.userId === user.id)) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!capabilities.collaborationProposals) {
+      return c.json(
+        {
+          message:
+            "Collaboration is unavailable until the database migration is applied.",
+        },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
     }
 
     if (body.clientRequestId) {
@@ -2248,6 +2267,10 @@ app.openapi(
         respondCollaborationResponseSchema,
         "Collaboration status updated"
       ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Collaboration schema is not available"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         z.object({ message: z.string() }),
         "Authentication required"
@@ -2261,9 +2284,20 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
+    const db = createDb(),
+      capabilities = await getDatabaseSchemaCapabilities(db);
+    if (!capabilities.collaborationProposals) {
+      return c.json(
+        {
+          message:
+            "Collaboration is unavailable until the database migration is applied.",
+        },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
     const { collaborationId, conversationId } = c.req.valid("param"),
       { action } = c.req.valid("json"),
-      db = createDb(),
       [conversationParticipant] = await db
         .select({ userId: conversationParticipants.userId })
         .from(conversationParticipants)

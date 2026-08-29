@@ -30,6 +30,7 @@ import {
   buildProjectSummary,
   ownedProjectWhere,
 } from "@/lib/dashboard-mappers";
+import { getDatabaseSchemaCapabilities } from "@/lib/database-schema-capabilities";
 import { notifyCollaboratorInviteEmail } from "@/lib/email-events";
 import {
   isAuthenticatedSession,
@@ -1291,31 +1292,43 @@ app.openapi(
       );
     }
 
-    const [latestAsset] = await db
+    const capabilities = await getDatabaseSchemaCapabilities(db),
+      storedAssetKind =
+        body.assetKind === "beat" && !capabilities.projectAssetKinds.beat
+          ? "attachment"
+          : body.assetKind === "concept" &&
+              !capabilities.projectAssetKinds.concept
+            ? "attachment"
+            : body.assetKind,
+      now = new Date(),
+      assetId = crypto.randomUUID();
+    let version = 1;
+
+    if (capabilities.projectAssetVersioning) {
+      const [latestAsset] = await db
         .select({ version: projectAssets.version })
         .from(projectAssets)
         .where(
           and(
             eq(projectAssets.projectId, projectId),
-            eq(projectAssets.assetKind, body.assetKind)
+            eq(projectAssets.assetKind, storedAssetKind)
           )
         )
         .orderBy(desc(projectAssets.version))
-        .limit(1),
-      now = new Date(),
-      version = (latestAsset?.version ?? 0) + 1,
-      assetId = crypto.randomUUID();
+        .limit(1);
+      version = (latestAsset?.version ?? 0) + 1;
+      await db
+        .update(projectAssets)
+        .set({ isCurrent: false, updatedAt: now })
+        .where(
+          and(
+            eq(projectAssets.projectId, projectId),
+            eq(projectAssets.assetKind, storedAssetKind),
+            eq(projectAssets.isCurrent, true)
+          )
+        );
+    }
 
-    await db
-      .update(projectAssets)
-      .set({ isCurrent: false, updatedAt: now })
-      .where(
-        and(
-          eq(projectAssets.projectId, projectId),
-          eq(projectAssets.assetKind, body.assetKind),
-          eq(projectAssets.isCurrent, true)
-        )
-      );
     await claimUploadIntent({
       entityId: projectId,
       entityType: "project_asset",
@@ -1323,11 +1336,16 @@ app.openapi(
       userId: user.id,
     });
     await db.insert(projectAssets).values({
-      assetKind: body.assetKind,
+      assetKind: storedAssetKind,
       bucketName: getUploadBucketName(),
       id: assetId,
-      isCurrent: true,
-      metadata: { displayName: body.displayName },
+      metadata:
+        storedAssetKind === body.assetKind
+          ? { displayName: body.displayName }
+          : {
+              displayName: body.displayName,
+              requestedAssetKind: body.assetKind,
+            },
       mimeType: body.mimeType ?? object?.httpMetadata?.contentType ?? null,
       objectKey: body.objectKey,
       projectId,
@@ -1335,7 +1353,9 @@ app.openapi(
       status: "uploaded",
       storageProvider: "r2",
       uploaderUserId: user.id,
-      version,
+      ...(capabilities.projectAssetVersioning
+        ? { isCurrent: true, version }
+        : {}),
     });
     await completeUploadIntent({
       entityId: projectId,
@@ -1545,7 +1565,11 @@ app.openapi(
         .limit(1)
         .then((rows) => rows[0] ?? null),
       db
-        .select()
+        .select({
+          id: projectAssets.id,
+          objectKey: projectAssets.objectKey,
+          status: projectAssets.status,
+        })
         .from(projectAssets)
         .where(
           and(
@@ -1613,7 +1637,13 @@ app.openapi(
         .where(eq(projects.id, projectId))
         .limit(1),
       [asset] = await db
-        .select()
+        .select({
+          assetKind: projectAssets.assetKind,
+          id: projectAssets.id,
+          mimeType: projectAssets.mimeType,
+          objectKey: projectAssets.objectKey,
+          status: projectAssets.status,
+        })
         .from(projectAssets)
         .where(
           and(

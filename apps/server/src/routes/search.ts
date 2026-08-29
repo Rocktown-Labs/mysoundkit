@@ -264,7 +264,10 @@ app.openapi(
     const projectCoverRows =
         projectRows.length > 0
           ? await db
-              .select()
+              .select({
+                objectKey: projectAssets.objectKey,
+                projectId: projectAssets.projectId,
+              })
               .from(projectAssets)
               .where(
                 and(

@@ -2,12 +2,19 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { collaborationProposals, projects } from "@soundkit/db/schema/app";
 import { and, eq, lte } from "drizzle-orm";
 
+import { getDatabaseSchemaCapabilities } from "@/lib/database-schema-capabilities";
+
 export const runCollaborationProposalSweep = async () => {
   if (!isDatabaseConfigured()) {
     return { archivedProjects: 0, expiredProposals: 0 };
   }
 
-  const db = createDb();
+  const db = createDb(),
+    capabilities = await getDatabaseSchemaCapabilities(db);
+  if (!capabilities.collaborationProposals) {
+    return { archivedProjects: 0, expiredProposals: 0 };
+  }
+
   const now = new Date();
   const expiredProposals = await db
     .update(collaborationProposals)

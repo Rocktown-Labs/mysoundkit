@@ -173,7 +173,11 @@ export const findReusableProjectExport = async ({
   sourceAssetId: string;
 }) => {
   const [asset] = await createDb()
-    .select()
+    .select({
+      id: projectAssets.id,
+      objectKey: projectAssets.objectKey,
+      status: projectAssets.status,
+    })
     .from(projectAssets)
     .where(
       and(

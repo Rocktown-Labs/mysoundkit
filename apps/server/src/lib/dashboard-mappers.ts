@@ -24,6 +24,8 @@ import {
   publicAssetUrl,
   publicProjectAssetUrl,
 } from "@/lib/asset-urls";
+import { getDatabaseSchemaCapabilities } from "@/lib/database-schema-capabilities";
+import type { SoundKitDatabase } from "@/lib/database-schema-capabilities";
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import { regionSlugFromUser } from "@/lib/public-explore";
 import {
@@ -31,10 +33,88 @@ import {
   resolveTrackCoverAssetFromRows,
 } from "@/lib/track-asset-resolver";
 
-const mapAssetForDashboard = (
-    asset:
-      | InferSelectModel<typeof trackAssets>
-      | InferSelectModel<typeof projectAssets>
+type ProjectAssetBase = Pick<
+  InferSelectModel<typeof projectAssets>,
+  | "assetKind"
+  | "bucketName"
+  | "createdAt"
+  | "exportVersion"
+  | "id"
+  | "metadata"
+  | "mimeType"
+  | "muxAssetId"
+  | "muxPlaybackId"
+  | "muxUploadId"
+  | "objectKey"
+  | "projectId"
+  | "sizeBytes"
+  | "sourceAssetId"
+  | "status"
+  | "storageProvider"
+  | "updatedAt"
+  | "uploaderUserId"
+>;
+type ProjectAssetVersionFields = Pick<
+  InferSelectModel<typeof projectAssets>,
+  "isCurrent" | "version"
+>;
+type ProjectAssetRow = ProjectAssetBase & ProjectAssetVersionFields;
+
+const projectAssetColumns = {
+    assetKind: projectAssets.assetKind,
+    bucketName: projectAssets.bucketName,
+    createdAt: projectAssets.createdAt,
+    exportVersion: projectAssets.exportVersion,
+    id: projectAssets.id,
+    metadata: projectAssets.metadata,
+    mimeType: projectAssets.mimeType,
+    muxAssetId: projectAssets.muxAssetId,
+    muxPlaybackId: projectAssets.muxPlaybackId,
+    muxUploadId: projectAssets.muxUploadId,
+    objectKey: projectAssets.objectKey,
+    projectId: projectAssets.projectId,
+    sizeBytes: projectAssets.sizeBytes,
+    sourceAssetId: projectAssets.sourceAssetId,
+    status: projectAssets.status,
+    storageProvider: projectAssets.storageProvider,
+    updatedAt: projectAssets.updatedAt,
+    uploaderUserId: projectAssets.uploaderUserId,
+  },
+  normalizeProjectAsset = (
+    asset: ProjectAssetBase & Partial<ProjectAssetVersionFields>
+  ): ProjectAssetRow => ({
+    ...asset,
+    isCurrent: asset.isCurrent ?? true,
+    version: asset.version ?? 1,
+  }),
+  loadProjectAssets = async ({
+    db,
+    projectId,
+  }: {
+    db: SoundKitDatabase;
+    projectId: string;
+  }): Promise<ProjectAssetRow[]> => {
+    const capabilities = await getDatabaseSchemaCapabilities(db);
+    if (capabilities.projectAssetVersioning) {
+      const rows = await db
+        .select({
+          ...projectAssetColumns,
+          isCurrent: projectAssets.isCurrent,
+          version: projectAssets.version,
+        })
+        .from(projectAssets)
+        .where(eq(projectAssets.projectId, projectId));
+      return rows.map(normalizeProjectAsset);
+    }
+
+    const rows = await db
+      .select(projectAssetColumns)
+      .from(projectAssets)
+      .where(eq(projectAssets.projectId, projectId));
+    return rows.map(normalizeProjectAsset);
+  },
+  mapAssetForDashboard = (
+    asset: InferSelectModel<typeof trackAssets> | ProjectAssetRow
   ) => ({
     assetKind: asset.assetKind,
     bucketName: asset.bucketName,
@@ -122,6 +202,60 @@ const mapAssetForDashboard = (
     }
     return "not_started";
   };
+
+export const findPublicProjectCoverForTrack = async ({
+  db,
+  trackId,
+}: {
+  db: SoundKitDatabase;
+  trackId: string;
+}): Promise<ProjectAssetRow | null> => {
+  const capabilities = await getDatabaseSchemaCapabilities(db);
+  if (capabilities.projectAssetVersioning) {
+    const rows = await db
+      .select({
+        asset: {
+          ...projectAssetColumns,
+          isCurrent: projectAssets.isCurrent,
+          version: projectAssets.version,
+        },
+      })
+      .from(projectTracks)
+      .innerJoin(projects, eq(projects.id, projectTracks.projectId))
+      .innerJoin(
+        projectAssets,
+        and(
+          eq(projectAssets.projectId, projectTracks.projectId),
+          eq(projectAssets.assetKind, "cover_art"),
+          eq(projectAssets.isCurrent, true),
+          inArray(projectAssets.status, ["uploaded", "ready"])
+        )
+      )
+      .where(
+        and(eq(projectTracks.trackId, trackId), eq(projects.isPublic, true))
+      )
+      .orderBy(sql`${projectAssets.updatedAt} desc`)
+      .limit(1);
+    return rows[0] ? normalizeProjectAsset(rows[0].asset) : null;
+  }
+
+  const rows = await db
+    .select({ asset: projectAssetColumns })
+    .from(projectTracks)
+    .innerJoin(projects, eq(projects.id, projectTracks.projectId))
+    .innerJoin(
+      projectAssets,
+      and(
+        eq(projectAssets.projectId, projectTracks.projectId),
+        eq(projectAssets.assetKind, "cover_art"),
+        inArray(projectAssets.status, ["uploaded", "ready"])
+      )
+    )
+    .where(and(eq(projectTracks.trackId, trackId), eq(projects.isPublic, true)))
+    .orderBy(sql`${projectAssets.updatedAt} desc`)
+    .limit(1);
+  return rows[0] ? normalizeProjectAsset(rows[0].asset) : null;
+};
 
 export const mapTrackSummary = ({
   artistName,
@@ -276,7 +410,7 @@ export const buildTrackSummary = async (
           .where(eq(genres.id, row.genreId))
           .limit(1)
       : [],
-    [assetRows, collaboratorRows, playCountRow, publicProjectCoverRows] =
+    [assetRows, collaboratorRows, playCountRow, publicProjectCover] =
       await Promise.all([
         db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
         db
@@ -289,24 +423,7 @@ export const buildTrackSummary = async (
               .from(playbackSessions)
               .where(eq(playbackSessions.trackId, row.id))
           : Promise.resolve([]),
-        db
-          .select({ asset: projectAssets })
-          .from(projectTracks)
-          .innerJoin(projects, eq(projects.id, projectTracks.projectId))
-          .innerJoin(
-            projectAssets,
-            and(
-              eq(projectAssets.projectId, projectTracks.projectId),
-              eq(projectAssets.assetKind, "cover_art"),
-              eq(projectAssets.isCurrent, true),
-              inArray(projectAssets.status, ["uploaded", "ready"])
-            )
-          )
-          .where(
-            and(eq(projectTracks.trackId, row.id), eq(projects.isPublic, true))
-          )
-          .orderBy(sql`${projectAssets.updatedAt} desc`)
-          .limit(1),
+        findPublicProjectCoverForTrack({ db, trackId: row.id }),
       ]),
     actualPlays =
       playCountOverride === undefined
@@ -324,9 +441,8 @@ export const buildTrackSummary = async (
     row,
   });
 
-  const projectCover = publicProjectCoverRows[0]?.asset;
-  return projectCover
-    ? { ...summary, coverArtUrl: publicAssetUrl(projectCover) }
+  return publicProjectCover
+    ? { ...summary, coverArtUrl: publicAssetUrl(publicProjectCover) }
     : summary;
 };
 
@@ -420,10 +536,7 @@ export const buildProjectSummary = async (
         .leftJoin(tracks, eq(tracks.id, projectTracks.trackId))
         .leftJoin(genres, eq(genres.id, tracks.genreId))
         .where(eq(projectTracks.projectId, row.id)),
-      db
-        .select()
-        .from(projectAssets)
-        .where(eq(projectAssets.projectId, row.id)),
+      loadProjectAssets({ db, projectId: row.id }),
       db
         .select({ id: projectCollaborators.id })
         .from(projectCollaborators)
@@ -532,10 +645,7 @@ export const buildProjectDetail = async (
   const db = createDb(),
     [summary, assetRows, collaboratorRows, trackRows] = await Promise.all([
       buildProjectSummary(row),
-      db
-        .select()
-        .from(projectAssets)
-        .where(eq(projectAssets.projectId, row.id)),
+      loadProjectAssets({ db, projectId: row.id }),
       db
         .select({
           avatarUrl: userProfiles.avatarUrl,
