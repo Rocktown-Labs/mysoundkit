@@ -62,6 +62,7 @@
 ### Fixed
 
 - Fixed PR previews against the shared pre-migration database: project and track reads no longer require versioning columns, project media reads use compatible projections, metadata detection fails closed to the legacy schema, and message polling remains healthy when collaboration tables are not installed yet.
+- Fixed the battle waiting-room smoke fixture to match the production BattleBot lifecycle message after the replay status update.
 - Fixed shared project uploads so only selected masters create ordered tracks and enter media processing/stem splitting; workspace assets remain unprocessed and private until used.
 - Fixed dashboard messaging to poll authoritative conversations and messages, preserve the active conversation across floating/full-page navigation, show actionable retry states, and reconcile optimistic sends and read state through one TanStack DB surface.
 - Fixed TanStack DB auth-scope cleanup by waiting for live-query subscribers to detach before cleaning collections, preventing live queries from referencing manually cleaned notification sources.

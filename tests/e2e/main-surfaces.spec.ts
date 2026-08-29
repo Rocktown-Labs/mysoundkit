@@ -1307,7 +1307,7 @@ test.describe("main application surfaces", () => {
       page.getByText("BOT", { exact: true }).locator("svg")
     ).toHaveCount(0);
     const botMessage = page.getByText(
-      "BattleBot: both artists are preparing the stage.",
+      "The lobby is open. Waiting for both artists to check in and lock their Battle Kits.",
       { exact: true }
     );
     await expect(botMessage).toHaveClass(/text-white/);

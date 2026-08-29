@@ -268,7 +268,7 @@ const normalizeGenre = (value) =>
               {
                 id: `${roomId}-bot-chat-1`,
                 message: isWaitingArtistBattle
-                  ? "The lobby is open. Waiting for both artists to prepare the stage."
+                  ? "The lobby is open. Waiting for both artists to check in and lock their Battle Kits."
                   : isEndedBattle
                     ? "The battle ended before the first turn. No result was recorded. The room is now read-only."
                     : "The next round is ready.",
