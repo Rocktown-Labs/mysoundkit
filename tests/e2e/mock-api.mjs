@@ -91,7 +91,8 @@ const normalizeGenre = (value) =>
     const isBattle = roomId.includes("battle"),
       isStream = roomId.includes("stream"),
       isParty = !isBattle && !isStream,
-      isWaitingArtistBattle = roomId === "battle-waiting-artist";
+      isWaitingArtistBattle = roomId === "battle-waiting-artist",
+      isEndedBattle = roomId === "battle-completed-result";
     let kind = "party",
       title = "Single Album Spotlight";
 
@@ -99,7 +100,9 @@ const normalizeGenre = (value) =>
       kind = "battle";
       title = isWaitingArtistBattle
         ? "Artist Battle Waiting Room"
-        : "Artist Battle - Hip-Hop";
+        : isEndedBattle
+          ? "Completed Artist Battle"
+          : "Artist Battle - Hip-Hop";
     } else if (isStream) {
       kind = "stream";
       title = "Beat Making From The First Drum Hit";
@@ -146,12 +149,16 @@ const normalizeGenre = (value) =>
               {
                 avatarUrl: "/soundkit-default-avatar.svg",
                 id:
-                  isWaitingArtistBattle || session === "participant"
+                  isWaitingArtistBattle ||
+                  isEndedBattle ||
+                  session === "participant"
                     ? "user_complete"
                     : "artist-dj-nova",
                 isMuted: false,
                 name:
-                  isWaitingArtistBattle || session === "participant"
+                  isWaitingArtistBattle ||
+                  isEndedBattle ||
+                  session === "participant"
                     ? "Complete Artist"
                     : "DJ Nova",
                 rank: 1,
@@ -179,7 +186,18 @@ const normalizeGenre = (value) =>
                   phaseStartedAt: Date.now(),
                   roundNumber: 0,
                 }
-              : undefined,
+              : isEndedBattle
+                ? {
+                    activeArtistUserId: null,
+                    battleId: roomId,
+                    format: "best_of_3",
+                    phase: "ended",
+                    phaseEndsAt: null,
+                    phaseStartedAt: Date.now(),
+                    roundNumber: 1,
+                    winnerUserId: null,
+                  }
+                : undefined,
             currentRoundId: isWaitingArtistBattle ? "" : "round-1",
             rounds: isWaitingArtistBattle ? [] : [
               {
@@ -193,7 +211,7 @@ const normalizeGenre = (value) =>
                 id: "round-1",
                 isTiebreaker: false,
                 number: 1,
-                status: "voting",
+                status: isEndedBattle ? "complete" : "voting",
                 voteTotals: { "artist-dj-nova": 12, "artist-mc-rhythm": 10 },
                 winnerArtistId: null,
               },
@@ -208,7 +226,9 @@ const normalizeGenre = (value) =>
                 id: `${roomId}-bot-chat-1`,
                 message: isWaitingArtistBattle
                   ? "BattleBot: both artists are preparing the stage."
-                  : "BattleBot: the next round is ready.",
+                  : isEndedBattle
+                    ? "BattleBot: The battle is complete. The final result is locked, and this room is now read-only."
+                    : "BattleBot: the next round is ready.",
                 sentAt: "2026-05-26T11:59:00.000Z",
                 userId: "soundkit-battlebot",
                 userName: "BattleBot",
@@ -242,14 +262,20 @@ const normalizeGenre = (value) =>
           }
         : undefined,
       role:
-        (isWaitingArtistBattle || (isBattle && session === "participant")) &&
+        (isWaitingArtistBattle ||
+          isEndedBattle ||
+          (isBattle && session === "participant")) &&
         (session === "complete" || session === "participant")
           ? "artist_a"
           : isParty && session === "complete"
             ? "host"
             : "fan",
       serverNow: Date.now(),
-      status: isWaitingArtistBattle ? "upcoming" : "live",
+      status: isWaitingArtistBattle
+        ? "upcoming"
+        : isEndedBattle
+          ? "ended"
+          : "live",
       summary: "A live room with chat, track context, and lyrics.",
       title,
       tracklist: [track],
@@ -491,6 +517,40 @@ const normalizeGenre = (value) =>
     videos: mockVideos,
   },
   mockBattles = [
+    {
+      format: "best_of_3",
+      genre: "Hip-Hop",
+      id: "battle-completed-result",
+      isFeatured: false,
+      joinMode: "watch_now",
+      participants: [
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "user_complete",
+          name: "Complete Artist",
+          username: "complete_artist",
+        },
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "artist-mc-rhythm",
+          name: "MC Rhythm",
+          username: "mc-rhythm",
+        },
+      ],
+      queueSize: 0,
+      round: {
+        current: 1,
+        id: "round-1",
+        isVoting: false,
+        status: "completed",
+        total: 3,
+      },
+      status: "completed",
+      title: "Completed Artist Battle",
+      tracks: [],
+      viewerCount: 0,
+      visibility: "public",
+    },
     {
       featuredRank: 1,
       format: "best_of_5",
@@ -2123,6 +2183,19 @@ export const createMockApiServer = async ({
     );
 
     if (liveExperienceJoinMatch && request.method === "POST") {
+      if (liveExperienceJoinMatch[1] === "battle-completed-result") {
+        json(
+          response,
+          409,
+          {
+            message:
+              "This battle has ended. The result is available to view, but the room cannot be re-entered.",
+          },
+          webOrigin
+        );
+        return;
+      }
+
       json(
         response,
         201,

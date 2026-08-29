@@ -850,6 +850,69 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("Thanks for listening!")).toBeVisible();
   });
 
+  test("completed battles stay visible but cannot be re-entered", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/live/battles/battle-completed-result");
+    await expect(
+      page.getByRole("heading", { name: "Completed Artist Battle" })
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("Read-only result")).toBeVisible();
+    await expect(page.getByText("Battle ended in a tie")).toBeVisible();
+    await expect(
+      page.getByText(
+        "BattleBot: The battle is complete. The final result is locked, and this room is now read-only."
+      )
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /choose next/i })
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Join Queue" })).toHaveCount(
+      0
+    );
+    await expect(page.getByText("LIVE", { exact: true })).toHaveCount(0);
+
+    await gotoWithViteRetry(page, "/dashboard/live/battles");
+    await expect(page.getByText("Battle Feed & History")).toBeVisible({
+      timeout: 60_000,
+    });
+    const completedBattleRow = page
+      .getByText("Completed Artist Battle", { exact: true })
+      .locator("xpath=../../..");
+    await expect(
+      completedBattleRow.getByRole("link", { name: "View Result" })
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(
+      completedBattleRow.getByRole("link", { name: "Enter Artist Room" })
+    ).toHaveCount(0);
+    await expect(
+      completedBattleRow.getByRole("button", { name: /forfeit|cancel/i })
+    ).toHaveCount(0);
+
+    await gotoWithViteRetry(page, "/live/battles");
+    await expect(page.getByText("Recent Results")).toBeVisible();
+    await expect(page.getByText("Completed Artist Battle")).toBeVisible();
+
+    await gotoWithViteRetry(
+      page,
+      "/dashboard/live/battles/join/battle-completed-result/artistview"
+    );
+    await expect(page).toHaveURL(/\/live\/battles\/battle-completed-result$/);
+  });
+  });
+
   test("assigned artists are notified and routed to their live battle room", async ({
     context,
     page,

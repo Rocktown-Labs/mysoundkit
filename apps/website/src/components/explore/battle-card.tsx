@@ -1,6 +1,6 @@
 /* eslint-disable one-var, complexity, no-nested-ternary, unicorn/no-nested-ternary */
 import { Link } from "@tanstack/react-router";
-import { CalendarClock, Clock, Lock, Users } from "lucide-react";
+import { CalendarClock, Clock, Lock, Trophy, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
@@ -143,6 +143,8 @@ export function BattleCard({
 }: BattleCardProps) {
   const battleIsLive = isLive || live,
     battleStatus = status ?? (battleIsLive ? "live" : "scheduled"),
+    battleIsComplete =
+      battleStatus === "archived" || battleStatus === "completed",
     canWatchNow = battleIsLive && joinMode === "watch_now",
     resolvedTotalRounds = format
       ? Number(format.replace("best_of_", ""))
@@ -213,9 +215,11 @@ export function BattleCard({
             >
               {battleIsLive
                 ? "Live"
-                : battleStatus === "scheduled"
-                  ? "Upcoming"
-                  : battleStatus}
+                : battleIsComplete
+                  ? "Completed"
+                  : battleStatus === "scheduled"
+                    ? "Upcoming"
+                    : battleStatus}
             </Badge>
             <Badge variant="secondary">{genre}</Badge>
             <Badge variant="outline">{resolvedFormat}</Badge>
@@ -244,10 +248,16 @@ export function BattleCard({
             <span className="flex shrink-0 items-center gap-1 tabular-nums">
               {battleIsLive ? (
                 <Clock aria-hidden="true" className="size-3" />
+              ) : battleIsComplete ? (
+                <Trophy aria-hidden="true" className="size-3" />
               ) : (
                 <CalendarClock aria-hidden="true" className="size-3" />
               )}
-              {battleIsLive ? liveTimeLabel : (views ?? timeLabel)}
+              {battleIsLive
+                ? liveTimeLabel
+                : battleIsComplete
+                  ? "Final result"
+                  : (views ?? timeLabel)}
             </span>
           </div>
           <Progress

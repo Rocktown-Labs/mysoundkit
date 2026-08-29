@@ -1,6 +1,6 @@
 /* eslint-disable one-var, sort-vars, require-unicode-regexp, no-nested-ternary, unicorn/no-nested-ternary */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarClock, Zap } from "lucide-react";
+import { CalendarClock, Trophy, Zap } from "lucide-react";
 
 import { BattleCard } from "@/components/explore/battle-card";
 import {
@@ -123,6 +123,7 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
   }
 
   const isLive = item.status === "live",
+    isCompleted = item.status === "completed" || item.status === "archived",
     posterImage =
       item.kind === "battle"
         ? "/music-battle-video-thumbnail.jpg"
@@ -133,7 +134,7 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
     tags = [
       item.genre,
       categoryLabel.toLowerCase(),
-      isLive ? "live" : "upcoming",
+      isLive ? "live" : isCompleted ? "completed" : "upcoming",
     ].filter(Boolean) as string[];
 
   return (
@@ -162,8 +163,12 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
               </div>
             ) : (
               <div className="flex items-center gap-1 rounded-[4px] bg-black/75 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">
-                <CalendarClock className="size-3 text-primary" />
-                Upcoming
+                {isCompleted ? (
+                  <Trophy className="size-3 text-primary" />
+                ) : (
+                  <CalendarClock className="size-3 text-primary" />
+                )}
+                {isCompleted ? "Completed" : "Upcoming"}
               </div>
             )}
           </div>
@@ -173,6 +178,10 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
             {isLive ? (
               <div className="rounded-[4px] bg-black/70 px-1.5 py-0.5 text-xs font-semibold text-white backdrop-blur">
                 {formatLiveHubViewers(item.viewerCount)} viewers
+              </div>
+            ) : isCompleted ? (
+              <div className="rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">
+                Final result
               </div>
             ) : item.startsAt ? (
               <div className="flex items-center gap-1 rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">
@@ -218,21 +227,17 @@ function LiveHubPage() {
     sort = search.sort ?? "starts-asc",
     status = search.status ?? "all",
     view = search.view ?? "sections",
-    battleItems: LiveHubItem[] = (battlesQuery.data ?? [])
-      .filter(
-        (battle) => battle.status === "live" || battle.status === "scheduled"
-      )
-      .map((battle) => ({
-        battle,
-        genre: battle.genre,
-        href: "/live/battles/$id",
-        id: battle.id,
-        kind: "battle" as const,
-        startsAt: battle.startsAt ?? null,
-        status: battle.status,
-        title: battle.title,
-        viewerCount: battle.viewerCount,
-      })),
+    battleItems: LiveHubItem[] = (battlesQuery.data ?? []).map((battle) => ({
+      battle,
+      genre: battle.genre,
+      href: "/live/battles/$id",
+      id: battle.id,
+      kind: "battle" as const,
+      startsAt: battle.startsAt ?? null,
+      status: battle.status,
+      title: battle.title,
+      viewerCount: battle.viewerCount,
+    })),
     partyItems: LiveHubItem[] = (partiesQuery.data ?? []).map((party) => ({
       genre: party.genre ?? null,
       href: "/live/parties/$id",
@@ -332,6 +337,19 @@ function LiveHubPage() {
             layout="landscape"
             onViewAll={() => openCollection({ status: "scheduled" })}
             title="Upcoming"
+          >
+            {(item) => <LiveHubCard item={item} />}
+          </ExploreCollectionSection>
+          <ExploreCollectionSection
+            empty="No completed battle results yet."
+            hideWhenEmpty
+            items={allItems.filter(
+              (item) =>
+                item.kind === "battle" &&
+                (item.status === "completed" || item.status === "archived")
+            )}
+            layout="landscape"
+            title="Recent Battle Results"
           >
             {(item) => <LiveHubCard item={item} />}
           </ExploreCollectionSection>

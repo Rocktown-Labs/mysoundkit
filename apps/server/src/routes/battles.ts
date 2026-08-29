@@ -26,7 +26,6 @@ import {
   inArray,
   isNull,
   lte,
-  ne,
   or,
   sql,
 } from "drizzle-orm";
@@ -399,7 +398,6 @@ app.openapi(
         .leftJoin(genres, eq(genres.id, battles.genreId))
         .where(
           and(
-            ne(battles.status, "archived"),
             regionCondition
               ? sql`exists (
                 select 1 from ${userProfiles}

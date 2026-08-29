@@ -74,6 +74,7 @@ import type { BattleMediaDeviceSelection } from "@/lib/battle-media-selection";
 import {
   readBattleMediaDeviceSelection,
   rememberBattleMediaDeviceSelection,
+  resolveBattleMediaDeviceSelection,
 } from "@/lib/battle-media-selection";
 import {
   clearBattleReturnIntent,
@@ -97,7 +98,27 @@ function PublicBattlePage() {
   return <BattlePage roomId={id} />;
 }
 
-const voteTotal = (round: LiveBattleRound) =>
+const mediaErrorMessage = (error: unknown) => {
+    if (error instanceof Error && !(error instanceof DOMException)) {
+      return error.message;
+    }
+
+    const name = error instanceof DOMException ? error.name : "";
+    if (name === "NotAllowedError" || name === "SecurityError") {
+      return "Camera or microphone access is blocked. Allow both devices in your browser site settings, then try again.";
+    }
+    if (name === "NotFoundError") {
+      return "No camera or microphone was found. Connect both devices, then try again.";
+    }
+    if (name === "NotReadableError") {
+      return "Another app is using your camera or microphone. Close it, then try again.";
+    }
+    if (name === "OverconstrainedError") {
+      return "The saved device is no longer available. SoundKit reset to your browser’s default devices; try again.";
+    }
+    return "We could not access your camera or microphone. Check browser permissions and try again.";
+  },
+  voteTotal = (round: LiveBattleRound) =>
     Object.values(round.voteTotals).reduce((sum, votes) => sum + votes, 0),
   votePercent = (round: LiveBattleRound, artistId: string) => {
     const total = voteTotal(round);
@@ -393,58 +414,122 @@ function BattleDeviceSetup({
 
   const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) {
-      return;
+      return [];
     }
 
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
-    setAudioDevices(devices.filter((device) => device.kind === "audioinput"));
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
+      setAudioDevices(devices.filter((device) => device.kind === "audioinput"));
+      return devices;
+    } catch {
+      return [];
+    }
   }, []);
 
   const requestPermissions = useCallback(
     async (
       videoDeviceId = selectedVideoDeviceId,
       audioDeviceId = selectedAudioDeviceId
-    ) => {
+    ): Promise<BattleMediaDeviceSelection | null> => {
       if (!navigator.mediaDevices?.getUserMedia) {
         setError("This browser does not provide camera and microphone access.");
         setMediaStatus("error");
-        return false;
+        return null;
       }
 
       setMediaStatus("requesting");
       setError(null);
       setSaved(false);
 
+      let acquiredStream: MediaStream | null = null;
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: audioDeviceId ? { deviceId: { exact: audioDeviceId } } : true,
-          video: videoDeviceId ? { deviceId: { exact: videoDeviceId } } : true,
-        });
-        setMediaStream(stream);
-        await refreshDevices();
-        const devices = await navigator.mediaDevices.enumerateDevices(),
+        const devicesBeforeRequest = await refreshDevices(),
+          availableDeviceSelection = resolveBattleMediaDeviceSelection(
+            devicesBeforeRequest,
+            {
+              audioDeviceId,
+              videoDeviceId,
+            }
+          ),
+          validVideoDeviceId =
+            availableDeviceSelection.videoDeviceId === videoDeviceId
+              ? videoDeviceId
+              : "",
+          validAudioDeviceId =
+            availableDeviceSelection.audioDeviceId === audioDeviceId
+              ? audioDeviceId
+              : "",
+          constraints = {
+            audio: validAudioDeviceId
+              ? { deviceId: { exact: validAudioDeviceId } }
+              : true,
+            video: validVideoDeviceId
+              ? { deviceId: { exact: validVideoDeviceId } }
+              : true,
+          };
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          acquiredStream = stream;
+        } catch (mediaError) {
+          const errorName =
+            mediaError instanceof DOMException ? mediaError.name : "";
+          if (
+            errorName !== "OverconstrainedError" &&
+            errorName !== "NotFoundError"
+          ) {
+            throw mediaError;
+          }
+
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: true,
+          });
+          acquiredStream = stream;
+        }
+        const devices = await refreshDevices(),
+          streamVideoDeviceId =
+            stream.getVideoTracks()[0]?.getSettings().deviceId ?? "",
+          streamAudioDeviceId =
+            stream.getAudioTracks()[0]?.getSettings().deviceId ?? "",
+          refreshedDeviceSelection = resolveBattleMediaDeviceSelection(
+            devices,
+            {
+              audioDeviceId: validAudioDeviceId,
+              videoDeviceId: validVideoDeviceId,
+            }
+          ),
           nextVideoDevice =
-            videoDeviceId ||
-            devices.find((device) => device.kind === "videoinput")?.deviceId ||
-            "",
+            streamVideoDeviceId ||
+            validVideoDeviceId ||
+            refreshedDeviceSelection.videoDeviceId,
           nextAudioDevice =
-            audioDeviceId ||
-            devices.find((device) => device.kind === "audioinput")?.deviceId ||
-            "";
-        setSelectedVideoDeviceId(nextVideoDevice);
-        setSelectedAudioDeviceId(nextAudioDevice);
+            streamAudioDeviceId ||
+            validAudioDeviceId ||
+            refreshedDeviceSelection.audioDeviceId,
+          selection = {
+            audioDeviceId: nextAudioDevice,
+            videoDeviceId: nextVideoDevice,
+          };
+        if (!(selection.videoDeviceId && selection.audioDeviceId)) {
+          throw new Error(
+            "SoundKit could not find both a camera and microphone. Connect both devices, then try again."
+          );
+        }
+
+        setMediaStream(stream);
+        setSelectedVideoDeviceId(selection.videoDeviceId);
+        setSelectedAudioDeviceId(selection.audioDeviceId);
         setMediaStatus("ready");
-        return true;
+        return selection;
       } catch (permissionError) {
+        for (const track of acquiredStream?.getTracks() ?? []) {
+          track.stop();
+        }
         setMediaStatus("error");
-        setError(
-          permissionError instanceof DOMException &&
-            permissionError.name === "NotAllowedError"
-            ? "Allow camera and microphone access to continue."
-            : "We could not access the selected camera and microphone."
-        );
-        return false;
+        setError(mediaErrorMessage(permissionError));
+        return null;
       }
     },
     [refreshDevices, selectedAudioDeviceId, selectedVideoDeviceId]
@@ -470,6 +555,10 @@ function BattleDeviceSetup({
       video.srcObject = null;
     };
   }, [mediaStream]);
+
+  useEffect(() => {
+    void refreshDevices();
+  }, [refreshDevices]);
 
   useEffect(() => {
     const savedSelection = readBattleMediaDeviceSelection();
@@ -505,14 +594,14 @@ function BattleDeviceSetup({
           return;
         }
 
-        const restored = await requestPermissions(
+        const restoredSelection = await requestPermissions(
           savedSelection.videoDeviceId,
           savedSelection.audioDeviceId
         );
-        if (restored && !disposed) {
-          rememberBattleMediaDeviceSelection(savedSelection);
+        if (restoredSelection && !disposed) {
+          rememberBattleMediaDeviceSelection(restoredSelection);
           setSaved(true);
-          onSaved(savedSelection);
+          onSaved(restoredSelection);
         }
       } catch {
         if (!disposed) {
@@ -549,6 +638,19 @@ function BattleDeviceSetup({
         selectedAudioDeviceId
       )
     ) {
+      return;
+    }
+
+    const hasSelectedDevices =
+      videoDevices.some(
+        (device) => device.deviceId === selectedVideoDeviceId
+      ) &&
+      audioDevices.some((device) => device.deviceId === selectedAudioDeviceId);
+    if (!hasSelectedDevices) {
+      setMediaStatus("error");
+      setError(
+        "The selected camera or microphone is no longer available. Choose another device and try again."
+      );
       return;
     }
 
@@ -593,7 +695,7 @@ function BattleDeviceSetup({
           )}
         </div>
         <Select
-          disabled={mediaStatus !== "ready"}
+          disabled={mediaStatus === "requesting" || videoDevices.length === 0}
           onValueChange={(value) => {
             setSelectedVideoDeviceId(value);
             void requestPermissions(value, selectedAudioDeviceId);
@@ -645,7 +747,7 @@ function BattleDeviceSetup({
           Choose the input used for your live battle turn.
         </p>
         <Select
-          disabled={mediaStatus !== "ready"}
+          disabled={mediaStatus === "requesting" || audioDevices.length === 0}
           onValueChange={(value) => {
             setSelectedAudioDeviceId(value);
             void requestPermissions(selectedVideoDeviceId, value);
@@ -985,6 +1087,7 @@ export function BattlePage({
     room = query.data,
     battle = room?.battle,
     phase = battle?.coordination?.phase,
+    isBattleEnded = Boolean(room?.status === "ended" || phase === "ended"),
     canonicalRoomId = battle?.coordination?.battleId ?? id,
     artistRole =
       room?.role === "artist_a" || room?.role === "artist_b"
@@ -1000,8 +1103,10 @@ export function BattlePage({
       phase === "scheduled" ||
       phase === "waiting_room",
     isPreStartBattle = phase === "scheduled" || phase === "waiting_room",
-    isBattleActive = Boolean(phase && !isPreStartBattle && phase !== "ended"),
-    viewerQueueStatus = battle?.viewerQueueStatus ?? null,
+    isBattleActive = Boolean(phase && !isPreStartBattle && !isBattleEnded),
+    viewerQueueStatus = isBattleEnded
+      ? null
+      : (battle?.viewerQueueStatus ?? null),
     isAdmitted = viewerQueueStatus === "admitted",
     isArtist = artistRole !== null,
     isQueued =
@@ -1011,7 +1116,9 @@ export function BattlePage({
       battle &&
       !battle.outcome &&
       !battle.coordination?.winnerUserId &&
-      (phase === "battle_result" || phase === "ended")
+      (phase === "battle_result" || phase === "ended") &&
+      battle.rounds.find((round) => round.id === battle.currentRoundId)
+        ?.status === "complete"
     ),
     lockedBattleKitId =
       battle?.artistControls?.selectedKitId ?? selectedBattleKitId,
@@ -1020,6 +1127,9 @@ export function BattlePage({
     ),
     currentTrack = room?.tracklist.find(
       (track) => track.id === room.currentTrackId
+    ),
+    battleWinner = battle?.artists.find(
+      (artist) => artist.id === battle.coordination?.winnerUserId
     ),
     { dialog: battleLeaveDialog } = useBattleLeaveGuard({
       isArtist,
@@ -1088,13 +1198,7 @@ export function BattlePage({
   }, [battle, id, isArtist, isPreStartBattle, session?.user?.id]);
 
   useEffect(() => {
-    if (
-      artistView ||
-      !isArtist ||
-      !battle ||
-      room?.status === "ended" ||
-      phase === "ended"
-    ) {
+    if (artistView || !isArtist || !battle || isBattleEnded) {
       return;
     }
 
@@ -1108,8 +1212,8 @@ export function BattlePage({
     battle,
     canonicalRoomId,
     isArtist,
+    isBattleEnded,
     phase,
-    room?.status,
     router,
   ]);
 
@@ -1137,6 +1241,34 @@ export function BattlePage({
     id,
     isAdmin,
     isArtist,
+    query.isError,
+    query.isLoading,
+    room,
+    router,
+  ]);
+
+  useEffect(() => {
+    if (
+      !artistView ||
+      !isBattleEnded ||
+      query.isLoading ||
+      query.isError ||
+      !room ||
+      !battle
+    ) {
+      return;
+    }
+
+    void router.navigate({
+      params: { id },
+      replace: true,
+      to: "/live/battles/$id",
+    });
+  }, [
+    artistView,
+    battle,
+    id,
+    isBattleEnded,
     query.isError,
     query.isLoading,
     room,
@@ -1303,6 +1435,40 @@ export function BattlePage({
 
   const [artistA, artistB] = battle.artists;
 
+  if (isBattleEnded && !currentRound) {
+    return (
+      <LiveRoomAccessGuard allowPublic roomTitle={room.title}>
+        <div className="flex min-h-[50vh] items-center justify-center p-6">
+          <Card className="max-w-lg text-center">
+            <CardHeader>
+              <CardTitle>Battle ended</CardTitle>
+              <CardDescription>
+                This battle is closed and no longer accepts artists, votes, or
+                lineup changes. The result remains available as a read-only
+                record.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="outline">
+                <Link
+                  search={{
+                    genre: undefined,
+                    region: undefined,
+                    regionType: "north-america",
+                    sort: undefined,
+                  }}
+                  to="/live/battles"
+                >
+                  Browse battle results
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </LiveRoomAccessGuard>
+    );
+  }
+
   if (isScheduled || !currentRound) {
     return (
       <LiveRoomAccessGuard
@@ -1316,7 +1482,7 @@ export function BattlePage({
                 battle.artists.map((artist) => [artist.id, artist.avatarUrl])
               )}
               artistUserIds={battle.artists.map((artist) => artist.id)}
-              disabled={chat.isPending}
+              disabled={chat.isPending || isBattleEnded}
               fillHeight
               messages={chatMessages}
               onCollapse={() => setIsChatOpen(false)}
@@ -1589,7 +1755,7 @@ export function BattlePage({
           battle.artists.map((artist) => [artist.id, artist.avatarUrl])
         )}
         artistUserIds={battle.artists.map((artist) => artist.id)}
-        disabled={chat.isPending}
+        disabled={chat.isPending || isBattleEnded}
         extraHeaderAction={
           <Badge className="font-mono text-[10px]" variant="outline">
             BattleBot Control
@@ -1625,8 +1791,13 @@ export function BattlePage({
               ROUND {currentRound.number}{" "}
               {currentRound.isTiebreaker ? "TIEBREAKER" : ""}
             </Badge>
-            <Badge className="bg-black/60 backdrop-blur-md" variant="outline">
-              Status: {currentRound.status.toUpperCase()}
+            <Badge
+              className="bg-black/60 backdrop-blur-md"
+              variant={isBattleEnded ? "secondary" : "outline"}
+            >
+              {isBattleEnded
+                ? "Battle Ended"
+                : `Status: ${currentRound.status.toUpperCase()}`}
             </Badge>
           </div>
 
@@ -1638,11 +1809,20 @@ export function BattlePage({
               <Users className="mr-1 size-3" />
               {room.viewerCount.toLocaleString()} watching
             </Badge>
-            <BattleTimer
-              phaseEndsAt={battle.coordination?.phaseEndsAt}
-              serverNow={room.serverNow}
-              label={battle.coordination?.phase ?? "Round"}
-            />
+            {isBattleEnded ? (
+              <Badge
+                className="bg-black/70 font-mono text-white backdrop-blur-md"
+                variant="outline"
+              >
+                Ended
+              </Badge>
+            ) : (
+              <BattleTimer
+                phaseEndsAt={battle.coordination?.phaseEndsAt}
+                serverNow={room.serverNow}
+                label={battle.coordination?.phase ?? "Round"}
+              />
+            )}
             <Button
               className="size-8 bg-black/60 text-white hover:bg-black/80 backdrop-blur-md"
               onClick={toggleFullscreen}
@@ -1723,7 +1903,7 @@ export function BattlePage({
           </div>
         </div>
 
-        {phase !== "ended" && (
+        {!isBattleEnded && (
           <BattleMediaStage
             activeArtistUserId={battle.coordination?.activeArtistUserId}
             artists={battle.artists}
@@ -1741,7 +1921,7 @@ export function BattlePage({
           <div className="absolute bottom-4 left-4 right-4 z-20 flex items-center justify-between rounded-xl border border-white/10 bg-black/75 px-4 py-2.5 backdrop-blur-md">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                Now Performing Track
+                {isBattleEnded ? "Final track" : "Now Performing Track"}
               </p>
               <p className="truncate font-semibold text-white text-sm">
                 {currentTrack.title} — {currentTrack.artistName}
@@ -1772,8 +1952,11 @@ export function BattlePage({
                 <h2 className="font-bold text-lg sm:text-xl text-foreground truncate">
                   {room.title}
                 </h2>
-                <Badge className="bg-destructive text-destructive-foreground text-[10px] font-bold">
-                  LIVE
+                <Badge
+                  className="text-[10px] font-bold"
+                  variant={isBattleEnded ? "secondary" : "destructive"}
+                >
+                  {isBattleEnded ? "ENDED" : "LIVE"}
                 </Badge>
                 <Badge variant="outline" className="text-[10px]">
                   Trap / Boom Bap
@@ -1832,7 +2015,15 @@ export function BattlePage({
                 <Radio className="size-3 text-destructive animate-pulse" />
                 {room.viewerCount.toLocaleString()} Viewers
               </Badge>
-              {isArtist || isAdmin ? (
+              {isBattleEnded ? (
+                <Badge
+                  variant="secondary"
+                  className="gap-1.5 py-1 px-2.5 text-xs"
+                >
+                  <Trophy className="size-3.5" />
+                  Read-only result
+                </Badge>
+              ) : isArtist || isAdmin ? (
                 <Badge
                   variant="secondary"
                   className="gap-1.5 py-1 px-2.5 text-xs"
@@ -1861,6 +2052,7 @@ export function BattlePage({
                   Leave
                 </Button>
               ) : (
+                !isBattleEnded &&
                 !isArtist &&
                 !isAdmin &&
                 !isQueued && (
@@ -1943,10 +2135,18 @@ export function BattlePage({
               <Badge
                 className="text-[11px]"
                 variant={
-                  currentRound.status === "voting" ? "default" : "secondary"
+                  isBattleEnded
+                    ? "secondary"
+                    : currentRound.status === "voting"
+                      ? "default"
+                      : "secondary"
                 }
               >
-                {currentRound.status === "voting" ? "Voting Open" : "Turn Live"}
+                {isBattleEnded
+                  ? "Battle Ended"
+                  : currentRound.status === "voting"
+                    ? "Voting Open"
+                    : "Turn Live"}
               </Badge>
             </div>
 
@@ -1955,7 +2155,7 @@ export function BattlePage({
               <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
                 {battle.artists.map((artist) => {
                   const percent = votePercent(currentRound, artist.id),
-                    isActive = !artist.isMuted;
+                    isActive = !isBattleEnded && !artist.isMuted;
 
                   return (
                     <div
@@ -2006,9 +2206,20 @@ export function BattlePage({
 
                         <Badge
                           className="text-[9px] sm:text-[10px] px-1.5 py-0 self-start sm:self-center shrink-0"
-                          variant={isActive ? "default" : "outline"}
+                          variant={
+                            isBattleEnded
+                              ? "outline"
+                              : isActive
+                                ? "default"
+                                : "outline"
+                          }
                         >
-                          {isActive ? (
+                          {isBattleEnded ? (
+                            <>
+                              <MicOff className="mr-1 size-2.5" />
+                              Battle ended
+                            </>
+                          ) : isActive ? (
                             <>
                               <Mic className="mr-1 size-2.5" />
                               Turn
@@ -2039,7 +2250,9 @@ export function BattlePage({
                       <Button
                         className="w-full text-xs h-8 sm:h-9"
                         disabled={
-                          currentRound.status !== "voting" || vote.isPending
+                          isBattleEnded ||
+                          currentRound.status !== "voting" ||
+                          vote.isPending
                         }
                         onClick={() =>
                           vote.mutate({
@@ -2104,37 +2317,38 @@ export function BattlePage({
             </CardContent>
           </Card>
 
-          {isBattleTie && (
-            <Card className="border-amber-400/40 bg-amber-500/10">
+          {isBattleEnded && (
+            <Card
+              className={
+                battle.outcome
+                  ? "border-purple-400/40 bg-purple-500/10"
+                  : "border-amber-400/40 bg-amber-500/10"
+              }
+            >
               <CardContent className="flex items-start gap-3 p-4">
                 <Swords className="mt-0.5 size-5 shrink-0 text-amber-300" />
                 <div>
-                  <p className="font-semibold text-sm">Battle ended in a tie</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    The final score stayed even. This result is shown in your
-                    participation history and does not change ratings.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {battle.outcome && (
-            <Card className="border-purple-400/40 bg-purple-500/10">
-              <CardContent className="flex items-start gap-3 p-4">
-                <Swords className="mt-0.5 size-5 shrink-0 text-purple-300" />
-                <div>
                   <p className="font-semibold text-sm">
-                    {battle.outcome.kind === "ducked"
+                    {battle.outcome?.kind === "ducked"
                       ? "Battle ended: opponent ducked"
-                      : battle.outcome.kind === "forfeited"
+                      : battle.outcome?.kind === "forfeited"
                         ? "Battle ended by forfeit"
-                        : battle.outcome.kind === "quit"
+                        : battle.outcome?.kind === "quit"
                           ? "Battle ended by quit"
-                          : "Battle canceled"}
+                          : battle.outcome?.kind === "canceled"
+                            ? "Battle canceled"
+                            : isBattleTie
+                              ? "Battle ended in a tie"
+                              : battleWinner
+                                ? `${battleWinner.name} won the battle`
+                                : "Battle complete"}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    This outcome did not change battle ratings.
+                    {battle.outcome
+                      ? "The room is closed. No new turns, votes, or lineup changes are available."
+                      : isBattleTie
+                        ? "The final score stayed even. The result is locked and this room is now read-only."
+                        : "The final result is locked. This room is now read-only."}
                   </p>
                 </div>
               </CardContent>
@@ -2153,7 +2367,7 @@ export function BattlePage({
             roundNumber={battle.coordination?.roundNumber}
           />
 
-          {artistRole && (
+          {artistRole && !isBattleEnded && (
             <BattleArtistControlPanel
               artistId={
                 artistRole === "artist_a"

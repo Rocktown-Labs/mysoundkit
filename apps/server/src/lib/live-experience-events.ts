@@ -2,6 +2,7 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistFollows,
   battleParticipations,
+  battleQueueEntries,
   battleRounds,
   battles,
   battleStats,
@@ -706,6 +707,28 @@ export const applyMeetingEndedEvent = async (
   await markExperienceEnded(experience.id);
 
   if (experience.kind === "battle" && experience.battleId) {
+    const db = createDb(),
+      endedAt = new Date();
+    await Promise.all([
+      db
+        .update(battles)
+        .set({
+          endedAt,
+          status: "completed",
+          updatedAt: endedAt,
+        })
+        .where(
+          and(eq(battles.id, experience.battleId), eq(battles.status, "live"))
+        ),
+      db
+        .update(battleQueueEntries)
+        .set({
+          leftAt: endedAt,
+          status: "removed",
+          updatedAt: endedAt,
+        })
+        .where(eq(battleQueueEntries.battleId, experience.battleId)),
+    ]);
     await updateArtistRecordsForBattle({
       battleId: experience.battleId,
       peakViewerCount: experience.peakViewerCount,
@@ -1443,6 +1466,14 @@ export const applyBattleBotAction = async ({
     };
   }
 
+  if (battle.status === "completed" || battle.status === "archived") {
+    return {
+      battleEnded: true,
+      nextPhase: "ended",
+      snapshot: { eligible: [], nonVoters: [] },
+    };
+  }
+
   const roundRows = await db
       .select({
         id: battleRounds.id,
@@ -1548,10 +1579,30 @@ export const applyBattleBotAction = async ({
       };
     }
 
-    await db
-      .update(battles)
-      .set({ endedAt: new Date(), status: "completed", updatedAt: new Date() })
-      .where(eq(battles.id, battle.id));
+    const endedAt = new Date();
+    await Promise.all([
+      db
+        .update(battles)
+        .set({ endedAt, status: "completed", updatedAt: endedAt })
+        .where(eq(battles.id, battle.id)),
+      db
+        .update(liveExperiences)
+        .set({
+          endsAt: endedAt,
+          ingestStatus: "disconnected",
+          status: "ended",
+          updatedAt: endedAt,
+        })
+        .where(eq(liveExperiences.battleId, battle.id)),
+      db
+        .update(battleQueueEntries)
+        .set({
+          leftAt: endedAt,
+          status: "removed",
+          updatedAt: endedAt,
+        })
+        .where(eq(battleQueueEntries.battleId, battle.id)),
+    ]);
     const [experience] = await db
       .select({ peakViewerCount: liveExperiences.peakViewerCount })
       .from(liveExperiences)
