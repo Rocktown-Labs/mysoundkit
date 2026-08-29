@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_explore/live/parties/$id")({
   component: ListeningPartyDetailPage,
+  ssr: "data-only",
 });
 
 const SAMPLE_LYRICS: Record<string, { id: string; text: string }[]> = {

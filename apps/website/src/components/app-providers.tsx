@@ -41,7 +41,11 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
         queryClient={queryClient}
         scopeKey={scopeKey}
       >
-        <MessagingDbProvider key={scopeKey} queryClient={queryClient}>
+        <MessagingDbProvider
+          key={scopeKey}
+          queryClient={queryClient}
+          scopeKey={scopeKey}
+        >
           <ThemeProvider
             attribute="class"
             defaultTheme="dark"

@@ -160,9 +160,13 @@ const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
             : sortChatMessages([...room.chat, message]).slice(-80),
         }
       : room,
-  fetchLiveRoom = async (roomId: string): Promise<LiveRoomState> => {
+  fetchLiveRoom = async (
+    roomId: string,
+    signal?: AbortSignal
+  ): Promise<LiveRoomState> => {
     const response = await fetch(`${API_V1_URL}/live/rooms/${roomId}`, {
       credentials: "include",
+      signal,
     });
 
     if (!response.ok) {
@@ -204,7 +208,9 @@ const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
     return response.json() as Promise<LiveRoomChatResult | LiveRoomState>;
   },
   wsUrlForRoom = (roomId: string) => {
-    const url = new URL(`${API_BASE_URL}/v1/live/rooms/${roomId}/ws`);
+    const url = new URL(
+      `${API_BASE_URL}/v1/live/rooms/${encodeURIComponent(roomId)}/ws`
+    );
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     return url.toString();
   };
@@ -225,7 +231,7 @@ export const useLiveRoom = (roomId: string) => {
     },
     query = useQuery({
       enabled: Boolean(roomId),
-      queryFn: () => fetchLiveRoom(roomId),
+      queryFn: ({ signal }) => fetchLiveRoom(roomId, signal),
       queryKey: liveRoomKey(roomId),
       refetchInterval: 30_000,
       retry: false,
@@ -236,44 +242,120 @@ export const useLiveRoom = (roomId: string) => {
       return;
     }
 
-    const socket = new WebSocket(wsUrlForRoom(roomId));
-
-    socket.addEventListener("message", (event) => {
-      const payload = JSON.parse(String(event.data)) as {
-        message?: LiveRoomChatMessage;
-        playback?: NonNullable<LiveRoomState["party"]>["playback"];
-        room?: LiveRoomState;
-        type?: string;
-      };
-
-      if (payload.type === "state" && payload.room) {
-        queryClient.setQueryData(liveRoomKey(roomId), payload.room);
-      } else if (payload.type === "chat" && payload.message) {
-        queryClient.setQueryData<LiveRoomState | undefined>(
-          liveRoomKey(roomId),
-          (room) =>
-            appendChatMessage(room, payload.message as LiveRoomChatMessage)
-        );
-      } else if (
-        payload.type === "party.playback_changed" &&
-        payload.playback
-      ) {
-        const { playback } = payload;
-        queryClient.setQueryData<LiveRoomState | undefined>(
-          liveRoomKey(roomId),
-          (room) =>
-            room && room.party
-              ? {
-                  ...room,
-                  currentTrackId: playback.trackId ?? room.currentTrackId,
-                  party: { playback },
-                }
-              : room
-        );
+    let reconnectAttempt = 0,
+      reconnectTimer: ReturnType<typeof setTimeout> | null = null,
+      socket: WebSocket | null = null,
+      stopped = false;
+    const connect = () => {
+      if (stopped || socket || reconnectTimer) {
+        return;
       }
-    });
 
-    return () => socket.close();
+      try {
+        const currentSocket = new WebSocket(wsUrlForRoom(roomId));
+        socket = currentSocket;
+        currentSocket.addEventListener("open", () => {
+          if (socket !== currentSocket) {
+            return;
+          }
+          reconnectAttempt = 0;
+          void queryClient.invalidateQueries({
+            queryKey: liveRoomKey(roomId),
+          });
+        });
+        currentSocket.addEventListener("message", (event) => {
+          try {
+            const payload = JSON.parse(String(event.data)) as {
+              message?: LiveRoomChatMessage;
+              playback?: NonNullable<LiveRoomState["party"]>["playback"];
+              room?: LiveRoomState;
+              type?: string;
+            };
+
+            if (payload.type === "state" && payload.room) {
+              queryClient.setQueryData(liveRoomKey(roomId), payload.room);
+            } else if (payload.type === "chat" && payload.message) {
+              queryClient.setQueryData<LiveRoomState | undefined>(
+                liveRoomKey(roomId),
+                (room) =>
+                  appendChatMessage(
+                    room,
+                    payload.message as LiveRoomChatMessage
+                  )
+              );
+            } else if (
+              payload.type === "party.playback_changed" &&
+              payload.playback
+            ) {
+              const { playback } = payload;
+              queryClient.setQueryData<LiveRoomState | undefined>(
+                liveRoomKey(roomId),
+                (room) =>
+                  room && room.party
+                    ? {
+                        ...room,
+                        currentTrackId: playback.trackId ?? room.currentTrackId,
+                        party: { playback },
+                      }
+                    : room
+              );
+            }
+          } catch {
+            // Ignore malformed realtime payloads; the HTTP query remains the
+            // authoritative recovery path.
+          }
+        });
+        currentSocket.addEventListener("error", () => {
+          // The close event owns reconnect scheduling. Closing here causes
+          // noisy “closed before connection” errors during failed handshakes.
+        });
+        currentSocket.addEventListener("close", () => {
+          if (socket !== currentSocket) {
+            return;
+          }
+          socket = null;
+          if (stopped) {
+            return;
+          }
+          const delay = Math.min(
+            30_000,
+            1000 * 2 ** reconnectAttempt + Math.floor(Math.random() * 500)
+          );
+          reconnectAttempt += 1;
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            connect();
+          }, delay);
+        });
+      } catch {
+        socket = null;
+        if (!stopped) {
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            connect();
+          }, 1000);
+        }
+      }
+    };
+
+    connect();
+
+    return () => {
+      stopped = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+      reconnectTimer = null;
+      const currentSocket = socket;
+      socket = null;
+      if (
+        currentSocket &&
+        (currentSocket.readyState === WebSocket.CONNECTING ||
+          currentSocket.readyState === WebSocket.OPEN)
+      ) {
+        currentSocket.close(1000, "Live room client is leaving");
+      }
+    };
   }, [queryClient, roomId]);
 
   const chatMutation = useMutation({

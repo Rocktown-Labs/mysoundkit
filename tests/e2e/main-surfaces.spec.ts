@@ -42,6 +42,96 @@ test.describe("main application surfaces", () => {
     });
   });
 
+  test("artist messages stay synchronized across full and floating chat", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(
+      page,
+      "/dashboard/messages?conversationId=mock-conversation-rhythm"
+    );
+    await expect(
+      page.getByText("Your latest verse is sounding great.")
+    ).toBeVisible({ timeout: 60_000 });
+
+    await gotoWithViteRetry(page, "/");
+    await expect(
+      page.getByRole("button", { name: "Open artist chat" })
+    ).toBeVisible({ timeout: 60_000 });
+    await page.getByRole("button", { name: "Open navigation menu" }).click();
+    await expect(
+      page.getByRole("menuitem", { name: "Dashboard" })
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Open artist chat" }).click();
+    await expect(page.getByText("Messages").last()).toBeVisible();
+    await page
+      .getByRole("button", { name: /MC Rhythm/ })
+      .last()
+      .click();
+    await expect(
+      page.getByText("Let’s sync on the hook when you have a minute.")
+    ).toBeVisible();
+
+    await page.getByTitle("Enlarge to full messages page").click();
+    await expect(page).toHaveURL(/\/dashboard\/messages/);
+    await expect(
+      page.getByText("I left a third note in the thread.")
+    ).toBeVisible();
+  });
+
+  test("battle chat shares global presence status", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/live/battles/battle-waiting-artist");
+    await expect(page.getByText("Waiting Room Chat")).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page.getByLabel("MC Rhythm is online")).toBeVisible({
+      timeout: 60_000,
+    });
+  });
+
+  test("playback uses the responsive player presentation", async ({ page }) => {
+    test.setTimeout(90_000);
+
+    await gotoWithViteRetry(page, "/tracks/track_summer_nights");
+    await page.getByRole("button", { exact: true, name: "Play" }).click();
+
+    if ((page.viewportSize()?.width ?? 0) < 768) {
+      await expect(
+        page.getByRole("button", { name: "Expand player" })
+      ).toBeVisible({ timeout: 60_000 });
+    } else {
+      await expect(
+        page.getByRole("button", { name: "Minimize player" })
+      ).toBeVisible({ timeout: 60_000 });
+    }
+  });
+
   test("fan can browse discovery, playback, pricing, and signup surfaces", async ({
     page,
   }) => {

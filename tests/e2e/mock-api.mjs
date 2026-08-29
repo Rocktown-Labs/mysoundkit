@@ -76,6 +76,45 @@ const normalizeGenre = (value) =>
 
     return null;
   },
+  mockConversations = [
+    {
+      conversationType: "direct",
+      id: "mock-conversation-rhythm",
+      participantAvatarUrl: "/soundkit-default-avatar.svg",
+      participantId: "artist-mc-rhythm",
+      participantName: "MC Rhythm",
+      participantUsername: "mc-rhythm",
+      title: "MC Rhythm",
+      unreadCount: 3,
+      updatedAt: "2026-05-26T12:03:00.000Z",
+    },
+  ],
+  mockMessages = [
+    {
+      attachments: [],
+      body: "Your latest verse is sounding great.",
+      createdAt: "2026-05-26T12:01:00.000Z",
+      id: "mock-message-1",
+      senderId: "artist-mc-rhythm",
+      status: "sent",
+    },
+    {
+      attachments: [],
+      body: "Let’s sync on the hook when you have a minute.",
+      createdAt: "2026-05-26T12:02:00.000Z",
+      id: "mock-message-2",
+      senderId: "artist-mc-rhythm",
+      status: "sent",
+    },
+    {
+      attachments: [],
+      body: "I left a third note in the thread.",
+      createdAt: "2026-05-26T12:03:00.000Z",
+      id: "mock-message-3",
+      senderId: "artist-mc-rhythm",
+      status: "sent",
+    },
+  ],
   mockVideoComments = [
     {
       authorAvatarUrl: "/soundkit-default-avatar.svg",
@@ -705,6 +744,8 @@ export const createMockApiServer = async ({
     mockLiveRoomsByClient = new Map(),
     mockNotificationsByClient = new Map(),
     mockPresenceByClient = new Map(),
+    mockConversationsByClient = new Map(),
+    mockMessagesByClient = new Map(),
     mockVideoCommentsByClient = new Map(),
     getMockLiveRoom = (request, roomId, session) => {
       const clientKey = `${getClientKey(request)}:${roomId}:${session ?? "anonymous"}`,
@@ -772,17 +813,6 @@ export const createMockApiServer = async ({
       mockVideoCommentsByClient.set(clientKey, comments);
       return comments;
     },
-    getMockNotifications = (request) => {
-      const clientKey = getClientKey(request),
-        existing = mockNotificationsByClient.get(clientKey);
-      if (existing) {
-        return existing;
-      }
-
-      const notifications = structuredClone(mockNotifications);
-      mockNotificationsByClient.set(clientKey, notifications);
-      return notifications;
-    },
     getMockPresence = (request) => {
       const clientKey = getClientKey(request),
         existing = mockPresenceByClient.get(clientKey);
@@ -799,6 +829,41 @@ export const createMockApiServer = async ({
       };
       mockPresenceByClient.set(clientKey, presence);
       return presence;
+    },
+    getMockConversations = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockConversationsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const conversations = structuredClone(mockConversations);
+      mockConversationsByClient.set(clientKey, conversations);
+      return conversations;
+    },
+    getMockMessages = (request, conversationId) => {
+      const clientKey = `${getClientKey(request)}:${conversationId}`,
+        existing = mockMessagesByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const messages = structuredClone(
+        conversationId === "mock-conversation-rhythm" ? mockMessages : []
+      ).map((message) => ({ ...message, conversationId }));
+      mockMessagesByClient.set(clientKey, messages);
+      return messages;
+    },
+    getMockNotifications = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockNotificationsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const notifications = structuredClone(mockNotifications);
+      mockNotificationsByClient.set(clientKey, notifications);
+      return notifications;
     },
     getMockBattleChallenges = (request) => {
       const clientKey = getClientKey(request),
@@ -1222,6 +1287,7 @@ export const createMockApiServer = async ({
         200,
         {
           ...mockTracks[0],
+          assets: [],
           artist: {
             avatarUrl: mockArtists[0].avatarUrl,
             handle: "luna-eclipse",
@@ -1435,6 +1501,169 @@ export const createMockApiServer = async ({
         });
         return;
       }
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/presence") {
+      const onlineCount = Object.values(getMockPresence(request)).filter(
+        (presence) => presence.isOnline
+      ).length;
+      json(response, 200, { onlineCount }, webOrigin);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/presence/query") {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          users = Object.fromEntries(
+            (Array.isArray(body.userIds) ? body.userIds : []).map((id) => [
+              id,
+              getMockPresence(request)[id] ?? {
+                isOnline: false,
+                lastSeen: 0,
+                status: "offline",
+              },
+            ])
+          );
+        json(response, 200, { users }, webOrigin);
+      });
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/presence/heartbeat"
+    ) {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          user = mockUser(session),
+          status =
+            body.status === "away" || body.status === "offline"
+              ? body.status
+              : "online";
+        if (user) {
+          getMockPresence(request)[user.id] = {
+            isOnline: status !== "offline",
+            lastSeen: Date.now(),
+            status,
+          };
+        }
+        json(response, 200, { success: true }, webOrigin);
+      });
+      return;
+    }
+
+    const messageConversationsMatch = url.pathname.match(
+      /^\/v1\/messages\/conversations\/([^/]+)\/messages$/
+    );
+    if (messageConversationsMatch) {
+      const conversationId = decodeURIComponent(messageConversationsMatch[1]);
+      if (request.method === "GET") {
+        json(response, 200, getMockMessages(request, conversationId), webOrigin);
+        return;
+      }
+      if (request.method === "POST") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            messages = getMockMessages(request, conversationId),
+            message = {
+              attachments: body.attachments ?? [],
+              body: body.body ?? "",
+              conversationId,
+              createdAt: new Date().toISOString(),
+              id: body.clientMessageId ?? `mock-message-${Date.now()}`,
+              senderId: "user_complete",
+              status: "sent",
+            },
+            conversation = getMockConversations(request).find(
+              (entry) => entry.id === conversationId
+            );
+          messages.push(message);
+          if (conversation) {
+            conversation.updatedAt = message.createdAt;
+            conversation.unreadCount = 0;
+          }
+          json(response, 201, message, webOrigin);
+        });
+        return;
+      }
+    }
+
+    const messageReadMatch = url.pathname.match(
+      /^\/v1\/messages\/conversations\/([^/]+)\/read$/
+    );
+    if (request.method === "POST" && messageReadMatch) {
+      const conversationId = decodeURIComponent(messageReadMatch[1]),
+        conversation = getMockConversations(request).find(
+          (entry) => entry.id === conversationId
+        );
+      if (conversation) {
+        conversation.unreadCount = 0;
+      }
+      json(response, 200, { success: true }, webOrigin);
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/messages/conversations") {
+      json(response, 200, getMockConversations(request), webOrigin);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/messages/conversations") {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          id = `mock-conversation-${Date.now()}`,
+          conversation = {
+            conversationType: body.participantUserIds?.length > 1 ? "group" : "direct",
+            id,
+            participantAvatarUrl: "/soundkit-default-avatar.svg",
+            participantId: body.participantUserIds?.[0] ?? null,
+            participantName: body.title ?? "New conversation",
+            participantUsername: null,
+            title: body.title ?? "New conversation",
+            unreadCount: 0,
+            updatedAt: new Date().toISOString(),
+          };
+        getMockConversations(request).unshift(conversation);
+        json(response, 201, conversation, webOrigin);
+      });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/messages/friends") {
+      json(
+        response,
+        200,
+        [
+          {
+            avatarUrl: "/soundkit-default-avatar.svg",
+            email: null,
+            id: "artist-mc-rhythm",
+            lastInteractionAt: "2026-05-26T12:03:00.000Z",
+            name: "MC Rhythm",
+            relationship: "collaborator",
+            role: "Artist",
+            username: "mc-rhythm",
+          },
+        ],
+        webOrigin
+      );
+      return;
     }
 
     if (request.method === "GET" && url.pathname === "/v1/messages/people") {
@@ -2155,66 +2384,6 @@ export const createMockApiServer = async ({
     ) {
       getMockNotifications(request).length = 0;
       json(response, 200, { success: true }, webOrigin);
-      return;
-    }
-
-    if (request.method === "GET" && url.pathname === "/v1/presence") {
-      const onlineCount = Object.values(getMockPresence(request)).filter(
-        (presence) => presence.isOnline
-      ).length;
-      json(response, 200, { onlineCount }, webOrigin);
-      return;
-    }
-
-    if (
-      request.method === "POST" &&
-      url.pathname === "/v1/presence/query"
-    ) {
-      let bodyText = "";
-      request.on("data", (chunk) => {
-        bodyText += chunk;
-      });
-      request.on("end", () => {
-        const body = JSON.parse(bodyText || "{}"),
-          users = Object.fromEntries(
-            (Array.isArray(body.userIds) ? body.userIds : []).map((id) => [
-              id,
-              getMockPresence(request)[id] ?? {
-                isOnline: false,
-                lastSeen: 0,
-                status: "offline",
-              },
-            ])
-          );
-        json(response, 200, { users }, webOrigin);
-      });
-      return;
-    }
-
-    if (
-      request.method === "POST" &&
-      url.pathname === "/v1/presence/heartbeat"
-    ) {
-      let bodyText = "";
-      request.on("data", (chunk) => {
-        bodyText += chunk;
-      });
-      request.on("end", () => {
-        const body = JSON.parse(bodyText || "{}"),
-          user = mockUser(session),
-          status =
-            body.status === "away" || body.status === "offline"
-              ? body.status
-              : "online";
-        if (user) {
-          getMockPresence(request)[user.id] = {
-            isOnline: status !== "offline",
-            lastSeen: Date.now(),
-            status,
-          };
-        }
-        json(response, 200, { success: true }, webOrigin);
-      });
       return;
     }
 

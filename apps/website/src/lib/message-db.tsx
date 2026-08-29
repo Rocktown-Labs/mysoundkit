@@ -1,6 +1,11 @@
 import { queryCollectionOptions } from "@tanstack/query-db-collection";
 /* eslint-disable one-var, sort-vars, prefer-destructuring, promise/prefer-await-to-then, promise/prefer-await-to-callbacks, react/hook-use-state */
-import { createCollection, useLiveQuery } from "@tanstack/react-db";
+import {
+  createCollection,
+  createOptimisticAction,
+  useLiveQuery,
+} from "@tanstack/react-db";
+import { useMutation } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import {
   createContext,
@@ -20,7 +25,12 @@ const conversationGet = apiClient.v1.messages.conversations.$get,
   conversationMessagesGet =
     apiClient.v1.messages.conversations[":conversationId"].messages.$get,
   conversationMessagesPost =
-    apiClient.v1.messages.conversations[":conversationId"].messages.$post;
+    apiClient.v1.messages.conversations[":conversationId"].messages.$post,
+  conversationReadPost =
+    apiClient.v1.messages.conversations[":conversationId"].read.$post;
+
+const MESSAGE_SYNC_INTERVAL_MS = 15_000,
+  NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
 
 interface MessageAttachmentInput {
   displayName: string;
@@ -42,11 +52,14 @@ export interface MessageCollectionMutationOptions {
   onSuccess?: (message: MessageSummary) => void;
 }
 
-const makeConversationCollection = (queryClient: QueryClient) =>
+const makeConversationCollection = (
+    queryClient: QueryClient,
+    scopeKey: string
+  ) =>
     createCollection(
       queryCollectionOptions<ConversationSummary>({
         getKey: (conversation) => conversation.id,
-        id: "soundkit-conversations",
+        id: `soundkit-conversations-${scopeKey}`,
         onInsert: async ({ transaction, collection }) => {
           const mutation = transaction.mutations[0],
             created = await rpcJson(
@@ -63,22 +76,29 @@ const makeConversationCollection = (queryClient: QueryClient) =>
           return { refetch: false };
         },
         queryClient,
-        queryFn: async () => rpcJson(await conversationGet()),
-        queryKey: ["messages", "conversations"],
-        refetchOnWindowFocus: false,
-        staleTime: 30_000,
+        queryFn: async ({ signal }) =>
+          rpcJson(await conversationGet(undefined, { init: { signal } })),
+        queryKey: ["messages", scopeKey, "conversations"],
+        refetchInterval: MESSAGE_SYNC_INTERVAL_MS,
+        refetchOnReconnect: true,
+        refetchOnWindowFocus: true,
+        staleTime: 5000,
       })
     ),
-  makeLiveRoomChatCollection = (queryClient: QueryClient, roomId: string) =>
+  makeLiveRoomChatCollection = (
+    queryClient: QueryClient,
+    scopeKey: string,
+    roomId: string
+  ) =>
     createCollection(
       queryCollectionOptions<LiveRoomChatMessage>({
         getKey: (message) => message.id,
-        id: `soundkit-live-room-chat-${roomId}`,
+        id: `soundkit-live-room-chat-${scopeKey}-${roomId}`,
         queryClient,
-        queryFn: async () => {
+        queryFn: async ({ signal }) => {
           const response = await fetch(
             `${API_V1_URL}/live/rooms/${encodeURIComponent(roomId)}`,
-            { credentials: "include" }
+            { credentials: "include", signal }
           );
           if (!response.ok) {
             throw new Error(
@@ -90,13 +110,16 @@ const makeConversationCollection = (queryClient: QueryClient) =>
           };
           return room.chat ?? [];
         },
-        queryKey: ["live-room", roomId, "chat"],
-        refetchOnWindowFocus: false,
-        staleTime: 30_000,
+        queryKey: ["messages", scopeKey, "live-room", roomId, "chat"],
+        refetchInterval: MESSAGE_SYNC_INTERVAL_MS,
+        refetchOnReconnect: true,
+        refetchOnWindowFocus: true,
+        staleTime: 5000,
       })
     ),
   makeMessageCollection = (
     queryClient: QueryClient,
+    scopeKey: string,
     conversationId: string,
     conversations: ReturnType<typeof makeConversationCollection>
   ) =>
@@ -104,7 +127,7 @@ const makeConversationCollection = (queryClient: QueryClient) =>
       queryCollectionOptions<MessageSummary>({
         enabled: Boolean(conversationId),
         getKey: (message) => message.id,
-        id: `soundkit-messages-${conversationId}`,
+        id: `soundkit-messages-${scopeKey}-${conversationId}`,
         onInsert: async ({ transaction, collection }) => {
           const mutation = transaction.mutations[0],
             message = mutation.modified,
@@ -131,20 +154,26 @@ const makeConversationCollection = (queryClient: QueryClient) =>
           return { refetch: false };
         },
         queryClient,
-        queryFn: async () =>
+        queryFn: async ({ signal }) =>
           conversationId
             ? rpcJson(
-                await conversationMessagesGet({ param: { conversationId } })
+                await conversationMessagesGet(
+                  { param: { conversationId } },
+                  { init: { signal } }
+                )
               )
             : [],
         queryKey: [
           "messages",
+          scopeKey,
           "conversations",
           conversationId || "empty",
           "messages",
         ],
-        refetchOnWindowFocus: false,
-        staleTime: 30_000,
+        refetchInterval: conversationId ? MESSAGE_SYNC_INTERVAL_MS : false,
+        refetchOnReconnect: true,
+        refetchOnWindowFocus: true,
+        staleTime: 5000,
       })
     );
 
@@ -160,12 +189,28 @@ interface MessagingCollections {
 }
 
 interface MessagingDbContextValue extends MessagingCollections {
+  activeConversationId: string;
   queryClient: QueryClient;
+  setActiveConversationId: (conversationId: string) => void;
+}
+
+export interface StartConversationInput {
+  conversation: {
+    participantUserIds: string[];
+    title?: string;
+  };
+  message?: {
+    attachments: MessageAttachmentInput[];
+    body: string;
+  };
 }
 
 const MessagingDbContext = createContext<MessagingDbContextValue | null>(null),
-  createCollections = (queryClient: QueryClient): MessagingCollections => {
-    const conversations = makeConversationCollection(queryClient),
+  createCollections = (
+    queryClient: QueryClient,
+    scopeKey: string
+  ): MessagingCollections => {
+    const conversations = makeConversationCollection(queryClient, scopeKey),
       liveRoomChatCollections = new Map<string, LiveRoomChatCollection>(),
       messageCollections = new Map<string, MessageCollection>(),
       getLiveRoomChat = (roomId: string) => {
@@ -173,7 +218,11 @@ const MessagingDbContext = createContext<MessagingDbContextValue | null>(null),
         if (existing) {
           return existing;
         }
-        const collection = makeLiveRoomChatCollection(queryClient, roomId);
+        const collection = makeLiveRoomChatCollection(
+          queryClient,
+          scopeKey,
+          roomId
+        );
         liveRoomChatCollections.set(roomId, collection);
         return collection;
       },
@@ -186,6 +235,7 @@ const MessagingDbContext = createContext<MessagingDbContextValue | null>(null),
 
         const collection = makeMessageCollection(
           queryClient,
+          scopeKey,
           conversationId,
           conversations
         );
@@ -199,14 +249,24 @@ const MessagingDbContext = createContext<MessagingDbContextValue | null>(null),
 export function MessagingDbProvider({
   children,
   queryClient,
+  scopeKey = "anonymous",
 }: {
   children: ReactNode;
   queryClient: QueryClient;
+  scopeKey?: string;
 }) {
-  const [collections] = useState(() => createCollections(queryClient)),
+  const [collections] = useState(() =>
+      createCollections(queryClient, scopeKey)
+    ),
+    [activeConversationId, setActiveConversationId] = useState(""),
     value = useMemo(
-      () => ({ ...collections, queryClient }),
-      [collections, queryClient]
+      () => ({
+        ...collections,
+        activeConversationId,
+        queryClient,
+        setActiveConversationId,
+      }),
+      [activeConversationId, collections, queryClient, setActiveConversationId]
     );
 
   return (
@@ -222,6 +282,11 @@ const useMessagingDb = () => {
     throw new Error("MessagingDbProvider is required for messaging queries");
   }
   return context;
+};
+
+export const useMessagingWorkspace = () => {
+  const { activeConversationId, setActiveConversationId } = useMessagingDb();
+  return { activeConversationId, setActiveConversationId };
 };
 
 export const useMessagingConversations = () => {
@@ -261,17 +326,120 @@ export const useMessagingMessages = (conversationId: string) => {
       () => getMessages(conversationId),
       [conversationId, getMessages]
     ),
-    result = useLiveQuery((q) =>
-      q
-        .from({ message: collection })
-        .orderBy(({ message }) => message.createdAt, "asc")
-        .orderBy(({ message }) => message.id, "asc")
+    result = useLiveQuery(
+      (q) =>
+        conversationId
+          ? q
+              .from({ message: collection })
+              .orderBy(({ message }) => message.createdAt, "asc")
+              .orderBy(({ message }) => message.id, "asc")
+          : undefined,
+      [collection, conversationId]
     ),
-    data = result.data as unknown as MessageSummary[],
+    data = (result.data ?? []) as unknown as MessageSummary[],
     refetch = useCallback(async () => {
       await collection.utils.refetch();
     }, [collection]);
-  return { ...result, data, refetch };
+  return { ...result, collection, data, refetch };
+};
+
+export const useMarkConversationReadMutation = () => {
+  const { conversations, queryClient } = useMessagingDb(),
+    [pendingConversationIds, setPendingConversationIds] = useState<Set<string>>(
+      () => new Set()
+    ),
+    markRead = useMemo(
+      () =>
+        createOptimisticAction<string>({
+          mutationFn: async (conversationId) => {
+            await rpcJson(
+              await conversationReadPost({ param: { conversationId } })
+            );
+            await Promise.all([
+              conversations.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: NOTIFICATIONS_QUERY_KEY,
+              }),
+            ]);
+          },
+          onMutate: (conversationId) => {
+            const conversation = conversations.toArray.find(
+              (item) => item.id === conversationId
+            );
+            if (conversation && conversation.unreadCount > 0) {
+              conversations.update(conversationId, (draft) => {
+                draft.unreadCount = 0;
+              });
+            }
+          },
+        }),
+      [conversations, queryClient]
+    ),
+    mutate = useCallback(
+      (conversationId: string) => {
+        const conversation = conversations.toArray.find(
+          (item) => item.id === conversationId
+        );
+        if (
+          !conversation ||
+          conversation.unreadCount === 0 ||
+          pendingConversationIds.has(conversationId)
+        ) {
+          return;
+        }
+
+        setPendingConversationIds((current) =>
+          new Set(current).add(conversationId)
+        );
+        const transaction = markRead(conversationId),
+          clearPending = () => {
+            setPendingConversationIds((current) => {
+              const next = new Set(current);
+              next.delete(conversationId);
+              return next;
+            });
+          };
+        void transaction.isPersisted.promise.then(clearPending, clearPending);
+      },
+      [
+        conversations,
+        markRead,
+        pendingConversationIds,
+        setPendingConversationIds,
+      ]
+    );
+
+  return { isPending: pendingConversationIds.size > 0, mutate };
+};
+
+export const useStartConversationMutation = () => {
+  const { conversations } = useMessagingDb();
+
+  return useMutation({
+    mutationFn: async ({
+      conversation,
+      message,
+    }: StartConversationInput): Promise<ConversationSummary> => {
+      const createdConversation = await rpcJson(
+        await conversationPost({ json: conversation })
+      );
+      if (message?.body && message.body.trim()) {
+        await rpcJson(
+          await conversationMessagesPost({
+            json: message,
+            param: { conversationId: createdConversation.id },
+          })
+        );
+      }
+      return createdConversation;
+    },
+    onSuccess: async (createdConversation, { message }) => {
+      conversations.utils.writeUpsert(createdConversation);
+      if (message?.body && message.body.trim()) {
+        await conversations.utils.refetch();
+      }
+    },
+  });
 };
 
 export const useCreateMessageCollectionMutation = (

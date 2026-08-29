@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyAudioDevice,
   formatPlaybackTime,
+  getDefaultPlayerPresentation,
   getRepeatTooltipLabel,
 } from "./player-device";
 
@@ -33,6 +34,13 @@ describe("Player Device & UI Helpers", () => {
     it("identifies external speakers as default fallback", () => {
       expect(classifyAudioDevice("External Studio Monitors")).toBe("speaker");
       expect(classifyAudioDevice("Line Out (Realtek Audio)")).toBe("speaker");
+    });
+  });
+
+  describe("getDefaultPlayerPresentation", () => {
+    it("prefers the rounded mini-player on mobile", () => {
+      expect(getDefaultPlayerPresentation(true)).toBe("mini");
+      expect(getDefaultPlayerPresentation(false)).toBe("expanded");
     });
   });
 

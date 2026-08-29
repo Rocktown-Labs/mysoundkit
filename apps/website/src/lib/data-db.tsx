@@ -14,7 +14,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
@@ -28,7 +27,8 @@ import type {
   LibrarySavedTrack,
 } from "./soundkit-api-hooks";
 
-const notificationsGet = apiClient.v1.notifications.index.$get,
+const noopCleanup = () => null,
+  notificationsGet = apiClient.v1.notifications.index.$get,
   notificationReadPost =
     apiClient.v1.notifications[":notificationId"].read.$post,
   notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post,
@@ -327,7 +327,8 @@ interface DataCollections {
   getPlaylistTracks: (
     playlistId: string
   ) => ReturnType<typeof makePlaylistTracksCollection>;
-  cleanup: () => void;
+  cleanup: () => Promise<void>;
+  cleanupWhenIdle: () => () => void;
 }
 
 interface DataDbContextValue extends DataCollections {
@@ -762,37 +763,68 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         playlistTracks.set(playlistId, collection);
         return collection;
       },
-      cleanup = () => {
-        battleChallenges.cleanup();
-        battles.cleanup();
-        communities.cleanup();
-        notifications.cleanup();
-        notificationStats.cleanup();
-        following.cleanup();
-        playlists.cleanup();
-        savedTrackIds.cleanup();
-        for (const collection of comments.values()) {
-          collection.cleanup();
+      getAllCollections = () => [
+        battleChallenges,
+        battles,
+        communities,
+        notifications,
+        notificationStats,
+        following,
+        playlists,
+        savedTrackIds,
+        ...comments.values(),
+        ...playlistTracks.values(),
+        ...communityPosts.values(),
+        ...communityMessages.values(),
+        ...communityMembers.values(),
+        ...communityBans.values(),
+      ],
+      hasActiveSubscribers = () =>
+        getAllCollections().some(
+          (collection) => collection.subscriberCount > 0
+        ),
+      cleanup = async () => {
+        if (hasActiveSubscribers()) {
+          return;
         }
-        for (const collection of playlistTracks.values()) {
-          collection.cleanup();
+        await Promise.all(
+          getAllCollections().map((collection) => collection.cleanup())
+        );
+      },
+      cleanupWhenIdle = () => {
+        const collections = getAllCollections();
+        if (!collections.some((collection) => collection.subscriberCount > 0)) {
+          void cleanup();
+          return noopCleanup;
         }
-        for (const collectionMap of [
-          communityPosts,
-          communityMessages,
-          communityMembers,
-          communityBans,
-        ]) {
-          for (const collection of collectionMap.values()) {
-            collection.cleanup();
+
+        let stopped = false;
+        const unsubscribe = collections.map((collection) =>
+          collection.on("subscribers:change", () => {
+            if (stopped || hasActiveSubscribers()) {
+              return;
+            }
+            stopped = true;
+            for (const stop of unsubscribe) {
+              stop();
+            }
+            void cleanup();
+          })
+        );
+
+        return () => {
+          stopped = true;
+          for (const stop of unsubscribe) {
+            stop();
           }
-        }
+        };
       };
 
     return {
       battleChallenges,
       battles,
       cleanup,
+      cleanupWhenIdle,
       communities,
       following,
       getComments,
@@ -820,25 +852,17 @@ export function DataDbProvider({
   const [collections] = useState(() =>
       createCollections(queryClient, scopeKey)
     ),
-    cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null),
     value = useMemo(
       () => ({ ...collections, queryClient, scopeKey }),
       [collections, queryClient, scopeKey]
     );
 
-  useEffect(() => {
-    if (cleanupTimerRef.current) {
-      clearTimeout(cleanupTimerRef.current);
-      cleanupTimerRef.current = null;
-    }
-
-    return () => {
-      cleanupTimerRef.current = setTimeout(() => {
-        collections.cleanup();
-        cleanupTimerRef.current = null;
-      }, 0);
-    };
-  }, [collections]);
+  useEffect(
+    () => () => {
+      collections.cleanupWhenIdle();
+    },
+    [collections]
+  );
 
   return (
     <DataDbContext.Provider value={value}>{children}</DataDbContext.Provider>

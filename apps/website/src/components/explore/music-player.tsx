@@ -63,8 +63,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useMobile } from "@/hooks/use-mobile";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
+import { getDefaultPlayerPresentation } from "@/lib/player-device";
 import {
   completeQueuedTrack,
   shouldRestartCurrentTrack,
@@ -242,7 +244,8 @@ const formatTime = (seconds: number) => {
   };
 
 export function MusicPlayer() {
-  const {
+  const isMobile = useMobile(),
+    {
       currentTrack,
       markRecentlyPlayed,
       queue,
@@ -302,6 +305,7 @@ export function MusicPlayer() {
     ),
     [isShuffled, setIsShuffled] = useState(false),
     [isMiniPlayer, setIsMiniPlayer] = useState(false),
+    mobileDefaultAppliedRef = useRef(false),
     [progress, setProgress] = useState(0),
     [queueOpen, setQueueOpen] = useState(false),
     [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off"),
@@ -376,6 +380,16 @@ export function MusicPlayer() {
         // Ignore enumeration failure
       }
     }, [audioOutput.id]);
+
+  useEffect(() => {
+    if (
+      getDefaultPlayerPresentation(isMobile) === "mini" &&
+      !mobileDefaultAppliedRef.current
+    ) {
+      mobileDefaultAppliedRef.current = true;
+      setIsMiniPlayer(true);
+    }
+  }, [isMobile]);
 
   useEffect(() => {
     enumerateAudioDevices();

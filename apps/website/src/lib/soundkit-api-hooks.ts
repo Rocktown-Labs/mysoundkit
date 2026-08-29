@@ -118,8 +118,6 @@ const meGet = apiClient.v1.me.index.$get,
     apiClient.v1.messages.conversations[":conversationId"].messages.$get,
   conversationMessagesPost =
     apiClient.v1.messages.conversations[":conversationId"].messages.$post,
-  conversationReadPost =
-    apiClient.v1.messages.conversations[":conversationId"].read.$post,
   openVersesGet = apiClient.v1["open-verses"].index.$get,
   openVersesPost = apiClient.v1["open-verses"].index.$post,
   openVerseGet = apiClient.v1["open-verses"][":listingId"].$get,
@@ -1043,106 +1041,12 @@ export const usePeopleSearchQuery = (q: string) =>
     queryKey: soundkitQueryKeys.peopleSearch(q.trim()),
   });
 
-export const useConversationsQuery = (enabled = true) =>
-  useQuery<ConversationSummary[]>({
-    enabled,
-    queryFn: async () => rpcJson(await conversationsGet()),
-    queryKey: soundkitQueryKeys.conversations,
-    refetchOnWindowFocus: false,
-    staleTime: 30_000,
-  });
-
-export const useConversationMessagesQuery = (conversationId: string) =>
-  useQuery<MessageSummary[]>({
-    enabled: Boolean(conversationId),
-    queryFn: async () =>
-      rpcJson(await conversationMessagesGet({ param: { conversationId } })),
-    queryKey: soundkitQueryKeys.conversationMessages(conversationId),
-    refetchOnWindowFocus: false,
-    staleTime: 30_000,
-  });
-
-export const useMarkConversationReadMutation = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (conversationId: string) =>
-      rpcJson(await conversationReadPost({ param: { conversationId } })),
-    onError: (_error, _conversationId, context) => {
-      const rollback = context as OptimisticRollback | undefined;
-      queryClient.setQueryData(
-        soundkitQueryKeys.conversations,
-        rollback?.previousConversations
-      );
-    },
-    onMutate: async (conversationId) => {
-      await queryClient.cancelQueries({
-        queryKey: soundkitQueryKeys.conversations,
-      });
-      const previousConversations = queryClient.getQueryData<
-        ConversationSummary[]
-      >(soundkitQueryKeys.conversations);
-      queryClient.setQueryData<ConversationSummary[] | undefined>(
-        soundkitQueryKeys.conversations,
-        (conversations) =>
-          conversations?.map((conversation) =>
-            conversation.id === conversationId
-              ? { ...conversation, unreadCount: 0 }
-              : conversation
-          )
-      );
-      return { previousConversations };
-    },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: soundkitQueryKeys.conversations,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: soundkitQueryKeys.notifications,
-        }),
-      ]);
-    },
-  });
-};
-
 export const useCreateConversationMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (body: CreateConversationBody) =>
       rpcJson(await conversationsPost({ json: body })),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.conversations,
-      }),
-  });
-};
-
-export const useStartConversationMutation = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      conversation,
-      message,
-    }: {
-      conversation: CreateConversationBody;
-      message?: CreateMessageBody;
-    }): Promise<ConversationSummary> => {
-      const createdConversation = await rpcJson(
-        await conversationsPost({ json: conversation })
-      );
-      if (message?.body && message.body.trim()) {
-        await rpcJson(
-          await conversationMessagesPost({
-            json: message,
-            param: { conversationId: createdConversation.id },
-          })
-        );
-      }
-      return createdConversation;
-    },
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.conversations,

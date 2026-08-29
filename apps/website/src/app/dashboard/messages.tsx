@@ -54,17 +54,18 @@ import { toast } from "@/hooks/use-toast";
 import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import {
   useCreateMessageCollectionMutation,
+  useMarkConversationReadMutation,
   useMessagingConversations,
   useMessagingMessages,
+  useMessagingWorkspace,
+  useStartConversationMutation,
 } from "@/lib/message-db";
 import { usePresence } from "@/lib/presence-context";
 import {
   useFriendsQuery,
   useLibrarySavedQuery,
-  useMarkConversationReadMutation,
   useMeQuery,
   usePeopleSearchQuery,
-  useStartConversationMutation,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 import type {
@@ -80,6 +81,7 @@ interface MessagesSearch {
 
 export const Route = createFileRoute("/dashboard/messages")({
   component: MessagesPage,
+  ssr: false,
   validateSearch: (search: Record<string, unknown>): MessagesSearch => ({
     conversationId:
       typeof search.conversationId === "string" && search.conversationId
@@ -171,7 +173,10 @@ function MessagesPageClient() {
       () => messageableFriends.filter((f) => isUserOnline(f.id)),
       [isUserOnline, messageableFriends]
     ),
-    [selectedId, setSelectedId] = useState(""),
+    {
+      activeConversationId: selectedId,
+      setActiveConversationId: setSelectedId,
+    } = useMessagingWorkspace(),
     [searchQuery, setSearchQuery] = useState(""),
     [attachments, setAttachments] = useState<
       {
@@ -252,6 +257,7 @@ function MessagesPageClient() {
     searchParams.conversationId,
     searchParams.friendId,
     selectedId,
+    setSelectedId,
   ]);
 
   const selectedConversation = conversations.find(
@@ -451,7 +457,7 @@ function MessagesPageClient() {
     if (selectedId) {
       markConversationRead(selectedId);
     }
-  }, [markConversationRead, messagesQuery.data.length, selectedId]);
+  }, [markConversationRead, selectedId]);
 
   const isSelectedConvoOnline = selectedConversation?.participantId
     ? isUserOnline(selectedConversation.participantId)
@@ -527,11 +533,27 @@ function MessagesPageClient() {
 
         {/* Conversations list */}
         <div className="custom-scrollbar flex-1 space-y-1 overflow-y-auto p-2">
-          {filteredConversations.length === 0 && (
+          {conversationsQuery.isError ? (
+            <div className="space-y-3 py-8 text-center text-xs text-muted-foreground">
+              <p>Messages are unavailable right now.</p>
+              <Button
+                className="h-8 text-xs"
+                onClick={() => void conversationsQuery.refetch()}
+                size="sm"
+                variant="outline"
+              >
+                Try again
+              </Button>
+            </div>
+          ) : conversationsQuery.isLoading ? (
+            <p className="py-8 text-center text-xs text-muted-foreground">
+              Loading conversations…
+            </p>
+          ) : filteredConversations.length === 0 ? (
             <div className="py-8 text-center text-xs text-muted-foreground">
               No conversations found
             </div>
-          )}
+          ) : null}
           {filteredConversations.map((conversation) => (
             <ConversationItem
               conversation={conversation}
@@ -645,10 +667,30 @@ function MessagesPageClient() {
               <MessageScroller>
                 <MessageScrollerViewport>
                   <MessageScrollerContent className="gap-4 p-6">
-                    {messagesQuery.isLoading && (
+                    {messagesQuery.isError && (
+                      <MessageScrollerItem messageId="messages-error">
+                        <div className="space-y-3 py-12 text-center">
+                          <p className="text-sm text-destructive">
+                            Messages could not be loaded.
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Check your connection and try again.
+                          </p>
+                          <Button
+                            className="h-8 text-xs"
+                            onClick={() => void messagesQuery.refetch()}
+                            size="sm"
+                            variant="outline"
+                          >
+                            Try again
+                          </Button>
+                        </div>
+                      </MessageScrollerItem>
+                    )}
+                    {messagesQuery.isLoading && !messagesQuery.isError && (
                       <MessageScrollerItem messageId="loading-messages">
                         <p className="text-sm text-muted-foreground">
-                          Loading messages...
+                          Loading messages…
                         </p>
                       </MessageScrollerItem>
                     )}
@@ -885,6 +927,7 @@ function MessagesPageClient() {
                       );
                     })}
                     {!messagesQuery.isLoading &&
+                      !messagesQuery.isError &&
                       (messagesQuery.data ?? []).length === 0 && (
                         <MessageScrollerItem messageId="empty-messages">
                           <div className="py-12 text-center">
