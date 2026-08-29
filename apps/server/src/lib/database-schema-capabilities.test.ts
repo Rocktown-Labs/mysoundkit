@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  getDatabaseSchemaCapabilities,
-  type SoundKitDatabase,
-} from "./database-schema-capabilities";
+import { getDatabaseSchemaCapabilities } from "./database-schema-capabilities";
+import type { SoundKitDatabase } from "./database-schema-capabilities";
 
 const databaseWithRows = (rows: unknown[]) =>
   ({
@@ -16,6 +14,18 @@ describe("database schema capabilities", () => {
       { kind: "enum", name: "project_asset_kind", value: "attachment" },
       { kind: "enum", name: "project_asset_kind", value: "cover_art" },
     ]);
+
+    await expect(getDatabaseSchemaCapabilities(db)).resolves.toEqual({
+      collaborationProposals: false,
+      projectAssetKinds: { beat: false, concept: false },
+      projectAssetVersioning: false,
+    });
+  });
+
+  it("fails closed to the legacy schema when introspection fails", async () => {
+    const db = {
+      execute: vi.fn().mockRejectedValue(new Error("metadata unavailable")),
+    } as unknown as SoundKitDatabase;
 
     await expect(getDatabaseSchemaCapabilities(db)).resolves.toEqual({
       collaborationProposals: false,

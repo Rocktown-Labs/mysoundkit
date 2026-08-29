@@ -19,10 +19,10 @@ interface SchemaCapabilityRow {
   value: string;
 }
 
-const assumeCurrentSchema: DatabaseSchemaCapabilities = {
-  collaborationProposals: true,
-  projectAssetKinds: { beat: true, concept: true },
-  projectAssetVersioning: true,
+const assumeLegacySchema: DatabaseSchemaCapabilities = {
+  collaborationProposals: false,
+  projectAssetKinds: { beat: false, concept: false },
+  projectAssetVersioning: false,
 };
 
 const capabilityCache = new WeakMap<
@@ -94,10 +94,9 @@ const loadDatabaseSchemaCapabilities = async (
         hasColumn("project_assets", "version"),
     };
   } catch {
-    // If metadata introspection is unavailable, keep the current-schema path.
-    // The actual query will surface a normal database error instead of silently
-    // dropping a feature on a configured database.
-    return assumeCurrentSchema;
+    // Metadata introspection must fail closed: previews can run against a
+    // database that has not received the latest migrations yet.
+    return assumeLegacySchema;
   }
 };
 
