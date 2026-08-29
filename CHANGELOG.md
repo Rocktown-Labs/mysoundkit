@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added project collaboration workspaces with accepted-only access, 24-hour proposals, optimistic `/collab` commands, typed attachments, beats/concepts, versioned assets, master-to-track processing, release readiness checks, publication propagation, project slugs, shared artwork, credits, and public project discovery.
+- Added project cover naming as `{project-name}-cover.{ext}` and a project-assets upload path that stores beats and concepts directly until a master is selected.
 - Added a shared route-aware floating `[Nav | Chat]` utility with synchronized dashboard messaging, mobile-safe mini-player defaults, and global presence indicators in battle chat.
 - Added presence and messaging regression coverage for Durable Object heartbeats, reconnect state, cross-surface conversations, and responsive player behavior.
 - Added accessible video comment mentions with username autocomplete, server-validated public targets, mention notifications that respect recipient preferences, and nested replies with parent context.
@@ -57,6 +59,8 @@
 
 ### Fixed
 
+- Fixed PR previews against the shared pre-migration database: project and track reads no longer require versioning columns, project media reads use compatible projections, metadata detection fails closed to the legacy schema, and message polling remains healthy when collaboration tables are not installed yet.
+- Fixed shared project uploads so only selected masters create ordered tracks and enter media processing/stem splitting; workspace assets remain unprocessed and private until used.
 - Fixed dashboard messaging to poll authoritative conversations and messages, preserve the active conversation across floating/full-page navigation, show actionable retry states, and reconcile optimistic sends and read state through one TanStack DB surface.
 - Fixed TanStack DB auth-scope cleanup by waiting for live-query subscribers to detach before cleaning collections, preventing live queries from referencing manually cleaned notification sources.
 - Fixed presence and live-room WebSocket clients to reconnect with bounded backoff, ignore stale socket callbacks, detect heartbeat timeouts, and avoid noisy premature closes during failed handshakes.

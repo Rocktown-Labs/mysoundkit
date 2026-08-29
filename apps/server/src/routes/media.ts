@@ -5,6 +5,8 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   openVerseListings,
   projectAssets,
+  projectCollaborators,
+  projectTracks,
   projects,
   trackAssets,
   tracks,
@@ -125,15 +127,39 @@ app.get("/*", async (c) => {
                 )
                 .limit(1)
             : [];
+      const [projectAccess] = isAuthenticatedUser(user)
+        ? await db
+            .select({ id: projectTracks.projectId })
+            .from(projectTracks)
+            .innerJoin(
+              projectCollaborators,
+              eq(projectCollaborators.projectId, projectTracks.projectId)
+            )
+            .where(
+              and(
+                eq(projectTracks.trackId, trackRow.track.id),
+                eq(projectCollaborators.collaboratorUserId, user.id),
+                eq(projectCollaborators.invitationStatus, "accepted")
+              )
+            )
+            .limit(1)
+        : [];
       authorized =
         isOwner ||
+        Boolean(projectAccess) ||
         (!privateAsset &&
           (publicArtwork || publicStreaming || Boolean(openVerse)));
     }
 
     if (!authorized) {
       const [projectRow] = await db
-        .select({ asset: projectAssets, project: projects })
+        .select({
+          asset: {
+            assetKind: projectAssets.assetKind,
+            objectKey: projectAssets.objectKey,
+          },
+          project: projects,
+        })
         .from(projectAssets)
         .innerJoin(projects, eq(projects.id, projectAssets.projectId))
         .where(eq(projectAssets.objectKey, objectKey))
@@ -142,10 +168,23 @@ app.get("/*", async (c) => {
         const isOwner =
             isAuthenticatedUser(user) &&
             user.id === projectRow.project.ownerUserId,
+          [projectAccess] = isAuthenticatedUser(user)
+            ? await db
+                .select({ id: projectCollaborators.id })
+                .from(projectCollaborators)
+                .where(
+                  and(
+                    eq(projectCollaborators.projectId, projectRow.project.id),
+                    eq(projectCollaborators.collaboratorUserId, user.id),
+                    eq(projectCollaborators.invitationStatus, "accepted")
+                  )
+                )
+                .limit(1)
+            : [],
           publicArtwork =
             projectRow.project.isPublic &&
             projectRow.asset.assetKind === "cover_art";
-        authorized = isOwner || publicArtwork;
+        authorized = isOwner || Boolean(projectAccess) || publicArtwork;
       }
     }
   }

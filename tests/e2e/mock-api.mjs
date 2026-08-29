@@ -1272,7 +1272,9 @@ export const createMockApiServer = async ({
     );
     if (publicProjectDetailMatch) {
       const project = mockProjects.find(
-        (entry) => entry.id === publicProjectDetailMatch[1]
+        (entry) =>
+          entry.id === publicProjectDetailMatch[1] ||
+          entry.slug === publicProjectDetailMatch[1]
       );
       if (!project) {
         json(response, 404, { message: "Project not found." }, webOrigin);

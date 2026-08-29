@@ -2,6 +2,7 @@
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistFollows,
+  projectAssets,
   projectPreSaves,
   projects,
   projectTracks,
@@ -13,7 +14,7 @@ import {
   videoPreSaves,
   videos,
 } from "@soundkit/db/schema/app";
-import { and, eq, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { notify } from "@/lib/notifications";
@@ -21,6 +22,127 @@ import {
   notifyTrackLive,
   notifyTrackMediaReady,
 } from "@/lib/track-notifications";
+
+const PROJECT_MIN_TRACK_COUNT = {
+  album: 2,
+  ep: 2,
+  mixtape: 2,
+  single: 1,
+} as const;
+
+export interface ProjectReleaseReadiness {
+  isReady: boolean;
+  missing: string[];
+  projectId: string;
+  trackIds: string[];
+}
+
+export const getProjectReleaseReadiness = async ({
+  projectId,
+}: {
+  projectId: string;
+}): Promise<ProjectReleaseReadiness> => {
+  if (!isDatabaseConfigured()) {
+    return {
+      isReady: false,
+      missing: ["Database is not configured."],
+      projectId,
+      trackIds: [],
+    };
+  }
+
+  const db = createDb(),
+    [project] = await db
+      .select({ id: projects.id, projectType: projects.projectType })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1);
+
+  if (!project) {
+    return {
+      isReady: false,
+      missing: ["Project not found."],
+      projectId,
+      trackIds: [],
+    };
+  }
+
+  const [coverAsset, trackRows] = await Promise.all([
+    db
+      .select({ id: projectAssets.id })
+      .from(projectAssets)
+      .where(
+        and(
+          eq(projectAssets.projectId, projectId),
+          eq(projectAssets.assetKind, "cover_art"),
+          inArray(projectAssets.status, ["uploaded", "ready"]),
+          isNotNull(projectAssets.objectKey)
+        )
+      )
+      .limit(1),
+    db
+      .select({
+        assetKind: trackAssets.assetKind,
+        isCurrent: trackAssets.isCurrent,
+        purpose: trackAssets.purpose,
+        status: trackAssets.status,
+        trackId: projectTracks.trackId,
+      })
+      .from(projectTracks)
+      .leftJoin(trackAssets, eq(trackAssets.trackId, projectTracks.trackId))
+      .where(eq(projectTracks.projectId, projectId)),
+  ]);
+
+  const trackIds = [
+      ...new Set(
+        trackRows
+          .map((row) => row.trackId)
+          .filter((trackId): trackId is string => Boolean(trackId))
+      ),
+    ],
+    hasReadyStreamingByTrack = new Map<string, boolean>(),
+    hasMasterByTrack = new Map<string, boolean>();
+
+  for (const row of trackRows) {
+    if (!row.trackId) {
+      continue;
+    }
+
+    if (
+      row.purpose === "streaming" &&
+      row.isCurrent &&
+      row.status === "ready"
+    ) {
+      hasReadyStreamingByTrack.set(row.trackId, true);
+    }
+    if (
+      (row.purpose === "master" || row.assetKind === "master") &&
+      row.isCurrent &&
+      row.status !== null &&
+      ["uploaded", "ready"].includes(row.status)
+    ) {
+      hasMasterByTrack.set(row.trackId, true);
+    }
+  }
+
+  const missing = [];
+  if (coverAsset.length === 0) {
+    missing.push("Cover artwork is required.");
+  }
+  if (trackIds.length < PROJECT_MIN_TRACK_COUNT[project.projectType]) {
+    missing.push(
+      `${project.projectType === "single" ? "A single needs" : "This project needs"} at least ${PROJECT_MIN_TRACK_COUNT[project.projectType]} final master${PROJECT_MIN_TRACK_COUNT[project.projectType] === 1 ? "" : "s"}.`
+    );
+  }
+  if (trackIds.some((trackId) => !hasMasterByTrack.get(trackId))) {
+    missing.push("Every project track needs a final master.");
+  }
+  if (trackIds.some((trackId) => !hasReadyStreamingByTrack.get(trackId))) {
+    missing.push("Every final master needs a ready streaming version.");
+  }
+
+  return { isReady: missing.length === 0, missing, projectId, trackIds };
+};
 
 const loadReleaseAudience = async ({
   ownerUserId,
@@ -85,33 +207,27 @@ export const publishProjectIfMediaReady = async ({
     return false;
   }
 
-  const trackRows = await db
-    .select({
-      streamingAssetId: trackAssets.id,
-      trackId: projectTracks.trackId,
-    })
-    .from(projectTracks)
-    .leftJoin(
-      trackAssets,
-      and(
-        eq(trackAssets.trackId, projectTracks.trackId),
-        eq(trackAssets.purpose, "streaming"),
-        eq(trackAssets.isCurrent, true),
-        eq(trackAssets.status, "ready")
-      )
-    )
-    .where(eq(projectTracks.projectId, projectId));
-  if (
-    trackRows.length === 0 ||
-    trackRows.some((trackRow) => !trackRow.streamingAssetId)
-  ) {
+  const readiness = await getProjectReleaseReadiness({ projectId });
+  if (!readiness.isReady) {
     return false;
   }
 
-  await db
-    .update(projects)
-    .set({ isPublic: true, status: "released", updatedAt: new Date() })
-    .where(eq(projects.id, projectId));
+  const now = new Date();
+  await db.transaction(async (transaction) => {
+    await transaction
+      .update(projects)
+      .set({ isPublic: true, status: "released", updatedAt: now })
+      .where(eq(projects.id, projectId));
+    await transaction
+      .update(tracks)
+      .set({
+        isPublic: true,
+        publishedAt: now,
+        releaseStrategy: "publish_when_ready",
+        updatedAt: now,
+      })
+      .where(inArray(tracks.id, readiness.trackIds));
+  });
   return true;
 };
 

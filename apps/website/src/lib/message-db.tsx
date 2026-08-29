@@ -26,6 +26,12 @@ const conversationGet = apiClient.v1.messages.conversations.$get,
     apiClient.v1.messages.conversations[":conversationId"].messages.$get,
   conversationMessagesPost =
     apiClient.v1.messages.conversations[":conversationId"].messages.$post,
+  collaborationPost =
+    apiClient.v1.messages.conversations[":conversationId"].collaborations.$post,
+  collaborationRespondPost =
+    apiClient.v1.messages.conversations[":conversationId"].collaborations[
+      ":collaborationId"
+    ].respond.$post,
   conversationReadPost =
     apiClient.v1.messages.conversations[":conversationId"].read.$post;
 
@@ -50,6 +56,12 @@ export interface CreateMessageCollectionInput {
 export interface MessageCollectionMutationOptions {
   onError?: (error: unknown) => void;
   onSuccess?: (message: MessageSummary) => void;
+}
+
+export interface StartCollaborationInput {
+  kind: "project" | "track";
+  projectType?: "album" | "ep" | "mixtape" | "single";
+  title: string;
 }
 
 const makeConversationCollection = (
@@ -438,6 +450,138 @@ export const useStartConversationMutation = () => {
       if (message?.body && message.body.trim()) {
         await conversations.utils.refetch();
       }
+    },
+  });
+};
+
+export const useStartCollaborationMutation = (
+  conversationId: string,
+  senderId?: string
+) => {
+  const { conversations, getMessages } = useMessagingDb(),
+    collection = useMemo(
+      () => getMessages(conversationId),
+      [conversationId, getMessages]
+    ),
+    [isPending, setIsPending] = useState(false),
+    startCollaboration = useMemo(
+      () =>
+        createOptimisticAction<
+          StartCollaborationInput & {
+            clientRequestId: string;
+            localMessageId: string;
+          }
+        >({
+          mutationFn: async (input) => {
+            await rpcJson(
+              await collaborationPost({
+                json: {
+                  clientRequestId: input.clientRequestId,
+                  kind: input.kind,
+                  projectType: input.projectType,
+                  title: input.title,
+                },
+                param: { conversationId },
+              })
+            );
+            await Promise.all([
+              collection.utils.refetch(),
+              conversations.utils.refetch(),
+            ]);
+          },
+          onMutate: (input) => {
+            collection.insert({
+              attachments: [
+                {
+                  collaboration: null,
+                  displayName: input.title,
+                  id: `local-attachment-${input.localMessageId}`,
+                  mimeType: "soundkit/collaboration-proposal",
+                  objectKey: null,
+                  sizeBytes: null,
+                  sourceProjectId: null,
+                  sourceTrackId: null,
+                  url: "/dashboard/messages",
+                },
+              ],
+              body: `Starting shared ${input.kind}: ${input.title}`,
+              createdAt: new Date().toISOString(),
+              id: input.localMessageId,
+              senderId: senderId ?? "",
+              status: "sent",
+            });
+          },
+        }),
+      [collection, conversationId, conversations, senderId]
+    ),
+    mutate = useCallback(
+      (
+        input: StartCollaborationInput,
+        options?: MessageCollectionMutationOptions
+      ) => {
+        if (!conversationId || !senderId) {
+          return;
+        }
+
+        setIsPending(true);
+        try {
+          const transaction = startCollaboration({
+            ...input,
+            clientRequestId: crypto.randomUUID(),
+            localMessageId: `local-collaboration-${crypto.randomUUID()}`,
+          });
+          void transaction.isPersisted.promise
+            .then(() => {
+              options?.onSuccess?.({
+                attachments: [],
+                body: input.title,
+                createdAt: new Date().toISOString(),
+                id: "",
+                senderId,
+                status: "sent",
+              });
+            })
+            .catch((error: unknown) => {
+              options?.onError?.(error);
+            })
+            .finally(() => setIsPending(false));
+        } catch (error) {
+          setIsPending(false);
+          options?.onError?.(error);
+        }
+      },
+      [conversationId, senderId, startCollaboration]
+    );
+
+  return { isPending, mutate };
+};
+
+export const useRespondCollaborationMutation = (conversationId: string) => {
+  const { conversations, getMessages } = useMessagingDb(),
+    collection = useMemo(
+      () => getMessages(conversationId),
+      [conversationId, getMessages]
+    );
+
+  return useMutation({
+    mutationFn: async ({
+      action,
+      collaborationId,
+    }: {
+      action: "accept" | "cancel" | "decline";
+      collaborationId: string;
+    }) =>
+      rpcJson(
+        await collaborationRespondPost({
+          json: { action },
+          param: { collaborationId, conversationId },
+        })
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        collection.utils.refetch(),
+        conversations.utils.refetch(),
+      ]);
     },
   });
 };

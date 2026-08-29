@@ -688,6 +688,7 @@ export const dashboardAssetSchema = z.object({
   sizeBytes: z.number().int().nullable(),
   status: z.string(),
   storageProvider: z.enum(["r2", "mux", "external"]),
+  version: z.number().int().positive().optional(),
 });
 
 export const dashboardCollaboratorSchema = z.object({
@@ -1201,7 +1202,57 @@ export const conversationSummarySchema = z.object({
   updatedAt: z.string(),
 });
 
+export const createCollaborationBodySchema = z.object({
+  clientRequestId: z.string().uuid().optional(),
+  initialTracks: z.array(z.string()).optional(),
+  isProjectLevel: z.boolean().optional(),
+  kind: z.enum(["project", "track"]).default("project").optional(),
+  projectType: z.enum(["album", "ep", "mixtape", "single"]).optional(),
+  title: z.string().trim().min(1).max(160),
+});
+
+export const collaborationCreatedResponseSchema = z.object({
+  expiresAt: z.string(),
+  href: z.string(),
+  id: z.string(),
+  kind: z.enum(["project", "track"]),
+  messageId: z.string(),
+  proposalIds: z.array(z.string()),
+  status: z.string(),
+});
+
+export const respondCollaborationBodySchema = z.object({
+  action: z.enum(["accept", "decline", "cancel"]),
+});
+
+export const respondCollaborationResponseSchema = z.object({
+  action: z.enum(["accept", "decline", "cancel"]),
+  expiresAt: z.string(),
+  href: z.string(),
+  proposalId: z.string(),
+  status: z.string(),
+  success: z.boolean(),
+});
+
+export const projectWorkspaceAssetBodySchema = z.object({
+  assetKind: z.enum(["attachment", "beat", "concept", "photo", "video"]),
+  displayName: z.string().trim().min(1).max(240),
+  mimeType: z.string().max(160).optional(),
+  objectKey: z.string().min(1),
+  sizeBytes: z.number().int().nonnegative().optional(),
+});
+
+export const collaborationProposalSchema = z.object({
+  expiresAt: z.string(),
+  href: z.string(),
+  id: z.string(),
+  kind: z.enum(["project", "track"]),
+  status: z.enum(["pending", "accepted", "rejected", "revoked", "expired"]),
+  targetId: z.string(),
+});
+
 export const messageAttachmentSchema = z.object({
+  collaboration: collaborationProposalSchema.nullable().optional(),
   displayName: z.string(),
   id: z.string(),
   mimeType: z.string().nullable(),

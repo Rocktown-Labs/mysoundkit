@@ -79,7 +79,7 @@ export const publicProfileAssetUrl = ({
 };
 
 export const publicProjectAssetUrl = (
-  asset: InferSelectModel<typeof projectAssets> | undefined
+  asset: Pick<InferSelectModel<typeof projectAssets>, "objectKey"> | undefined
 ) => {
   if (!asset) {
     return null;

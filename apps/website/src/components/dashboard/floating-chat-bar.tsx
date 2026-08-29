@@ -16,7 +16,6 @@ import {
   Check,
   Clock,
   Download,
-  ExternalLink,
   Home,
   FileText,
   FolderKanban,
@@ -47,6 +46,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { PlayerTrack } from "@/components/audio-player-provider";
 import { useAudioPlayer } from "@/components/audio-player-provider";
+import { CollaborationMessageCard } from "@/components/dashboard/message-collaboration-card";
+import type { CollaborationResponseAction } from "@/components/dashboard/message-collaboration-card";
 import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -71,7 +72,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
-import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
+import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import { isImmersiveExploreRoute } from "@/lib/immersive-route";
 import {
   useCreateMessageCollectionMutation,
@@ -79,6 +80,8 @@ import {
   useMessagingConversations,
   useMessagingMessages,
   useMessagingWorkspace,
+  useRespondCollaborationMutation,
+  useStartCollaborationMutation,
   useStartConversationMutation,
 } from "@/lib/message-db";
 import { usePresence } from "@/lib/presence-context";
@@ -182,7 +185,6 @@ function FloatingChatBarClient() {
       "album" | "ep" | "single"
     >("single"),
     [collabKind, setCollabKind] = useState<"project" | "track">("project"),
-    [isSubmittingCollab, setIsSubmittingCollab] = useState(false),
     fileInputRef = useRef<HTMLInputElement | null>(null),
     {
       currentTrack,
@@ -226,6 +228,11 @@ function FloatingChatBarClient() {
       conversationId,
       meQuery.data?.user.id
     ),
+    startCollaboration = useStartCollaborationMutation(
+      conversationId,
+      meQuery.data?.user.id
+    ),
+    respondCollaboration = useRespondCollaborationMutation(conversationId),
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
@@ -357,60 +364,43 @@ function FloatingChatBarClient() {
     return null;
   }
 
-  const handleSendProposal = async () => {
+  const handleSendProposal = () => {
       const projectTitle = collabTitle.trim() || "Untitled Collaboration";
-      setIsSubmittingCollab(true);
-      try {
-        const response = await fetch(
-          `${API_V1_URL}/messages/conversations/${encodeURIComponent(conversationId)}/collaborations`,
-          {
-            body: JSON.stringify({ kind: collabKind, title: projectTitle }),
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          }
-        );
-        if (!response.ok) {
-          throw new Error("Could not start collaboration.");
+      startCollaboration.mutate(
+        {
+          kind: collabKind,
+          projectType: collabKind === "project" ? "single" : undefined,
+          title: projectTitle,
+        },
+        {
+          onError: (error) => {
+            toast({
+              description:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to send collaboration proposal.",
+              title: "Error",
+              variant: "destructive",
+            });
+          },
+          onSuccess: () => {
+            toast({
+              description: `Proposal for "${projectTitle}" sent! Collaborator has 24h to accept.`,
+              title: "Collaboration proposal sent",
+            });
+          },
         }
-        setIsCollabDialogOpen(false);
-        setCollabTitle("");
-        setMessageInput("");
-        toast({
-          description: `Proposal for "${projectTitle}" sent! Collaborator has 24h to accept.`,
-          title: "Collaboration Proposal Sent",
-        });
-        await Promise.all([
-          messagesQuery.refetch(),
-          conversationsQuery.refetch(),
-        ]);
-      } catch {
-        toast({
-          description: "Failed to send collaboration proposal.",
-          title: "Error",
-          variant: "destructive",
-        });
-      } finally {
-        setIsSubmittingCollab(false);
-      }
+      );
+      setIsCollabDialogOpen(false);
+      setCollabTitle("");
+      setMessageInput("");
     },
     handleRespondCollaboration = async (
-      projectId: string,
+      collaborationId: string,
       action: "accept" | "decline" | "cancel"
     ) => {
       try {
-        const response = await fetch(
-          `${API_V1_URL}/messages/conversations/${encodeURIComponent(conversationId)}/collaborations/${encodeURIComponent(projectId)}/respond`,
-          {
-            body: JSON.stringify({ action }),
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          }
-        );
-        if (!response.ok) {
-          throw new Error("Could not update status.");
-        }
+        await respondCollaboration.mutateAsync({ action, collaborationId });
         toast({
           description:
             action === "accept"
@@ -418,15 +408,14 @@ function FloatingChatBarClient() {
               : action === "decline"
                 ? "Collaboration declined."
                 : "Collaboration cancelled.",
-          title: "Status Updated",
+          title: "Status updated",
         });
-        await Promise.all([
-          messagesQuery.refetch(),
-          conversationsQuery.refetch(),
-        ]);
-      } catch {
+      } catch (error) {
         toast({
-          description: "Failed to respond to collaboration.",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Failed to respond to collaboration.",
           title: "Error",
           variant: "destructive",
         });
@@ -824,7 +813,11 @@ function FloatingChatBarClient() {
               </CardHeader>
 
               {/* Messages Feed */}
-              <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+              <MessageScrollerProvider
+                autoScroll
+                defaultScrollPosition="end"
+                scrollPreviousItemPeek={64}
+              >
                 <MessageScroller>
                   <MessageScrollerViewport>
                     <MessageScrollerContent className="gap-3 p-3">
@@ -856,12 +849,14 @@ function FloatingChatBarClient() {
                             message.senderId === meQuery.data?.user.id;
                           const hasCollabProposal = message.attachments?.some(
                             (att) =>
+                              Boolean(att.collaboration) ||
                               att.mimeType ===
                                 "soundkit/collaboration-proposal" ||
                               Boolean(att.sourceProjectId)
                           );
                           const collabAtt = message.attachments?.find(
                             (att) =>
+                              Boolean(att.collaboration) ||
                               att.mimeType ===
                                 "soundkit/collaboration-proposal" ||
                               Boolean(att.sourceProjectId)
@@ -881,94 +876,23 @@ function FloatingChatBarClient() {
                                     : "mr-auto items-start"
                                 )}
                               >
-                                {/* Collaboration Proposal Rich Card */}
                                 {hasCollabProposal && collabAtt ? (
-                                  <div className="rounded-2xl border-2 border-primary/40 bg-card/95 p-3 shadow-md space-y-2.5 text-xs w-full max-w-[280px]">
-                                    <div className="flex items-center justify-between border-b pb-1.5">
-                                      <div className="flex items-center gap-1.5 font-bold text-primary">
-                                        <FolderKanban className="size-4" />
-                                        <span>Shared Collaboration</span>
-                                      </div>
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[9px] px-1 py-0"
-                                      >
-                                        Draft
-                                      </Badge>
-                                    </div>
-                                    <div>
-                                      <p className="font-bold text-sm text-foreground">
-                                        {collabAtt.displayName}
-                                      </p>
-                                      <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                                        <Clock className="size-3 text-amber-400" />
-                                        24h Acceptance Window
-                                      </p>
-                                    </div>
-                                    <div className="flex flex-col gap-1.5 pt-1">
-                                      {isMine ? (
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          className="h-6 text-[10px] text-muted-foreground hover:text-destructive w-full"
-                                          onClick={() =>
-                                            handleRespondCollaboration(
-                                              collabAtt.sourceProjectId ?? "",
-                                              "cancel"
-                                            )
-                                          }
-                                        >
-                                          Cancel Invite
-                                        </Button>
-                                      ) : (
-                                        <div className="grid grid-cols-2 gap-1.5">
-                                          <Button
-                                            size="sm"
-                                            className="h-7 text-[11px] gap-1 bg-primary"
-                                            onClick={() =>
-                                              handleRespondCollaboration(
-                                                collabAtt.sourceProjectId ?? "",
-                                                "accept"
-                                              )
-                                            }
-                                          >
-                                            <Check className="size-3" />
-                                            Accept
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-7 text-[11px]"
-                                            onClick={() =>
-                                              handleRespondCollaboration(
-                                                collabAtt.sourceProjectId ?? "",
-                                                "decline"
-                                              )
-                                            }
-                                          >
-                                            Decline
-                                          </Button>
-                                        </div>
-                                      )}
-                                      {collabAtt.url && (
-                                        <Button
-                                          asChild
-                                          size="sm"
-                                          variant="secondary"
-                                          className="h-7 text-[11px] w-full gap-1"
-                                        >
-                                          <a
-                                            href={collabAtt.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                          >
-                                            <ExternalLink className="size-3" />
-                                            Open Project Workspace
-                                          </a>
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </div>
+                                  <CollaborationMessageCard
+                                    attachment={collabAtt}
+                                    isMine={isMine}
+                                    isResponding={
+                                      respondCollaboration.isPending
+                                    }
+                                    onRespond={(
+                                      collaborationId,
+                                      action: CollaborationResponseAction
+                                    ) =>
+                                      void handleRespondCollaboration(
+                                        collaborationId,
+                                        action
+                                      )
+                                    }
+                                  />
                                 ) : (
                                   <div
                                     className={cn(
@@ -1120,7 +1044,7 @@ function FloatingChatBarClient() {
                       )}
                     </MessageScrollerContent>
                   </MessageScrollerViewport>
-                  <MessageScrollerButton />
+                  <MessageScrollerButton size="icon-sm" />
                 </MessageScroller>
               </MessageScrollerProvider>
 
@@ -1226,9 +1150,11 @@ function FloatingChatBarClient() {
                     </div>
                     <Button
                       size="sm"
-                      disabled={isSubmittingCollab || !collabTitle.trim()}
-                      onClick={async () => {
-                        await handleSendProposal();
+                      disabled={
+                        startCollaboration.isPending || !collabTitle.trim()
+                      }
+                      onClick={() => {
+                        handleSendProposal();
                         setShowInlineCollab(false);
                       }}
                       className="w-full h-7 text-xs bg-primary gap-1"
@@ -1643,10 +1569,10 @@ function FloatingChatBarClient() {
             <Button
               type="button"
               onClick={handleSendProposal}
-              disabled={isSubmittingCollab || !collabTitle.trim()}
+              disabled={startCollaboration.isPending || !collabTitle.trim()}
               className="text-xs gap-1.5"
             >
-              {isSubmittingCollab ? (
+              {startCollaboration.isPending ? (
                 <LoaderCircle className="size-3.5 animate-spin" />
               ) : (
                 <Send className="size-3.5" />

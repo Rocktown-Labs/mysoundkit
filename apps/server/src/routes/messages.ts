@@ -1,10 +1,11 @@
-/* eslint-disable complexity, sort-vars, unicorn/max-nested-calls, one-var, no-nested-ternary, unicorn/no-negated-condition */
+/* eslint-disable complexity, no-unused-vars, sort-vars, unicorn/max-nested-calls, one-var, no-nested-ternary, unicorn/no-negated-condition, unicorn/prefer-ternary */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistFollows,
   artistFriendRequests,
   artistProfiles,
+  collaborationProposals,
   conversationParticipants,
   conversations,
   messageAttachments,
@@ -26,6 +27,7 @@ import {
   ilike,
   inArray,
   isNull,
+  lte,
   ne,
   or,
   sql,
@@ -34,12 +36,15 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { getDatabaseSchemaCapabilities } from "@/lib/database-schema-capabilities";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import { resolveConversationUnreadCount } from "@/lib/messages-domain";
 import { notify } from "@/lib/notifications";
 import { sampleConversations, sampleMessages } from "@/lib/sample-data";
 import {
+  collaborationCreatedResponseSchema,
   conversationSummarySchema,
+  createCollaborationBodySchema,
   createConversationBodySchema,
   createFriendRequestBodySchema,
   createMessageBodySchema,
@@ -49,10 +54,13 @@ import {
   messageSchema,
   peopleSearchQuerySchema,
   peopleSearchResultSchema,
+  respondCollaborationBodySchema,
+  respondCollaborationResponseSchema,
   respondFriendRequestBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 import { claimUploadIntent, completeUploadIntent } from "@/lib/upload-intents";
+import { uniqueSlug } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>(),
   sampleFriends = [
@@ -107,6 +115,12 @@ const app = new OpenAPIHono<AppEnv>(),
     }
     return null;
   },
+  collaborationHref = (kind: "project" | "track", id: string) =>
+    kind === "project"
+      ? `/dashboard/projects/${id}`
+      : `/dashboard/tracks/${id}`,
+  collaborationExpiresAt = (createdAt: Date) =>
+    new Date(createdAt.getTime() + 24 * 60 * 60 * 1000),
   toFriendRequestSummary = ({
     createdAt,
     direction,
@@ -1576,16 +1590,29 @@ app.openapi(
     }
 
     const db = createDb(),
-      participantRows = await db
-        .select({ userId: conversationParticipants.userId })
-        .from(conversationParticipants)
+      capabilities = await getDatabaseSchemaCapabilities(db);
+    if (capabilities.collaborationProposals) {
+      await db
+        .update(collaborationProposals)
+        .set({ respondedAt: new Date(), status: "expired" })
         .where(
           and(
-            eq(conversationParticipants.conversationId, conversationId),
-            eq(conversationParticipants.userId, user.id)
+            eq(collaborationProposals.status, "pending"),
+            lte(collaborationProposals.expiresAt, new Date())
           )
+        );
+    }
+
+    const participantRows = await db
+      .select({ userId: conversationParticipants.userId })
+      .from(conversationParticipants)
+      .where(
+        and(
+          eq(conversationParticipants.conversationId, conversationId),
+          eq(conversationParticipants.userId, user.id)
         )
-        .limit(1);
+      )
+      .limit(1);
 
     if (participantRows.length === 0) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
@@ -1681,7 +1708,15 @@ app.openapi(
               .from(messageAttachments)
               .where(inArray(messageAttachments.messageId, messageIds))
           : [],
-      attachmentsByMessageId = new Map<string, typeof attachmentRows>();
+      proposalRows =
+        capabilities.collaborationProposals && messageIds.length > 0
+          ? await db
+              .select()
+              .from(collaborationProposals)
+              .where(inArray(collaborationProposals.messageId, messageIds))
+          : [],
+      attachmentsByMessageId = new Map<string, typeof attachmentRows>(),
+      proposalsByMessageId = new Map<string, typeof proposalRows>();
 
     for (const attachment of attachmentRows) {
       const current = attachmentsByMessageId.get(attachment.messageId) ?? [];
@@ -1689,19 +1724,49 @@ app.openapi(
       attachmentsByMessageId.set(attachment.messageId, current);
     }
 
+    for (const proposal of proposalRows) {
+      if (!proposal.messageId) {
+        continue;
+      }
+      const current = proposalsByMessageId.get(proposal.messageId) ?? [];
+      current.push(proposal);
+      proposalsByMessageId.set(proposal.messageId, current);
+    }
+
     return c.json(
       rows.map((message) => ({
         attachments: (attachmentsByMessageId.get(message.id) ?? []).map(
-          (attachment) => ({
-            displayName: attachment.displayName,
-            id: attachment.id,
-            mimeType: attachment.mimeType,
-            objectKey: attachment.objectKey,
-            sizeBytes: attachment.sizeBytes,
-            sourceProjectId: attachment.sourceProjectId,
-            sourceTrackId: attachment.sourceTrackId,
-            url: attachment.url,
-          })
+          (attachment) => {
+            const proposal =
+              proposalsByMessageId
+                .get(message.id)
+                ?.find((entry) => entry.inviteeUserId === user.id) ??
+              proposalsByMessageId.get(message.id)?.[0];
+
+            return {
+              collaboration: proposal
+                ? {
+                    expiresAt: toIso(proposal.expiresAt),
+                    href: collaborationHref(
+                      proposal.kind,
+                      proposal.collaborationId
+                    ),
+                    id: proposal.id,
+                    kind: proposal.kind,
+                    status: proposal.status,
+                    targetId: proposal.collaborationId,
+                  }
+                : null,
+              displayName: attachment.displayName,
+              id: attachment.id,
+              mimeType: attachment.mimeType,
+              objectKey: attachment.objectKey,
+              sizeBytes: attachment.sizeBytes,
+              sourceProjectId: attachment.sourceProjectId,
+              sourceTrackId: attachment.sourceTrackId,
+              url: attachment.url,
+            };
+          }
         ),
         body: message.body,
         createdAt: toIso(message.createdAt),
@@ -1825,8 +1890,8 @@ app.openapi(
     }
 
     const attachmentObjectKeys = body.attachments
-        .map((attachment) => attachment.objectKey)
-        .filter((objectKey): objectKey is string => Boolean(objectKey));
+      .map((attachment) => attachment.objectKey)
+      .filter((objectKey): objectKey is string => Boolean(objectKey));
     if (
       attachmentObjectKeys.some(
         (objectKey) => !objectKey.startsWith(`uploads/${user.id}/`)
@@ -1948,25 +2013,19 @@ app.openapi(
     path: "/conversations/{conversationId}/collaborations",
     request: {
       body: jsonContentRequired(
-        z.object({
-          initialTracks: z.array(z.string()).optional(),
-          isProjectLevel: z.boolean().optional(),
-          kind: z.enum(["project", "track"]).default("project").optional(),
-          projectType: z.enum(["album", "ep", "single"]).optional(),
-          title: z.string().trim().min(1).max(160),
-        }),
+        createCollaborationBodySchema,
         "Collaboration workspace"
       ),
       params: z.object({ conversationId: z.string() }),
     },
     responses: {
       [HttpStatusCodes.CREATED]: jsonContent(
-        z.object({
-          href: z.string(),
-          id: z.string(),
-          kind: z.enum(["project", "track"]),
-        }),
+        collaborationCreatedResponseSchema,
         "Collaboration created"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Collaboration schema is not available"
       ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         z.object({ message: z.string() }),
@@ -1985,6 +2044,7 @@ app.openapi(
       body = c.req.valid("json"),
       kind = body.kind ?? "project",
       db = createDb(),
+      capabilities = await getDatabaseSchemaCapabilities(db),
       [convRow] = await db
         .select({
           conversationType: conversations.conversationType,
@@ -1999,6 +2059,47 @@ app.openapi(
 
     if (!participants.some((participant) => participant.userId === user.id)) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!capabilities.collaborationProposals) {
+      return c.json(
+        {
+          message:
+            "Collaboration is unavailable until the database migration is applied.",
+        },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    if (body.clientRequestId) {
+      const [existingProposal] = await db
+        .select()
+        .from(collaborationProposals)
+        .where(
+          and(
+            eq(collaborationProposals.clientRequestId, body.clientRequestId),
+            eq(collaborationProposals.inviterUserId, user.id)
+          )
+        )
+        .limit(1);
+
+      if (existingProposal) {
+        return c.json(
+          {
+            expiresAt: toIso(existingProposal.expiresAt),
+            href: collaborationHref(
+              existingProposal.kind,
+              existingProposal.collaborationId
+            ),
+            id: existingProposal.collaborationId,
+            kind: existingProposal.kind,
+            messageId: existingProposal.messageId ?? "",
+            proposalIds: [existingProposal.id],
+            status: existingProposal.status,
+          },
+          HttpStatusCodes.CREATED
+        );
+      }
     }
 
     let collaboratorIds = participants
@@ -2020,6 +2121,7 @@ app.openapi(
         )
         .where(
           and(
+            eq(conversationParticipants.conversationId, conversationId),
             eq(conversations.conversationType, "direct"),
             ne(conversationParticipants.userId, user.id)
           )
@@ -2032,10 +2134,9 @@ app.openapi(
     }
 
     const workspaceId = crypto.randomUUID(),
-      href =
-        kind === "project"
-          ? `/dashboard/projects/${workspaceId}`
-          : `/dashboard/tracks/${workspaceId}`;
+      createdAt = new Date(),
+      expiresAt = collaborationExpiresAt(createdAt),
+      href = collaborationHref(kind, workspaceId);
 
     if (kind === "project") {
       await db.insert(projects).values({
@@ -2044,25 +2145,10 @@ app.openapi(
         isPublic: false,
         ownerUserId: user.id,
         projectType: body.projectType ?? "single",
-        slug: `collaboration-${workspaceId}`,
+        slug: uniqueSlug(body.title),
         status: "draft",
         title: body.title,
       });
-      if (collaboratorIds.length > 0) {
-        await db.insert(projectCollaborators).values(
-          collaboratorIds.map((collaboratorUserId) => ({
-            canDelete: false,
-            canEdit: true,
-            canUpload: true,
-            collaboratorRole: "artist" as const,
-            collaboratorUserId,
-            id: crypto.randomUUID(),
-            invitationStatus: "accepted" as const,
-            invitedByUserId: user.id,
-            projectId: workspaceId,
-          }))
-        );
-      }
     } else {
       await db.insert(tracks).values({
         catalogItemType: "single",
@@ -2071,30 +2157,16 @@ app.openapi(
         ownerUserId: user.id,
         productionStatus: "demo",
         releaseStrategy: "private",
-        slug: `collaboration-${workspaceId}`,
+        slug: uniqueSlug(body.title),
         title: body.title,
       });
-      if (collaboratorIds.length > 0) {
-        await db.insert(trackCollaborators).values(
-          collaboratorIds.map((collaboratorUserId) => ({
-            canDelete: false,
-            canEdit: true,
-            canUpload: true,
-            collaboratorRole: "artist" as const,
-            collaboratorUserId,
-            id: crypto.randomUUID(),
-            invitationStatus: "accepted" as const,
-            invitedByUserId: user.id,
-            trackId: workspaceId,
-          }))
-        );
-      }
     }
 
     const messageId = crypto.randomUUID();
     await db.insert(messages).values({
-      body: `Started shared ${kind}: ${body.title} · ${href}`,
+      body: `Started shared ${kind}: ${body.title}`,
       conversationId,
+      createdAt,
       id: messageId,
       senderUserId: user.id,
     });
@@ -2110,18 +2182,38 @@ app.openapi(
       url: href,
     });
 
+    const proposals = collaboratorIds.map((inviteeUserId) => ({
+      clientRequestId: body.clientRequestId ?? null,
+      collaborationId: workspaceId,
+      conversationId,
+      createdAt,
+      expiresAt,
+      id: crypto.randomUUID(),
+      inviteeUserId,
+      inviterUserId: user.id,
+      kind,
+      messageId,
+      status: "pending" as const,
+    }));
+    if (proposals.length > 0) {
+      await db.insert(collaborationProposals).values(proposals);
+    }
+
     for (const collaboratorId of collaboratorIds) {
       await notify(
         {
           actorUserId: user.id,
           data: {
-            actionPath: href,
+            actionPath: `/dashboard/messages?conversationId=${encodeURIComponent(conversationId)}`,
             actorName: user.name ?? "An artist",
             workTitle: body.title,
             workType: kind,
           },
           entity: { id: workspaceId, type: kind },
-          eventId: workspaceId,
+          eventId:
+            proposals.find(
+              (proposal) => proposal.inviteeUserId === collaboratorId
+            )?.id ?? workspaceId,
           recipientUserId: collaboratorId,
           type: "collaboration.invited",
         },
@@ -2129,7 +2221,18 @@ app.openapi(
       );
     }
 
-    return c.json({ href, id: workspaceId, kind }, HttpStatusCodes.CREATED);
+    return c.json(
+      {
+        expiresAt: expiresAt.toISOString(),
+        href,
+        id: workspaceId,
+        kind,
+        messageId,
+        proposalIds: proposals.map((proposal) => proposal.id),
+        status: "pending",
+      },
+      HttpStatusCodes.CREATED
+    );
   }
 );
 
@@ -2139,9 +2242,7 @@ app.openapi(
     path: "/conversations/{conversationId}/collaborations/{collaborationId}/respond",
     request: {
       body: jsonContentRequired(
-        z.object({
-          action: z.enum(["accept", "decline", "cancel"]),
-        }),
+        respondCollaborationBodySchema,
         "Collaboration response action"
       ),
       params: z.object({
@@ -2150,14 +2251,25 @@ app.openapi(
       }),
     },
     responses: {
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        z.object({ message: z.string() }),
+        "Invalid collaboration action"
+      ),
+      [HttpStatusCodes.CONFLICT]: jsonContent(
+        z.object({ message: z.string() }),
+        "Collaboration proposal is no longer active"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        z.object({ message: z.string() }),
+        "Collaboration proposal not found"
+      ),
       [HttpStatusCodes.OK]: jsonContent(
-        z.object({
-          action: z.enum(["accept", "decline", "cancel"]),
-          href: z.string(),
-          status: z.string(),
-          success: z.boolean(),
-        }),
+        respondCollaborationResponseSchema,
         "Collaboration status updated"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Collaboration schema is not available"
       ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         z.object({ message: z.string() }),
@@ -2172,61 +2284,243 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
+    const db = createDb(),
+      capabilities = await getDatabaseSchemaCapabilities(db);
+    if (!capabilities.collaborationProposals) {
+      return c.json(
+        {
+          message:
+            "Collaboration is unavailable until the database migration is applied.",
+        },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
     const { collaborationId, conversationId } = c.req.valid("param"),
       { action } = c.req.valid("json"),
-      db = createDb(),
-      [project] = await db
-        .select({
-          id: projects.id,
-          ownerUserId: projects.ownerUserId,
-          title: projects.title,
-        })
-        .from(projects)
-        .where(eq(projects.id, collaborationId))
+      [conversationParticipant] = await db
+        .select({ userId: conversationParticipants.userId })
+        .from(conversationParticipants)
+        .where(
+          and(
+            eq(conversationParticipants.conversationId, conversationId),
+            eq(conversationParticipants.userId, user.id)
+          )
+        )
         .limit(1),
-      [track] = project
-        ? [null]
-        : await db
-            .select({
-              id: tracks.id,
-              ownerUserId: tracks.ownerUserId,
-              title: tracks.title,
-            })
-            .from(tracks)
-            .where(eq(tracks.id, collaborationId))
-            .limit(1),
+      [proposal] = await db
+        .select()
+        .from(collaborationProposals)
+        .where(
+          and(
+            eq(collaborationProposals.collaborationId, collaborationId),
+            eq(collaborationProposals.conversationId, conversationId),
+            or(
+              eq(collaborationProposals.inviteeUserId, user.id),
+              eq(collaborationProposals.inviterUserId, user.id)
+            )
+          )
+        )
+        .orderBy(desc(collaborationProposals.createdAt))
+        .limit(1);
+
+    if (!(conversationParticipant && proposal)) {
+      return c.json(
+        { message: "Collaboration proposal not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const [project] =
+        proposal.kind === "project"
+          ? await db
+              .select({
+                id: projects.id,
+                ownerUserId: projects.ownerUserId,
+                title: projects.title,
+              })
+              .from(projects)
+              .where(eq(projects.id, collaborationId))
+              .limit(1)
+          : [null],
+      [track] =
+        proposal.kind === "track"
+          ? await db
+              .select({
+                id: tracks.id,
+                ownerUserId: tracks.ownerUserId,
+                title: tracks.title,
+              })
+              .from(tracks)
+              .where(eq(tracks.id, collaborationId))
+              .limit(1)
+          : [null],
       ownerUserId = project?.ownerUserId ?? track?.ownerUserId,
       workTitle = project?.title ?? track?.title ?? "collaboration",
-      workType = project ? ("project" as const) : ("track" as const),
-      href =
-        workType === "project"
-          ? `/dashboard/projects/${collaborationId}`
-          : `/dashboard/tracks/${collaborationId}`;
+      workType = proposal.kind,
+      href = collaborationHref(workType, collaborationId),
+      isInvitee = proposal.inviteeUserId === user.id,
+      isInviter = proposal.inviterUserId === user.id,
+      proposalStatusForAction =
+        action === "accept"
+          ? "accepted"
+          : action === "decline"
+            ? "rejected"
+            : "revoked";
+
+    if (!(project || track)) {
+      return c.json(
+        { message: "Collaboration workspace not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    if ((action === "accept" || action === "decline") && !isInvitee) {
+      return c.json(
+        { message: "Only the invitee can respond to this proposal." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    if (action === "cancel" && !isInviter) {
+      return c.json(
+        { message: "Only the inviter can cancel this proposal." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    if (
+      proposal.status === "pending" &&
+      proposal.expiresAt.getTime() <= Date.now()
+    ) {
+      await db
+        .update(collaborationProposals)
+        .set({ respondedAt: new Date(), status: "expired" })
+        .where(eq(collaborationProposals.id, proposal.id));
+      return c.json(
+        { message: "This collaboration proposal has expired." },
+        HttpStatusCodes.CONFLICT
+      );
+    }
+
+    if (proposal.status !== "pending") {
+      if (proposal.status !== proposalStatusForAction) {
+        return c.json(
+          {
+            message: `Collaboration proposal has already been ${proposal.status}.`,
+          },
+          HttpStatusCodes.CONFLICT
+        );
+      }
+
+      return c.json(
+        {
+          action,
+          expiresAt: toIso(proposal.expiresAt),
+          href,
+          proposalId: proposal.id,
+          status: proposal.status,
+          success: true,
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const respondedAt = new Date();
 
     if (action === "accept") {
-      await db
-        .update(projectCollaborators)
-        .set({ invitationStatus: "accepted" })
-        .where(
-          and(
-            eq(projectCollaborators.projectId, collaborationId),
-            eq(projectCollaborators.collaboratorUserId, user.id)
-          )
-        );
-      await db
-        .update(trackCollaborators)
-        .set({ invitationStatus: "accepted" })
-        .where(
-          and(
-            eq(trackCollaborators.trackId, collaborationId),
-            eq(trackCollaborators.collaboratorUserId, user.id)
-          )
-        );
-      await db.insert(messages).values({
-        body: `Accepted collaboration! Workspace unlocked · ${href}`,
-        conversationId,
-        id: crypto.randomUUID(),
-        senderUserId: user.id,
+      await db.transaction(async (transaction) => {
+        if (proposal.kind === "project") {
+          const [existingMembership] = await transaction
+            .select({ id: projectCollaborators.id })
+            .from(projectCollaborators)
+            .where(
+              and(
+                eq(projectCollaborators.projectId, collaborationId),
+                eq(projectCollaborators.collaboratorUserId, user.id)
+              )
+            )
+            .limit(1);
+
+          if (existingMembership) {
+            await transaction
+              .update(projectCollaborators)
+              .set({ invitationStatus: "accepted" })
+              .where(eq(projectCollaborators.id, existingMembership.id));
+          } else {
+            await transaction.insert(projectCollaborators).values({
+              canDelete: false,
+              canEdit: true,
+              canUpload: true,
+              collaboratorRole: "artist",
+              collaboratorUserId: user.id,
+              id: crypto.randomUUID(),
+              invitationStatus: "accepted",
+              invitedByUserId: proposal.inviterUserId,
+              projectId: collaborationId,
+            });
+          }
+        } else {
+          const [existingMembership] = await transaction
+            .select({ id: trackCollaborators.id })
+            .from(trackCollaborators)
+            .where(
+              and(
+                eq(trackCollaborators.trackId, collaborationId),
+                eq(trackCollaborators.collaboratorUserId, user.id)
+              )
+            )
+            .limit(1);
+
+          if (existingMembership) {
+            await transaction
+              .update(trackCollaborators)
+              .set({ invitationStatus: "accepted" })
+              .where(eq(trackCollaborators.id, existingMembership.id));
+          } else {
+            await transaction.insert(trackCollaborators).values({
+              canDelete: false,
+              canEdit: true,
+              canUpload: true,
+              collaboratorRole: "artist",
+              collaboratorUserId: user.id,
+              id: crypto.randomUUID(),
+              invitationStatus: "accepted",
+              invitedByUserId: proposal.inviterUserId,
+              trackId: collaborationId,
+            });
+          }
+        }
+
+        await transaction
+          .update(collaborationProposals)
+          .set({ respondedAt, status: "accepted" })
+          .where(eq(collaborationProposals.id, proposal.id));
+
+        const [acceptanceMessage] = await transaction
+          .insert(messages)
+          .values({
+            body: `Accepted collaboration: ${workTitle}`,
+            conversationId,
+            id: crypto.randomUUID(),
+            senderUserId: user.id,
+          })
+          .returning({ id: messages.id });
+
+        if (acceptanceMessage) {
+          await transaction.insert(messageAttachments).values({
+            displayName: workTitle,
+            id: crypto.randomUUID(),
+            messageId: acceptanceMessage.id,
+            mimeType: "soundkit/collaboration-accepted",
+            objectKey: null,
+            sizeBytes: null,
+            sourceProjectId:
+              proposal.kind === "project" ? collaborationId : null,
+            sourceTrackId: proposal.kind === "track" ? collaborationId : null,
+            url: href,
+          });
+        }
       });
 
       if (ownerUserId) {
@@ -2240,52 +2534,37 @@ app.openapi(
               workType,
             },
             entity: { id: collaborationId, type: workType },
-            eventId: collaborationId,
+            eventId: proposal.id,
             recipientUserId: ownerUserId,
             type: "collaboration.accepted",
           },
           { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
         );
       }
-    } else if (action === "decline" || action === "cancel") {
-      const attachmentRows = await db
-        .select({ messageId: messageAttachments.messageId })
-        .from(messageAttachments)
-        .where(
-          or(
-            eq(messageAttachments.sourceProjectId, collaborationId),
-            eq(messageAttachments.sourceTrackId, collaborationId)
-          )
-        );
-      const messageIdsToDelete = attachmentRows
-        .map((a) => a.messageId)
-        .filter(Boolean);
-      if (messageIdsToDelete.length > 0) {
-        await db
-          .delete(messageAttachments)
-          .where(inArray(messageAttachments.messageId, messageIdsToDelete));
-        await db
-          .delete(messages)
-          .where(inArray(messages.id, messageIdsToDelete));
-      }
+    } else {
+      const nextStatus = action === "cancel" ? "revoked" : "rejected";
+      await db.transaction(async (transaction) => {
+        await transaction
+          .update(collaborationProposals)
+          .set({ respondedAt, status: nextStatus })
+          .where(eq(collaborationProposals.id, proposal.id));
 
-      await db
-        .delete(projectCollaborators)
-        .where(eq(projectCollaborators.projectId, collaborationId));
-      await db.delete(projects).where(eq(projects.id, collaborationId));
-      await db
-        .delete(trackCollaborators)
-        .where(eq(trackCollaborators.trackId, collaborationId));
-      await db.delete(tracks).where(eq(tracks.id, collaborationId));
+        if (proposal.kind === "project") {
+          await transaction
+            .update(projects)
+            .set({ status: "archived", updatedAt: respondedAt })
+            .where(eq(projects.id, collaborationId));
+        }
 
-      await db.insert(messages).values({
-        body:
-          action === "cancel"
-            ? "Cancelled collaboration invite."
-            : "Declined collaboration proposal.",
-        conversationId,
-        id: crypto.randomUUID(),
-        senderUserId: user.id,
+        await transaction.insert(messages).values({
+          body:
+            action === "cancel"
+              ? "Cancelled collaboration invite."
+              : "Declined collaboration proposal.",
+          conversationId,
+          id: crypto.randomUUID(),
+          senderUserId: user.id,
+        });
       });
 
       if (action === "decline" && ownerUserId) {
@@ -2299,7 +2578,7 @@ app.openapi(
               workType,
             },
             entity: { id: collaborationId, type: workType },
-            eventId: collaborationId,
+            eventId: proposal.id,
             recipientUserId: ownerUserId,
             type: "collaboration.declined",
           },
@@ -2309,7 +2588,14 @@ app.openapi(
     }
 
     return c.json(
-      { action, href, status: action, success: true },
+      {
+        action,
+        expiresAt: toIso(proposal.expiresAt),
+        href,
+        proposalId: proposal.id,
+        status: proposalStatusForAction,
+        success: true,
+      },
       HttpStatusCodes.OK
     );
   }

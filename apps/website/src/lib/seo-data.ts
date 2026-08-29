@@ -32,6 +32,7 @@ export interface ProjectSeoData {
   id: string;
   projectType: string;
   releaseDate: string | null;
+  slug: string | null;
   title: string;
   trackCount: number;
 }
@@ -151,6 +152,7 @@ export const loadPublicProjectSeo = async (
     id,
     projectType: readString(rawProject.projectType) ?? "project",
     releaseDate: readString(rawProject.releaseDate),
+    slug: readString(rawProject.slug),
     title,
     trackCount:
       typeof rawProject.trackCount === "number" ? rawProject.trackCount : 0,

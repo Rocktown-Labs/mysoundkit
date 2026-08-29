@@ -388,7 +388,7 @@ function DashboardHeaderContent() {
                               className="flex min-w-[180px] snap-start items-center gap-3 rounded-md border bg-card px-3 py-2 text-sm transition-colors hover:bg-primary/10 hover:border-primary/20"
                               key={`project-${project.id}`}
                               onClick={() => setSearchValue("")}
-                              params={{ id: project.id }}
+                              params={{ id: project.slug || project.id }}
                               to="/projects/$id"
                             >
                               {project.coverArtUrl ? (
@@ -421,7 +421,7 @@ function DashboardHeaderContent() {
                             className={resultLinkClassName}
                             key={`project-${project.id}`}
                             onClick={() => setSearchValue("")}
-                            params={{ id: project.id }}
+                            params={{ id: project.slug || project.id }}
                             to="/projects/$id"
                           >
                             {project.coverArtUrl ? (
