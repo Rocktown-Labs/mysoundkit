@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added a shared route-aware floating `[Nav | Chat]` utility with synchronized dashboard messaging, mobile-safe mini-player defaults, and global presence indicators in battle chat.
+- Added presence and messaging regression coverage for Durable Object heartbeats, reconnect state, cross-surface conversations, and responsive player behavior.
 - Added accessible video comment mentions with username autocomplete, server-validated public targets, mention notifications that respect recipient preferences, and nested replies with parent context.
 - Added a separated artist listening-party room at `/dashboard/live/parties/join/:roomId/artistview` with RealtimeKit camera/microphone controls, artist chat, synchronized playback/repeat controls, and a public viewer room that stays media-free until the party is live.
 - Added live-room notifications for hosted listening parties so artists can jump from the global live-room popup into their authenticated artist room when the party starts.
@@ -55,6 +57,10 @@
 
 ### Fixed
 
+- Fixed dashboard messaging to poll authoritative conversations and messages, preserve the active conversation across floating/full-page navigation, show actionable retry states, and reconcile optimistic sends and read state through one TanStack DB surface.
+- Fixed TanStack DB auth-scope cleanup by waiting for live-query subscribers to detach before cleaning collections, preventing live queries from referencing manually cleaned notification sources.
+- Fixed presence and live-room WebSocket clients to reconnect with bounded backoff, ignore stale socket callbacks, detect heartbeat timeouts, and avoid noisy premature closes during failed handshakes.
+- Fixed public media and live detail routes to keep TanStack DB client-only while retaining server-loaded SEO metadata.
 - Fixed notification mark-read, mark-all-read, and clear actions to update TanStack DB collections and unread counts immediately, revalidate authoritative server state on success or failure, and keep the notification menu synchronized during concurrent updates.
 - Fixed battle chat presence to use the same Presence provider and freshness window as floating chat and Dashboard Messages, including periodic refreshes and local expiration of stale users.
 - Fixed TanStack DB collection cleanup during auth-scope remounts so live queries stay attached to their active collection and optimistic comment writes remain visible after authentication resolves.

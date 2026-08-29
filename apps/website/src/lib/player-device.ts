@@ -46,7 +46,12 @@ export const classifyAudioDevice = (label: string): DeviceType => {
   return "speaker";
 };
 
-export const getRepeatTooltipLabel = (mode: "off" | "all" | "one"): string => {
+export type PlayerPresentation = "expanded" | "mini";
+
+export const getDefaultPlayerPresentation = (
+    isMobile: boolean
+  ): PlayerPresentation => (isMobile ? "mini" : "expanded"),
+  getRepeatTooltipLabel = (mode: "off" | "all" | "one"): string => {
   if (mode === "one") {
     return "Repeat: One";
   }
@@ -54,9 +59,8 @@ export const getRepeatTooltipLabel = (mode: "off" | "all" | "one"): string => {
     return "Repeat: All";
   }
   return "Repeat: Off";
-};
-
-export const formatPlaybackTime = (seconds: number): string => {
+  },
+  formatPlaybackTime = (seconds: number): string => {
   if (!Number.isFinite(seconds) || seconds < 0) {
     return "0:00";
   }

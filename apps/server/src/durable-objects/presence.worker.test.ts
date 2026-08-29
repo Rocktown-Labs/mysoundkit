@@ -13,10 +13,10 @@ const presenceNamespace = (
 
 describe("PresenceDurableObject", () => {
   it("keeps one user's heartbeat and status on the same durable instance", async () => {
-    const userId = "user_presence_test";
     const presence = presenceNamespace.getByName(
-      `presence-${crypto.randomUUID()}`
-    );
+        `presence-${crypto.randomUUID()}`
+      ),
+      userId = "user_presence_test";
 
     await expect(presence.heartbeat(userId)).resolves.toMatchObject({
       isOnline: true,

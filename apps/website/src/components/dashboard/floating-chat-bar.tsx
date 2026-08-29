@@ -17,6 +17,7 @@ import {
   Clock,
   Download,
   ExternalLink,
+  Home,
   FileText,
   FolderKanban,
   Headphones,
@@ -25,11 +26,13 @@ import {
   Maximize2,
   MessageCircle,
   MessageSquare,
+  Menu,
   Music,
   Paperclip,
   Pause,
   Play,
   Plus,
+  Radio,
   Search,
   Send,
   Sparkles,
@@ -56,6 +59,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -64,16 +75,17 @@ import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import { isImmersiveExploreRoute } from "@/lib/immersive-route";
 import {
   useCreateMessageCollectionMutation,
+  useMarkConversationReadMutation,
   useMessagingConversations,
   useMessagingMessages,
+  useMessagingWorkspace,
+  useStartConversationMutation,
 } from "@/lib/message-db";
 import { usePresence } from "@/lib/presence-context";
 import {
   useFriendsQuery,
   useLibrarySavedQuery,
-  useMarkConversationReadMutation,
   useMeQuery,
-  useStartConversationMutation,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 import type { FriendSummary } from "@/lib/soundkit-api-hooks";
@@ -122,20 +134,38 @@ interface ChatAttachment {
 }
 
 export function FloatingChatBar() {
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false),
+    pathname = useRouterState({
+      select: (state) => state.location.pathname,
+    }),
+    meQuery = useMeQuery(),
+    isArtist =
+      meQuery.data?.user.accountType === "artist" ||
+      meQuery.data?.user.role === "admin";
 
   useEffect(() => {
     setIsHydrated(true);
   }, []);
 
-  return isHydrated ? <FloatingChatBarClient /> : null;
+  if (
+    !isHydrated ||
+    meQuery.isPending ||
+    !isArtist ||
+    pathname.startsWith("/dashboard/messages") ||
+    isImmersiveExploreRoute(pathname) ||
+    pathname.startsWith("/live/")
+  ) {
+    return null;
+  }
+
+  return <FloatingChatBarClient />;
 }
 
 function FloatingChatBarClient() {
   const [view, setView] = useState<"list" | "chat">("list"),
     [isNewChatOpen, setIsNewChatOpen] = useState(false),
     [searchQuery, setSearchQuery] = useState(""),
-    [activeConversationId, setActiveConversationId] = useState(""),
+    { activeConversationId, setActiveConversationId } = useMessagingWorkspace(),
     [isOpen, setIsOpen] = useState(false),
     [messageInput, setMessageInput] = useState(""),
     [attachments, setAttachments] = useState<ChatAttachment[]>([]),
@@ -190,7 +220,8 @@ function FloatingChatBarClient() {
       conversations[0] ??
       null,
     conversationId = activeConversation?.id ?? "",
-    messagesQuery = useMessagingMessages(conversationId),
+    subscribedConversationId = isOpen && view === "chat" ? conversationId : "",
+    messagesQuery = useMessagingMessages(subscribedConversationId),
     createMessage = useCreateMessageCollectionMutation(
       conversationId,
       meQuery.data?.user.id
@@ -309,13 +340,13 @@ function FloatingChatBarClient() {
       setView("list");
       setActiveConversationId("");
     }
-  }, [pathname]);
+  }, [pathname, setActiveConversationId]);
 
   useEffect(() => {
     if (isOpen && view === "chat" && conversationId) {
       markConversationRead(conversationId);
     }
-  }, [conversationId, isOpen, markConversationRead, messages.length, view]);
+  }, [conversationId, isOpen, markConversationRead, view]);
 
   if (
     !isArtist ||
@@ -449,9 +480,14 @@ function FloatingChatBarClient() {
         }
       );
     },
-    bottomPositionClass = currentTrack
-      ? "bottom-36 sm:bottom-28 right-4 sm:right-6"
-      : "bottom-20 sm:bottom-6 right-4 sm:right-6";
+    setupGuideVisible = pathname === "/dashboard",
+    bottomPositionClass = setupGuideVisible
+      ? currentTrack
+        ? "bottom-36 sm:bottom-28 right-4 sm:right-[27rem]"
+        : "bottom-36 sm:bottom-6 right-4 sm:right-[27rem]"
+      : currentTrack
+        ? "bottom-36 sm:bottom-28 right-4 sm:right-6"
+        : "bottom-20 sm:bottom-6 right-4 sm:right-6";
 
   const isOtherUserOnline = activeConversation?.participantId
     ? isUserOnline(activeConversation.participantId)
@@ -792,7 +828,29 @@ function FloatingChatBarClient() {
                 <MessageScroller>
                   <MessageScrollerViewport>
                     <MessageScrollerContent className="gap-3 p-3">
-                      {messages.length > 0 ? (
+                      {messagesQuery.isError ? (
+                        <MessageScrollerItem messageId="floating-messages-error">
+                          <div className="space-y-2 py-12 text-center">
+                            <p className="text-xs text-destructive">
+                              Messages could not be loaded.
+                            </p>
+                            <Button
+                              className="h-7 text-[11px]"
+                              onClick={() => void messagesQuery.refetch()}
+                              size="sm"
+                              variant="outline"
+                            >
+                              Try again
+                            </Button>
+                          </div>
+                        </MessageScrollerItem>
+                      ) : messagesQuery.isLoading ? (
+                        <MessageScrollerItem messageId="floating-loading-messages">
+                          <p className="py-12 text-center text-xs text-muted-foreground">
+                            Loading messages…
+                          </p>
+                        </MessageScrollerItem>
+                      ) : messages.length > 0 ? (
                         messages.map((message) => {
                           const isMine =
                             message.senderId === meQuery.data?.user.id;
@@ -1445,21 +1503,74 @@ function FloatingChatBarClient() {
           )}
         </Card>
       ) : (
-        <Button
-          onClick={() => {
-            setIsOpen(true);
-            setView("list");
-          }}
-          aria-label="Open Artist Chat"
-          className="relative size-12 rounded-full shadow-2xl bg-primary text-primary-foreground hover:scale-105 transition-transform flex items-center justify-center p-0"
-        >
-          <MessageCircle className="size-5" />
-          {totalUnread > 0 && (
-            <span className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground animate-pulse shadow-md">
-              {totalUnread > 9 ? "9+" : totalUnread}
-            </span>
-          )}
-        </Button>
+        <div className="flex overflow-hidden rounded-xl border border-primary/30 bg-card/95 shadow-2xl backdrop-blur-xl">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label="Open navigation menu"
+                className="h-11 rounded-none border-0 border-r border-border/40 px-3 text-xs hover:bg-primary/10"
+                size="sm"
+                variant="ghost"
+              >
+                <Menu aria-hidden="true" className="size-4" />
+                <span className="hidden sm:inline">Nav</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52" side="top">
+              <DropdownMenuLabel>Navigate</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/">
+                  <Home aria-hidden="true" className="size-4" />
+                  Home
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/dashboard">
+                  <FolderKanban aria-hidden="true" className="size-4" />
+                  Dashboard
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/dashboard/messages">
+                  <MessageSquare aria-hidden="true" className="size-4" />
+                  Messages
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/dashboard/music">
+                  <Music aria-hidden="true" className="size-4" />
+                  Music
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/dashboard/live">
+                  <Radio aria-hidden="true" className="size-4" />
+                  Live
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            aria-expanded={isOpen}
+            aria-label={isOpen ? "Close artist chat" : "Open artist chat"}
+            className="relative h-11 rounded-none border-0 px-3 text-xs hover:bg-primary/10"
+            onClick={() => {
+              setIsOpen(true);
+              setView("list");
+            }}
+            size="sm"
+            variant="ghost"
+          >
+            <MessageCircle aria-hidden="true" className="size-4" />
+            <span className="hidden sm:inline">Chat</span>
+            {totalUnread > 0 && (
+              <span className="ml-1 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                {totalUnread > 9 ? "9+" : totalUnread}
+              </span>
+            )}
+          </Button>
+        </div>
       )}
 
       {/* Collaboration Dialog */}

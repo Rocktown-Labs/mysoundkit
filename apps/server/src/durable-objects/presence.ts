@@ -149,6 +149,12 @@ export class PresenceDurableObject extends DurableObject {
         });
       }
       await this.scheduleFlush();
+      server.send(
+        JSON.stringify({
+          ...this.snapshot(),
+          type: "presence",
+        })
+      );
 
       return new Response(null, { status: 101, webSocket: client });
     }
@@ -185,8 +191,14 @@ export class PresenceDurableObject extends DurableObject {
         return;
       }
 
-      const status = isPresenceStatus(parsed.status) ? parsed.status : "online";
-      await this.heartbeat(attachment.userId, status);
+      const status = isPresenceStatus(parsed.status) ? parsed.status : "online",
+        snapshot = await this.heartbeat(attachment.userId, status);
+      ws.send(
+        JSON.stringify({
+          ...snapshot,
+          type: "presence",
+        })
+      );
     } catch (error) {
       console.warn("Presence WebSocket message rejected", {
         error: error instanceof Error ? error.message : String(error),

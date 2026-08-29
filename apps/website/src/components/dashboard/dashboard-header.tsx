@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { authClient } from "@/lib/auth-client";
 import {
   useDbNotificationActions,
   useDbNotificationUnreadCount,
@@ -82,6 +83,16 @@ function SemanticResultLink({
 }
 
 export function DashboardHeader() {
+  const { data: session, isPending } = authClient.useSession();
+
+  if (isPending || !session) {
+    return <div className="h-16 border-b bg-background" />;
+  }
+
+  return <DashboardHeaderContent />;
+}
+
+function DashboardHeaderContent() {
   const [searchValue, setSearchValue] = useState(""),
     [debouncedSearchValue, setDebouncedSearchValue] = useState(""),
     searchInputRef = useRef<HTMLInputElement>(null),
