@@ -230,6 +230,31 @@ describe("SoundKit Worker API", () => {
     expect(progress).toEqual({ updated: false });
   });
 
+  it("keeps public projects visible for continent discovery filters", async () => {
+    const [northAmericaResponse, globalResponse, usaResponse] =
+        await Promise.all([
+          SELF.fetch(
+            "http://soundkit.test/v1/projects/public?region=all&regionType=north-america"
+          ),
+          SELF.fetch(
+            "http://soundkit.test/v1/projects/public?region=all&regionType=global"
+          ),
+          SELF.fetch(
+            "http://soundkit.test/v1/projects/public?region=usa&regionType=north-america"
+          ),
+        ]),
+      northAmericaProjects = await readJson<unknown[]>(northAmericaResponse),
+      globalProjects = await readJson<unknown[]>(globalResponse),
+      usaProjects = await readJson<unknown[]>(usaResponse);
+
+    expect(northAmericaResponse.status).toBe(200);
+    expect(globalResponse.status).toBe(200);
+    expect(usaResponse.status).toBe(200);
+    expect(northAmericaProjects).toHaveLength(1);
+    expect(globalProjects).toHaveLength(1);
+    expect(usaProjects).toHaveLength(1);
+  });
+
   it("filters public projects by sale state in no-storage mode", async () => {
     const response = await SELF.fetch(
         "http://soundkit.test/v1/projects/public?forSale=true"

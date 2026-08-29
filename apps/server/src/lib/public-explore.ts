@@ -68,6 +68,7 @@ const northAmericaStates = {
     "north-america": "north-america",
     oceania: "oceania",
     "south-america": "latin-america",
+    usa: "north-america",
   },
   normalizeRegion = (value: string): string =>
     value

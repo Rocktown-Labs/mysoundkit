@@ -18,6 +18,9 @@ describe("public Explore region resolution", () => {
       resolveExploreRegion({ region: "africa", regionType: "global" })
     ).toEqual({ kind: "continent", scope: "africa" });
     expect(
+      resolveExploreRegion({ region: "usa", regionType: "north-america" })
+    ).toEqual({ kind: "continent", scope: "north-america" });
+    expect(
       resolveExploreRegion({ region: "south-america", regionType: "global" })
     ).toEqual({ kind: "continent", scope: "latin-america" });
     expect(

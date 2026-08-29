@@ -56,19 +56,20 @@ export function ProjectCard({ project }: { project: PublicProjectSummary }) {
           ) : null}
         </div>
       </PublicCardThumbnail>
-      <PublicCardMeta className="p-3.5">
+      <PublicCardMeta className="space-y-0.5">
         <Link
-          className="line-clamp-1 font-semibold transition-colors group-hover:text-primary"
+          className="block truncate font-semibold text-sm transition-colors group-hover:text-primary"
           params={{ id: project.id }}
           to="/projects/$id"
         >
           {project.title}
         </Link>
-        <p className="mt-1 line-clamp-1 text-muted-foreground text-sm">
+        <p className="block truncate text-muted-foreground text-xs">
           {project.artistName ?? project.genre ?? "SoundKit artist"}
         </p>
-        <div className="mt-2 flex items-center justify-between text-muted-foreground text-xs">
+        <div className="flex items-center gap-1 text-muted-foreground text-[11px]">
           <span>{project.trackCount} tracks</span>
+          <span aria-hidden="true">•</span>
           <span>{project.duration ?? "0:00"}</span>
         </div>
       </PublicCardMeta>

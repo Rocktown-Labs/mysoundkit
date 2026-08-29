@@ -354,7 +354,12 @@ function ProjectRail({
       {isLoading || projects.length > 0 ? (
         <div className="flex gap-4 overflow-x-auto pb-2">
           {projects.slice(0, 12).map((project) => (
-            <ProjectCard key={project.id} project={project} />
+            <div
+              className="w-[140px] shrink-0 sm:w-[160px] md:w-[180px] lg:w-[200px] xl:w-[220px]"
+              key={project.id}
+            >
+              <ProjectCard project={project} />
+            </div>
           ))}
         </div>
       ) : (
