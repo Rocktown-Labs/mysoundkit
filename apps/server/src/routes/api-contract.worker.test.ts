@@ -120,8 +120,10 @@ const API_ORIGIN = "http://soundkit.test",
     ["post", "/v1/messages/conversations/{conversationId}/messages"],
     ["post", "/v1/messages/conversations/{conversationId}/read"],
     ["get", "/v1/notifications"],
+    ["get", "/v1/notifications/summary"],
     ["post", "/v1/notifications/{notificationId}/read"],
     ["post", "/v1/notifications/read-all"],
+    ["post", "/v1/notifications/clear"],
     ["post", "/v1/onboarding/artist"],
     ["post", "/v1/onboarding/fan"],
     ["get", "/v1/onboarding/username-availability"],
@@ -264,6 +266,26 @@ describe("SoundKit API HTTP contracts", () => {
       nextCursor: null,
       unreadCount: 0,
     });
+  });
+
+  it("keeps anonymous notification actions idempotent", async () => {
+    const [read, readAll, clear] = await Promise.all([
+      fetchJson<{ success: boolean }>(
+        "/v1/notifications/notification_123/read",
+        { method: "POST" }
+      ),
+      fetchJson<{ success: boolean }>("/v1/notifications/read-all", {
+        method: "POST",
+      }),
+      fetchJson<{ success: boolean }>("/v1/notifications/clear", {
+        method: "POST",
+      }),
+    ]);
+
+    for (const result of [read, readAll, clear]) {
+      expect(result.response.status).toBe(200);
+      expect(result.body).toEqual({ success: true });
+    }
   });
 
   it("requires authentication to delete an open verse listing", async () => {

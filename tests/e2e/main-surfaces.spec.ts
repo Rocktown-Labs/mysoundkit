@@ -331,6 +331,88 @@ test.describe("main application surfaces", () => {
     }
   });
 
+  test("notification actions reconcile the bell, list, and unread count", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/live/battles");
+    const notificationsButton = page.getByRole("button", {
+      name: "Notifications",
+    });
+    await expect(notificationsButton).toBeVisible({ timeout: 60_000 });
+    await notificationsButton.click();
+    await expect(page.getByText("New battle invitation")).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(
+      page.getByRole("button", { name: "Mark all read" })
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Mark all read" }).click();
+    await expect(
+      page.getByRole("button", { name: "Mark all read" })
+    ).toHaveCount(0);
+    await expect(page.getByText("New battle invitation")).toBeVisible();
+
+    await page.getByRole("button", { name: "Clear all" }).click();
+    await expect(page.getByText("No notifications yet.")).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page.getByRole("button", { name: "Clear all" })).toHaveCount(
+      0
+    );
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await notificationsButton.click();
+    await expect(page.getByText("No notifications yet.")).toBeVisible({
+      timeout: 60_000,
+    });
+  });
+
+  test("failed notification actions restore authoritative state", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.setExtraHTTPHeaders({
+      "x-soundkit-fail-notification-action": "read-all",
+    });
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/live/battles");
+    await page.getByRole("button", { name: "Notifications" }).click();
+    await expect(page.getByText("New battle invitation")).toBeVisible({
+      timeout: 60_000,
+    });
+    await page.getByRole("button", { name: "Mark all read" }).click();
+
+    // The fixture rejects the write. The collection must re-read the server
+    // state instead of leaving the optimistic all-read state on screen.
+    await expect(
+      page.getByRole("button", { name: "Mark all read" })
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("New battle invitation")).toBeVisible();
+  });
+
   test("communities ask before joining and support member chat", async ({
     context,
     page,
@@ -910,7 +992,6 @@ test.describe("main application surfaces", () => {
       "/dashboard/live/battles/join/battle-completed-result/artistview"
     );
     await expect(page).toHaveURL(/\/live\/battles\/battle-completed-result$/);
-  });
   });
 
   test("assigned artists are notified and routed to their live battle room", async ({

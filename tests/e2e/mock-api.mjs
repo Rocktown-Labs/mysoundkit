@@ -15,7 +15,8 @@ const normalizeGenre = (value) =>
   json = (response, status, body, origin) => {
     response.writeHead(status, {
       "access-control-allow-credentials": "true",
-      "access-control-allow-headers": "content-type,cookie,x-soundkit-test-id",
+      "access-control-allow-headers":
+        "content-type,cookie,x-soundkit-test-id,x-soundkit-fail-notification-action",
       "access-control-allow-origin": origin,
       "content-type": "application/json",
     });
@@ -390,6 +391,26 @@ const normalizeGenre = (value) =>
   ],
   mockCommunityMessages = [],
   mockCommunityPosts = [],
+  mockNotifications = [
+    {
+      createdAt: "2026-08-29T08:00:00.000Z",
+      id: "notification-battle-invite",
+      link: "/dashboard/live/battles",
+      message: "Matt Alvis challenged you to a battle.",
+      read: false,
+      title: "New battle invitation",
+      type: "battle_challenge",
+    },
+    {
+      createdAt: "2026-08-28T08:00:00.000Z",
+      id: "notification-release",
+      link: "/tracks/track_summer_nights",
+      message: "Summer Nights is now available in the library.",
+      read: true,
+      title: "Release published",
+      type: "track_release",
+    },
+  ],
   mockCommunityMembers = [
     {
       avatarUrl: "/soundkit-default-avatar.svg",
@@ -674,6 +695,7 @@ export const createMockApiServer = async ({
     mockCommunityMessagesByClient = new Map(),
     mockCommunityPostsByClient = new Map(),
     mockLiveRoomsByClient = new Map(),
+    mockNotificationsByClient = new Map(),
     mockVideoCommentsByClient = new Map(),
     getMockLiveRoom = (request, roomId, session) => {
       const clientKey = `${getClientKey(request)}:${roomId}:${session ?? "anonymous"}`,
@@ -740,6 +762,17 @@ export const createMockApiServer = async ({
       const comments = structuredClone(mockVideoComments);
       mockVideoCommentsByClient.set(clientKey, comments);
       return comments;
+    },
+    getMockNotifications = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockNotificationsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const notifications = structuredClone(mockNotifications);
+      mockNotificationsByClient.set(clientKey, notifications);
+      return notifications;
     },
     getMockBattleChallenges = (request) => {
       const clientKey = getClientKey(request),
@@ -823,7 +856,7 @@ export const createMockApiServer = async ({
     response.setHeader("access-control-allow-credentials", "true");
     response.setHeader(
       "access-control-allow-headers",
-      "content-type,cookie,x-soundkit-test-id"
+      "content-type,cookie,x-soundkit-test-id,x-soundkit-fail-notification-action"
     );
     response.setHeader(
       "access-control-allow-methods",
@@ -2010,6 +2043,92 @@ export const createMockApiServer = async ({
         },
         webOrigin
       );
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      (url.pathname === "/v1/notifications" ||
+        url.pathname === "/v1/notifications/")
+    ) {
+      const notifications = getMockNotifications(request),
+        limit = Math.min(
+          50,
+          Math.max(1, Number(url.searchParams.get("limit") ?? 20))
+        ),
+        offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0)),
+        items = notifications.slice(offset, offset + limit),
+        nextItem = notifications[offset + limit];
+      json(
+        response,
+        200,
+        {
+          items,
+          nextCursor: nextItem ? String(offset + limit) : null,
+          unreadCount: notifications.filter((item) => !item.read).length,
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/notifications/summary"
+    ) {
+      const notifications = getMockNotifications(request);
+      json(
+        response,
+        200,
+        { unreadCount: notifications.filter((item) => !item.read).length },
+        webOrigin
+      );
+      return;
+    }
+
+    const notificationReadMatch = url.pathname.match(
+      /^\/v1\/notifications\/([^/]+)\/read$/
+    );
+    if (notificationReadMatch && request.method === "POST") {
+      const notification = getMockNotifications(request).find(
+        (item) => item.id === notificationReadMatch[1]
+      );
+      if (notification) {
+        notification.read = true;
+      }
+      json(response, 200, { success: true }, webOrigin);
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/notifications/read-all"
+    ) {
+      if (
+        request.headers["x-soundkit-fail-notification-action"] === "read-all"
+      ) {
+        json(
+          response,
+          500,
+          { message: "Notification action failed in the test fixture." },
+          webOrigin
+        );
+        return;
+      }
+
+      for (const notification of getMockNotifications(request)) {
+        notification.read = true;
+      }
+      json(response, 200, { success: true }, webOrigin);
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/notifications/clear"
+    ) {
+      getMockNotifications(request).length = 0;
+      json(response, 200, { success: true }, webOrigin);
       return;
     }
 

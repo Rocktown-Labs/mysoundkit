@@ -462,7 +462,12 @@ export function DashboardHeader() {
       <div className="flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button className="relative" size="icon" variant="ghost">
+            <Button
+              aria-label="Notifications"
+              className="relative"
+              size="icon"
+              variant="ghost"
+            >
               <Bell className="size-5" />
               {unreadCount > 0 ? (
                 <Badge className="absolute -top-1 -right-1 flex size-5 items-center justify-center bg-primary p-0 text-primary-foreground text-xs">

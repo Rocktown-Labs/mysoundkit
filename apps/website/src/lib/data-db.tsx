@@ -254,6 +254,52 @@ const notificationStatsSchema = z.object({
   unreadCount: z.number().int().nonnegative(),
 });
 
+interface NotificationCollectionRef {
+  utils: { refetch: () => Promise<unknown> };
+}
+
+const reconcileNotificationState = async (
+    collection: NotificationCollectionRef,
+    notificationStats: NotificationCollectionRef,
+    queryClient: QueryClient
+  ) => {
+    await Promise.all([
+      reconcileCollections(collection, notificationStats),
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.notifications,
+      }),
+    ]);
+  },
+  runNotificationMutation = async ({
+    collection,
+    notificationStats,
+    queryClient,
+    request,
+  }: {
+    collection: NotificationCollectionRef;
+    notificationStats: NotificationCollectionRef;
+    queryClient: QueryClient;
+    request: () => Promise<unknown>;
+  }) => {
+    try {
+      await request();
+    } catch (error) {
+      // A failed request can race with an incoming notification. Refresh the
+      // authoritative collections before the optimistic transaction rolls
+      // back so that the rollback never becomes the final state.
+      await Promise.allSettled([
+        reconcileNotificationState(collection, notificationStats, queryClient),
+      ]);
+      throw error;
+    }
+
+    await reconcileNotificationState(
+      collection,
+      notificationStats,
+      queryClient
+    );
+  };
+
 interface DataCollections {
   battleChallenges: ReturnType<typeof makeBattleChallengesCollection>;
   battles: ReturnType<typeof makeBattlesCollection>;
@@ -933,30 +979,29 @@ export const useDbNotificationActions = () => {
       () =>
         createOptimisticAction<string>({
           mutationFn: async (notificationId) => {
-            await rpcJson(
-              await notificationReadPost({
-                param: { notificationId },
-              })
-            );
-            await Promise.all([
-              reconcileCollections(collection, notificationStats),
-              queryClient.invalidateQueries({
-                queryKey: soundkitQueryKeys.notifications,
-              }),
-            ]);
+            await runNotificationMutation({
+              collection,
+              notificationStats,
+              queryClient,
+              request: async () =>
+                rpcJson(
+                  await notificationReadPost({
+                    param: { notificationId },
+                  })
+                ),
+            });
           },
           onMutate: (notificationId) => {
             const notification = collection.toArray.find(
               (item) => item.id === notificationId
             );
+            if (!notification || notification.read) {
+              return;
+            }
             collection.update(notificationId, (draft) => {
               draft.read = true;
             });
-            if (
-              notification &&
-              !notification.read &&
-              notificationStats.toArray.length > 0
-            ) {
+            if (notificationStats.toArray.length > 0) {
               notificationStats.update("summary", (draft) => {
                 draft.unreadCount = Math.max(0, draft.unreadCount - 1);
               });
@@ -969,13 +1014,12 @@ export const useDbNotificationActions = () => {
       () =>
         createOptimisticAction<void>({
           mutationFn: async () => {
-            await rpcJson(await notificationsReadAllPost());
-            await Promise.all([
-              reconcileCollections(collection, notificationStats),
-              queryClient.invalidateQueries({
-                queryKey: soundkitQueryKeys.notifications,
-              }),
-            ]);
+            await runNotificationMutation({
+              collection,
+              notificationStats,
+              queryClient,
+              request: async () => rpcJson(await notificationsReadAllPost()),
+            });
           },
           onMutate: () => {
             for (const notification of collection.toArray) {
@@ -998,18 +1042,20 @@ export const useDbNotificationActions = () => {
       () =>
         createOptimisticAction<void>({
           mutationFn: async () => {
-            await rpcJson(await notificationsClearPost());
-            await Promise.all([
-              reconcileCollections(collection, notificationStats),
-              queryClient.invalidateQueries({
-                queryKey: soundkitQueryKeys.notifications,
-              }),
-            ]);
+            await runNotificationMutation({
+              collection,
+              notificationStats,
+              queryClient,
+              request: async () => rpcJson(await notificationsClearPost()),
+            });
           },
           onMutate: () => {
-            collection.delete(
-              collection.toArray.map((notification) => notification.id)
+            const notificationIds = collection.toArray.map(
+              (notification) => notification.id
             );
+            if (notificationIds.length > 0) {
+              collection.delete(notificationIds);
+            }
             if (notificationStats.toArray.length > 0) {
               notificationStats.update("summary", (draft) => {
                 draft.unreadCount = 0;
