@@ -36,12 +36,14 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { resolveCollaborationProjectMetadata } from "@/lib/collaboration-defaults";
 import { getDatabaseSchemaCapabilities } from "@/lib/database-schema-capabilities";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
   unauthorizedMessage,
 } from "@/lib/entitlements";
+import { ensureGenreId } from "@/lib/genre-persistence";
 import { resolveConversationUnreadCount } from "@/lib/messages-domain";
 import { notify } from "@/lib/notifications";
 import { sampleConversations, sampleMessages } from "@/lib/sample-data";
@@ -2145,16 +2147,18 @@ app.openapi(
     const workspaceId = crypto.randomUUID(),
       createdAt = new Date(),
       expiresAt = collaborationExpiresAt(createdAt),
-      href = collaborationHref(kind, workspaceId);
+      href = collaborationHref(kind, workspaceId),
+      projectMetadata = resolveCollaborationProjectMetadata(body);
 
     if (kind === "project") {
       await db.insert(projects).values({
         description: "Shared collaboration started from SoundKit Messages.",
+        genreId: await ensureGenreId(projectMetadata.genre),
         id: workspaceId,
         isPublic: false,
         organizationId,
         ownerUserId: user.id,
-        projectType: body.projectType ?? "single",
+        projectType: projectMetadata.projectType,
         slug: uniqueSlug(body.title),
         status: "draft",
         title: body.title,

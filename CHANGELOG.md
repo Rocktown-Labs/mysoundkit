@@ -63,6 +63,7 @@
 ### Fixed
 
 - Fixed chat collaborations so optimistic proposal cards reconcile after the server creates the workspace, dashboard project and track caches refresh after collaboration changes, and chat-created workspaces stay visible in the active organization while preserving legacy owner visibility.
+- Fixed chat-created shared projects to default to EP metadata with a project genre, expose the genre and workspace track actions, and remove deleted project cards after a confirmed delete.
 - Fixed sparse project PATCH requests so draft quick actions such as changing cover art do not default to public release mode or trigger release-readiness checks.
 - Fixed PR previews against the shared pre-migration database: project and track reads no longer require versioning columns, project media reads use compatible projections, metadata detection fails closed to the legacy schema, and message polling remains healthy when collaboration tables are not installed yet.
 - Fixed the battle waiting-room smoke fixture to match the production BattleBot lifecycle message after the replay status update.

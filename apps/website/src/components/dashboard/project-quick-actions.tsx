@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { apiClient, MEDIA_UPLOAD_URL, rpcJson } from "@/lib/api";
+import { MEDIA_UPLOAD_URL } from "@/lib/api";
 import { optimizeCoverImageFile } from "@/lib/image-processing";
 import { projectCoverFile } from "@/lib/project-cover";
 import {
@@ -33,8 +33,6 @@ import {
   useUpdateProjectMutation,
 } from "@/lib/soundkit-api-hooks";
 import type { PublicProjectDetail } from "@/lib/soundkit-api-hooks";
-
-const projectPatch = apiClient.v1.projects[":projectId"].$patch;
 
 type ProjectType = "album" | "ep" | "mixtape" | "single";
 type ListeningAccess = "premium_or_purchased" | "public";
@@ -371,6 +369,7 @@ function ChangeProjectCoverDialog({
       credentials: "include",
       route: "media",
     }),
+    updateProjectMutation = useUpdateProjectMutation(projectId),
     [selectedFile, setSelectedFile] = useState<File | null>(null),
     [isSaving, setIsSaving] = useState(false),
     [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -387,7 +386,12 @@ function ChangeProjectCoverDialog({
   }, [selectedFile]);
 
   const handleSave = async () => {
-    if (!selectedFile || isSaving || isUploading) {
+    if (
+      !selectedFile ||
+      isSaving ||
+      isUploading ||
+      updateProjectMutation.isPending
+    ) {
       return;
     }
 
@@ -406,14 +410,9 @@ function ChangeProjectCoverDialog({
         throw new Error("The cover image could not be uploaded.");
       }
 
-      await rpcJson(
-        await projectPatch({
-          json: {
-            assetIds: [uploadedFile.objectInfo.key],
-          },
-          param: { projectId },
-        })
-      );
+      await updateProjectMutation.mutateAsync({
+        assetIds: [uploadedFile.objectInfo.key],
+      });
       await onSaved();
       toast({
         description: "The new cover art was saved.",
@@ -496,7 +495,12 @@ function ChangeProjectCoverDialog({
             Cancel
           </Button>
           <Button
-            disabled={!selectedFile || isSaving || isUploading}
+            disabled={
+              !selectedFile ||
+              isSaving ||
+              isUploading ||
+              updateProjectMutation.isPending
+            }
             onClick={() => void handleSave()}
           >
             {isSaving || isUploading ? (

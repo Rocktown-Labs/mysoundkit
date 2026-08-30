@@ -3,7 +3,6 @@ import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistFollows,
-  genres,
   listeningParties,
   projectAssets,
   projectCollaborators,
@@ -38,7 +37,7 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
-import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
+import { ensureGenreId } from "@/lib/genre-persistence";
 import {
   MEDIA_PIPELINE_VERSION,
   PROJECT_EXPORT_PIPELINE_VERSION,
@@ -186,29 +185,7 @@ const projectOrderBy = (sort?: string) => {
   },
   getUploadBucketName = () =>
     (env as unknown as { UPLOAD_BUCKET_NAME?: string }).UPLOAD_BUCKET_NAME ??
-    null,
-  ensureGenreId = async (genreName: string) => {
-    const db = createDb(),
-      genreSlug = canonicalGenreSlug(genreName),
-      [genreRow] = await db
-        .select({ id: genres.id })
-        .from(genres)
-        .where(eq(genres.slug, genreSlug))
-        .limit(1);
-
-    if (genreRow) {
-      return genreRow.id;
-    }
-
-    const genreId = crypto.randomUUID();
-    await db.insert(genres).values({
-      id: genreId,
-      name: canonicalGenreName(genreName),
-      slug: genreSlug,
-    });
-
-    return genreId;
-  };
+    null;
 
 app.openapi(
   createRoute({
@@ -985,7 +962,10 @@ app.openapi(
       }
     }
 
-    const releaseDatePatch =
+    const genreId = body.genre
+        ? await ensureGenreId(body.genre)
+        : existingProject.genreId,
+      releaseDatePatch =
         "releaseDate" in body
           ? {
               releaseDate: body.releaseDate ? new Date(body.releaseDate) : null,
@@ -1015,6 +995,7 @@ app.openapi(
         .set({
           description: body.description,
           exportVersion: sql`${projects.exportVersion} + 1`,
+          genreId,
           isPublic: body.isPublic === false ? false : existingProject.isPublic,
           projectType: body.projectType,
           ...monetizationPatch,
@@ -1748,6 +1729,10 @@ app.openapi(
         messageResponseSchema,
         "Authentication required"
       ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Project not found"
+      ),
     },
     tags: ["Projects"],
   }),
@@ -1770,9 +1755,17 @@ app.openapi(
       }),
       db = createDb();
 
-    await db
+    const [deletedProject] = await db
       .delete(projects)
-      .where(ownedProjectWhere({ organizationId, projectId, userId: user.id }));
+      .where(ownedProjectWhere({ organizationId, projectId, userId: user.id }))
+      .returning({ id: projects.id });
+
+    if (!deletedProject) {
+      return c.json(
+        { message: "Project not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
 
     return c.json({ message: "Project deleted." }, HttpStatusCodes.OK);
   }

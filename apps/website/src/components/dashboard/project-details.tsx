@@ -146,7 +146,10 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         label: project.status,
       },
     StatusIcon = statusMeta.icon,
-    primaryGenre = project.tracks.find((track) => track.genre)?.genre ?? "—",
+    primaryGenre =
+      project.genre ??
+      project.tracks.find((track) => track.genre)?.genre ??
+      "—",
     coverArt =
       project.coverArtUrl && project.coverArtUrl.length > 0
         ? project.coverArtUrl
