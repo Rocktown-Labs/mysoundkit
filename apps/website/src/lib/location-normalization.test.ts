@@ -74,4 +74,13 @@ describe("parseManualLocation", () => {
       state: "Ontario",
     });
   });
+
+  it("normalizes a full US state name when the lookup is unavailable", () => {
+    expect(parseManualLocation("Little Rock, Arkansas")).toEqual({
+      city: "Little Rock",
+      country: "United States",
+      query: "Little Rock, Arkansas",
+      state: "AR",
+    });
+  });
 });

@@ -121,15 +121,13 @@ test.describe("main application surfaces", () => {
     await gotoWithViteRetry(page, "/tracks/track_summer_nights");
     await page.getByRole("button", { exact: true, name: "Play" }).click();
 
-    if ((page.viewportSize()?.width ?? 0) < 768) {
-      await expect(
-        page.getByRole("button", { name: "Expand player" })
-      ).toBeVisible({ timeout: 60_000 });
-    } else {
-      await expect(
-        page.getByRole("button", { name: "Minimize player" })
-      ).toBeVisible({ timeout: 60_000 });
-    }
+    const playerButtonName =
+      (page.viewportSize()?.width ?? 0) < 768
+        ? "Expand player"
+        : "Minimize player";
+    await expect(
+      page.getByRole("button", { name: playerButtonName })
+    ).toBeVisible({ timeout: 60_000 });
   });
 
   test("fan can browse discovery, playback, pricing, and signup surfaces", async ({
@@ -350,7 +348,9 @@ test.describe("main application surfaces", () => {
       page.getByText("Battle ended before the first turn", { exact: true })
     ).toBeVisible();
     await expect(
-      page.getByText("No result was recorded because the first turn never opened.")
+      page.getByText(
+        "No result was recorded because the first turn never opened."
+      )
     ).toBeVisible();
     await gotoWithViteRetry(
       page,
@@ -1103,7 +1103,9 @@ test.describe("main application surfaces", () => {
       page.getByText("Battle ended before the first turn", { exact: true })
     ).toBeVisible({ timeout: 60_000 });
     await expect(
-      page.getByText("No result was recorded because the first turn never opened.")
+      page.getByText(
+        "No result was recorded because the first turn never opened."
+      )
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /choose next/i })
@@ -1479,6 +1481,47 @@ test.describe("signup onboarding guards", () => {
     await page.goto("/signup/artist/onboarding");
     await expect(page.getByLabel("Username")).toHaveValue("codex_resume");
     await expect(page.getByText("Username is available.")).toBeVisible();
+  });
+
+  test("artist onboarding accepts a manual location when Google is unavailable", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "incomplete",
+      },
+    ]);
+    await page.goto("/signup/artist/onboarding");
+    await page.evaluate(() => {
+      window.localStorage.setItem(
+        "soundkit.artistOnboardingDraft.v1",
+        JSON.stringify({
+          city: "",
+          country: "",
+          locationQuery: "",
+          primaryGenre: "",
+          roles: ["musician"],
+          selectedPlanCode: "soundkit_premium_artist",
+          stateValue: "",
+          step: 5,
+          username: "codex_location",
+        })
+      );
+    });
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Where Do You Make Music?" })
+    ).toBeVisible();
+
+    await page.getByLabel("Location").fill("Little Rock, AR");
+    await expect(
+      page.getByText("Using the entered city and region.")
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
   });
 });
 
