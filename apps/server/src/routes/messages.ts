@@ -37,7 +37,11 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { getDatabaseSchemaCapabilities } from "@/lib/database-schema-capabilities";
-import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
+import {
+  isAuthenticatedSession,
+  isAuthenticatedUser,
+  unauthorizedMessage,
+} from "@/lib/entitlements";
 import { resolveConversationUnreadCount } from "@/lib/messages-domain";
 import { notify } from "@/lib/notifications";
 import { sampleConversations, sampleMessages } from "@/lib/sample-data";
@@ -60,7 +64,7 @@ import {
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 import { claimUploadIntent, completeUploadIntent } from "@/lib/upload-intents";
-import { uniqueSlug } from "@/lib/workspace";
+import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>(),
   sampleFriends = [
@@ -2043,6 +2047,11 @@ app.openapi(
     const { conversationId } = c.req.valid("param"),
       body = c.req.valid("json"),
       kind = body.kind ?? "project",
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
       db = createDb(),
       capabilities = await getDatabaseSchemaCapabilities(db),
       [convRow] = await db
@@ -2143,6 +2152,7 @@ app.openapi(
         description: "Shared collaboration started from SoundKit Messages.",
         id: workspaceId,
         isPublic: false,
+        organizationId,
         ownerUserId: user.id,
         projectType: body.projectType ?? "single",
         slug: uniqueSlug(body.title),
@@ -2154,6 +2164,7 @@ app.openapi(
         catalogItemType: "single",
         id: workspaceId,
         isPublic: false,
+        organizationId,
         ownerUserId: user.id,
         productionStatus: "demo",
         releaseStrategy: "private",

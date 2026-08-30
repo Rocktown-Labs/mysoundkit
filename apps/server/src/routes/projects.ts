@@ -254,7 +254,10 @@ app.openapi(
           .map((r) => r.projectId)
           .filter(Boolean),
         ownerCondition = organizationId
-          ? eq(projects.organizationId, organizationId)
+          ? (or(
+              eq(projects.ownerUserId, user.id),
+              eq(projects.organizationId, organizationId)
+            ) ?? eq(projects.ownerUserId, user.id))
           : eq(projects.ownerUserId, user.id);
 
       projectVisibilityWhere =

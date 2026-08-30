@@ -2262,7 +2262,29 @@ export const createProjectBodySchema = z.object({
   trackIds: z.array(z.string()).default([]),
 });
 
-export const updateProjectBodySchema = createProjectBodySchema.partial();
+// Keep PATCH fields separate from create defaults: a sparse update such as a
+// cover-only change must not become `isPublic: true` and trigger release checks.
+export const updateProjectBodySchema = z.object({
+  assetIds: z.array(z.string()).optional(),
+  description: z.string().optional(),
+  exclusiveUntil: z.string().optional(),
+  genre: z.string().min(1).optional(),
+  isForSale: z.boolean().optional(),
+  isPublic: z.boolean().optional(),
+  listeningAccess: z.enum(["public", "premium_or_purchased"]).optional(),
+  priceCents: z.number().int().positive().optional(),
+  projectType: z.enum(["album", "ep", "mixtape", "single"]).optional(),
+  releaseDate: z.string().optional(),
+  status: z.enum(["draft", "scheduled", "released"]).optional(),
+  streamingLinks: z
+    .object({
+      appleMusic: z.url().optional(),
+      spotify: z.url().optional(),
+      youtube: z.url().optional(),
+    })
+    .optional(),
+  title: z.string().min(1).optional(),
+});
 
 export const createVideoBodySchema = z.object({
   description: z.string().optional(),
