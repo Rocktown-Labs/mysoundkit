@@ -853,13 +853,18 @@ test.describe("main application surfaces", () => {
       page.getByRole("button", { name: /Battle Ready/ })
     ).toBeVisible();
 
+    await page.getByRole("tab", { name: "Add Concept" }).click();
+    await page.getByRole("button", { name: /Battle Ready/ }).click();
+    await page.getByRole("button", { name: "Add selected concept" }).click();
+    await expect(page.getByText("Project updated").last()).toBeVisible();
+
     await page.getByRole("tab", { name: "Add Beat" }).click();
     await expect(
       page.getByRole("button", { name: /After Hours/ })
     ).toBeVisible();
     await page.getByRole("button", { name: /After Hours/ }).click();
     await page.getByRole("button", { name: "Add selected beat" }).click();
-    await expect(page.getByText("Project updated")).toBeVisible();
+    await expect(page.getByText("Project updated").last()).toBeVisible();
 
     await page.getByRole("tab", { name: "Add Master" }).click();
     await expect(
@@ -868,7 +873,7 @@ test.describe("main application surfaces", () => {
     await page.getByRole("button", { name: /City Lights/ }).click();
     await page.getByRole("button", { name: /Battle Ready/ }).click();
     await page.getByRole("button", { name: "Add selected master" }).click();
-    await expect(page.getByText("Project updated")).toBeVisible();
+    await expect(page.getByText("Project updated").last()).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Choose File" })
     ).toBeVisible();

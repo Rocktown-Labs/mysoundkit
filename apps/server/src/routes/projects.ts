@@ -26,6 +26,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  notInArray,
   or,
   sql,
 } from "drizzle-orm";
@@ -2211,6 +2212,15 @@ app.openapi(
             eq(tracks.organizationId, organizationId)
           )
         : eq(tracks.ownerUserId, user.id),
+      sourceKind =
+        body.assetKind === "beat"
+          ? eq(tracks.catalogItemType, "beat")
+          : body.assetKind === "concept"
+            ? and(
+                eq(tracks.isPublic, false),
+                notInArray(tracks.catalogItemType, ["beat", "instrumental"])
+              )
+            : undefined,
       sourceRows = await db
         .select({
           assetId: trackAssets.id,
@@ -2238,6 +2248,7 @@ app.openapi(
           and(
             inArray(tracks.id, uniqueTrackIds),
             isNull(tracks.deletedAt),
+            sourceKind,
             sourceOwnership
           )
         );
