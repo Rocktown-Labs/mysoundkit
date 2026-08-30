@@ -1,5 +1,5 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
-/* oxlint-disable one-var, sort-vars */
+/* oxlint-disable one-var, sort-vars, unicorn/max-nested-calls */
 
 import { SELF } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
@@ -132,6 +132,7 @@ const API_ORIGIN = "http://soundkit.test",
     ["post", "/v1/payments/tips"],
     ["get", "/v1/projects"],
     ["post", "/v1/projects"],
+    ["post", "/v1/projects/{projectId}/library-assets"],
     ["delete", "/v1/projects/{projectId}"],
     ["get", "/v1/projects/{projectId}"],
     ["patch", "/v1/projects/{projectId}"],

@@ -134,6 +134,8 @@ const projectAssetColumns = {
       "processingVersion" in asset ? asset.processingVersion : null,
     purpose: "purpose" in asset ? asset.purpose : null,
     sizeBytes: asset.sizeBytes,
+    sourceAssetId:
+      "sourceAssetId" in asset ? (asset.sourceAssetId ?? null) : null,
     status: asset.status,
     storageProvider: asset.storageProvider,
     version: "version" in asset ? asset.version : undefined,

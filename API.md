@@ -139,6 +139,7 @@ Base path for domain APIs:
 - `GET /v1/projects`
 - `POST /v1/projects`
 - `GET /v1/projects/{projectId}`
+- `POST /v1/projects/{projectId}/library-assets` — attach existing uploaded concept, beat, or master sources.
 
 ### Videos
 

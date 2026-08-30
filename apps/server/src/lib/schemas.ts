@@ -686,6 +686,7 @@ export const dashboardAssetSchema = z.object({
   processingVersion: z.number().int().nullable().optional(),
   purpose: mediaAssetPurposeSchema.nullable().optional(),
   sizeBytes: z.number().int().nullable(),
+  sourceAssetId: z.string().nullable().optional(),
   status: z.string(),
   storageProvider: z.enum(["r2", "mux", "external"]),
   version: z.number().int().positive().optional(),
@@ -1243,6 +1244,11 @@ export const projectWorkspaceAssetBodySchema = z.object({
   sizeBytes: z.number().int().nonnegative().optional(),
 });
 
+export const projectLibraryAssetBodySchema = z.object({
+  assetKind: z.enum(["beat", "concept", "master"]),
+  trackIds: z.array(z.string().min(1)).min(1).max(100),
+});
+
 export const collaborationProposalSchema = z.object({
   expiresAt: z.string(),
   href: z.string(),
@@ -1406,9 +1412,15 @@ export const battleSummarySchema = z.object({
   id: z.string(),
   isFeatured: z.boolean().default(false),
   joinMode: z.enum(["watch_now", "waiting_room"]).default("watch_now"),
+  outcome: z
+    .enum(["canceled", "ducked", "forfeited", "quit"])
+    .nullable()
+    .optional(),
   participants: battleParticipantSchema.array().max(2).default([]),
   phaseEndsAt: z.string().nullable().optional(),
   queueSize: z.number().int().nonnegative().default(0),
+  replayStatus: z.enum(["available", "none", "processing"]).default("none"),
+  replayVideoId: z.string().nullable().optional(),
   round: z
     .object({
       current: z.number().int().positive(),
@@ -1435,12 +1447,6 @@ export const battleSummarySchema = z.object({
     .default([]),
   viewerCount: z.number(),
   visibility: z.enum(["public", "premium_only"]),
-  outcome: z
-    .enum(["canceled", "ducked", "forfeited", "quit"])
-    .nullable()
-    .optional(),
-  replayStatus: z.enum(["available", "none", "processing"]).default("none"),
-  replayVideoId: z.string().nullable().optional(),
 });
 
 export const battleChallengeStatusSchema = z.enum([
