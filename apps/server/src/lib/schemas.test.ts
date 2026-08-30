@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { resolveCollaborationProjectMetadata } from "./collaboration-defaults";
 import { normalizeProfileLink } from "./profile-links";
 import {
   artistSummarySchema,
+  createCollaborationBodySchema,
   createProjectBodySchema,
   createTrackAssetBodySchema,
   finalizeTrackUploadBodySchema,
@@ -149,6 +151,37 @@ describe("onboarding plan codes", () => {
       ).toBe(false);
     }
   );
+});
+
+describe("chat collaboration project defaults", () => {
+  it("defaults project collaborations to EP and a usable genre", () => {
+    expect(resolveCollaborationProjectMetadata({})).toEqual({
+      genre: "Hip-Hop/Rap",
+      projectType: "ep",
+    });
+  });
+
+  it("preserves explicit project metadata", () => {
+    expect(
+      resolveCollaborationProjectMetadata({
+        genre: "  R&B/Soul ",
+        projectType: "album",
+      })
+    ).toEqual({
+      genre: "R&B/Soul",
+      projectType: "album",
+    });
+  });
+
+  it("accepts genre metadata in the collaboration request", () => {
+    const result = createCollaborationBodySchema.safeParse({
+      genre: "Hip-Hop/Rap",
+      projectType: "ep",
+      title: "Summer EP",
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("artist dashboard release schemas", () => {

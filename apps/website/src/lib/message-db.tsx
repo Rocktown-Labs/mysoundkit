@@ -61,6 +61,7 @@ export interface MessageCollectionMutationOptions {
 }
 
 export interface StartCollaborationInput {
+  genre?: string;
   kind: "project" | "track";
   projectType?: "album" | "ep" | "mixtape" | "single";
   title: string;
@@ -481,6 +482,7 @@ export const useStartCollaborationMutation = (
               await collaborationPost({
                 json: {
                   clientRequestId: input.clientRequestId,
+                  genre: input.genre,
                   kind: input.kind,
                   projectType: input.projectType,
                   title: input.title,

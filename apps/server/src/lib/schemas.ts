@@ -1204,6 +1204,7 @@ export const conversationSummarySchema = z.object({
 
 export const createCollaborationBodySchema = z.object({
   clientRequestId: z.string().uuid().optional(),
+  genre: z.string().trim().min(1).optional(),
   initialTracks: z.array(z.string()).optional(),
   isProjectLevel: z.boolean().optional(),
   kind: z.enum(["project", "track"]).default("project").optional(),

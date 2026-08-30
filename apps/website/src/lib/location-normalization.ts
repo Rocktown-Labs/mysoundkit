@@ -64,6 +64,58 @@ const US_STATE_CODES = new Set([
     "WI",
     "WY",
   ]),
+  US_STATE_NAMES: Readonly<Record<string, string>> = {
+    alabama: "AL",
+    alaska: "AK",
+    arizona: "AZ",
+    arkansas: "AR",
+    california: "CA",
+    colorado: "CO",
+    connecticut: "CT",
+    delaware: "DE",
+    florida: "FL",
+    georgia: "GA",
+    hawaii: "HI",
+    idaho: "ID",
+    illinois: "IL",
+    indiana: "IN",
+    iowa: "IA",
+    kansas: "KS",
+    kentucky: "KY",
+    louisiana: "LA",
+    maine: "ME",
+    maryland: "MD",
+    massachusetts: "MA",
+    michigan: "MI",
+    minnesota: "MN",
+    mississippi: "MS",
+    missouri: "MO",
+    montana: "MT",
+    nebraska: "NE",
+    nevada: "NV",
+    "new hampshire": "NH",
+    "new jersey": "NJ",
+    "new mexico": "NM",
+    "new york": "NY",
+    "north carolina": "NC",
+    "north dakota": "ND",
+    ohio: "OH",
+    oklahoma: "OK",
+    oregon: "OR",
+    pennsylvania: "PA",
+    "rhode island": "RI",
+    "south carolina": "SC",
+    "south dakota": "SD",
+    tennessee: "TN",
+    texas: "TX",
+    utah: "UT",
+    vermont: "VT",
+    virginia: "VA",
+    washington: "WA",
+    "west virginia": "WV",
+    wisconsin: "WI",
+    wyoming: "WY",
+  },
   firstComponent = (
     components: readonly LocationAddressComponent[],
     types: readonly string[]
@@ -122,7 +174,14 @@ export const parseManualLocation = (
   }
 
   const [city, stateOrCountry, countryPart] = parts,
-    isUsState = US_STATE_CODES.has(stateOrCountry.toUpperCase()),
+    stateKey = stateOrCountry.toLowerCase(),
+    stateCode = US_STATE_NAMES[stateKey],
+    normalizedState =
+      stateCode ??
+      (US_STATE_CODES.has(stateOrCountry.toUpperCase())
+        ? stateOrCountry.toUpperCase()
+        : stateOrCountry),
+    isUsState = Boolean(stateCode) || US_STATE_CODES.has(normalizedState),
     country = countryPart || (isUsState ? "United States" : stateOrCountry);
 
   return city && stateOrCountry
@@ -130,7 +189,7 @@ export const parseManualLocation = (
         city,
         country,
         query: value.trim(),
-        state: stateOrCountry,
+        state: normalizedState,
       }
     : null;
 };

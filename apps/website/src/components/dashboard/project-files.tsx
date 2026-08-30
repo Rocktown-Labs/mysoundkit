@@ -1,5 +1,6 @@
 /* eslint-disable complexity, no-promise-executor-return, no-void, one-var, promise/avoid-new, react/todo, require-unicode-regexp, sort-vars, unicorn/prefer-ternary */
 import { useUploadFiles } from "@better-upload/client";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Upload,
   Download,
@@ -42,7 +43,11 @@ import {
   apiClient,
   rpcJson,
 } from "@/lib/api";
-import { useProjectQuery, useTrackQuery } from "@/lib/soundkit-api-hooks";
+import {
+  soundkitQueryKeys,
+  useProjectQuery,
+  useTrackQuery,
+} from "@/lib/soundkit-api-hooks";
 
 interface ProjectFilesProps {
   projectId: string;
@@ -91,6 +96,7 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
     [uploadKind, setUploadKind] = useState<"beat" | "concept" | "master">(
       "concept"
     ),
+    queryClient = useQueryClient(),
     projectQuery = useProjectQuery(projectId),
     trackQuery = useTrackQuery(activeTrackAction?.trackId ?? ""),
     [isReordering, setIsReordering] = useState(false),
@@ -152,7 +158,12 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
                 : `${uploadKind[0]?.toUpperCase()}${uploadKind.slice(1)} assets added to the project workspace.`,
             title: "Upload complete",
           });
-          await projectQuery.refetch();
+          await Promise.all([
+            projectQuery.refetch(),
+            queryClient.invalidateQueries({
+              queryKey: soundkitQueryKeys.projects,
+            }),
+          ]);
         } catch (error) {
           toast({
             description:
@@ -268,7 +279,12 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
         if (!response.ok) {
           throw new Error("Could not update the project sequence.");
         }
-        await projectQuery.refetch();
+        await Promise.all([
+          projectQuery.refetch(),
+          queryClient.invalidateQueries({
+            queryKey: soundkitQueryKeys.projects,
+          }),
+        ]);
       } catch (error) {
         toast({
           description:

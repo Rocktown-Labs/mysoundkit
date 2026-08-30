@@ -16,7 +16,7 @@ import {
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
 
 import {
   formatDuration,
@@ -526,35 +526,45 @@ export const buildProjectSummary = async (
   row: InferSelectModel<typeof projects>
 ) => {
   const db = createDb(),
-    [trackRows, assetRows, collaboratorRows, profileRows] = await Promise.all([
-      db
-        .select({
-          genreName: genres.name,
-          id: projectTracks.trackId,
-        })
-        .from(projectTracks)
-        .leftJoin(tracks, eq(tracks.id, projectTracks.trackId))
-        .leftJoin(genres, eq(genres.id, tracks.genreId))
-        .where(eq(projectTracks.projectId, row.id)),
-      loadProjectAssets({ db, projectId: row.id }),
-      db
-        .select({ id: projectCollaborators.id })
-        .from(projectCollaborators)
-        .where(eq(projectCollaborators.projectId, row.id)),
-      db
-        .select({
-          displayName: userProfiles.displayName,
-          state: userProfiles.state,
-          userName: authUser.name,
-          username: userProfiles.username,
-        })
-        .from(authUser)
-        .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-        .where(eq(authUser.id, row.ownerUserId))
-        .limit(1),
-    ]),
+    [trackRows, assetRows, collaboratorRows, profileRows, projectGenreRows] =
+      await Promise.all([
+        db
+          .select({
+            genreName: genres.name,
+            id: projectTracks.trackId,
+          })
+          .from(projectTracks)
+          .leftJoin(tracks, eq(tracks.id, projectTracks.trackId))
+          .leftJoin(genres, eq(genres.id, tracks.genreId))
+          .where(eq(projectTracks.projectId, row.id)),
+        loadProjectAssets({ db, projectId: row.id }),
+        db
+          .select({ id: projectCollaborators.id })
+          .from(projectCollaborators)
+          .where(eq(projectCollaborators.projectId, row.id)),
+        db
+          .select({
+            displayName: userProfiles.displayName,
+            state: userProfiles.state,
+            userName: authUser.name,
+            username: userProfiles.username,
+          })
+          .from(authUser)
+          .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+          .where(eq(authUser.id, row.ownerUserId))
+          .limit(1),
+        row.genreId
+          ? db
+              .select({ name: genres.name })
+              .from(genres)
+              .where(eq(genres.id, row.genreId))
+              .limit(1)
+          : Promise.resolve([]),
+      ]),
     trackIds = trackRows.map((track) => track.id),
-    primaryGenre = trackRows.find((track) => track.genreName)?.genreName,
+    primaryGenre =
+      trackRows.find((track) => track.genreName)?.genreName ??
+      projectGenreRows[0]?.name,
     [ownerProfile] = profileRows,
     durationAssetRows =
       trackIds.length > 0
@@ -722,6 +732,9 @@ export const ownedProjectWhere = ({
   organizationId
     ? and(
         eq(projects.id, projectId),
-        eq(projects.organizationId, organizationId)
+        or(
+          eq(projects.ownerUserId, userId),
+          eq(projects.organizationId, organizationId)
+        )
       )
     : and(eq(projects.id, projectId), eq(projects.ownerUserId, userId));

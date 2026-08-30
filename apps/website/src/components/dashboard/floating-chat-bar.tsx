@@ -368,8 +368,9 @@ function FloatingChatBarClient() {
       const projectTitle = collabTitle.trim() || "Untitled Collaboration";
       startCollaboration.mutate(
         {
+          genre: collabKind === "project" ? "Hip-Hop/Rap" : undefined,
           kind: collabKind,
-          projectType: collabKind === "project" ? "single" : undefined,
+          projectType: collabKind === "project" ? "ep" : undefined,
           title: projectTitle,
         },
         {
