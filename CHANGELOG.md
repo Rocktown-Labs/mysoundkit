@@ -6,6 +6,7 @@
 
 - Added a responsive onboarding exit dialog with Finish later and Log out actions, including deletion of unfinished onboarding progress before sign-out.
 - Added artist and fan onboarding plan comparisons with explicit included features, limits, and side-by-side layouts.
+- Added project-detail library pickers for selecting uploaded concepts, beats, and masters from existing releases, with multi-select attach actions and direct-upload fallbacks.
 - Added artist-first collaborator credit selectors for new tracks and projects, with explicit writer-only, artist-plus-writer, and producer choices.
 - Added project collaboration workspaces with accepted-only access, 24-hour proposals, optimistic `/collab` commands, typed attachments, beats/concepts, versioned assets, master-to-track processing, release readiness checks, publication propagation, project slugs, shared artwork, credits, and public project discovery.
 - Added project cover naming as `{project-name}-cover.{ext}` and a project-assets upload path that stores beats and concepts directly until a master is selected.
@@ -64,6 +65,7 @@
 
 ### Fixed
 
+- Fixed project detail workspaces so existing uploaded masters can populate the ordered tracklist and existing concept/beat uploads can be added without re-uploading files.
 - Fixed onboarding location lookup failures by preserving Google Places autocomplete when available and falling back to a normalized manual city, region, and country entry when Google rejects the configured key or is unavailable.
 - Fixed chat collaborations so optimistic proposal cards reconcile after the server creates the workspace, dashboard project and track caches refresh after collaboration changes, and chat-created workspaces stay visible in the active organization while preserving legacy owner visibility.
 - Fixed chat-created shared projects to default to EP metadata with a project genre, expose the genre and workspace track actions, and remove deleted project cards after a confirmed delete.

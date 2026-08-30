@@ -61,6 +61,8 @@ const meGet = apiClient.v1.me.index.$get,
   projectsPost = apiClient.v1.projects.index.$post,
   projectGet = apiClient.v1.projects[":projectId"].$get,
   projectPatch = apiClient.v1.projects[":projectId"].$patch,
+  projectLibraryAssetsPost =
+    apiClient.v1.projects[":projectId"]["library-assets"].$post,
   listeningPartyPost = apiClient.v1["listening-parties"].index.$post,
   listeningPartiesGet = apiClient.v1["listening-parties"].index.$get,
   battlesGet = apiClient.v1.battles.index.$get,
@@ -189,6 +191,9 @@ type ReviewLyricsRevisionBody = InferRequestType<
 >["json"];
 type CreateProjectBody = InferRequestType<typeof projectsPost>["json"];
 type UpdateProjectBody = InferRequestType<typeof projectPatch>["json"];
+type AttachProjectLibraryAssetsBody = InferRequestType<
+  typeof projectLibraryAssetsPost
+>["json"];
 export type ProjectSummary = InferResponseType<typeof projectsGet, 200>[number];
 export type PublicProjectSummary = InferResponseType<
   typeof publicProjectsGet,
@@ -1490,6 +1495,26 @@ export const useProjectQuery = (projectId: string) =>
     queryFn: async () => rpcJson(await projectGet({ param: { projectId } })),
     queryKey: soundkitQueryKeys.project(projectId),
   });
+
+export const useAttachProjectLibraryAssetsMutation = (projectId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: AttachProjectLibraryAssetsBody) =>
+      rpcJson(
+        await projectLibraryAssetsPost({
+          json: body,
+          param: { projectId },
+        })
+      ),
+    onSuccess: async (project) => {
+      queryClient.setQueryData(soundkitQueryKeys.project(projectId), project);
+      await queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.projects,
+      });
+    },
+  });
+};
 
 export const usePublicProjectQuery = (projectId: string) =>
   useQuery<PublicProjectDetail>({
