@@ -6,9 +6,14 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PlanSelectionCard } from "@/components/billing/plan-selection-card";
 import { LocationField } from "@/components/onboarding/location-field";
+import {
+  OnboardingExitDialog,
+  type OnboardingExitAction,
+} from "@/components/onboarding/onboarding-exit-dialog";
 import { MediaLayoutSelector } from "@/components/onboarding/media-layout-selector";
 import { UsernameField } from "@/components/onboarding/username-field";
 import { SoundKitBrand } from "@/components/soundkit-brand";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -47,6 +52,10 @@ function FanOnboardingPage() {
       "idle" | "saving" | "checkout"
     >("idle"),
     [isSubmitting, setIsSubmitting] = useState(false),
+    [hasExited, setHasExited] = useState(false),
+    [isExitDialogOpen, setIsExitDialogOpen] = useState(false),
+    [pendingExitAction, setPendingExitAction] =
+      useState<OnboardingExitAction | null>(null),
     [isDraftRestored, setIsDraftRestored] = useState(false),
     totalSteps = 4,
     plans = useMemo(() => {
@@ -85,20 +94,67 @@ function FanOnboardingPage() {
           : [...current, slug]
       );
     },
-    exitSetup = async () => {
-      if (
-        !window.confirm(
-          "Exit setup? Your account and progress will stay saved. You can return and finish setup later."
-        )
-      ) {
-        return;
+    finishLater = async () => {
+      setPendingExitAction("finish-later");
+      setErrorMessage(null);
+      try {
+        const response = await fetch(`${API_V1_URL}/onboarding/exit`, {
+          credentials: "include",
+          method: "POST",
+        });
+        if (!response.ok) {
+          throw new Error("We could not save your onboarding progress.");
+        }
+        posthog.capture("onboarding_exited", {
+          account_type: "fan",
+          exit_action: "finish_later",
+          step,
+        });
+        setIsExitDialogOpen(false);
+        await router.navigate({ to: "/" });
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "We could not save your progress. Please try again."
+        );
+      } finally {
+        setPendingExitAction(null);
       }
-      await fetch(`${API_V1_URL}/onboarding/exit`, {
-        credentials: "include",
-        method: "POST",
-      });
-      posthog.capture("onboarding_exited", { account_type: "fan", step });
-      await router.navigate({ to: "/" });
+    },
+    logOut = async () => {
+      setPendingExitAction("log-out");
+      setErrorMessage(null);
+      try {
+        const response = await fetch(`${API_V1_URL}/onboarding/state`, {
+          credentials: "include",
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          throw new Error("We could not remove your onboarding record.");
+        }
+        setHasExited(true);
+        window.localStorage.removeItem(FAN_ONBOARDING_DRAFT_KEY);
+        const result = await authClient.signOut();
+        if (result.error) {
+          throw new Error(result.error.message ?? "Sign out failed.");
+        }
+        posthog.capture("onboarding_exited", {
+          account_type: "fan",
+          exit_action: "log_out",
+          step,
+        });
+        window.localStorage.removeItem(FAN_ONBOARDING_DRAFT_KEY);
+        window.location.assign("/");
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "We could not log you out. Please try again."
+        );
+      } finally {
+        setPendingExitAction(null);
+      }
     },
     completeOnboarding = async () => {
       if (
@@ -199,6 +255,9 @@ function FanOnboardingPage() {
         if (typeof draft.stateValue === "string") {
           setStateValue(draft.stateValue);
         }
+        if (typeof draft.country === "string") {
+          setCountry(draft.country);
+        }
         if (draft.mediaLayout === "cards" || draft.mediaLayout === "list") {
           setMediaLayout(draft.mediaLayout);
         }
@@ -243,7 +302,7 @@ function FanOnboardingPage() {
   }, [posthog]);
 
   useEffect(() => {
-    if (!isDraftRestored) {
+    if (!isDraftRestored || hasExited) {
       return;
     }
     window.localStorage.setItem(
@@ -262,6 +321,7 @@ function FanOnboardingPage() {
   }, [
     city,
     country,
+    hasExited,
     isDraftRestored,
     mediaLayout,
     selectedGenres,
@@ -278,7 +338,8 @@ function FanOnboardingPage() {
         : "Preparing your SoundKit home…";
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 sm:py-12">
+    <>
+      <main className="min-h-screen bg-background px-4 py-8 sm:py-12">
       <div className="mx-auto w-full max-w-3xl">
         <div className="mb-8 text-center">
           <SoundKitBrand variant="wordmark" wordmarkClassName="h-11" />
@@ -286,7 +347,7 @@ function FanOnboardingPage() {
             <span>Personalize your SoundKit</span>
             <button
               className="text-primary hover:underline"
-              onClick={() => void exitSetup()}
+              onClick={() => setIsExitDialogOpen(true)}
               type="button"
             >
               Exit setup
@@ -330,7 +391,11 @@ function FanOnboardingPage() {
                 title="What Do You Like to Listen To?"
                 subtitle="Choose at least three genres to personalize discovery."
               >
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div
+                  aria-label="Favorite genres"
+                  className="grid grid-cols-2 gap-3"
+                  role="group"
+                >
                   {genresQuery.data?.map((genre) => (
                     <button
                       aria-checked={selectedGenres.includes(genre.slug)}
@@ -429,20 +494,42 @@ function FanOnboardingPage() {
                     value={mediaLayout}
                   />
                   <div className="space-y-3">
-                    <h3 className="font-semibold">Choose your plan</h3>
-                    {plans.map((plan) => (
-                      <PlanSelectionCard
-                        description={
-                          plan.code === "fan_free"
-                            ? "Discover public releases with one account."
-                            : "Premium listening, live access, and up to five total accounts/seats."
-                        }
-                        key={plan.code}
-                        onSelect={() => setSelectedPlanCode(plan.code)}
-                        plan={{ ...plan, maxSeats: plan.maxSeats ?? 1 }}
-                        selected={selectedPlanCode === plan.code}
-                      />
-                    ))}
+                    <div>
+                      <h3 className="font-semibold">Choose your plan</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Start free and upgrade whenever you want more ways to
+                        listen and participate.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {plans.map((plan) => (
+                        <PlanSelectionCard
+                          description={
+                            plan.code === "fan_free"
+                              ? "Discover public releases with the essentials."
+                              : "Everything in Free, plus premium listening and live access."
+                          }
+                          features={
+                            plan.code === "fan_free"
+                              ? [
+                                  "1 listener account included",
+                                  "Discover public releases",
+                                  "Save music and build your library",
+                                ]
+                              : [
+                                  "Everything in Free",
+                                  "5 accounts/seats included",
+                                  "Premium listening and live access",
+                                  "Vote in battle rounds",
+                                ]
+                          }
+                          key={plan.code}
+                          onSelect={() => setSelectedPlanCode(plan.code)}
+                          plan={{ ...plan, maxSeats: plan.maxSeats ?? 1 }}
+                          selected={selectedPlanCode === plan.code}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
                 {errorMessage ? (
@@ -473,7 +560,15 @@ function FanOnboardingPage() {
           </CardContent>
         </Card>
       </div>
-    </main>
+      </main>
+      <OnboardingExitDialog
+        onFinishLater={() => void finishLater()}
+        onLogOut={() => void logOut()}
+        onOpenChange={setIsExitDialogOpen}
+        open={isExitDialogOpen}
+        pendingAction={pendingExitAction}
+      />
+    </>
   );
 }
 

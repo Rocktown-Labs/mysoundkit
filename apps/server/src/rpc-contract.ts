@@ -447,6 +447,7 @@ export const rpcContract = new Hono()
     jsonValidator(updateOnboardingStateBodySchema),
     (c) => c.json({} as z.infer<typeof onboardingStateSchema>)
   )
+  .delete("/v1/onboarding/state", (c) => c.body(null, 204))
   .get(
     "/v1/onboarding/username-availability",
     validator("query", (value) => usernameAvailabilityQuerySchema.parse(value)),

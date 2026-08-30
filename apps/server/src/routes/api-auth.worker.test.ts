@@ -284,6 +284,11 @@ const API_ORIGIN = "http://soundkit.test",
       path: "/v1/projects/project_after_dark",
     },
     {
+      init: { method: "DELETE" },
+      label: "onboarding progress deletion",
+      path: "/v1/onboarding/state",
+    },
+    {
       label: "battle record retrieval",
       path: "/v1/battles/record",
     },

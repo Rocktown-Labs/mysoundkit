@@ -14,10 +14,21 @@ import { useEffect, useMemo, useState } from "react";
 import { PlanSelectionCard } from "@/components/billing/plan-selection-card";
 import { ArtistAvatarUpload } from "@/components/onboarding/artist-avatar-upload";
 import type { AvatarUploadStatus } from "@/components/onboarding/artist-avatar-upload";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { LocationField } from "@/components/onboarding/location-field";
+import {
+  OnboardingExitDialog,
+  type OnboardingExitAction,
+} from "@/components/onboarding/onboarding-exit-dialog";
 import { MediaLayoutSelector } from "@/components/onboarding/media-layout-selector";
 import { UsernameField } from "@/components/onboarding/username-field";
 import { SoundKitBrand } from "@/components/soundkit-brand";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -93,6 +104,9 @@ function ArtistOnboardingPage() {
     >("idle"),
     [isSubmitting, setIsSubmitting] = useState(false),
     [hasExited, setHasExited] = useState(false),
+    [isExitDialogOpen, setIsExitDialogOpen] = useState(false),
+    [pendingExitAction, setPendingExitAction] =
+      useState<OnboardingExitAction | null>(null),
     [isDraftRestored, setIsDraftRestored] = useState(false),
     totalSteps = 8,
     plans = useMemo(() => {
@@ -170,21 +184,68 @@ function ArtistOnboardingPage() {
         );
       }
     },
-    exitSetup = async () => {
-      if (
-        !window.confirm(
-          "Exit setup? Your account and progress will stay saved. You can return and finish setup later."
-        )
-      ) {
-        return;
+    finishLater = async () => {
+      setPendingExitAction("finish-later");
+      setErrorMessage(null);
+      try {
+        const response = await fetch(`${API_V1_URL}/onboarding/exit`, {
+          credentials: "include",
+          method: "POST",
+        });
+        if (!response.ok) {
+          throw new Error("We could not save your onboarding progress.");
+        }
+        posthog.capture("onboarding_exited", {
+          account_type: "artist",
+          exit_action: "finish_later",
+          step,
+        });
+        setHasExited(true);
+        setIsExitDialogOpen(false);
+        await router.navigate({ to: "/" });
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "We could not save your progress. Please try again."
+        );
+      } finally {
+        setPendingExitAction(null);
       }
-      await fetch(`${API_V1_URL}/onboarding/exit`, {
-        credentials: "include",
-        method: "POST",
-      });
-      posthog.capture("onboarding_exited", { account_type: "artist", step });
-      setHasExited(true);
-      await router.navigate({ to: "/" });
+    },
+    logOut = async () => {
+      setPendingExitAction("log-out");
+      setErrorMessage(null);
+      try {
+        const response = await fetch(`${API_V1_URL}/onboarding/state`, {
+          credentials: "include",
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          throw new Error("We could not remove your onboarding record.");
+        }
+        setHasExited(true);
+        window.localStorage.removeItem(ARTIST_ONBOARDING_DRAFT_KEY);
+        const result = await authClient.signOut();
+        if (result.error) {
+          throw new Error(result.error.message ?? "Sign out failed.");
+        }
+        posthog.capture("onboarding_exited", {
+          account_type: "artist",
+          exit_action: "log_out",
+          step,
+        });
+        window.localStorage.removeItem(ARTIST_ONBOARDING_DRAFT_KEY);
+        window.location.assign("/");
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "We could not log you out. Please try again."
+        );
+      } finally {
+        setPendingExitAction(null);
+      }
     },
     completeOnboarding = async () => {
       if (
@@ -344,7 +405,7 @@ function ArtistOnboardingPage() {
   }, [posthog]);
 
   useEffect(() => {
-    if (!isDraftRestored) {
+    if (!isDraftRestored || hasExited) {
       return;
     }
     window.localStorage.setItem(
@@ -367,6 +428,7 @@ function ArtistOnboardingPage() {
     avatarUrl,
     city,
     country,
+    hasExited,
     isDraftRestored,
     primaryGenre,
     roles,
@@ -388,7 +450,11 @@ function ArtistOnboardingPage() {
   );
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 sm:py-12">
+    <>
+      <main
+        className="min-h-screen bg-background px-4 py-8 sm:py-12"
+        data-onboarding-ready={isDraftRestored}
+      >
       <div className="mx-auto w-full max-w-3xl">
         <div className="mb-8 text-center">
           <SoundKitBrand variant="wordmark" wordmarkClassName="h-11" />
@@ -396,7 +462,7 @@ function ArtistOnboardingPage() {
             <h1>Set up your Artist profile</h1>
             <button
               className="text-primary hover:underline"
-              onClick={() => void exitSetup()}
+              onClick={() => setIsExitDialogOpen(true)}
               type="button"
             >
               Exit setup
@@ -416,7 +482,11 @@ function ArtistOnboardingPage() {
                 title="What Do You Create?"
                 subtitle="Choose one or both. Your dashboard can support both roles."
               >
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div
+                  aria-label="Creator roles"
+                  className="grid grid-cols-2 gap-3"
+                  role="radiogroup"
+                >
                   <ChoiceCard
                     selected={roles.includes("musician")}
                     onClick={() => toggleRole("musician")}
@@ -442,7 +512,11 @@ function ArtistOnboardingPage() {
                 title="Can you publish independently on SoundKit?"
                 subtitle="SoundKit Artist accounts are currently for independent creators who control the rights needed to upload and monetize their music."
               >
-                <div className="grid gap-3">
+                <div
+                  aria-label="Creator eligibility"
+                  className="grid grid-cols-2 gap-3"
+                  role="radiogroup"
+                >
                   <ChoiceCard
                     selected={eligibility === "independent"}
                     onClick={() => void declareEligibility("independent")}
@@ -701,55 +775,116 @@ function ArtistOnboardingPage() {
                 title="Finish Your Artist Profile"
                 subtitle="Add the details you want to show publicly, choose your layout, and select Free or Premium."
               >
-                <div className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <LinkInput
-                      id="instagram"
-                      label="Instagram"
-                      onChange={setInstagramHandle}
-                      placeholder="@yourhandle"
-                      value={instagramHandle}
-                    />
-                    <LinkInput
-                      id="tiktok"
-                      label="TikTok"
-                      onChange={setTiktokHandle}
-                      placeholder="@yourhandle"
-                      value={tiktokHandle}
-                    />
-                    <LinkInput
-                      id="twitter"
-                      label="X (Twitter)"
-                      onChange={setTwitterHandle}
-                      placeholder="@yourhandle"
-                      value={twitterHandle}
-                    />
-                    <LinkInput
-                      id="songwriter"
-                      label="Stage / songwriter name"
-                      onChange={setSongwriterLegalName}
-                      placeholder="Optional public name"
-                      value={songwriterLegalName}
-                    />
-                    <LinkInput
-                      id="pro"
-                      label="ASCAP / BMI"
-                      onChange={setProAffiliation}
-                      placeholder="Optional"
-                      value={proAffiliation}
-                    />
-                    <LinkInput
-                      id="pro-member"
-                      label="PRO number"
-                      onChange={setProMemberId}
-                      placeholder="Optional"
-                      value={proMemberId}
-                    />
-                  </div>
+                <div className="space-y-5">
                   <MediaLayoutSelector
                     onChange={setMediaLayout}
                     value={mediaLayout}
                   />
+
+                  <Accordion
+                    className="rounded-lg border border-border/60 px-4"
+                    collapsible
+                    type="single"
+                  >
+                    <AccordionItem className="border-0" value="profile-details">
+                      <AccordionTrigger className="hover:no-underline">
+                        <span>
+                          <span className="block text-left">
+                            Optional profile details
+                          </span>
+                          <span className="mt-1 block text-left text-xs font-normal text-muted-foreground">
+                            Social links, stage name, and PRO information
+                          </span>
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="space-y-4 pb-5">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <LinkInput
+                            id="instagram"
+                            label="Instagram"
+                            onChange={setInstagramHandle}
+                            placeholder="@yourhandle"
+                            value={instagramHandle}
+                          />
+                          <LinkInput
+                            id="tiktok"
+                            label="TikTok"
+                            onChange={setTiktokHandle}
+                            placeholder="@yourhandle"
+                            value={tiktokHandle}
+                          />
+                          <LinkInput
+                            id="twitter"
+                            label="X (Twitter)"
+                            onChange={setTwitterHandle}
+                            placeholder="@yourhandle"
+                            value={twitterHandle}
+                          />
+                          <LinkInput
+                            id="songwriter"
+                            label="Stage / songwriter name"
+                            onChange={setSongwriterLegalName}
+                            placeholder="Optional public name"
+                            value={songwriterLegalName}
+                          />
+                          <LinkInput
+                            id="pro"
+                            label="ASCAP / BMI"
+                            onChange={setProAffiliation}
+                            placeholder="Optional"
+                            value={proAffiliation}
+                          />
+                          <LinkInput
+                            id="pro-member"
+                            label="PRO number"
+                            onChange={setProMemberId}
+                            placeholder="Optional"
+                            value={proMemberId}
+                          />
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+
+                  <div className="space-y-3">
+                    <div>
+                      <h3 className="font-semibold">Choose your plan</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Start free and upgrade whenever you need more creator
+                        tools.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {plans.map((plan) => (
+                        <PlanSelectionCard
+                          description={
+                            plan.code === "artist_free"
+                              ? "The essentials to publish and grow."
+                              : "Everything in Free, plus live creator tools and rewards."
+                          }
+                          features={
+                            plan.code === "artist_free"
+                              ? [
+                                  "1 artist account included",
+                                  "Public artist profile and releases",
+                                  "Upload music and build your audience",
+                                ]
+                              : [
+                                  "Everything in Free",
+                                  "5 accounts/seats included",
+                                  "Host live streams and artist battles",
+                                  "Creator Rewards eligibility",
+                                ]
+                          }
+                          key={plan.code}
+                          onSelect={() => setSelectedPlanCode(plan.code)}
+                          plan={{ ...plan, maxSeats: plan.maxSeats ?? 1 }}
+                          selected={selectedPlanCode === plan.code}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="rounded-lg border border-border/60 p-4">
                     <label className="flex items-start gap-3 text-sm">
                       <Checkbox
@@ -771,22 +906,6 @@ function ArtistOnboardingPage() {
                         .
                       </span>
                     </label>
-                  </div>
-                  <div className="space-y-3">
-                    <h3 className="font-semibold">Choose your plan</h3>
-                    {plans.map((plan) => (
-                      <PlanSelectionCard
-                        description={
-                          plan.code === "artist_free"
-                            ? "One account with the essentials to get started."
-                            : "Live tools, creator rewards, and up to five total accounts/seats."
-                        }
-                        key={plan.code}
-                        onSelect={() => setSelectedPlanCode(plan.code)}
-                        plan={{ ...plan, maxSeats: plan.maxSeats ?? 1 }}
-                        selected={selectedPlanCode === plan.code}
-                      />
-                    ))}
                   </div>
                 </div>
                 {errorMessage ? (
@@ -825,7 +944,15 @@ function ArtistOnboardingPage() {
           </CardContent>
         </Card>
       </div>
-    </main>
+      </main>
+      <OnboardingExitDialog
+        onFinishLater={() => void finishLater()}
+        onLogOut={() => void logOut()}
+        onOpenChange={setIsExitDialogOpen}
+        open={isExitDialogOpen}
+        pendingAction={pendingExitAction}
+      />
+    </>
   );
 }
 
@@ -870,7 +997,7 @@ function ChoiceCard({
   return (
     <button
       aria-checked={selected}
-      className={`rounded-lg border-2 p-5 text-left transition ${selected ? "border-primary bg-primary/10" : "border-border bg-background/50 hover:border-primary/60"}`}
+      className={`min-h-36 w-full rounded-lg border-2 p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:p-5 ${selected ? "border-primary bg-primary/10" : "border-border bg-background/50 hover:border-primary/60"}`}
       onClick={onClick}
       role="radio"
       type="button"

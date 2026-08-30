@@ -11,7 +11,11 @@ export function MediaLayoutSelector({
   return (
     <fieldset className="space-y-3">
       <legend className="text-sm font-medium">Media layout</legend>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div
+        aria-label="Media layout"
+        className="grid grid-cols-2 gap-3"
+        role="radiogroup"
+      >
         <LayoutOption
           description="Best for artwork-forward browsing."
           icon={<PanelsTopLeft className="size-5" />}
@@ -47,7 +51,7 @@ function LayoutOption({
   return (
     <button
       aria-checked={selected}
-      className={`min-h-32 rounded-lg border-2 p-4 text-left transition ${selected ? "border-primary bg-primary/10" : "border-border bg-background/50 hover:border-primary/60"}`}
+      className={`min-h-32 w-full rounded-lg border-2 p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? "border-primary bg-primary/10" : "border-border bg-background/50 hover:border-primary/60"}`}
       onClick={onClick}
       role="radio"
       type="button"

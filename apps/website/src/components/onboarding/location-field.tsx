@@ -10,6 +10,7 @@ import type { KeyboardEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  isLocationSelectionUnchanged,
   normalizeLocationComponents,
   parseManualLocation,
 } from "@/lib/location-normalization";
@@ -160,6 +161,12 @@ function LocationInput({ city, country, onChange, state }: LocationFieldProps) {
       setStatus("empty");
       return;
     }
+    if (isLocationSelectionUnchanged(value, selectedLabel)) {
+      setSuggestions([]);
+      setActiveSuggestionIndex(-1);
+      setStatus("selected");
+      return;
+    }
     if (value.length < MIN_QUERY_LENGTH) {
       setSuggestions([]);
       setStatus("idle");
@@ -172,7 +179,7 @@ function LocationInput({ city, country, onChange, state }: LocationFieldProps) {
     }
     setStatus("searching");
     void search(value, requestId);
-  }, [places, query, search]);
+  }, [places, query, search, selectedLabel]);
 
   const selectSuggestion = async (suggestion: LocationSuggestion) => {
     if (!places) {

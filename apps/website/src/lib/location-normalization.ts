@@ -161,6 +161,11 @@ export const normalizeLocationComponents = (
   };
 };
 
+export const isLocationSelectionUnchanged = (
+  query: string,
+  selectedLabel: string
+) => Boolean(selectedLabel && query.trim() === selectedLabel.trim());
+
 export const parseManualLocation = (
   value: string
 ): (NormalizedLocation & { query: string }) | null => {

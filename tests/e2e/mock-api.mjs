@@ -406,6 +406,24 @@ const normalizeGenre = (value) =>
       releaseStrategy: "publish_when_ready",
       title: "Battle Ready",
     },
+    {
+      artistName: "Luna Eclipse",
+      artistUsername: "luna-eclipse",
+      catalogItemType: "single",
+      coverArtUrl: "/summer-music-album-cover.webp",
+      duration: "3:36",
+      genre: "R&B/Soul",
+      id: "track_golden_hour",
+      isForSale: false,
+      isPublic: true,
+      masterDownloadUrl: "/v1/tracks/track_golden_hour/master",
+      plays: 640,
+      price: "$0.00",
+      priceCents: 0,
+      releaseAt: null,
+      releaseStrategy: "publish_when_ready",
+      title: "Golden Hour",
+    },
   ],
   mockProjects = [
     {
@@ -834,6 +852,7 @@ export const createMockApiServer = async ({
   const mockBattleChallengesByClient = new Map(),
     mockBattleKitsByClient = new Map(),
     mockBattlesByClient = new Map(),
+    mockProjectDetailsByClient = new Map(),
     mockCommunityCommunitiesByClient = new Map(),
     mockCommunityMembersByClient = new Map(),
     mockCommunityMessagesByClient = new Map(),
@@ -962,6 +981,17 @@ export const createMockApiServer = async ({
       mockNotificationsByClient.set(clientKey, notifications);
       return notifications;
     },
+    getMockProjectDetail = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockProjectDetailsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const projectDetail = structuredClone(mockProjectDetail);
+      mockProjectDetailsByClient.set(clientKey, projectDetail);
+      return projectDetail;
+    },
     getMockBattleChallenges = (request) => {
       const clientKey = getClientKey(request),
         existing = mockBattleChallengesByClient.get(clientKey);
@@ -1071,6 +1101,26 @@ export const createMockApiServer = async ({
         "set-cookie": "soundkit_test_session=admin; Path=/; SameSite=Lax",
       });
       response.end();
+      return;
+    }
+
+    if (url.pathname === "/auth/sign-out" && request.method === "POST") {
+      response.writeHead(200, {
+        "content-type": "application/json",
+        "set-cookie":
+          "soundkit_test_session=; Max-Age=0; Path=/; SameSite=Lax",
+      });
+      response.end(JSON.stringify({ success: true }));
+      return;
+    }
+
+    if (url.pathname === "/auth/sign-out" && request.method === "POST") {
+      response.writeHead(200, {
+        "content-type": "application/json",
+        "set-cookie":
+          "soundkit_test_session=; Max-Age=0; Path=/; SameSite=Lax",
+      });
+      response.end(JSON.stringify({ success: true }));
       return;
     }
 
@@ -1352,7 +1402,7 @@ export const createMockApiServer = async ({
       request.method === "GET" &&
       url.pathname === "/v1/projects/project_after_dark"
     ) {
-      json(response, 200, mockProjectDetail, webOrigin);
+      json(response, 200, getMockProjectDetail(request), webOrigin);
       return;
     }
 
@@ -1360,6 +1410,7 @@ export const createMockApiServer = async ({
       request.method === "POST" &&
       url.pathname === "/v1/projects/project_after_dark/library-assets"
     ) {
+      const projectDetail = getMockProjectDetail(request);
       let bodyText = "";
       request.on("data", (chunk) => {
         bodyText += chunk;
@@ -1375,17 +1426,17 @@ export const createMockApiServer = async ({
             : [];
 
         if (body.assetKind === "master" && selectedTracks.length > 0) {
-          mockProjectDetail.tracks = [
+          projectDetail.tracks = [
             ...new Map(
-              [...mockProjectDetail.tracks, ...selectedTracks].map((track) => [
+              [...projectDetail.tracks, ...selectedTracks].map((track) => [
                 track.id,
                 track,
               ])
             ).values(),
           ];
-          mockProjectDetail.trackCount = mockProjectDetail.tracks.length;
+          projectDetail.trackCount = projectDetail.tracks.length;
         }
-        json(response, 201, mockProjectDetail, webOrigin);
+        json(response, 201, projectDetail, webOrigin);
       });
       return;
     }
@@ -2632,6 +2683,128 @@ export const createMockApiServer = async ({
         },
         webOrigin
       );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/eligibility"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: "independent",
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: null,
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/exit"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: null,
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: new Date().toISOString(),
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "DELETE" &&
+      url.pathname === "/v1/onboarding/state"
+    ) {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/eligibility"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: "independent",
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: null,
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/exit"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: null,
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: new Date().toISOString(),
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "DELETE" &&
+      url.pathname === "/v1/onboarding/state"
+    ) {
+      response.writeHead(204);
+      response.end();
       return;
     }
 
