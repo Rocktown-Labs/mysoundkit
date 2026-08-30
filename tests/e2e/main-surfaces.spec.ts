@@ -875,6 +875,12 @@ test.describe("main application surfaces", () => {
     await page.getByRole("button", { name: "Add selected master" }).click();
     await expect(page.getByText("Project updated").last()).toBeVisible();
     await expect(
+      page.getByText("City Lights", { exact: true }).first()
+    ).toBeVisible();
+    await expect(
+      page.getByText("Battle Ready", { exact: true }).first()
+    ).toBeVisible();
+    await expect(
       page.getByRole("button", { name: "Choose File" })
     ).toBeVisible();
   });

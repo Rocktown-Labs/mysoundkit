@@ -360,15 +360,19 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
       }
 
       try {
-        await attachLibraryAssetsMutation.mutateAsync({
-          assetKind: uploadKind,
-          trackIds: selectedLibraryTrackIds,
-        });
+        const selectedTrackCount = selectedLibraryTrackIds.length,
+          updatedProject = await attachLibraryAssetsMutation.mutateAsync({
+            assetKind: uploadKind,
+            trackIds: selectedLibraryTrackIds,
+          });
+        queryClient.setQueryData(
+          soundkitQueryKeys.project(projectId),
+          updatedProject
+        );
         setSelectedLibraryTrackIds([]);
-        await projectQuery.refetch();
         const label = projectLibraryKindLabels[uploadKind].toLowerCase();
         toast({
-          description: `Selected ${label}${selectedLibraryTrackIds.length === 1 ? "" : "s"} were added to this project.`,
+          description: `Selected ${label}${selectedTrackCount === 1 ? "" : "s"} were added to this project.`,
           title: "Project updated",
         });
       } catch (error) {

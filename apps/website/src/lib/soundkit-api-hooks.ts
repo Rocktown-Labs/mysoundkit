@@ -1507,15 +1507,11 @@ export const useAttachProjectLibraryAssetsMutation = (projectId: string) => {
           param: { projectId },
         })
       ),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: soundkitQueryKeys.project(projectId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: soundkitQueryKeys.projects,
-        }),
-      ]);
+    onSuccess: async (project) => {
+      queryClient.setQueryData(soundkitQueryKeys.project(projectId), project);
+      await queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.projects,
+      });
     },
   });
 };

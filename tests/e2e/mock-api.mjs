@@ -1360,7 +1360,33 @@ export const createMockApiServer = async ({
       request.method === "POST" &&
       url.pathname === "/v1/projects/project_after_dark/library-assets"
     ) {
-      json(response, 201, mockProjectDetail, webOrigin);
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          selectedTracks = Array.isArray(body.trackIds)
+            ? body.trackIds
+                .map((trackId) =>
+                  mockTracks.find((track) => track.id === trackId)
+                )
+                .filter(Boolean)
+            : [];
+
+        if (body.assetKind === "master" && selectedTracks.length > 0) {
+          mockProjectDetail.tracks = [
+            ...new Map(
+              [...mockProjectDetail.tracks, ...selectedTracks].map((track) => [
+                track.id,
+                track,
+              ])
+            ).values(),
+          ];
+          mockProjectDetail.trackCount = mockProjectDetail.tracks.length;
+        }
+        json(response, 201, mockProjectDetail, webOrigin);
+      });
       return;
     }
 
