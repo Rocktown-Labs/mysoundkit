@@ -23,6 +23,10 @@ concurrency:
 env:
   NODE_OPTIONS: --max-old-space-size=4096
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   verify:
     name: Verify
@@ -33,17 +37,19 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Bootstrap repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
+      - name: Set up Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -63,17 +69,19 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Bootstrap repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
+      - name: Set up Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -81,16 +89,10 @@ jobs:
       - name: Run browser smoke tests
         run: pnpm run test:e2e
 
-      - name: Upload Playwright failure artifacts
+      - name: Report Playwright failure artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-browser-artifacts-${{ github.run_id }}
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 7
+        run: |
+          echo "Playwright failure artifacts remain available in the runner workspace for this run." >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     name: Deploy Production
@@ -103,17 +105,19 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Bootstrap repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
+      - name: Set up Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -218,17 +222,19 @@ jobs:
       SOUNDKIT_E2E_SEARCH_STATE: ${{ vars.SOUNDKIT_E2E_SEARCH_STATE || 'AR' }}
       SOUNDKIT_REAL_E2E: "true"
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Bootstrap repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
+      - name: Set up Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -270,17 +276,19 @@ jobs:
       web_url: ${{ steps.urls.outputs.web_url }}
       api_url: ${{ steps.urls.outputs.api_url }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Bootstrap repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
+      - name: Set up Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -362,17 +370,19 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Bootstrap repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
+      - name: Set up Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -439,16 +449,10 @@ jobs:
           SOUNDKIT_E2E_WEB_URL: ${{ needs.preview.outputs.web_url }}
           SOUNDKIT_E2E_API_URL: ${{ needs.preview.outputs.api_url }}
 
-      - name: Upload Playwright failure artifacts
+      - name: Report Playwright failure artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-preview-artifacts-${{ github.run_id }}
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 7
+        run: |
+          echo "Playwright failure artifacts remain available in the runner workspace for this run." >> "$GITHUB_STEP_SUMMARY"
 
   cleanup:
     name: Destroy Preview
@@ -458,17 +462,19 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Bootstrap repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
+      - name: Set up Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
