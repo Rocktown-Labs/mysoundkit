@@ -211,6 +211,30 @@ describe("artist dashboard release schemas", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts an artist credit with an additional writer credit", () => {
+    const result = createProjectBodySchema.safeParse({
+      collaborators: [
+        {
+          alsoCreditAsWriter: true,
+          name: "Ava Rhodes",
+          role: "artist",
+          userId: "user_ava",
+        },
+      ],
+      projectType: "single",
+      title: "Artist-led Project",
+      trackIds: [],
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.collaborators[0]).toMatchObject({
+        alsoCreditAsWriter: true,
+        role: "artist",
+      });
+    }
+  });
+
   it("accepts uploaded cover art metadata for track publishing", () => {
     const result = createTrackAssetBodySchema.safeParse({
       assetKind: "cover_art",
