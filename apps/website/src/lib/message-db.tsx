@@ -18,6 +18,8 @@ import type { ReactNode } from "react";
 
 import { apiClient, API_V1_URL, rpcJson } from "./api";
 import type { LiveRoomChatMessage } from "./live-room";
+import { removeOptimisticMessage } from "./message-reconciliation";
+import { soundkitQueryKeys } from "./soundkit-api-hooks";
 import type { ConversationSummary, MessageSummary } from "./soundkit-api-hooks";
 
 const conversationGet = apiClient.v1.messages.conversations.$get,
@@ -140,6 +142,7 @@ const makeConversationCollection = (
         enabled: Boolean(conversationId),
         getKey: (message) => message.id,
         id: `soundkit-messages-${scopeKey}-${conversationId}`,
+        onDelete: () => Promise.resolve({ refetch: false }),
         onInsert: async ({ transaction, collection }) => {
           const mutation = transaction.mutations[0],
             message = mutation.modified,
@@ -162,6 +165,7 @@ const makeConversationCollection = (
               })
             );
           collection.utils.writeUpsert(created);
+          await removeOptimisticMessage(collection, message.id);
           await conversations.utils.refetch();
           return { refetch: false };
         },
@@ -458,7 +462,7 @@ export const useStartCollaborationMutation = (
   conversationId: string,
   senderId?: string
 ) => {
-  const { conversations, getMessages } = useMessagingDb(),
+  const { conversations, getMessages, queryClient } = useMessagingDb(),
     collection = useMemo(
       () => getMessages(conversationId),
       [conversationId, getMessages]
@@ -484,9 +488,16 @@ export const useStartCollaborationMutation = (
                 param: { conversationId },
               })
             );
+            await removeOptimisticMessage(collection, input.localMessageId);
             await Promise.all([
               collection.utils.refetch(),
               conversations.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.projects,
+              }),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.tracksPrefix,
+              }),
             ]);
           },
           onMutate: (input) => {
@@ -512,7 +523,7 @@ export const useStartCollaborationMutation = (
             });
           },
         }),
-      [collection, conversationId, conversations, senderId]
+      [collection, conversationId, conversations, queryClient, senderId]
     ),
     mutate = useCallback(
       (
@@ -557,7 +568,7 @@ export const useStartCollaborationMutation = (
 };
 
 export const useRespondCollaborationMutation = (conversationId: string) => {
-  const { conversations, getMessages } = useMessagingDb(),
+  const { conversations, getMessages, queryClient } = useMessagingDb(),
     collection = useMemo(
       () => getMessages(conversationId),
       [conversationId, getMessages]
@@ -581,6 +592,12 @@ export const useRespondCollaborationMutation = (conversationId: string) => {
       await Promise.all([
         collection.utils.refetch(),
         conversations.utils.refetch(),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.projects,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.tracksPrefix,
+        }),
       ]);
     },
   });

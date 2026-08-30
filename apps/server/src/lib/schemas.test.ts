@@ -10,6 +10,7 @@ import {
   onboardingArtistBodySchema,
   onboardingFanBodySchema,
   settleTrackBodySchema,
+  updateProjectBodySchema,
   updateTrackBodySchema,
   userSummarySchema,
 } from "./schemas";
@@ -151,6 +152,19 @@ describe("onboarding plan codes", () => {
 });
 
 describe("artist dashboard release schemas", () => {
+  it("keeps partial project updates from defaulting to a release", () => {
+    const result = updateProjectBodySchema.safeParse({
+      assetIds: ["projects/user/cover.jpg"],
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({
+        assetIds: ["projects/user/cover.jpg"],
+      });
+    }
+  });
+
   it("accepts mixtape projects for multi-track releases", () => {
     const result = createProjectBodySchema.safeParse({
       assetIds: ["asset_cover"],
