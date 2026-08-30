@@ -741,17 +741,35 @@ app.openapi(
             collaborator.userId && collaborator.userId !== user.id
         )
         .flatMap((collaborator) =>
-          newTrackIds.map((trackId) => ({
-            canDelete: false,
-            canEdit: true,
-            canUpload: true,
-            collaboratorRole: collaborator.role,
-            collaboratorUserId: collaborator.userId,
-            id: crypto.randomUUID(),
-            invitationStatus: "accepted" as const,
-            invitedByUserId: user.id,
-            trackId,
-          }))
+          newTrackIds.flatMap((trackId) => {
+            const baseRow = {
+              canDelete: false,
+              canEdit: true,
+              canUpload: true,
+              collaboratorRole: collaborator.role,
+              collaboratorUserId: collaborator.userId,
+              id: crypto.randomUUID(),
+              invitationStatus: "accepted" as const,
+              invitedByUserId: user.id,
+              trackId,
+            };
+
+            if (
+              collaborator.alsoCreditAsWriter &&
+              collaborator.role !== "songwriter"
+            ) {
+              return [
+                baseRow,
+                {
+                  ...baseRow,
+                  collaboratorRole: "songwriter" as const,
+                  id: crypto.randomUUID(),
+                },
+              ];
+            }
+
+            return [baseRow];
+          })
         );
       if (projectCreditRows.length > 0) {
         await db.insert(trackCollaborators).values(projectCreditRows);
