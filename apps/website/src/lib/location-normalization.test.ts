@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isLocationSelectionUnchanged,
   normalizeLocationComponents,
   parseManualLocation,
 } from "./location-normalization";
@@ -53,6 +54,23 @@ describe("normalizeLocationComponents", () => {
         { longText: "France", shortText: "FR", types: ["country"] },
       ])
     ).toBeNull();
+  });
+});
+
+describe("isLocationSelectionUnchanged", () => {
+  it("keeps a verified selection stable until the query changes", () => {
+    expect(
+      isLocationSelectionUnchanged(
+        "Little Rock, AR, United States",
+        "Little Rock, AR, United States"
+      )
+    ).toBe(true);
+    expect(
+      isLocationSelectionUnchanged(
+        "Little Rock, AR, United States remix",
+        "Little Rock, AR, United States"
+      )
+    ).toBe(false);
   });
 });
 

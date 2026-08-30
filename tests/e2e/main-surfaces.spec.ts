@@ -1450,6 +1450,180 @@ test.describe("signup onboarding guards", () => {
     await expect(page).toHaveURL(/\/dashboard$/);
   });
 
+  test("artist onboarding keeps choice cards easy to select", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "incomplete",
+      },
+    ]);
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        "soundkit.artistOnboardingDraft.v1",
+        JSON.stringify({
+          city: "",
+          country: "",
+          locationQuery: "",
+          primaryGenre: "",
+          roles: ["musician"],
+          selectedPlanCode: "soundkit_premium_artist",
+          stateValue: "",
+          step: 2,
+          username: "",
+        })
+      );
+    });
+
+    await gotoWithViteRetry(page, "/signup/artist/onboarding");
+    await expect(page.locator("main")).toHaveAttribute(
+      "data-onboarding-ready",
+      "true",
+      { timeout: 60_000 }
+    );
+    const independent = page.getByRole("radio", {
+      name: /Independent \/ Indie-Controlled/u,
+    });
+    await expect(independent).toBeVisible();
+    await expect(
+      page.getByRole("radio", { name: /Major-Label Controlled/u })
+    ).toBeVisible();
+    await independent.click();
+    await expect(independent).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
+  });
+
+  test("artist onboarding final step clearly compares plans", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "incomplete",
+      },
+    ]);
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        "soundkit.artistOnboardingDraft.v1",
+        JSON.stringify({
+          city: "Little Rock",
+          country: "United States",
+          locationQuery: "Little Rock, AR, United States",
+          primaryGenre: "hip-hop",
+          roles: ["musician"],
+          selectedPlanCode: "soundkit_premium_artist",
+          stateValue: "AR",
+          step: 8,
+          username: "artist_test",
+        })
+      );
+    });
+
+    await gotoWithViteRetry(page, "/signup/artist/onboarding");
+    await expect(page.locator("main")).toHaveAttribute(
+      "data-onboarding-ready",
+      "true",
+      { timeout: 60_000 }
+    );
+    await expect(
+      page.getByRole("heading", { name: "Finish Your Artist Profile" })
+    ).toBeVisible();
+    await expect(page.getByText("1 artist account included")).toBeVisible();
+    await expect(
+      page.getByText("Everything in Free", { exact: true })
+    ).toBeVisible();
+    await expect(page.getByText("Creator Rewards eligibility")).toBeVisible();
+    await expect(page.getByText("$22.99")).toBeVisible();
+    await page.getByRole("button", { name: /Optional profile details/u }).click();
+    await expect(page.getByLabel("Instagram")).toBeVisible();
+  });
+
+  test("artist onboarding can finish later without losing progress", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "incomplete",
+      },
+    ]);
+    await gotoWithViteRetry(page, "/signup/artist/onboarding");
+    await expect(page.locator("main")).toHaveAttribute(
+      "data-onboarding-ready",
+      "true",
+      { timeout: 60_000 }
+    );
+    await page.getByRole("button", { name: "Exit setup" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Leave setup?" })
+    ).toBeVisible();
+    await page.getByRole("button", { name: /Finish later/u }).click();
+    await expect(page).toHaveURL(/\/(?:\?.*)?$/u);
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          window.localStorage.getItem("soundkit.artistOnboardingDraft.v1")
+        )
+      )
+      .not.toBeNull();
+  });
+
+  test("artist onboarding can discard progress and log out", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "incomplete",
+      },
+    ]);
+    await gotoWithViteRetry(page, "/signup/artist/onboarding");
+    await expect(page.locator("main")).toHaveAttribute(
+      "data-onboarding-ready",
+      "true",
+      { timeout: 60_000 }
+    );
+    await page.evaluate(() => {
+      window.localStorage.setItem(
+        "soundkit.artistOnboardingDraft.v1",
+        JSON.stringify({
+          city: "",
+          country: "",
+          locationQuery: "",
+          primaryGenre: "",
+          roles: ["musician"],
+          selectedPlanCode: "soundkit_premium_artist",
+          stateValue: "",
+          step: 2,
+          username: "",
+        })
+      );
+    });
+    await page.getByRole("button", { name: "Exit setup" }).click();
+    await page.getByRole("button", { name: /^Log out/u }).click();
+    await expect(page).toHaveURL(/\/(?:\?.*)?$/u);
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          window.localStorage.getItem("soundkit.artistOnboardingDraft.v1")
+        )
+      )
+      .toBeNull();
+  });
+
   test("artist onboarding restores the local draft after refresh", async ({
     context,
     page,

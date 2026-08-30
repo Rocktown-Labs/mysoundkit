@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added a responsive onboarding exit dialog with Finish later and Log out actions, including deletion of unfinished onboarding progress before sign-out.
+- Added artist and fan onboarding plan comparisons with explicit included features, limits, and side-by-side layouts.
 - Added artist-first collaborator credit selectors for new tracks and projects, with explicit writer-only, artist-plus-writer, and producer choices.
 - Added project collaboration workspaces with accepted-only access, 24-hour proposals, optimistic `/collab` commands, typed attachments, beats/concepts, versioned assets, master-to-track processing, release readiness checks, publication propagation, project slugs, shared artwork, credits, and public project discovery.
 - Added project cover naming as `{project-name}-cover.{ext}` and a project-assets upload path that stores beats and concepts directly until a master is selected.

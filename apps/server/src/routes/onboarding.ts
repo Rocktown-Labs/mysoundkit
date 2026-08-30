@@ -5,6 +5,7 @@ import {
   artistProfiles,
   fanProfiles,
   genres,
+  onboardingEmailReminders,
   onboardingProgress,
   profileLinks,
   userFollows,
@@ -464,6 +465,42 @@ app.openapi(
       serializeOnboardingState(saved as typeof onboardingProgress.$inferSelect),
       HttpStatusCodes.OK
     );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "delete",
+    path: "/state",
+    responses: {
+      [HttpStatusCodes.NO_CONTENT]: {
+        description: "Onboarding progress deleted",
+      },
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Onboarding"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (!isDatabaseConfigured()) {
+      return c.body(null, HttpStatusCodes.NO_CONTENT);
+    }
+
+    const db = createDb();
+    await db
+      .delete(onboardingEmailReminders)
+      .where(eq(onboardingEmailReminders.userId, user.id));
+    await db
+      .delete(onboardingProgress)
+      .where(eq(onboardingProgress.userId, user.id));
+
+    return c.body(null, HttpStatusCodes.NO_CONTENT);
   }
 );
 

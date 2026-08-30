@@ -1046,6 +1046,26 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (url.pathname === "/auth/sign-out" && request.method === "POST") {
+      response.writeHead(200, {
+        "content-type": "application/json",
+        "set-cookie":
+          "soundkit_test_session=; Max-Age=0; Path=/; SameSite=Lax",
+      });
+      response.end(JSON.stringify({ success: true }));
+      return;
+    }
+
+    if (url.pathname === "/auth/sign-out" && request.method === "POST") {
+      response.writeHead(200, {
+        "content-type": "application/json",
+        "set-cookie":
+          "soundkit_test_session=; Max-Age=0; Path=/; SameSite=Lax",
+      });
+      response.end(JSON.stringify({ success: true }));
+      return;
+    }
+
     if (url.pathname === "/auth/get-session") {
       if (
         session !== "admin" &&
@@ -2562,6 +2582,128 @@ export const createMockApiServer = async ({
         },
         webOrigin
       );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/eligibility"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: "independent",
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: null,
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/exit"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: null,
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: new Date().toISOString(),
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "DELETE" &&
+      url.pathname === "/v1/onboarding/state"
+    ) {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/eligibility"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: "independent",
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: null,
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/exit"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: null,
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: new Date().toISOString(),
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "DELETE" &&
+      url.pathname === "/v1/onboarding/state"
+    ) {
+      response.writeHead(204);
+      response.end();
       return;
     }
 

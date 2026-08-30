@@ -116,6 +116,11 @@ Base path for domain APIs:
 
 ### Onboarding
 
+- `GET /v1/onboarding/state`
+- `POST /v1/onboarding/state`
+- `DELETE /v1/onboarding/state` (remove unfinished progress before logging out)
+- `POST /v1/onboarding/eligibility`
+- `POST /v1/onboarding/exit` (save progress when choosing Finish later)
 - `POST /v1/onboarding/artist`
 - `POST /v1/onboarding/fan` (supports safe battle-share return paths and referring-artist attribution)
 
