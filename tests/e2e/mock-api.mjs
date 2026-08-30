@@ -337,10 +337,12 @@ const normalizeGenre = (value) =>
     {
       artistName: "Luna Eclipse",
       artistUsername: "luna-eclipse",
+      catalogItemType: "single",
       coverArtUrl: "/summer-music-album-cover.webp",
       duration: "3:24",
       genre: "R&B/Soul",
       id: "track_summer_nights",
+      masterDownloadUrl: "/v1/tracks/track_summer_nights/master",
       isForSale: true,
       isPublic: true,
       plays: 2_400_000,
@@ -353,10 +355,12 @@ const normalizeGenre = (value) =>
     {
       artistName: "Luna Eclipse",
       artistUsername: "luna-eclipse",
+      catalogItemType: "single",
       coverArtUrl: "/hip-hop-album-cover.webp",
       duration: "3:12",
       genre: "Hip-Hop",
       id: "track_city_lights",
+      masterDownloadUrl: "/v1/tracks/track_city_lights/master",
       isForSale: false,
       isPublic: true,
       plays: 1200,
@@ -369,10 +373,12 @@ const normalizeGenre = (value) =>
     {
       artistName: "Luna Eclipse",
       artistUsername: "luna-eclipse",
+      catalogItemType: "beat",
       coverArtUrl: "/night-music-album-cover.webp",
       duration: "2:58",
       genre: "Hip-Hop",
       id: "track_after_hours",
+      masterDownloadUrl: "/v1/tracks/track_after_hours/master",
       isForSale: false,
       isPublic: true,
       plays: 980,
@@ -385,12 +391,14 @@ const normalizeGenre = (value) =>
     {
       artistName: "Luna Eclipse",
       artistUsername: "luna-eclipse",
+      catalogItemType: "single",
       coverArtUrl: "/music-battle-video-thumbnail.jpg",
       duration: "4:01",
       genre: "Hip-Hop",
       id: "track_battle_ready",
       isForSale: false,
-      isPublic: true,
+      isPublic: false,
+      masterDownloadUrl: "/v1/tracks/track_battle_ready/master",
       plays: 750,
       price: "$0.00",
       priceCents: 0,
@@ -417,6 +425,26 @@ const normalizeGenre = (value) =>
       trackCount: 4,
     },
   ],
+  mockProjectDetail = {
+    ...mockProjects[0],
+    assets: [
+      {
+        assetKind: "cover_art",
+        downloadUrl: null,
+        id: "project-cover",
+        metadata: { displayName: "After Dark Cover" },
+        mimeType: "image/webp",
+        objectKey: "projects/user_complete/after-dark.webp",
+        sizeBytes: 1024,
+        status: "uploaded",
+        storageProvider: "r2",
+      },
+    ],
+    collaborators: [],
+    isPublic: false,
+    status: "draft",
+    tracks: [mockTracks[0]],
+  },
   mockCommunities = [
     {
       artist: {
@@ -1317,6 +1345,22 @@ export const createMockApiServer = async ({
         },
         webOrigin
       );
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/projects/project_after_dark"
+    ) {
+      json(response, 200, mockProjectDetail, webOrigin);
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/projects/project_after_dark/library-assets"
+    ) {
+      json(response, 201, mockProjectDetail, webOrigin);
       return;
     }
 

@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
+/* oxlint-disable sort-vars */
 
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
@@ -263,6 +264,14 @@ const API_ORIGIN = "http://soundkit.test",
       ),
       label: "lyrics review",
       path: "/v1/tracks/track_midnight_vibes/lyrics/lyrics_1",
+    },
+    {
+      init: jsonRequest({
+        assetKind: "master",
+        trackIds: ["track_midnight_vibes"],
+      }),
+      label: "project library asset selection",
+      path: "/v1/projects/project_after_dark/library-assets",
     },
     {
       init: jsonRequest({ title: "Updated Project" }, "PATCH"),

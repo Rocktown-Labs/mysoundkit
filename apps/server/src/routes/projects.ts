@@ -18,7 +18,17 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
-import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -61,6 +71,7 @@ import {
   createProjectBodySchema,
   messageResponseSchema,
   projectWorkspaceAssetBodySchema,
+  projectLibraryAssetBodySchema,
   projectDashboardDetailSchema,
   projectSummarySchema,
   publicExploreQuerySchema,
@@ -2107,6 +2118,267 @@ app.openapi(
         trackId,
       });
     }
+
+    return c.json(
+      await buildProjectDetail(updatedProject ?? project),
+      HttpStatusCodes.CREATED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{projectId}/library-assets",
+    request: {
+      body: jsonContentRequired(
+        projectLibraryAssetBodySchema,
+        "Project library asset selection"
+      ),
+      params: z.object({ projectId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        projectDashboardDetailSchema,
+        "Library assets added to project"
+      ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid project library asset selection"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Project not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Projects"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { projectId } = c.req.valid("param"),
+      body = c.req.valid("json"),
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb(),
+      [project] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .limit(1);
+
+    if (!project) {
+      return c.json(
+        { message: "Project not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const [collaborator] = await db
+        .select({ canUpload: projectCollaborators.canUpload })
+        .from(projectCollaborators)
+        .where(
+          and(
+            eq(projectCollaborators.projectId, projectId),
+            eq(projectCollaborators.collaboratorUserId, user.id),
+            eq(projectCollaborators.invitationStatus, "accepted")
+          )
+        )
+        .limit(1),
+      isOwner =
+        project.ownerUserId === user.id ||
+        (organizationId && project.organizationId === organizationId),
+      canUpload = isOwner || collaborator?.canUpload === true;
+
+    if (!canUpload) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const uniqueTrackIds = [...new Set(body.trackIds)],
+      sourceOwnership = organizationId
+        ? or(
+            eq(tracks.ownerUserId, user.id),
+            eq(tracks.organizationId, organizationId)
+          )
+        : eq(tracks.ownerUserId, user.id),
+      sourceRows = await db
+        .select({
+          assetId: trackAssets.id,
+          bucketName: trackAssets.bucketName,
+          durationMs: trackAssets.durationMs,
+          mimeType: trackAssets.mimeType,
+          objectKey: trackAssets.objectKey,
+          sizeBytes: trackAssets.sizeBytes,
+          status: trackAssets.status,
+          storageProvider: trackAssets.storageProvider,
+          title: tracks.title,
+          trackId: tracks.id,
+        })
+        .from(tracks)
+        .innerJoin(
+          trackAssets,
+          and(
+            eq(trackAssets.trackId, tracks.id),
+            eq(trackAssets.assetKind, "master"),
+            eq(trackAssets.isCurrent, true),
+            isNotNull(trackAssets.objectKey)
+          )
+        )
+        .where(
+          and(
+            inArray(tracks.id, uniqueTrackIds),
+            isNull(tracks.deletedAt),
+            sourceOwnership
+          )
+        );
+
+    if (sourceRows.length !== uniqueTrackIds.length) {
+      return c.json(
+        {
+          message:
+            "One or more selected uploads is unavailable or does not have an uploaded master.",
+        },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const rowsByTrackId = new Map(
+        sourceRows.map((sourceRow) => [sourceRow.trackId, sourceRow])
+      ),
+      orderedSourceRows = uniqueTrackIds.flatMap((trackId) => {
+        const sourceRow = rowsByTrackId.get(trackId);
+        return sourceRow ? [sourceRow] : [];
+      }),
+      [attachedTrackRows, attachedAssetRows] = await Promise.all([
+        db
+          .select({ trackId: projectTracks.trackId })
+          .from(projectTracks)
+          .where(eq(projectTracks.projectId, projectId)),
+        db
+          .select({
+            objectKey: projectAssets.objectKey,
+            sourceAssetId: projectAssets.sourceAssetId,
+          })
+          .from(projectAssets)
+          .where(eq(projectAssets.projectId, projectId)),
+      ]),
+      attachedTrackIds = new Set(
+        attachedTrackRows.map((attachedTrack) => attachedTrack.trackId)
+      ),
+      attachedObjectKeys = new Set(
+        attachedAssetRows
+          .map((attachedAsset) => attachedAsset.objectKey)
+          .filter((objectKey): objectKey is string => Boolean(objectKey))
+      ),
+      attachedSourceAssetIds = new Set(
+        attachedAssetRows
+          .map((attachedAsset) => attachedAsset.sourceAssetId)
+          .filter((sourceAssetId): sourceAssetId is string =>
+            Boolean(sourceAssetId)
+          )
+      );
+
+    let addedCount = 0;
+    if (body.assetKind === "master") {
+      const existingPositions = await db
+          .select({ position: projectTracks.position })
+          .from(projectTracks)
+          .where(eq(projectTracks.projectId, projectId)),
+        nextPositionStart =
+          existingPositions.length > 0
+            ? Math.max(...existingPositions.map((entry) => entry.position)) + 1
+            : 0;
+      let nextPosition = nextPositionStart;
+
+      for (const sourceRow of orderedSourceRows) {
+        if (attachedTrackIds.has(sourceRow.trackId)) {
+          continue;
+        }
+        await db
+          .insert(projectTracks)
+          .values({
+            position: nextPosition,
+            projectId,
+            trackId: sourceRow.trackId,
+          })
+          .onConflictDoNothing();
+        nextPosition += 1;
+        addedCount += 1;
+      }
+    } else {
+      const capabilities = await getDatabaseSchemaCapabilities(db),
+        storedAssetKind: "attachment" | "beat" | "concept" =
+          body.assetKind === "beat" && !capabilities.projectAssetKinds.beat
+            ? "attachment"
+            : body.assetKind === "concept" &&
+                !capabilities.projectAssetKinds.concept
+              ? "attachment"
+              : body.assetKind,
+        projectAssetRows = [];
+
+      for (const sourceRow of orderedSourceRows) {
+        if (
+          !sourceRow.objectKey ||
+          attachedSourceAssetIds.has(sourceRow.assetId) ||
+          attachedObjectKeys.has(sourceRow.objectKey)
+        ) {
+          continue;
+        }
+
+        projectAssetRows.push({
+          assetKind: storedAssetKind,
+          bucketName: sourceRow.bucketName ?? getUploadBucketName(),
+          durationMs: sourceRow.durationMs,
+          id: crypto.randomUUID(),
+          metadata: {
+            displayName: sourceRow.title,
+            originalFileName:
+              sourceRow.objectKey.split("/").pop() ?? sourceRow.title,
+            requestedAssetKind:
+              storedAssetKind === body.assetKind ? undefined : body.assetKind,
+            sourceTrackId: sourceRow.trackId,
+            sourceTrackTitle: sourceRow.title,
+          },
+          mimeType: sourceRow.mimeType,
+          objectKey: sourceRow.objectKey,
+          projectId,
+          sizeBytes: sourceRow.sizeBytes,
+          sourceAssetId: sourceRow.assetId,
+          status: sourceRow.status,
+          storageProvider: sourceRow.storageProvider,
+          uploaderUserId: user.id,
+        });
+      }
+
+      if (projectAssetRows.length > 0) {
+        await db.insert(projectAssets).values(projectAssetRows);
+        addedCount = projectAssetRows.length;
+      }
+    }
+
+    const updatedProject =
+      addedCount > 0
+        ? (
+            await db
+              .update(projects)
+              .set({
+                exportVersion: sql`${projects.exportVersion} + 1`,
+                updatedAt: new Date(),
+              })
+              .where(eq(projects.id, projectId))
+              .returning()
+          )[0]
+        : project;
 
     return c.json(
       await buildProjectDetail(updatedProject ?? project),

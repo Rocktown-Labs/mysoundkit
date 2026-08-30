@@ -827,6 +827,53 @@ test.describe("main application surfaces", () => {
     ).toBeVisible();
   });
 
+  test("project workspaces can add existing uploads by collection", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/projects/project_after_dark");
+    await expect(page.getByText("Project Files", { exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page.getByText("From your uploads")).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(
+      page.getByRole("button", { name: /Battle Ready/ })
+    ).toBeVisible();
+
+    await page.getByRole("tab", { name: "Add Beat" }).click();
+    await expect(
+      page.getByRole("button", { name: /After Hours/ })
+    ).toBeVisible();
+    await page.getByRole("button", { name: /After Hours/ }).click();
+    await page.getByRole("button", { name: "Add selected beat" }).click();
+    await expect(page.getByText("Project updated")).toBeVisible();
+
+    await page.getByRole("tab", { name: "Add Master" }).click();
+    await expect(
+      page.getByRole("button", { name: /City Lights/ })
+    ).toBeVisible();
+    await page.getByRole("button", { name: /City Lights/ }).click();
+    await page.getByRole("button", { name: /Battle Ready/ }).click();
+    await page.getByRole("button", { name: "Add selected master" }).click();
+    await expect(page.getByText("Project updated")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Choose File" })
+    ).toBeVisible();
+  });
+
   test("incoming battle invitations create upcoming battles", async ({
     context,
     page,

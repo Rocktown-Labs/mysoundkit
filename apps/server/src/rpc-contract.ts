@@ -59,6 +59,7 @@ import {
   updateNotificationSettingsBodySchema,
   updateProjectBodySchema,
   projectWorkspaceAssetBodySchema,
+  projectLibraryAssetBodySchema,
   updateTrackBodySchema,
   usernameAvailabilityQuerySchema,
 } from "./lib/schemas";
@@ -1261,6 +1262,11 @@ export const rpcContract = new Hono()
   .post(
     "/v1/projects/:projectId/assets",
     jsonValidator(projectWorkspaceAssetBodySchema),
+    (c) => c.json({} as z.infer<typeof projectDashboardDetailSchema>, 201)
+  )
+  .post(
+    "/v1/projects/:projectId/library-assets",
+    jsonValidator(projectLibraryAssetBodySchema),
     (c) => c.json({} as z.infer<typeof projectDashboardDetailSchema>, 201)
   )
   .get("/v1/projects/:projectId/export", (c) =>
