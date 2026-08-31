@@ -37,21 +37,20 @@ import {
 import type { ArtistSetupGuide } from "@/lib/soundkit-api-hooks";
 import { usePlatformInviteMutation } from "@/lib/soundkit-api-hooks";
 
-const DISMISSED_KEY_PREFIX = "soundkit:artist-setup-guide:dismissed:";
-
 export function ArtistSetupGuide({
+  isMinimized,
+  onDismiss,
+  onMinimizedChange,
   state,
-  userId,
 }: {
+  isMinimized: boolean;
+  onDismiss: () => void;
+  onMinimizedChange: (isMinimized: boolean) => void;
   state: ArtistSetupGuide;
-  userId: string;
 }) {
   const navigate = useNavigate(),
     tasks = useMemo(() => buildArtistSetupGuideTasks(state), [state]),
     progress = useMemo(() => artistSetupProgress(tasks), [tasks]),
-    dismissedKey = `${DISMISSED_KEY_PREFIX}${userId}`,
-    [isDismissed, setIsDismissed] = useState(false),
-    [isMinimized, setIsMinimized] = useState(false),
     [expandedTask, setExpandedTask] = useState<string | undefined>(
       () => tasks.find((task) => task.status === "available")?.id
     ),
@@ -60,26 +59,14 @@ export function ArtistSetupGuide({
     inviteMutation = usePlatformInviteMutation();
 
   useEffect(() => {
-    setIsDismissed(window.localStorage.getItem(dismissedKey) === "true");
-  }, [dismissedKey]);
-
-  useEffect(() => {
     const firstAvailable = tasks.find((task) => task.status === "available");
     if (firstAvailable && !expandedTask) {
       setExpandedTask(firstAvailable.id);
     }
   }, [expandedTask, tasks]);
 
-  const dismiss = () => {
-    window.localStorage.setItem(dismissedKey, "true");
-    setIsDismissed(true);
-  };
-  const restore = () => {
-    window.localStorage.removeItem(dismissedKey);
-    setIsDismissed(false);
-  };
   const openExplore = () => {
-    setIsMinimized(false);
+    onMinimizedChange(false);
     setIsExploreExpanded(true);
   };
   const inviteFriend = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -107,23 +94,9 @@ export function ArtistSetupGuide({
     }
   };
 
-  if (isDismissed) {
-    return (
-      <button
-        className="fixed right-4 bottom-24 z-40 flex items-center gap-2 rounded-full border border-border/60 bg-card px-4 py-2 text-sm shadow-xl transition-colors hover:bg-accent md:bottom-6"
-        onClick={restore}
-        type="button"
-      >
-        <Sparkles className="size-4 text-primary" />
-        <span>Setup guide</span>
-        <span className="text-muted-foreground">{progress.percent}%</span>
-      </button>
-    );
-  }
-
   return (
     <Card
-      className={`fixed right-4 bottom-24 z-40 w-[calc(100vw-2rem)] overflow-hidden border-border/70 bg-card/95 shadow-2xl backdrop-blur-xl md:right-6 md:bottom-6 ${isMinimized ? "max-w-[320px]" : "max-w-[380px]"}`}
+      className={`w-[calc(100vw-2rem)] overflow-hidden border-border/70 bg-card/95 shadow-2xl backdrop-blur-xl ${isMinimized ? "max-w-[320px]" : "max-w-[380px]"}`}
     >
       <CardHeader className="gap-3 border-b border-border/50 px-4 py-3">
         <div className="flex items-center justify-between gap-3">
@@ -156,7 +129,7 @@ export function ArtistSetupGuide({
               aria-label={
                 isMinimized ? "Expand setup guide" : "Minimize setup guide"
               }
-              onClick={() => setIsMinimized((current) => !current)}
+              onClick={() => onMinimizedChange(!isMinimized)}
               size="icon"
               title={isMinimized ? "Expand" : "Minimize"}
               variant="ghost"
@@ -165,7 +138,7 @@ export function ArtistSetupGuide({
             </Button>
             <Button
               aria-label="Hide setup guide"
-              onClick={dismiss}
+              onClick={onDismiss}
               size="icon"
               title="Hide"
               variant="ghost"
@@ -398,7 +371,7 @@ export function ArtistSetupGuide({
               <p className="text-[11px] text-muted-foreground">
                 You can hide this guide anytime.
               </p>
-              <Button onClick={dismiss} size="sm" variant="ghost">
+              <Button onClick={onDismiss} size="sm" variant="ghost">
                 Hide guide
               </Button>
             </div>

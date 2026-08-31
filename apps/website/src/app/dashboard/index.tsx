@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { BadgeCheck, FolderOpen, Music, Sparkles, Users } from "lucide-react";
 
 import { PremiumActivationCard } from "@/components/billing/premium-activation-card";
-import { ArtistSetupGuide } from "@/components/dashboard/artist-setup-guide";
 import { ProjectsOverview } from "@/components/dashboard/projects-overview";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
@@ -11,7 +10,6 @@ import { UpcomingReleases } from "@/components/dashboard/upcoming-releases";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  useArtistSetupGuideQuery,
   useMeEntitlementsQuery,
   useMeQuery,
   useProjectsQuery,
@@ -34,7 +32,6 @@ function DashboardPage() {
     entitlementsQuery = useMeEntitlementsQuery(),
     tracksQuery = useTracksQuery(),
     projectsQuery = useProjectsQuery(),
-    setupGuideQuery = useArtistSetupGuideQuery(),
     entitlements = entitlementsQuery.data,
     isPremium = Boolean(entitlements?.isPremium),
     activePlanLabel = entitlements?.activePlanCode
@@ -148,12 +145,6 @@ function DashboardPage() {
           />
         </div>
       </div>
-      {setupGuideQuery.data && meQuery.data?.user.id ? (
-        <ArtistSetupGuide
-          state={setupGuideQuery.data}
-          userId={meQuery.data.user.id}
-        />
-      ) : null}
     </div>
   );
 }

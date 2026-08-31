@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added an integrated dashboard floating navigation with setup-guide views, responsive placement, and accessible unread-message badges.
 - Added a responsive onboarding exit dialog with Finish later and Log out actions, including deletion of unfinished onboarding progress before sign-out.
 - Added artist and fan onboarding plan comparisons with explicit included features, limits, and side-by-side layouts.
 - Added project-detail library pickers for selecting uploaded concepts, beats, and masters from existing releases, with multi-select attach actions and direct-upload fallbacks.
@@ -65,6 +66,9 @@
 
 ### Fixed
 
+- Fixed minimized and closed setup guides so they collapse back into the floating navigation and can be reopened from the setup-guide trigger.
+- Fixed accepted collaboration messages that could remain stuck on a local “Sending proposal…” spinner, including legacy attachments whose proposal metadata is linked by workspace ID.
+- Fixed Stripe v1 Connect account refresh so completed payout onboarding synchronizes to the payments page and artist setup guide, while preferring an already enabled seller account when duplicates exist.
 - Fixed artist onboarding plan presentation so the Premium Artist price remains unobscured, optional profile and social links appear alongside streaming links in step 7, and required fields have clear red markers.
 - Fixed project detail workspaces so existing uploaded masters can populate the ordered tracklist and existing concept/beat uploads can be added without re-uploading files.
 - Fixed onboarding location lookup failures by preserving Google Places autocomplete when available and falling back to a normalized manual city, region, and country entry when Google rejects the configured key or is unavailable.

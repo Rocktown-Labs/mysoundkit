@@ -1714,15 +1714,40 @@ app.openapi(
               .from(messageAttachments)
               .where(inArray(messageAttachments.messageId, messageIds))
           : [],
+      collaborationIds = [
+        ...new Set(
+          attachmentRows.flatMap((attachment) =>
+            [attachment.sourceProjectId, attachment.sourceTrackId].filter(
+              (value): value is string => Boolean(value)
+            )
+          )
+        ),
+      ],
       proposalRows =
-        capabilities.collaborationProposals && messageIds.length > 0
+        capabilities.collaborationProposals &&
+        (messageIds.length > 0 || collaborationIds.length > 0)
           ? await db
               .select()
               .from(collaborationProposals)
-              .where(inArray(collaborationProposals.messageId, messageIds))
+              .where(
+                or(
+                  ...(messageIds.length > 0
+                    ? [inArray(collaborationProposals.messageId, messageIds)]
+                    : []),
+                  ...(collaborationIds.length > 0
+                    ? [
+                        inArray(
+                          collaborationProposals.collaborationId,
+                          collaborationIds
+                        ),
+                      ]
+                    : [])
+                )
+              )
           : [],
       attachmentsByMessageId = new Map<string, typeof attachmentRows>(),
-      proposalsByMessageId = new Map<string, typeof proposalRows>();
+      proposalsByMessageId = new Map<string, typeof proposalRows>(),
+      proposalsByCollaborationId = new Map<string, typeof proposalRows>();
 
     for (const attachment of attachmentRows) {
       const current = attachmentsByMessageId.get(attachment.messageId) ?? [];
@@ -1731,23 +1756,41 @@ app.openapi(
     }
 
     for (const proposal of proposalRows) {
-      if (!proposal.messageId) {
-        continue;
+      if (proposal.messageId) {
+        const messageProposals =
+          proposalsByMessageId.get(proposal.messageId) ?? [];
+        messageProposals.push(proposal);
+        proposalsByMessageId.set(proposal.messageId, messageProposals);
       }
-      const current = proposalsByMessageId.get(proposal.messageId) ?? [];
-      current.push(proposal);
-      proposalsByMessageId.set(proposal.messageId, current);
+
+      const collaborationProposalsForId =
+        proposalsByCollaborationId.get(proposal.collaborationId) ?? [];
+      collaborationProposalsForId.push(proposal);
+      proposalsByCollaborationId.set(
+        proposal.collaborationId,
+        collaborationProposalsForId
+      );
     }
 
     return c.json(
       rows.map((message) => ({
         attachments: (attachmentsByMessageId.get(message.id) ?? []).map(
           (attachment) => {
-            const proposal =
-              proposalsByMessageId
-                .get(message.id)
-                ?.find((entry) => entry.inviteeUserId === user.id) ??
-              proposalsByMessageId.get(message.id)?.[0];
+            const messageProposals = proposalsByMessageId.get(message.id),
+              collaborationId =
+                attachment.sourceProjectId ?? attachment.sourceTrackId,
+              collaborationProposalsForId = collaborationId
+                ? proposalsByCollaborationId.get(collaborationId)
+                : undefined,
+              proposal =
+                messageProposals?.find(
+                  (entry) => entry.inviteeUserId === user.id
+                ) ??
+                messageProposals?.[0] ??
+                collaborationProposalsForId?.find(
+                  (entry) => entry.inviteeUserId === user.id
+                ) ??
+                collaborationProposalsForId?.[0];
 
             return {
               collaboration: proposal

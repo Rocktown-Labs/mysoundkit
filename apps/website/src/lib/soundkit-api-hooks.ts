@@ -2596,11 +2596,14 @@ export const useSellerAccountLinkMutation = () =>
       rpcJson(await sellerAccountLinkPost({ json: body })),
   });
 
-export const useArtistSetupGuideQuery = () =>
+export const useArtistSetupGuideQuery = (enabled = true) =>
   useQuery<ArtistSetupGuide>({
+    enabled,
     queryFn: async () => rpcJson(await artistSetupGuideGet()),
     queryKey: soundkitQueryKeys.artistSetupGuide,
-    staleTime: 30_000,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+    staleTime: 5_000,
   });
 
 export const usePlatformInviteMutation = () => {

@@ -1,7 +1,7 @@
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { sellerAccounts } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
-import { and, eq, or } from "drizzle-orm";
+import { desc, eq, or } from "drizzle-orm";
 
 import { stripeRequest } from "@/lib/stripe";
 import type { AuthenticatedUser } from "@/lib/types";
@@ -69,6 +69,42 @@ interface StripeV2AccountLinkResponse {
   url: string;
 }
 
+interface StripeV1AccountResponse {
+  charges_enabled?: boolean;
+  details_submitted?: boolean;
+  payouts_enabled?: boolean;
+  requirements?: {
+    currently_due?: string[];
+    past_due?: string[];
+  };
+}
+
+export const serializeV1AccountStatus = (account: StripeV1AccountResponse) => {
+  const chargesEnabled = Boolean(account.charges_enabled),
+    payoutsEnabled = Boolean(account.payouts_enabled),
+    detailsSubmitted = Boolean(account.details_submitted),
+    requirementsDue = [
+      ...(account.requirements?.currently_due ?? []),
+      ...(account.requirements?.past_due ?? []),
+    ],
+    onboardingStatus =
+      chargesEnabled && payoutsEnabled
+        ? ("enabled" as const)
+        : requirementsDue.length > 0
+          ? ("restricted" as const)
+          : detailsSubmitted
+            ? ("pending" as const)
+            : ("not_started" as const);
+
+  return {
+    chargesEnabled,
+    detailsSubmitted,
+    onboardingStatus,
+    payoutsEnabled,
+    requirementsDue,
+  };
+};
+
 const serializeAccountStatus = (account: StripeV2AccountResponse) => {
   const transferCapability =
       account.configuration?.recipient?.capabilities?.stripe_balance
@@ -88,9 +124,9 @@ const serializeAccountStatus = (account: StripeV2AccountResponse) => {
     detailsSubmitted: requirementsDue.length === 0,
     onboardingStatus: transfersActive
       ? ("enabled" as const)
-      : (requirementsDue.length > 0
+      : requirementsDue.length > 0
         ? ("restricted" as const)
-        : ("pending" as const)),
+        : ("pending" as const),
     payoutsEnabled: transfersActive,
     requirementsDue,
   };
@@ -108,23 +144,30 @@ export const getSellerAccount = async ({
   }
 
   const db = createDb(),
-    [seller] = await db
+    sellers = await db
       .select()
       .from(sellerAccounts)
       .where(
         organizationId
           ? or(
               eq(sellerAccounts.organizationId, organizationId),
-              and(
-                eq(sellerAccounts.userId, userId),
-                eq(sellerAccounts.organizationId, organizationId)
-              )
+              eq(sellerAccounts.userId, userId)
             )
           : eq(sellerAccounts.userId, userId)
       )
-      .limit(1);
+      .orderBy(desc(sellerAccounts.updatedAt)),
+    candidates = organizationId
+      ? sellers.filter(
+          (seller) =>
+            seller.organizationId === organizationId || seller.userId === userId
+        )
+      : sellers.filter((seller) => seller.userId === userId);
 
-  return seller ?? null;
+  return (
+    candidates.find((seller) => seller.onboardingStatus === "enabled") ??
+    candidates[0] ??
+    null
+  );
 };
 
 export const refreshSellerAccount = async ({
@@ -139,20 +182,46 @@ export const refreshSellerAccount = async ({
     return null;
   }
 
-  const stripeAccount = await stripeV2Request<StripeV2AccountResponse>({
-    method: "GET",
-    path: `/core/accounts/${encodeURIComponent(seller.stripeAccountId)}?include%5B%5D=configuration.recipient&include%5B%5D=requirements`,
-  }).catch(() => null);
-  if (!stripeAccount) {
+  const metadata =
+      seller.metadata && typeof seller.metadata === "object"
+        ? (seller.metadata as Record<string, unknown>)
+        : {},
+    isV1Account = metadata.stripeAccountApi === "v1";
+  let status: ReturnType<typeof serializeV1AccountStatus> | null = null;
+
+  if (isV1Account) {
+    const stripeAccount = await stripeRequest<StripeV1AccountResponse>({
+      method: "GET",
+      path: `/accounts/${encodeURIComponent(seller.stripeAccountId)}`,
+    }).catch(() => null);
+    status = stripeAccount ? serializeV1AccountStatus(stripeAccount) : null;
+  }
+
+  if (!status) {
+    const stripeAccount = await stripeV2Request<StripeV2AccountResponse>({
+      method: "GET",
+      path: `/core/accounts/${encodeURIComponent(seller.stripeAccountId)}?include%5B%5D=configuration.recipient&include%5B%5D=requirements`,
+    }).catch(() => null);
+    status = stripeAccount ? serializeAccountStatus(stripeAccount) : null;
+  }
+
+  if (!status && !isV1Account) {
+    const stripeAccount = await stripeRequest<StripeV1AccountResponse>({
+      method: "GET",
+      path: `/accounts/${encodeURIComponent(seller.stripeAccountId)}`,
+    }).catch(() => null);
+    status = stripeAccount ? serializeV1AccountStatus(stripeAccount) : null;
+  }
+
+  if (!status) {
     return seller;
   }
 
-  const status = serializeAccountStatus(stripeAccount),
-    [updated] = await createDb()
-      .update(sellerAccounts)
-      .set(status)
-      .where(eq(sellerAccounts.id, seller.id))
-      .returning();
+  const [updated] = await createDb()
+    .update(sellerAccounts)
+    .set(status)
+    .where(eq(sellerAccounts.id, seller.id))
+    .returning();
   return updated ?? seller;
 };
 
