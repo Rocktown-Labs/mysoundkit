@@ -5,6 +5,7 @@
 ### Added
 
 - Added an integrated dashboard floating navigation with setup-guide views, responsive placement, and accessible unread-message badges.
+- Added centered public artist profile media grids, three-column mobile track previews with up to nine items, and section-level View all tab navigation.
 - Added a responsive onboarding exit dialog with Finish later and Log out actions, including deletion of unfinished onboarding progress before sign-out.
 - Added artist and fan onboarding plan comparisons with explicit included features, limits, and side-by-side layouts.
 - Added project-detail library pickers for selecting uploaded concepts, beats, and masters from existing releases, with multi-select attach actions and direct-upload fallbacks.

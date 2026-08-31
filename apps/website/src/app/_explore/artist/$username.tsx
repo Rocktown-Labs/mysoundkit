@@ -20,6 +20,7 @@ import { VideoCard } from "@/components/explore/video-card";
 import type { ExploreVideoCardData } from "@/components/explore/video-card";
 import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { absoluteSiteUrl, createShareMeta, seoDescription } from "@/lib/seo";
 import { loadPublicArtistSeo } from "@/lib/seo-data";
@@ -36,6 +37,7 @@ import type {
   TrackSummary,
   VideoSummary,
 } from "@/lib/soundkit-api-hooks";
+import { cn } from "@/lib/utils";
 
 const artistProfileTabs = [
   "all",
@@ -45,6 +47,9 @@ const artistProfileTabs = [
   "credits",
 ] as const;
 type ArtistProfileTab = (typeof artistProfileTabs)[number];
+
+const PROFILE_DESKTOP_PREVIEW_LIMIT = 4,
+  PROFILE_FEED_PREVIEW_LIMIT = 9;
 
 const isArtistProfileTab = (value: unknown): value is ArtistProfileTab =>
   typeof value === "string" &&
@@ -226,22 +231,37 @@ function MediaLoading() {
 function ProfileSection({
   children,
   description,
+  onViewAll,
   title,
 }: {
   children: ReactNode;
   description?: string;
+  onViewAll?: () => void;
   title: string;
 }) {
   const headingId = `profile-${title.toLowerCase().replaceAll(" ", "-")}`;
 
   return (
     <section aria-labelledby={headingId} className="space-y-4">
-      <div>
-        <h2 className="font-bold text-xl tracking-tight" id={headingId}>
-          {title}
-        </h2>
-        {description ? (
-          <p className="mt-1 text-muted-foreground text-sm">{description}</p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="font-bold text-xl tracking-tight" id={headingId}>
+            {title}
+          </h2>
+          {description ? (
+            <p className="mt-1 text-muted-foreground text-sm">{description}</p>
+          ) : null}
+        </div>
+        {onViewAll ? (
+          <Button
+            aria-label={`View all ${title}`}
+            className="shrink-0"
+            onClick={onViewAll}
+            size="sm"
+            variant="ghost"
+          >
+            View all
+          </Button>
         ) : null}
       </div>
       {children}
@@ -249,12 +269,27 @@ function ProfileSection({
   );
 }
 
-function TrackGrid({ tracks }: { tracks: TrackSummary[] }) {
+function TrackGrid({
+  preview = false,
+  tracks,
+}: {
+  preview?: boolean;
+  tracks: TrackSummary[];
+}) {
   return (
-    <div className="flex flex-wrap gap-4">
-      {tracks.map((track) => (
+    <div
+      className="flex flex-wrap justify-center gap-3 md:gap-4"
+      data-testid="artist-track-grid"
+    >
+      {tracks.map((track, index) => (
         <TrackCard
           artist={track.artistName}
+          className={cn(
+            "w-[calc((100%-1.5rem)/3)] sm:w-[calc((100%-1.5rem)/3)] md:w-[180px] lg:w-[200px] xl:w-[220px]",
+            preview && index >= PROFILE_DESKTOP_PREVIEW_LIMIT
+              ? "md:hidden"
+              : null
+          )}
           artistSlug={track.artistUsername ?? "artist"}
           cover={track.coverArtUrl ?? "/placeholder.svg"}
           duration={track.duration ?? "0:00"}
@@ -270,11 +305,30 @@ function TrackGrid({ tracks }: { tracks: TrackSummary[] }) {
   );
 }
 
-function ProjectGrid({ projects }: { projects: PublicProjectSummary[] }) {
+function ProjectGrid({
+  preview = false,
+  projects,
+}: {
+  preview?: boolean;
+  projects: PublicProjectSummary[];
+}) {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-      {projects.map((project) => (
-        <ProjectCard key={project.id} project={project} />
+    <div
+      className="flex flex-wrap justify-center gap-3"
+      data-testid="artist-project-grid"
+    >
+      {projects.map((project, index) => (
+        <div
+          className={cn(
+            "w-[calc((100%-0.75rem)/2)] max-w-[260px] md:w-[calc((100%-1.5rem)/3)] lg:w-[calc((100%-2.25rem)/4)]",
+            preview && index >= PROFILE_DESKTOP_PREVIEW_LIMIT
+              ? "md:hidden"
+              : null
+          )}
+          key={project.id}
+        >
+          <ProjectCard project={project} />
+        </div>
       ))}
     </div>
   );
@@ -282,15 +336,30 @@ function ProjectGrid({ projects }: { projects: PublicProjectSummary[] }) {
 
 function VideoGrid({
   artist,
+  preview = false,
   videos,
 }: {
   artist: ArtistSummary;
+  preview?: boolean;
   videos: VideoSummary[];
 }) {
   return (
-    <div className="grid gap-6 md:grid-cols-2">
-      {videos.map((video) => (
-        <VideoCard key={video.id} video={videoCardData(video, artist)} />
+    <div
+      className="flex flex-wrap justify-center gap-6"
+      data-testid="artist-video-grid"
+    >
+      {videos.map((video, index) => (
+        <div
+          className={cn(
+            "w-full md:w-[calc((100%-1.5rem)/2)]",
+            preview && index >= PROFILE_DESKTOP_PREVIEW_LIMIT
+              ? "md:hidden"
+              : null
+          )}
+          key={video.id}
+        >
+          <VideoCard video={videoCardData(video, artist)} />
+        </div>
       ))}
     </div>
   );
@@ -395,6 +464,11 @@ function ArtistProfilePage() {
     meQuery = useMeQuery(),
     [activeTab, setActiveTab] = useState<ArtistProfileTab>("all");
 
+  const handleTabChange = (tab: ArtistProfileTab) => {
+    setActiveTab(tab);
+    window.history.replaceState(null, "", `#${tab}`);
+  };
+
   useEffect(() => {
     const hashTab = window.location.hash.replace("#", "");
 
@@ -473,12 +547,9 @@ function ArtistProfilePage() {
       <Tabs
         className="w-full"
         onValueChange={(tab) => {
-          if (!isArtistProfileTab(tab)) {
-            return;
+          if (isArtistProfileTab(tab)) {
+            handleTabChange(tab);
           }
-
-          setActiveTab(tab);
-          window.history.replaceState(null, "", `#${tab}`);
         }}
         value={activeTab}
       >
@@ -527,18 +598,37 @@ function ArtistProfilePage() {
           {!mediaQuery.isLoading && hasFeedContent ? (
             <div className="space-y-10">
               {artistTracks.length > 0 ? (
-                <ProfileSection title="Tracks">
-                  <TrackGrid tracks={artistTracks.slice(0, 8)} />
+                <ProfileSection
+                  onViewAll={() => handleTabChange("tracks")}
+                  title="Tracks"
+                >
+                  <TrackGrid
+                    preview
+                    tracks={artistTracks.slice(0, PROFILE_FEED_PREVIEW_LIMIT)}
+                  />
                 </ProfileSection>
               ) : null}
               {projects.length > 0 ? (
-                <ProfileSection title="Projects">
-                  <ProjectGrid projects={projects.slice(0, 4)} />
+                <ProfileSection
+                  onViewAll={() => handleTabChange("projects")}
+                  title="Projects"
+                >
+                  <ProjectGrid
+                    preview
+                    projects={projects.slice(0, PROFILE_FEED_PREVIEW_LIMIT)}
+                  />
                 </ProfileSection>
               ) : null}
               {videos.length > 0 ? (
-                <ProfileSection title="Videos">
-                  <VideoGrid artist={artist} videos={videos.slice(0, 4)} />
+                <ProfileSection
+                  onViewAll={() => handleTabChange("videos")}
+                  title="Videos"
+                >
+                  <VideoGrid
+                    artist={artist}
+                    preview
+                    videos={videos.slice(0, PROFILE_FEED_PREVIEW_LIMIT)}
+                  />
                 </ProfileSection>
               ) : null}
               {featuredTracks.length > 0 || featuredProjects.length > 0 ? (
