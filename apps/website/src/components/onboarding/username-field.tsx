@@ -2,7 +2,7 @@ import { useAsyncDebouncedCallback } from "@tanstack/react-pacer";
 import { useEffect, useRef, useState } from "react";
 
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { RequiredFieldLabel } from "@/components/onboarding/required-field-label";
 import { API_V1_URL } from "@/lib/api";
 
 export type UsernameAvailabilityStatus =
@@ -105,7 +105,9 @@ export function UsernameField({
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="onboarding-username">Username</Label>
+      <RequiredFieldLabel htmlFor="onboarding-username">
+        Username
+      </RequiredFieldLabel>
       <Input
         aria-describedby="onboarding-username-status"
         aria-invalid={!["idle", "checking", "available"].includes(status)}

@@ -19,12 +19,14 @@ export function PlanSelectionCard({
   onSelect,
   plan,
   selected,
+  showRecommendedBadge = true,
 }: {
   description: string;
   features?: string[];
   onSelect: () => void;
   plan: BillingPlanOption;
   selected: boolean;
+  showRecommendedBadge?: boolean;
 }) {
   const isPremium = plan.code.startsWith("soundkit_premium_");
   return (
@@ -50,7 +52,7 @@ export function PlanSelectionCard({
         type="radio"
         value={plan.code}
       />
-      {isPremium ? (
+      {isPremium && showRecommendedBadge ? (
         <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground">
           <Sparkles className="size-3" /> Recommended
         </span>

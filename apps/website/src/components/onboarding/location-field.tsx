@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { RequiredFieldLabel } from "@/components/onboarding/required-field-label";
 import {
   isLocationSelectionUnchanged,
   normalizeLocationComponents,
@@ -409,7 +409,9 @@ function LocationFieldFrame({
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="onboarding-location">Location</Label>
+      <RequiredFieldLabel htmlFor="onboarding-location">
+        Location
+      </RequiredFieldLabel>
       <div className="relative">
         <MapPin className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input

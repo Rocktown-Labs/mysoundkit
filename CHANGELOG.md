@@ -65,6 +65,7 @@
 
 ### Fixed
 
+- Fixed artist onboarding plan presentation so the Premium Artist price remains unobscured, optional profile and social links appear alongside streaming links in step 7, and required fields have clear red markers.
 - Fixed project detail workspaces so existing uploaded masters can populate the ordered tracklist and existing concept/beat uploads can be added without re-uploading files.
 - Fixed onboarding location lookup failures by preserving Google Places autocomplete when available and falling back to a normalized manual city, region, and country entry when Google rejects the configured key or is unavailable.
 - Fixed chat collaborations so optimistic proposal cards reconcile after the server creates the workspace, dashboard project and track caches refresh after collaboration changes, and chat-created workspaces stay visible in the active organization while preserving legacy owner visibility.
