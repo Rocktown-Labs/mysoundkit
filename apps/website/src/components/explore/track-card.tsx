@@ -12,9 +12,11 @@ import {
 import { AppImage } from "@/components/ui/app-image";
 import { useToast } from "@/components/ui/use-toast";
 import { useDbSavedTrackActions, useDbSavedTrackIds } from "@/lib/data-db";
+import { cn } from "@/lib/utils";
 
 interface TrackCardProps {
   artist: string;
+  className?: string;
   artistSlug: string;
   cover: string;
   duration: string;
@@ -28,6 +30,7 @@ interface TrackCardProps {
 export function TrackCard({
   artist,
   artistSlug,
+  className,
   cover,
   duration,
   id,
@@ -76,7 +79,12 @@ export function TrackCard({
     };
 
   return (
-    <PublicCard className="w-[140px] shrink-0 sm:w-[160px] md:w-[180px] lg:w-[200px] xl:w-[220px]">
+    <PublicCard
+      className={cn(
+        "w-[140px] shrink-0 sm:w-[160px] md:w-[180px] lg:w-[200px] xl:w-[220px]",
+        className
+      )}
+    >
       <PublicCardThumbnail aspect="square">
         <Link {...trackLink} className="block size-full">
           <AppImage

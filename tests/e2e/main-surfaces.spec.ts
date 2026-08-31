@@ -261,6 +261,35 @@ test.describe("main application surfaces", () => {
     ).toBeVisible();
     await expect(page.getByText("City Lights").first()).toBeVisible();
 
+    const trackGrid = page.getByTestId("artist-track-grid").first();
+    await expect(trackGrid).toBeVisible();
+    const isMobileViewport = (page.viewportSize()?.width ?? 0) < 768;
+    await expect(trackGrid).toHaveClass(
+      isMobileViewport ? /flex-wrap/ : /justify-center/
+    );
+    await expect(trackGrid.locator("article:visible")).toHaveCount(
+      isMobileViewport ? 5 : 4
+    );
+    if (isMobileViewport) {
+      const firstRowCardCount = await trackGrid
+        .locator("article")
+        .evaluateAll((cards) => {
+          const [firstCard] = cards;
+          if (!firstCard) {
+            return 0;
+          }
+
+          const firstRowTop = firstCard.getBoundingClientRect().top;
+          return cards.filter(
+            (card) =>
+              Math.abs(card.getBoundingClientRect().top - firstRowTop) < 1
+          ).length;
+        });
+      expect(firstRowCardCount).toBe(3);
+    }
+    await page.getByRole("button", { name: "View all Tracks" }).click();
+    await expect(page).toHaveURL(/#tracks$/);
+
     await page.getByRole("tab", { name: "Credits" }).click();
     await expect(page).toHaveURL(/#credits$/);
     await expect(
@@ -1033,7 +1062,8 @@ test.describe("main application surfaces", () => {
       page.getByRole("button", { name: /Open setup guide/ })
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Open artist chat" })
+      page
+        .getByRole("button", { name: "Open artist chat" })
         .getByLabel("3 unread messages")
     ).toBeVisible();
     await expect(page.getByText("Publish an Open Verse")).toHaveCount(0);
@@ -1052,9 +1082,7 @@ test.describe("main application surfaces", () => {
       page.getByRole("button", { name: /Open setup guide/ })
     ).toBeVisible();
 
-    await page
-      .getByRole("button", { name: /Open setup guide/ })
-      .click();
+    await page.getByRole("button", { name: /Open setup guide/ }).click();
     await expect(page.getByText("Artist setup")).toBeVisible();
 
     await page.getByRole("button", { name: "Hide setup guide" }).click();
@@ -1063,9 +1091,7 @@ test.describe("main application surfaces", () => {
       page.getByRole("button", { name: /Open setup guide/ })
     ).toBeVisible();
 
-    await page
-      .getByRole("button", { name: /Open setup guide/ })
-      .click();
+    await page.getByRole("button", { name: /Open setup guide/ }).click();
     await expect(page.getByText("Artist setup")).toBeVisible();
 
     await gotoWithViteRetry(page, "/dashboard/career/payments");
