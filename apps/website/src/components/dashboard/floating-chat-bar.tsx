@@ -46,6 +46,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { PlayerTrack } from "@/components/audio-player-provider";
 import { useAudioPlayer } from "@/components/audio-player-provider";
+import { ArtistSetupGuide } from "@/components/dashboard/artist-setup-guide";
 import { CollaborationMessageCard } from "@/components/dashboard/message-collaboration-card";
 import type { CollaborationResponseAction } from "@/components/dashboard/message-collaboration-card";
 import { AppImage } from "@/components/ui/app-image";
@@ -75,6 +76,11 @@ import { toast } from "@/hooks/use-toast";
 import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import { isImmersiveExploreRoute } from "@/lib/immersive-route";
 import {
+  artistSetupProgress,
+  buildArtistSetupGuideTasks,
+} from "@/lib/artist-setup-guide";
+import { reconcileCollaborationMessages } from "@/lib/message-reconciliation";
+import {
   useCreateMessageCollectionMutation,
   useMarkConversationReadMutation,
   useMessagingConversations,
@@ -86,6 +92,7 @@ import {
 } from "@/lib/message-db";
 import { usePresence } from "@/lib/presence-context";
 import {
+  useArtistSetupGuideQuery,
   useFriendsQuery,
   useLibrarySavedQuery,
   useMeQuery,
@@ -115,6 +122,7 @@ const FALLBACK_AVATAR = "/soundkit-default-avatar.svg",
       label: "Chat Help",
     },
   ],
+  SETUP_GUIDE_DISMISSED_KEY_PREFIX = "soundkit:artist-setup-guide:dismissed:",
   formatMessageTime = (createdAt: string) => {
     const date = new Date(createdAt);
     if (Number.isNaN(date.getTime())) {
@@ -134,6 +142,13 @@ interface ChatAttachment {
   sourceProjectId?: string;
   sourceTrackId?: string;
   url: string;
+}
+
+interface VisualViewportMetrics {
+  height: number;
+  offsetLeft: number;
+  offsetTop: number;
+  width: number;
 }
 
 export function FloatingChatBar() {
@@ -167,6 +182,14 @@ export function FloatingChatBar() {
 function FloatingChatBarClient() {
   const [view, setView] = useState<"list" | "chat">("list"),
     [isNewChatOpen, setIsNewChatOpen] = useState(false),
+    [isSetupGuideOpen, setIsSetupGuideOpen] = useState(false),
+    [isSetupGuideMinimized, setIsSetupGuideMinimized] = useState(false),
+    [isSetupGuideDismissed, setIsSetupGuideDismissed] = useState(false),
+    [isSetupGuidePreferenceLoaded, setIsSetupGuidePreferenceLoaded] =
+      useState(false),
+    [visualViewportMetrics, setVisualViewportMetrics] =
+      useState<VisualViewportMetrics | null>(null),
+    setupGuideAutoOpenedRef = useRef(false),
     [searchQuery, setSearchQuery] = useState(""),
     { activeConversationId, setActiveConversationId } = useMessagingWorkspace(),
     [isOpen, setIsOpen] = useState(false),
@@ -197,11 +220,27 @@ function FloatingChatBarClient() {
     pathname = useRouterState({
       select: (state) => state.location.pathname,
     }),
+    isDashboardRoute =
+      pathname === "/dashboard" || pathname.startsWith("/dashboard/"),
     meQuery = useMeQuery(),
     { mutate: markConversationRead } = useMarkConversationReadMutation(),
     isArtist =
       meQuery.data?.user.accountType === "artist" ||
       meQuery.data?.user.role === "admin",
+    setupGuideQuery = useArtistSetupGuideQuery(isDashboardRoute),
+    setupGuideProgress = useMemo(() => {
+      if (!setupGuideQuery.data) {
+        return null;
+      }
+      return artistSetupProgress(
+        buildArtistSetupGuideTasks(setupGuideQuery.data)
+      );
+    }, [setupGuideQuery.data]),
+    hasIncompleteSetup = Boolean(
+      isDashboardRoute &&
+        setupGuideProgress &&
+        setupGuideProgress.completed < setupGuideProgress.total
+    ),
     conversationsQuery = useMessagingConversations(),
     friendsQuery = useFriendsQuery(),
     uploadedTracksQuery = useTracksQuery(),
@@ -250,7 +289,10 @@ function FloatingChatBarClient() {
       },
       route: "media",
     }),
-    messages = messagesQuery.data ?? [],
+    messages = useMemo(
+      () => reconcileCollaborationMessages(messagesQuery.data ?? []),
+      [messagesQuery.data]
+    ),
     totalUnread = conversations.reduce(
       (total, conversation) => total + conversation.unreadCount,
       0
@@ -329,6 +371,84 @@ function FloatingChatBarClient() {
         }
       );
     };
+
+  const setupGuideDismissedKey = meQuery.data?.user.id
+    ? `${SETUP_GUIDE_DISMISSED_KEY_PREFIX}${meQuery.data.user.id}`
+    : null;
+  const openSetupGuide = () => {
+    if (setupGuideDismissedKey) {
+      window.localStorage.removeItem(setupGuideDismissedKey);
+    }
+    setIsSetupGuideDismissed(false);
+    setIsSetupGuideMinimized(false);
+    setIsSetupGuideOpen(true);
+    setIsOpen(false);
+    setView("list");
+  };
+  const dismissSetupGuide = () => {
+    if (setupGuideDismissedKey) {
+      window.localStorage.setItem(setupGuideDismissedKey, "true");
+    }
+    setIsSetupGuideDismissed(true);
+    setIsSetupGuideOpen(false);
+  };
+
+  useEffect(() => {
+    if (!setupGuideDismissedKey) {
+      return;
+    }
+    setIsSetupGuideDismissed(
+      window.localStorage.getItem(setupGuideDismissedKey) === "true"
+    );
+    setIsSetupGuidePreferenceLoaded(true);
+  }, [setupGuideDismissedKey]);
+
+  useEffect(() => {
+    if (!hasIncompleteSetup) {
+      setIsSetupGuideOpen(false);
+      setIsSetupGuideMinimized(false);
+      return;
+    }
+
+    if (
+      isSetupGuidePreferenceLoaded &&
+      pathname === "/dashboard" &&
+      !isSetupGuideDismissed &&
+      !setupGuideAutoOpenedRef.current
+    ) {
+      setupGuideAutoOpenedRef.current = true;
+      setIsSetupGuideOpen(true);
+    }
+  }, [
+    hasIncompleteSetup,
+    isSetupGuideDismissed,
+    isSetupGuidePreferenceLoaded,
+    pathname,
+  ]);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      return;
+    }
+
+    const updateViewportMetrics = () => {
+      setVisualViewportMetrics({
+        height: viewport.height,
+        offsetLeft: viewport.offsetLeft,
+        offsetTop: viewport.offsetTop,
+        width: viewport.width,
+      });
+    };
+
+    updateViewportMetrics();
+    viewport.addEventListener("resize", updateViewportMetrics);
+    viewport.addEventListener("scroll", updateViewportMetrics);
+    return () => {
+      viewport.removeEventListener("resize", updateViewportMetrics);
+      viewport.removeEventListener("scroll", updateViewportMetrics);
+    };
+  }, []);
 
   useEffect(
     () =>
@@ -470,14 +590,40 @@ function FloatingChatBarClient() {
         }
       );
     },
-    setupGuideVisible = pathname === "/dashboard",
-    bottomPositionClass = setupGuideVisible
-      ? currentTrack
-        ? "bottom-36 sm:bottom-28 right-4 sm:right-[27rem]"
-        : "bottom-36 sm:bottom-6 right-4 sm:right-[27rem]"
-      : currentTrack
-        ? "bottom-36 sm:bottom-28 right-4 sm:right-6"
-        : "bottom-20 sm:bottom-6 right-4 sm:right-6";
+    bottomPositionClass = currentTrack
+      ? "bottom-36 sm:bottom-28 sm:right-6"
+      : "bottom-20 sm:bottom-6 sm:right-6";
+  const floatingPositionStyle = useMemo(() => {
+    if (!visualViewportMetrics) {
+      return undefined;
+    }
+
+    const rightCorrection = Math.max(
+        0,
+        window.innerWidth -
+          visualViewportMetrics.offsetLeft -
+          visualViewportMetrics.width
+      ),
+      bottomCorrection = Math.max(
+        0,
+        window.innerHeight -
+          visualViewportMetrics.offsetTop -
+          visualViewportMetrics.height
+      );
+
+    if (rightCorrection === 0 && bottomCorrection === 0) {
+      return undefined;
+    }
+
+    const isDesktop = window.matchMedia("(min-width: 640px)").matches,
+      baseRight = isDesktop ? 24 : 16,
+      baseBottom = isDesktop ? (currentTrack ? 112 : 24) : currentTrack ? 144 : 80;
+
+    return {
+      bottom: `${baseBottom + bottomCorrection}px`,
+      right: `${baseRight + rightCorrection}px`,
+    };
+  }, [currentTrack, visualViewportMetrics]);
 
   const isOtherUserOnline = activeConversation?.participantId
     ? isUserOnline(activeConversation.participantId)
@@ -486,10 +632,22 @@ function FloatingChatBarClient() {
   return (
     <div
       className={cn(
-        "fixed z-40 transition-all duration-300",
+        "fixed z-50 flex flex-col items-end gap-2 transition-all duration-300",
         bottomPositionClass
       )}
+      style={floatingPositionStyle}
     >
+      {hasIncompleteSetup &&
+      isSetupGuideOpen &&
+      !isOpen &&
+      setupGuideQuery.data ? (
+        <ArtistSetupGuide
+          isMinimized={isSetupGuideMinimized}
+          onDismiss={dismissSetupGuide}
+          onMinimizedChange={setIsSetupGuideMinimized}
+          state={setupGuideQuery.data}
+        />
+      ) : null}
       {isOpen ? (
         <Card className="w-[340px] sm:w-[420px] shadow-2xl border-primary/30 bg-card/95 backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-200 overflow-hidden flex flex-col h-[520px]">
           {/* Instagram-Style View Switcher: LIST VIEW */}
@@ -700,7 +858,10 @@ function FloatingChatBarClient() {
                               {formatMessageTime(convo.updatedAt)}
                             </span>
                             {convo.unreadCount > 0 && (
-                              <Badge className="size-4 p-0 text-[9px] flex items-center justify-center rounded-full bg-primary text-primary-foreground">
+                              <Badge
+                                aria-label={`${convo.unreadCount} unread messages`}
+                                className="flex size-4 items-center justify-center rounded-full bg-primary p-0 text-[9px] text-primary-foreground"
+                              >
                                 {convo.unreadCount}
                               </Badge>
                             )}
@@ -1478,11 +1639,31 @@ function FloatingChatBarClient() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {hasIncompleteSetup && setupGuideProgress ? (
+            <Button
+              aria-expanded={isSetupGuideOpen}
+              aria-label={`Open setup guide (${setupGuideProgress.percent}% complete)`}
+              className="relative h-11 rounded-none border-0 border-r border-border/40 px-3 text-xs hover:bg-primary/10"
+              onClick={openSetupGuide}
+              size="sm"
+              variant="ghost"
+            >
+              <Sparkles aria-hidden="true" className="size-4 text-primary" />
+              <span className="hidden sm:inline">Setup guide</span>
+              <Badge
+                className="ml-1 px-1.5 py-0 text-[10px]"
+                variant="secondary"
+              >
+                {setupGuideProgress.percent}%
+              </Badge>
+            </Button>
+          ) : null}
           <Button
             aria-expanded={isOpen}
             aria-label={isOpen ? "Close artist chat" : "Open artist chat"}
             className="relative h-11 rounded-none border-0 px-3 text-xs hover:bg-primary/10"
             onClick={() => {
+              setIsSetupGuideOpen(false);
               setIsOpen(true);
               setView("list");
             }}
@@ -1492,9 +1673,13 @@ function FloatingChatBarClient() {
             <MessageCircle aria-hidden="true" className="size-4" />
             <span className="hidden sm:inline">Chat</span>
             {totalUnread > 0 && (
-              <span className="ml-1 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+              <Badge
+                aria-label={`${totalUnread} unread messages`}
+                className="ml-1 min-w-4 px-1 text-[10px] font-bold"
+                variant="destructive"
+              >
                 {totalUnread > 9 ? "9+" : totalUnread}
-              </span>
+              </Badge>
             )}
           </Button>
         </div>

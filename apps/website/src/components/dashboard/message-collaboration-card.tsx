@@ -169,7 +169,7 @@ export function CollaborationMessageCard({
 }: CollaborationMessageCardProps) {
   const proposal = attachment.collaboration,
     isAccepted = proposal?.status === "accepted",
-    isLocalPending = !proposal,
+    isLocalPending = attachment.id.startsWith("local-attachment-"),
     isPending = proposal?.status === "pending" || isLocalPending,
     targetId =
       proposal?.targetId ??

@@ -37,6 +37,10 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
+        <meta
+          content="width=device-width, initial-scale=1"
+          name="viewport"
+        />
         <HeadContent />
       </head>
       <body className="font-sans bg-background text-foreground antialiased">

@@ -33,7 +33,12 @@ const normalizeGenre = (value) =>
       };
     }
 
-    if (session === "complete" || session === "participant") {
+    if (
+      session === "complete" ||
+      session === "participant" ||
+      session === "setup-incomplete" ||
+      session === "setup-monetization-complete"
+    ) {
       return {
         accountType: "artist",
         avatarUrl: "/summer-music-album-cover.webp",
@@ -1129,7 +1134,9 @@ export const createMockApiServer = async ({
         session !== "admin" &&
         session !== "complete" &&
         session !== "participant" &&
-        session !== "nonparticipant"
+        session !== "nonparticipant" &&
+        session !== "setup-incomplete" &&
+        session !== "setup-monetization-complete"
       ) {
         json(response, 200, null, webOrigin);
         return;
@@ -2469,14 +2476,42 @@ export const createMockApiServer = async ({
     }
 
     if (
+      url.pathname === "/v1/seller/status" ||
+      url.pathname === "/v1/seller/status/"
+    ) {
+      const enabled =
+        session === "complete" ||
+        session === "participant" ||
+        session === "nonparticipant" ||
+        session === "admin" ||
+        session === "setup-monetization-complete";
+      json(
+        response,
+        200,
+        {
+          accountLinkUrl: null,
+          chargesEnabled: enabled,
+          detailsSubmitted: enabled,
+          onboardingStatus: enabled ? "enabled" : "not_started",
+          payoutsEnabled: enabled,
+          stripeAccountId: enabled ? "acct_mock_enabled" : null,
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
       url.pathname === "/v1/artist-setup-guide" ||
       url.pathname === "/v1/artist-setup-guide/"
     ) {
       const complete =
-        session === "complete" ||
-        session === "participant" ||
-        session === "nonparticipant" ||
-        session === "admin";
+          session === "complete" ||
+          session === "participant" ||
+          session === "nonparticipant" ||
+          session === "admin",
+        monetizationComplete =
+          complete || session === "setup-monetization-complete";
       json(
         response,
         200,
@@ -2490,9 +2525,9 @@ export const createMockApiServer = async ({
             canCreateLiveBattles: complete,
             canHostLiveStreams: complete,
             canOperatePaidCommunity: complete,
-            canReceivePayouts: complete,
-            canSellProducts: complete,
-            isPremium: complete,
+            canReceivePayouts: monetizationComplete,
+            canSellProducts: monetizationComplete,
+            isPremium: monetizationComplete,
           },
           catalog: {
             hasPlayablePublicRelease: complete,
@@ -2509,10 +2544,12 @@ export const createMockApiServer = async ({
             hasVideo: complete,
           },
           monetization: {
-            chargesEnabled: complete,
-            detailsSubmitted: complete,
-            onboardingStatus: complete ? "enabled" : "not_started",
-            payoutsEnabled: complete,
+            chargesEnabled: monetizationComplete,
+            detailsSubmitted: monetizationComplete,
+            onboardingStatus: monetizationComplete
+              ? "enabled"
+              : "not_started",
+            payoutsEnabled: monetizationComplete,
           },
           profile: { isPublicReady: true },
           referrals: { inviteSent: complete },

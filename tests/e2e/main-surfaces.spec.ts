@@ -1010,7 +1010,7 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("RealtimeKit Layer").first()).toBeVisible();
   });
 
-  test("artist setup guide keeps optional actions in a compact accordion", async ({
+  test("artist setup guide stays inside the floating navigation", async ({
     context,
     page,
   }) => {
@@ -1021,7 +1021,7 @@ test.describe("main application surfaces", () => {
         domain: cookieDomain,
         name: "soundkit_test_session",
         path: "/",
-        value: "complete",
+        value: "setup-incomplete",
       },
     ]);
 
@@ -1029,6 +1029,13 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("Artist setup")).toBeVisible({
       timeout: 60_000,
     });
+    await expect(
+      page.getByRole("button", { name: /Open setup guide/ })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Open artist chat" })
+        .getByLabel("3 unread messages")
+    ).toBeVisible();
     await expect(page.getByText("Publish an Open Verse")).toHaveCount(0);
 
     await page
@@ -1046,6 +1053,58 @@ test.describe("main application surfaces", () => {
 
     await page.getByRole("button", { name: /Next: Explore/ }).click();
     await expect(page.getByText("Publish an Open Verse")).toBeVisible();
+
+    await gotoWithViteRetry(page, "/dashboard/career/payments");
+    await expect(
+      page.getByRole("button", { name: /Open setup guide/ })
+    ).toBeVisible();
+    await page.getByRole("button", { name: /Open setup guide/ }).click();
+    await expect(page.getByText("Artist setup")).toBeVisible();
+  });
+
+  test("completed artist setup does not render a floating guide", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard");
+    await expect(page.getByText("Artist setup")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /Open setup guide/ })
+    ).toHaveCount(0);
+  });
+
+  test("artist setup guide reflects completed payout onboarding", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "setup-monetization-complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard");
+    await expect(page.getByText("Monetization is ready")).toBeVisible({
+      timeout: 60_000,
+    });
+    await gotoWithViteRetry(page, "/dashboard/career/payments");
+    await expect(page.getByText(/Bank Account Connected/)).toBeVisible({
+      timeout: 60_000,
+    });
   });
 
   test("live room detail pages expose chat, lyrics, and battle voting", async ({

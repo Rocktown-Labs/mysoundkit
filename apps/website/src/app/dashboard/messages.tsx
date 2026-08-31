@@ -53,6 +53,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useMobile } from "@/hooks/use-mobile";
 import { toast } from "@/hooks/use-toast";
 import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
+import { reconcileCollaborationMessages } from "@/lib/message-reconciliation";
 import {
   useCreateMessageCollectionMutation,
   useMarkConversationReadMutation,
@@ -267,6 +268,10 @@ function MessagesPageClient() {
       (conversation) => conversation.id === selectedId
     ),
     messagesQuery = useMessagingMessages(selectedId),
+    messages = useMemo(
+      () => reconcileCollaborationMessages(messagesQuery.data ?? []),
+      [messagesQuery.data]
+    ),
     sendMessage = useCreateMessageCollectionMutation(
       selectedId,
       meQuery.data?.user.id
@@ -675,7 +680,7 @@ function MessagesPageClient() {
                         </p>
                       </MessageScrollerItem>
                     )}
-                    {(messagesQuery.data ?? []).map((message) => {
+                    {messages.map((message) => {
                       const isMine = message.senderId === meQuery.data?.user.id;
                       const hasCollabProposal = message.attachments?.some(
                         (att) =>
@@ -839,7 +844,7 @@ function MessagesPageClient() {
                     })}
                     {!messagesQuery.isLoading &&
                       !messagesQuery.isError &&
-                      (messagesQuery.data ?? []).length === 0 && (
+                      messages.length === 0 && (
                         <MessageScrollerItem messageId="empty-messages">
                           <div className="py-12 text-center">
                             <MessageSquare className="mx-auto mb-3 size-8 text-muted-foreground/30" />
@@ -1863,11 +1868,12 @@ function ConversationItem({
           {conversation.conversationType}
         </p>
         {conversation.unreadCount > 0 && (
-          <div className="mt-1 flex size-4 items-center justify-center rounded-full bg-primary">
-            <span className="font-bold text-[9px] text-primary-foreground">
-              {conversation.unreadCount}
-            </span>
-          </div>
+          <Badge
+            aria-label={`${conversation.unreadCount} unread messages`}
+            className="mt-1 flex size-4 items-center justify-center rounded-full bg-primary p-0 text-[9px] text-primary-foreground"
+          >
+            {conversation.unreadCount}
+          </Badge>
         )}
       </div>
     </button>
