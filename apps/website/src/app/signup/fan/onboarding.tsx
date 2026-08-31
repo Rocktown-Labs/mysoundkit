@@ -11,6 +11,7 @@ import {
   type OnboardingExitAction,
 } from "@/components/onboarding/onboarding-exit-dialog";
 import { MediaLayoutSelector } from "@/components/onboarding/media-layout-selector";
+import { RequiredMark } from "@/components/onboarding/required-field-label";
 import { UsernameField } from "@/components/onboarding/username-field";
 import { SoundKitBrand } from "@/components/soundkit-brand";
 import { authClient } from "@/lib/auth-client";
@@ -388,6 +389,7 @@ function FanOnboardingPage() {
             {step === 2 ? (
               <StepFrame
                 icon={<Music2 />}
+                required
                 title="What Do You Like to Listen To?"
                 subtitle="Choose at least three genres to personalize discovery."
               >
@@ -495,13 +497,20 @@ function FanOnboardingPage() {
                   />
                   <div className="space-y-3">
                     <div>
-                      <h3 className="font-semibold">Choose your plan</h3>
+                      <h3 className="font-semibold">
+                        Choose your plan <RequiredMark />
+                      </h3>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Start free and upgrade whenever you want more ways to
                         listen and participate.
                       </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div
+                      aria-label="Choose your plan"
+                      aria-required="true"
+                      className="grid grid-cols-2 gap-3"
+                      role="radiogroup"
+                    >
                       {plans.map((plan) => (
                         <PlanSelectionCard
                           description={
@@ -575,11 +584,13 @@ function FanOnboardingPage() {
 function StepFrame({
   children,
   icon,
+  required = false,
   subtitle,
   title,
 }: {
   children: ReactNode;
   icon: ReactNode;
+  required?: boolean;
   subtitle: string;
   title: string;
 }) {
@@ -589,7 +600,9 @@ function StepFrame({
         <div className="mx-auto mb-4 grid size-16 place-items-center rounded-full bg-primary/10 text-primary">
           {icon}
         </div>
-        <h2 className="text-2xl font-bold">{title}</h2>
+        <h2 className="text-2xl font-bold">
+          {title} {required ? <RequiredMark /> : null}
+        </h2>
         <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
       </div>
       {children}

@@ -1599,7 +1599,14 @@ test.describe("signup onboarding guards", () => {
     ).toBeVisible();
     await expect(page.getByText("Creator Rewards eligibility")).toBeVisible();
     await expect(page.getByText("$22.99")).toBeVisible();
-    await page.getByRole("button", { name: /Optional profile details/u }).click();
+    await expect(page.getByText("Recommended", { exact: true })).toHaveCount(0);
+    await expect(page.getByText(/Rights confirmation/u)).toBeVisible();
+
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page.getByLabel("Spotify Artist URL")).toBeVisible();
+    await page
+      .getByRole("button", { name: /Optional profile details/u })
+      .click();
     await expect(page.getByLabel("Instagram")).toBeVisible();
   });
 
