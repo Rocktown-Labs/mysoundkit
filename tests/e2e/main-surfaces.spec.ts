@@ -1046,13 +1046,27 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("Publish an Open Verse")).toBeVisible();
 
     await page.getByRole("button", { name: "Minimize setup guide" }).click();
-    await expect(
-      page.getByRole("button", { name: /Next: Explore/ })
-    ).toBeVisible();
+    await expect(page.getByText("Artist setup")).toHaveCount(0);
     await expect(page.getByText("Publish an Open Verse")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /Open setup guide/ })
+    ).toBeVisible();
 
-    await page.getByRole("button", { name: /Next: Explore/ }).click();
-    await expect(page.getByText("Publish an Open Verse")).toBeVisible();
+    await page
+      .getByRole("button", { name: /Open setup guide/ })
+      .click();
+    await expect(page.getByText("Artist setup")).toBeVisible();
+
+    await page.getByRole("button", { name: "Hide setup guide" }).click();
+    await expect(page.getByText("Artist setup")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /Open setup guide/ })
+    ).toBeVisible();
+
+    await page
+      .getByRole("button", { name: /Open setup guide/ })
+      .click();
+    await expect(page.getByText("Artist setup")).toBeVisible();
 
     await gotoWithViteRetry(page, "/dashboard/career/payments");
     await expect(

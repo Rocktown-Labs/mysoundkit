@@ -644,7 +644,12 @@ function FloatingChatBarClient() {
         <ArtistSetupGuide
           isMinimized={isSetupGuideMinimized}
           onDismiss={dismissSetupGuide}
-          onMinimizedChange={setIsSetupGuideMinimized}
+          onMinimizedChange={(isMinimized) => {
+            setIsSetupGuideMinimized(isMinimized);
+            if (isMinimized) {
+              setIsSetupGuideOpen(false);
+            }
+          }}
           state={setupGuideQuery.data}
         />
       ) : null}

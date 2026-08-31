@@ -66,6 +66,7 @@
 
 ### Fixed
 
+- Fixed minimized and closed setup guides so they collapse back into the floating navigation and can be reopened from the setup-guide trigger.
 - Fixed accepted collaboration messages that could remain stuck on a local “Sending proposal…” spinner, including legacy attachments whose proposal metadata is linked by workspace ID.
 - Fixed Stripe v1 Connect account refresh so completed payout onboarding synchronizes to the payments page and artist setup guide, while preferring an already enabled seller account when duplicates exist.
 - Fixed artist onboarding plan presentation so the Premium Artist price remains unobscured, optional profile and social links appear alongside streaming links in step 7, and required fields have clear red markers.
