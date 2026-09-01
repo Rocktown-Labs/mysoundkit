@@ -7,8 +7,10 @@ import {
   notificationSettings,
   userNotifications,
   userPresence,
+  userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
+import { getPreferredRecipientName } from "@soundkit/transactional/recipient-name";
 import { and, eq, lte } from "drizzle-orm";
 
 import type {
@@ -157,8 +159,10 @@ const defaultPreferences: NotificationPreferences = {
         email: authUser.email,
         name: authUser.name,
         userId: authUser.id,
+        username: userProfiles.username,
       })
       .from(authUser)
+      .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
       .where(eq(authUser.id, userId))
       .limit(1);
 
@@ -168,7 +172,11 @@ const defaultPreferences: NotificationPreferences = {
 
     return {
       email: recipient.email,
-      name: recipient.name ?? "there",
+      name: getPreferredRecipientName({
+        email: recipient.email,
+        name: recipient.name,
+        username: recipient.username,
+      }),
       userId: recipient.userId,
     };
   },

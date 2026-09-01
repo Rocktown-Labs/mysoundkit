@@ -1,10 +1,11 @@
 import { expo } from "@better-auth/expo";
 import { stripe } from "@better-auth/stripe";
 import { createDb } from "@soundkit/db";
-import { userNotifications } from "@soundkit/db/schema/app";
+import { userNotifications, userProfiles } from "@soundkit/db/schema/app";
 import { member } from "@soundkit/db/schema/auth";
 import * as schema from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
+import { getPreferredRecipientName } from "@soundkit/transactional/recipient-name";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
@@ -59,7 +60,17 @@ interface AuthSubscriptionRow {
   status?: string | null;
 }
 
-const sendAuthNotificationEmail = async ({
+const getRecipientUsername = async (email: string) => {
+    const [profile] = await createDb()
+      .select({ username: userProfiles.username })
+      .from(userProfiles)
+      .innerJoin(schema.user, eq(schema.user.id, userProfiles.userId))
+      .where(eq(schema.user.email, email))
+      .limit(1);
+
+    return profile?.username ?? null;
+  },
+  sendAuthNotificationEmail = async ({
     actionUrl,
     body,
     ctaLabel,
@@ -95,7 +106,13 @@ const sendAuthNotificationEmail = async ({
       return;
     }
 
-    const publicSiteUrl = getPublicSiteUrl(),
+    const recipientUsername = await getRecipientUsername(email),
+      greetingName = getPreferredRecipientName({
+        email,
+        name: recipientName,
+        username: recipientUsername,
+      }),
+      publicSiteUrl = getPublicSiteUrl(),
       [{ renderTransactionalNotificationEmail }, { Resend }] =
         await Promise.all([
           import("@soundkit/transactional"),
@@ -111,7 +128,7 @@ const sendAuthNotificationEmail = async ({
         heading,
         links,
         previewText,
-        recipientName,
+        recipientName: greetingName,
         subject,
       }),
       resend = new Resend(apiKey),
