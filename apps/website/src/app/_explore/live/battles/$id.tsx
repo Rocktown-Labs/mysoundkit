@@ -34,6 +34,7 @@ import { BattleLifecycleControls } from "@/components/live/battle-lifecycle-cont
 import { BattleMediaStage } from "@/components/live/battle-media-stage";
 import { BattleTimer } from "@/components/live/battle-timer";
 import { LiveChatPanel } from "@/components/live/live-room-panels";
+import { LiveTipButton } from "@/components/live/live-tip-button";
 import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
 import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { UserProfilePreviewModal } from "@/components/live/user-profile-preview-modal";
@@ -2091,6 +2092,16 @@ export function BattlePage({
                   </Button>
                 )
               )}
+              <LiveTipButton
+                isLive={room.status === "live" && !isBattleEnded}
+                kind="battle"
+                liveExperienceId={id}
+                recipients={battle.artists.map((artist) => ({
+                  avatarUrl: artist.avatarUrl,
+                  id: artist.id,
+                  name: artist.name,
+                }))}
+              />
               <Button
                 className="gap-1.5 text-xs"
                 onClick={handleToggleFollow}

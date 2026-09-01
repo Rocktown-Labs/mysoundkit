@@ -35,6 +35,7 @@ export const transactions = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     currency: text("currency").default("USD").notNull(),
     id: text("id").primaryKey(),
+    idempotencyKey: text("idempotency_key"),
     metadata: jsonb("metadata"),
     platformFeeCents: integer("platform_fee_cents").notNull(),
     sellerUserId: text("seller_user_id").references(() => user.id, {
@@ -53,6 +54,7 @@ export const transactions = pgTable(
   (table) => [
     index("transactions_buyer_user_id_idx").on(table.buyerUserId),
     index("transactions_seller_user_id_idx").on(table.sellerUserId),
+    uniqueIndex("transactions_idempotency_key_idx").on(table.idempotencyKey),
     uniqueIndex("transactions_stripe_checkout_session_id_idx").on(
       table.stripeCheckoutSessionId
     ),
@@ -77,6 +79,7 @@ export const tips = pgTable(
   "tips",
   {
     amountCents: integer("amount_cents").notNull(),
+    artistAmountCents: integer("artist_amount_cents").notNull(),
     artistUserId: text("artist_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
@@ -86,11 +89,15 @@ export const tips = pgTable(
     }),
     id: text("id").primaryKey(),
     message: text("message"),
+    stripeTransferId: text("stripe_transfer_id"),
     transactionId: text("transaction_id")
       .notNull()
       .references(() => transactions.id, { onDelete: "restrict" }),
   },
-  (table) => [index("tips_artist_user_id_idx").on(table.artistUserId)]
+  (table) => [
+    index("tips_artist_user_id_idx").on(table.artistUserId),
+    uniqueIndex("tips_stripe_transfer_id_idx").on(table.stripeTransferId),
+  ]
 );
 
 export const paymentRefunds = pgTable(

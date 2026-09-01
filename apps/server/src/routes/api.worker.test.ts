@@ -62,6 +62,24 @@ describe("SoundKit Worker API", () => {
     expect(body.info.title).toBe("SoundKit API");
   });
 
+  it("requires authentication to create a tip", async () => {
+    const response = await SELF.fetch(
+      "http://soundkit.test/v1/payments/tips",
+      {
+        body: JSON.stringify({
+          amountCents: 500,
+          artistUserId: "artist-test",
+          cancelUrl: "http://soundkit.test/live/streams/test",
+          successUrl: "http://soundkit.test/live/streams/test",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }
+    );
+
+    expect(response.status).toBe(401);
+  });
+
   it("verifies Stripe commerce webhooks without requiring storage", async () => {
     const payload = JSON.stringify({
         data: { object: {} },

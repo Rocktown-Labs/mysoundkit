@@ -240,7 +240,7 @@ app.openapi(
         ),
       [tipsResult] = await db
         .select({
-          totalCents: sql<number>`coalesce(sum(${transactions.artistAmountCents}), 0)::int`,
+          totalCents: sql<number>`coalesce(sum(${tips.artistAmountCents}), 0)::int`,
         })
         .from(tips)
         .innerJoin(transactions, eq(tips.transactionId, transactions.id))
@@ -1149,7 +1149,7 @@ app.openapi(
         ),
       [monthTipsResult] = await db
         .select({
-          totalCents: sql<number>`coalesce(sum(${transactions.artistAmountCents}), 0)::int`,
+          totalCents: sql<number>`coalesce(sum(${tips.artistAmountCents}), 0)::int`,
         })
         .from(tips)
         .innerJoin(transactions, eq(tips.transactionId, transactions.id))

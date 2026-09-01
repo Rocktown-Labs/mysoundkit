@@ -14,6 +14,7 @@ import {
   Video,
   Youtube,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
@@ -81,6 +82,7 @@ export interface LiveCreatorPanelProps {
   onFollowToggle?: () => void;
   onPlayTrack?: (track: CreatorMusicTrack) => void;
   statusLabel?: string;
+  tipButton?: ReactNode;
   title: string;
   topTracks?: CreatorMusicTrack[];
   videos?: CreatorVideoItem[];
@@ -95,6 +97,7 @@ export function LiveCreatorPanel({
   onFollowToggle,
   onPlayTrack,
   statusLabel,
+  tipButton,
   title,
   topTracks: explicitTracks,
   videoScope = "dashboard",
@@ -275,6 +278,8 @@ export function LiveCreatorPanel({
               <span>{viewerCount.toLocaleString()} Viewers</span>
             </div>
           )}
+
+          {tipButton}
 
           <Button
             className={
