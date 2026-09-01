@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import { LiveCreatorPanel } from "@/components/live/live-creator-panel";
+import { LiveTipButton } from "@/components/live/live-tip-button";
 import { LiveChatPanel } from "@/components/live/live-room-panels";
 import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
 import { PartyMediaStage } from "@/components/live/party-media-stage";
@@ -728,6 +729,16 @@ export function ListeningPartyPage({
           isLive={room.status === "live"}
           statusLabel={
             artistView ? "Artist Control Room" : "Listening Premiere"
+          }
+          tipButton={
+            room.status === "live" && room.party?.playback.hostUserId ? (
+              <LiveTipButton
+                isLive={room.status === "live"}
+                kind="party"
+                liveExperienceId={id}
+                recipients={[{ id: room.party.playback.hostUserId, name: hostName }]}
+              />
+            ) : null
           }
           title={room.title}
           viewerCount={room.viewerCount}

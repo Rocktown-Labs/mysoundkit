@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added authenticated, live-only on-page tipping for public streams, listening parties, and battles with Embedded Checkout and equal battle allocations.
 - Added an integrated dashboard floating navigation with setup-guide views, responsive placement, and accessible unread-message badges.
 - Added centered public artist profile media grids, three-column mobile track previews with up to nine items, and section-level View all tab navigation.
 - Added a responsive onboarding exit dialog with Finish later and Log out actions, including deletion of unfinished onboarding progress before sign-out.

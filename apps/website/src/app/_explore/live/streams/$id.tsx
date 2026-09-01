@@ -8,6 +8,7 @@ import { useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import { LiveCreatorPanel } from "@/components/live/live-creator-panel";
+import { LiveTipButton } from "@/components/live/live-tip-button";
 import {
   LiveChatPanel,
   LiveLyricsPanel,
@@ -48,6 +49,7 @@ function StreamDetailPage() {
           creatorAvatar: string | null;
           creatorBio?: string | null;
           creatorName: string | null;
+          creatorUserId: string;
           creatorUsername?: string | null;
           genre: string | null;
           id: string;
@@ -261,6 +263,16 @@ function StreamDetailPage() {
           }}
           genre={experience?.genre}
           isLive={isLive}
+          tipButton={
+            experience?.creatorUserId ? (
+              <LiveTipButton
+                isLive={isLive}
+                kind="stream"
+                liveExperienceId={id}
+                recipients={[{ id: experience.creatorUserId, name: creatorName }]}
+              />
+            ) : null
+          }
           title={room.title}
           viewerCount={experience?.viewerCount ?? room.viewerCount}
         />

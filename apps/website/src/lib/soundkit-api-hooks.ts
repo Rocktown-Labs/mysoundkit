@@ -526,6 +526,35 @@ const fetchApiJson = async <T>(
   return (await response.json()) as T;
 };
 
+export type LiveTipKind = "battle" | "party" | "stream";
+
+export interface TipCheckoutBody {
+  amountCents: number;
+  cancelUrl: string;
+  idempotencyKey?: string;
+  liveExperienceId?: string;
+  liveKind?: LiveTipKind;
+  message?: string;
+  recipientUserIds: string[];
+  successUrl: string;
+}
+
+export interface TipCheckoutResponse {
+  checkoutUrl: string | null;
+  clientSecret: string | null;
+  setupRequired: boolean;
+  transactionId: string | null;
+}
+
+export const useTipCheckoutMutation = () =>
+  useMutation({
+    mutationFn: (body: TipCheckoutBody) =>
+      fetchApiJson<TipCheckoutResponse>("/payments/tips", {
+        body: JSON.stringify(body),
+        method: "POST",
+      }),
+  });
+
 export const useAdWalletQuery = () =>
   useQuery({
     queryFn: async () => fetchApiJson<AdWalletSummary>("/ads/wallet"),

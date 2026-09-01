@@ -2466,6 +2466,7 @@ app.get("/experiences/:experienceId", async (c) => {
     {
       creatorAvatar,
       creatorName,
+      creatorUserId: experience.createdByUserId,
       genre: experience.genre ?? null,
       id: experience.id,
       ingestErrorCode: experience.ingestErrorCode,

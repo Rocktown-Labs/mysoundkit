@@ -392,28 +392,38 @@ export const reverseStripeTransfer = (transferId: string) =>
     path: `/transfers/${encodeURIComponent(transferId)}/reversals`,
   });
 
-export const createDestinationCheckout = ({
+interface CheckoutLineItem {
+  currency: string;
+  name: string;
+  priceCents: number;
+  quantity: number;
+}
+
+interface CreateCheckoutSessionInput {
+  applicationFeeCents?: number;
+  cancelUrl?: string;
+  connectedAccountId?: string;
+  customerEmail?: string | null;
+  embedded?: boolean;
+  lineItems: CheckoutLineItem[];
+  metadata: Record<string, string>;
+  returnUrl?: string;
+  successUrl?: string;
+  transferGroup?: string;
+}
+
+const createCheckoutSession = ({
   applicationFeeCents,
   cancelUrl,
   connectedAccountId,
   customerEmail,
+  embedded = false,
   lineItems,
   metadata,
+  returnUrl,
   successUrl,
-}: {
-  applicationFeeCents: number;
-  cancelUrl: string;
-  connectedAccountId: string;
-  customerEmail?: string | null;
-  lineItems: {
-    currency: string;
-    name: string;
-    priceCents: number;
-    quantity: number;
-  }[];
-  metadata: Record<string, string>;
-  successUrl: string;
-}) => {
+  transferGroup,
+}: CreateCheckoutSessionInput) => {
   const params = new URLSearchParams();
   appendValue(params, "mode", "payment");
   appendValue(
@@ -422,19 +432,30 @@ export const createDestinationCheckout = ({
     checkoutIntegrationIdentifier()
   );
   appendValue(params, "allow_promotion_codes", true);
-  appendValue(params, "success_url", successUrl);
-  appendValue(params, "cancel_url", cancelUrl);
   appendValue(params, "customer_email", customerEmail);
-  appendValue(
-    params,
-    "payment_intent_data[application_fee_amount]",
-    applicationFeeCents
-  );
-  appendValue(
-    params,
-    "payment_intent_data[transfer_data][destination]",
-    connectedAccountId
-  );
+
+  if (embedded) {
+    appendValue(params, "ui_mode", "embedded");
+    appendValue(params, "return_url", returnUrl ?? successUrl);
+  } else {
+    appendValue(params, "success_url", successUrl);
+    appendValue(params, "cancel_url", cancelUrl);
+  }
+
+  if (connectedAccountId) {
+    appendValue(
+      params,
+      "payment_intent_data[application_fee_amount]",
+      applicationFeeCents
+    );
+    appendValue(
+      params,
+      "payment_intent_data[transfer_data][destination]",
+      connectedAccountId
+    );
+  }
+
+  appendValue(params, "payment_intent_data[transfer_group]", transferGroup);
 
   for (const [key, value] of Object.entries(metadata)) {
     appendValue(params, `metadata[${key}]`, value);
@@ -460,7 +481,11 @@ export const createDestinationCheckout = ({
     );
   }
 
-  return stripeRequest<{ id: string; url: string | null }>({
+  return stripeRequest<{
+    client_secret?: string | null;
+    id: string;
+    url: string | null;
+  }>({
     idempotencyKey: metadata.transactionId
       ? `checkout:${metadata.transactionId}`
       : undefined,
@@ -469,9 +494,70 @@ export const createDestinationCheckout = ({
   });
 };
 
+export const createDestinationCheckout = ({
+  applicationFeeCents,
+  cancelUrl,
+  connectedAccountId,
+  customerEmail,
+  lineItems,
+  metadata,
+  successUrl,
+}: {
+  applicationFeeCents: number;
+  cancelUrl: string;
+  connectedAccountId: string;
+  customerEmail?: string | null;
+  lineItems: CheckoutLineItem[];
+  metadata: Record<string, string>;
+  successUrl: string;
+}) =>
+  createCheckoutSession({
+    applicationFeeCents,
+    cancelUrl,
+    connectedAccountId,
+    customerEmail,
+    lineItems,
+    metadata,
+    successUrl,
+  });
+
+export const createEmbeddedTipCheckout = ({
+  applicationFeeCents,
+  cancelUrl,
+  connectedAccountId,
+  customerEmail,
+  lineItems,
+  metadata,
+  returnUrl,
+}: {
+  applicationFeeCents?: number;
+  cancelUrl: string;
+  connectedAccountId?: string;
+  customerEmail?: string | null;
+  lineItems: CheckoutLineItem[];
+  metadata: Record<string, string>;
+  returnUrl: string;
+}) =>
+  createCheckoutSession({
+    applicationFeeCents,
+    cancelUrl,
+    connectedAccountId,
+    customerEmail,
+    embedded: true,
+    lineItems,
+    metadata,
+    returnUrl,
+    transferGroup: metadata.transactionId,
+  });
+
 export const retrieveCheckoutSession = async (
   sessionId: string
-): Promise<{ id: string; status?: string; url: string | null } | null> =>
+): Promise<{
+  client_secret?: string | null;
+  id: string;
+  status?: string;
+  url: string | null;
+} | null> =>
   stripeRequest({
     method: "GET",
     path: `/checkout/sessions/${sessionId}`,
@@ -480,9 +566,11 @@ export const retrieveCheckoutSession = async (
 export const executeSellerTransfer = async ({
   amountCents,
   destinationAccountId,
+  idempotencyKey,
 }: {
   amountCents: number;
   destinationAccountId: string;
+  idempotencyKey?: string;
 }): Promise<string | null> => {
   if (amountCents <= 0) {
     return null;
@@ -494,7 +582,9 @@ export const executeSellerTransfer = async ({
   params.set("destination", destinationAccountId);
 
   const transfer = await stripeRequest<{ id: string }>({
-    idempotencyKey: `payout:${destinationAccountId}:${amountCents}:${new Date().toISOString().slice(0, 10)}`,
+    idempotencyKey:
+      idempotencyKey ??
+      `payout:${destinationAccountId}:${amountCents}:${new Date().toISOString().slice(0, 10)}`,
     params,
     path: "/transfers",
   });
