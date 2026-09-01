@@ -5,8 +5,10 @@ import {
   trackCollaborators,
   tracks,
   userNotifications,
+  userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
+import { getPreferredRecipientName } from "@soundkit/transactional/recipient-name";
 import { and, eq, isNotNull, ne } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
@@ -27,9 +29,11 @@ const trackDashboardLink = (trackId: string) => `/dashboard/tracks/${trackId}`,
           name: authUser.name,
           ownerUserId: tracks.ownerUserId,
           title: tracks.title,
+          username: userProfiles.username,
         })
         .from(tracks)
         .innerJoin(authUser, eq(authUser.id, tracks.ownerUserId))
+        .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
         .where(eq(tracks.id, trackId))
         .limit(1);
 
@@ -90,7 +94,11 @@ export const notifyTrackMediaReady = async ({
       },
       queue: emailQueue,
       recipientEmail: track.email,
-      recipientName: track.name ?? "there",
+      recipientName: getPreferredRecipientName({
+        email: track.email,
+        name: track.name,
+        username: track.username,
+      }),
       template: "track_ready",
       userId: track.ownerUserId,
     });
@@ -192,7 +200,11 @@ export const notifyTrackProcessingComplete = async ({
       },
       queue: emailQueue,
       recipientEmail: track.email,
-      recipientName: track.name ?? "there",
+      recipientName: getPreferredRecipientName({
+        email: track.email,
+        name: track.name,
+        username: track.username,
+      }),
       template: "track_processing_ready",
       userId: track.ownerUserId,
     });

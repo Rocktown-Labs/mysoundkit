@@ -1,4 +1,5 @@
 import { env } from "@soundkit/env/server";
+import { getPreferredRecipientName } from "@soundkit/transactional/recipient-name";
 
 import { logWarn } from "@/middleware/structured-logging";
 
@@ -141,7 +142,11 @@ export const sendTransactionalEmail = async ({
     return { reason: "resend_not_configured", sent: false };
   }
 
-  const publicSiteUrl = getPublicSiteUrl(),
+  const greetingName = getPreferredRecipientName({
+      email: recipientEmail,
+      name: payload.recipientName,
+    }),
+    publicSiteUrl = getPublicSiteUrl(),
     [
       {
         renderBattleOutcomeEmail,
@@ -157,12 +162,12 @@ export const sendTransactionalEmail = async ({
       template === "track_ready" || template === "track_processing_ready"
         ? await renderTrackLifecycleEmail({
             actionUrl: payload.actionUrl,
-            artistName: payload.recipientName,
+            artistName: greetingName,
             assetBaseUrl: publicSiteUrl,
             eventType: template,
             trackTitle: payload.trackTitle ?? "Your track",
           })
-        : template === "battle_outcome"
+        : (template === "battle_outcome"
           ? await renderBattleOutcomeEmail({
               actionUrl: payload.actionUrl,
               affectedArtistName: payload.battleOutcomeArtistName,
@@ -171,7 +176,7 @@ export const sendTransactionalEmail = async ({
               battleTitle: payload.battleTitle ?? "your SoundKit battle",
               kind: payload.battleOutcomeKind ?? "canceled",
               reason: payload.battleOutcomeReason ?? "other",
-              recipientName: payload.recipientName,
+              recipientName: greetingName,
               subject: getEmailSubject({ payload, template }),
             })
           : await renderTransactionalNotificationEmail({
@@ -189,9 +194,9 @@ export const sendTransactionalEmail = async ({
               previewText:
                 payload.previewText ??
                 "Open SoundKit to review the latest update.",
-              recipientName: payload.recipientName,
+              recipientName: greetingName,
               subject: getEmailSubject({ payload, template }),
-            }),
+            })),
     subject = getEmailSubject({ payload, template }),
     resend = new Resend(apiKey),
     replyTo = getEmailReplyTo(),

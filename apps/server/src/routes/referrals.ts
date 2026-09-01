@@ -145,7 +145,7 @@ app.openapi(
           "You are receiving this because a SoundKit member entered your email address to invite you to the platform.",
         heading: `${user.name ?? "A SoundKit member"} invited you to SoundKit`,
         previewText: `${user.name ?? "A SoundKit member"} invited you to join SoundKit.`,
-        recipientName: email.split("@")[0] ?? "there",
+        recipientName: "there",
         subject: `${user.name ?? "A SoundKit member"} invited you to SoundKit`,
       },
       recipientEmail: email,

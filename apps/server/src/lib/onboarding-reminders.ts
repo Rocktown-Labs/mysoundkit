@@ -2,8 +2,10 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   onboardingEmailReminders,
   onboardingProgress,
+  userProfiles,
 } from "@soundkit/db/schema/app";
 import { user } from "@soundkit/db/schema/auth";
+import { getPreferredRecipientName } from "@soundkit/transactional/recipient-name";
 import { and, eq, isNull, lte } from "drizzle-orm";
 
 import { getPublicSiteUrl, sendTransactionalEmail } from "@/lib/email";
@@ -34,9 +36,11 @@ export const sendDueOnboardingReminders = async () => {
           email: user.email,
           name: user.name,
           userId: user.id,
+          username: userProfiles.username,
         })
         .from(onboardingProgress)
         .innerJoin(user, eq(user.id, onboardingProgress.userId))
+        .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
         .where(
           and(
             isNull(onboardingProgress.completedAt),
@@ -76,7 +80,11 @@ export const sendDueOnboardingReminders = async () => {
           eyebrow: "SoundKit setup",
           heading: "Finish setting up your SoundKit account",
           previewText: "Your saved SoundKit setup is ready when you are.",
-          recipientName: candidate.name?.trim() || "there",
+          recipientName: getPreferredRecipientName({
+            email: candidate.email,
+            name: candidate.name,
+            username: candidate.username,
+          }),
           subject: "Finish setting up your SoundKit account",
         },
         recipientEmail: candidate.email,

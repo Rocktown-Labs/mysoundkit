@@ -16,6 +16,7 @@ import {
 } from "@soundkit/db/schema/app";
 import { user as authUser, subscription } from "@soundkit/db/schema/auth";
 import { communitySubscriptions } from "@soundkit/db/schema/communities";
+import { getPreferredRecipientName } from "@soundkit/transactional/recipient-name";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 
 import { createSignedMediaSourceUrl } from "@/lib/media-signing";
@@ -56,15 +57,21 @@ const accountFooter =
         email: authUser.email,
         name: authUser.name,
         userId: authUser.id,
+        username: userProfiles.username,
       })
       .from(authUser)
+      .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
       .where(eq(authUser.id, userId))
       .limit(1);
 
     return recipient
       ? {
           email: recipient.email,
-          name: recipient.name ?? "there",
+          name: getPreferredRecipientName({
+            email: recipient.email,
+            name: recipient.name,
+            username: recipient.username,
+          }),
           userId: recipient.userId,
         }
       : null;
