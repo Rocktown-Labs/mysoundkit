@@ -11,6 +11,7 @@
     "verify:pr": "pnpm run verify && pnpm run test:e2e",
     "check-types": "turbo run check-types",
     "dev:native": "turbo run dev --filter=native",
+    "dev:desktop": "turbo run dev --filter=desktop",
     "dev:web": "turbo run dev --filter=web",
     "dev:server": "turbo run dev --filter=server",
     "db:push": "turbo run db:push --filter=@soundkit/db",
