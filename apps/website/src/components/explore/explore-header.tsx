@@ -275,7 +275,7 @@ export function ExploreHeader() {
                       className={resultLinkClassName}
                       key={`project-${project.id}`}
                       onClick={() => setSearchValue("")}
-                      params={{ id: project.id }}
+                      params={{ id: project.slug || project.id }}
                       to="/projects/$id"
                     >
                       <SearchResultArtwork

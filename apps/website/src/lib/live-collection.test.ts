@@ -11,7 +11,7 @@ const items = [
     viewerCount: 2,
   },
   {
-    genre: "hip-hop-rap",
+    genre: "Hip-Hop",
     startsAt: "2026-08-14T12:00:00.000Z",
     status: "live",
     title: "Live Hip Hop",
@@ -21,6 +21,17 @@ const items = [
 
 describe("live collection filtering", () => {
   it("filters by genre and status", () => {
+    expect(
+      filterAndSortLiveItems({
+        genre: "hip-hop-rap",
+        items,
+        sort: "starts-asc",
+        status: "live",
+      })
+    ).toEqual([items[1]]);
+  });
+
+  it("accepts canonical API aliases when filtering by genre", () => {
     expect(
       filterAndSortLiveItems({
         genre: "hip-hop-rap",

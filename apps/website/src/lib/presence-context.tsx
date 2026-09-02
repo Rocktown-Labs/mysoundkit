@@ -11,6 +11,11 @@ import {
 import type { ReactNode } from "react";
 
 import { API_V1_URL } from "./api";
+import {
+  getPresenceReconnectDelay,
+  isFreshPresence,
+  PRESENCE_ACTIVE_THRESHOLD_MS,
+} from "./presence-state";
 import { useMeQuery } from "./soundkit-api-hooks";
 
 const ACTIVE_PRESENCE_INTERVAL_MS = 60_000,
@@ -69,7 +74,9 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
     reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null),
     heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null),
     leaseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null),
+    lastSocketAckRef = useRef(0),
     reconnectAttemptRef = useRef(0),
+    intentionalSocketCloseRef = useRef<WebSocket | null>(null),
     tabIdRef = useRef<string>(tabId());
 
   watchedUserIdsRef.current = watchedUserIds;
@@ -199,10 +206,32 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
         }
       },
       closeSocket = () => {
-        if (socketRef.current) {
-          socketRef.current.close();
-          socketRef.current = null;
+        const socket = socketRef.current;
+        socketRef.current = null;
+        if (!socket) {
+          return;
         }
+        intentionalSocketCloseRef.current = socket;
+        if (
+          socket.readyState === WebSocket.CONNECTING ||
+          socket.readyState === WebSocket.OPEN
+        ) {
+          socket.close(1000, "Presence client is pausing");
+        }
+      },
+      scheduleReconnect = () => {
+        if (!leaderRef.current || !isVisible() || reconnectTimerRef.current) {
+          return;
+        }
+        const delay = getPresenceReconnectDelay(
+          reconnectAttemptRef.current,
+          Math.random()
+        );
+        reconnectAttemptRef.current += 1;
+        reconnectTimerRef.current = setTimeout(() => {
+          reconnectTimerRef.current = null;
+          connectSocket();
+        }, delay);
       },
       connectSocket = () => {
         if (
@@ -223,13 +252,18 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
           const socket = new WebSocket(url);
           socketRef.current = socket;
           socket.onopen = () => {
+            if (socketRef.current !== socket) {
+              return;
+            }
             reconnectAttemptRef.current = 0;
+            lastSocketAckRef.current = Date.now();
             socket.send(
               JSON.stringify({ status: "online", type: "heartbeat" })
             );
             void fetchTargetedPresence();
           };
           socket.onmessage = (event) => {
+            lastSocketAckRef.current = Date.now();
             try {
               const data = JSON.parse(event.data) as UserPresenceInfo & {
                 type?: string;
@@ -245,25 +279,27 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
             }
           };
           socket.onerror = () => {
-            socket.close();
+            // The browser delivers a close event after a failed handshake or
+            // transport error. Let that lifecycle event own reconnects; an
+            // eager close here can produce “closed before connection” noise.
           };
           socket.onclose = () => {
-            socketRef.current = null;
-            if (!leaderRef.current || !isVisible()) {
+            const isCurrentSocket = socketRef.current === socket,
+              wasIntentional = intentionalSocketCloseRef.current === socket;
+            if (wasIntentional) {
+              intentionalSocketCloseRef.current = null;
+            }
+            if (!isCurrentSocket) {
               return;
             }
-            const delay = Math.min(
-              30_000,
-              1000 * 2 ** reconnectAttemptRef.current
-            );
-            reconnectAttemptRef.current += 1;
-            reconnectTimerRef.current = setTimeout(() => {
-              reconnectTimerRef.current = null;
-              connectSocket();
-            }, delay);
+            socketRef.current = null;
+            if (!wasIntentional) {
+              scheduleReconnect();
+            }
           };
         } catch {
           socketRef.current = null;
+          scheduleReconnect();
         }
       },
       handleVisibility = () => {
@@ -300,13 +336,28 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
       if (!leaderRef.current || !isVisible()) {
         return;
       }
-      if (socketRef.current?.readyState === WebSocket.OPEN) {
-        socketRef.current.send(JSON.stringify({ type: "heartbeat" }));
+      const socket = socketRef.current;
+      if (socket?.readyState === WebSocket.OPEN) {
+        if (
+          Date.now() - lastSocketAckRef.current >=
+          PRESENCE_ACTIVE_THRESHOLD_MS
+        ) {
+          socket.close(4000, "Presence heartbeat timed out");
+        } else {
+          try {
+            socket.send(JSON.stringify({ type: "heartbeat" }));
+          } catch {
+            socket.close(4000, "Presence heartbeat failed");
+          }
+        }
       } else {
         void sendHeartbeat("online");
-        void fetchTargetedPresence();
         connectSocket();
       }
+      // The Presence DO broadcasts a user's own status, not every watched
+      // user's status. Poll the same authoritative endpoint for all watched
+      // users so battle chat and direct messages share one freshness window.
+      void fetchTargetedPresence();
     }, ACTIVE_PRESENCE_INTERVAL_MS);
     leaseIntervalRef.current = setInterval(() => {
       if (isVisible() && claimLease()) {
@@ -352,7 +403,8 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
         if (userId && targetUserId === userId) {
           return true;
         }
-        return Boolean(onlineUsers[targetUserId]?.isOnline);
+        const presence = onlineUsers[targetUserId];
+        return presence ? isFreshPresence(presence) : false;
       },
       [onlineUsers, userId]
     ),
@@ -364,14 +416,17 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
         if (userId && targetUserId === userId) {
           return { isOnline: true, lastSeen: Date.now(), status: "online" };
         }
-        return onlineUsers[targetUserId];
+        const presence = onlineUsers[targetUserId];
+        return presence
+          ? { ...presence, isOnline: isFreshPresence(presence) }
+          : undefined;
       },
       [onlineUsers, userId]
     ),
     onlineUserIds = useMemo(
       () =>
         Object.entries(onlineUsers)
-          .filter(([, presence]) => presence.isOnline)
+          .filter(([, presence]) => isFreshPresence(presence))
           .map(([id]) => id),
       [onlineUsers]
     ),

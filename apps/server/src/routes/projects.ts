@@ -3,7 +3,6 @@ import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistFollows,
-  genres,
   listeningParties,
   projectAssets,
   projectCollaborators,
@@ -11,6 +10,7 @@ import {
   projectTracks,
   projects,
   purchases,
+  trackCollaborators,
   mediaProcessingJobs,
   trackAssets,
   tracks,
@@ -18,7 +18,18 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
-import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -29,6 +40,7 @@ import {
   buildProjectSummary,
   ownedProjectWhere,
 } from "@/lib/dashboard-mappers";
+import { getDatabaseSchemaCapabilities } from "@/lib/database-schema-capabilities";
 import { notifyCollaboratorInviteEmail } from "@/lib/email-events";
 import {
   isAuthenticatedSession,
@@ -36,7 +48,7 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
-import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
+import { ensureGenreId } from "@/lib/genre-persistence";
 import {
   MEDIA_PIPELINE_VERSION,
   PROJECT_EXPORT_PIPELINE_VERSION,
@@ -51,11 +63,16 @@ import {
   profileRegionCondition,
   resolveExploreRegion,
 } from "@/lib/public-explore";
-import { publishProjectIfMediaReady } from "@/lib/release-notifications";
+import {
+  getProjectReleaseReadiness,
+  publishProjectIfMediaReady,
+} from "@/lib/release-notifications";
 import { sampleProjects } from "@/lib/sample-data";
 import {
   createProjectBodySchema,
   messageResponseSchema,
+  projectWorkspaceAssetBodySchema,
+  projectLibraryAssetBodySchema,
   projectDashboardDetailSchema,
   projectSummarySchema,
   publicExploreQuerySchema,
@@ -111,9 +128,39 @@ const projectOrderBy = (sort?: string) => {
 
     return desc(projects.updatedAt);
   },
+  projectMatchesRegion = (
+    project: ProjectSummary,
+    region: ReturnType<typeof resolveExploreRegion>,
+    regionSlug: string | null
+  ) => {
+    if (region.kind === "global") {
+      return true;
+    }
+
+    if (region.kind === "unknown") {
+      return false;
+    }
+
+    if (region.kind === "state") {
+      return project.regionSlug === regionSlug;
+    }
+
+    if (region.kind === "country") {
+      return (
+        region.name === "United States" &&
+        project.regionSlug?.startsWith("us-") === true
+      );
+    }
+
+    return (
+      region.scope === "north-america" &&
+      project.regionSlug?.startsWith("us-") === true
+    );
+  },
   projectMatchesExploreFilters = (
     project: ProjectSummary,
-    query: PublicProjectExploreQuery
+    query: PublicProjectExploreQuery,
+    regionAlreadyFiltered = false
   ) => {
     const genreSlug = genreSlugFromExploreFilter(query.genre),
       region = resolveExploreRegion(query),
@@ -131,14 +178,9 @@ const projectOrderBy = (sort?: string) => {
     }
 
     if (
-      region.kind === "unknown" ||
-      region.kind === "country" ||
-      region.kind === "continent"
+      !regionAlreadyFiltered &&
+      !projectMatchesRegion(project, region, regionSlug)
     ) {
-      return false;
-    }
-
-    if (regionSlug && project.regionSlug !== regionSlug) {
       return false;
     }
 
@@ -155,29 +197,7 @@ const projectOrderBy = (sort?: string) => {
   },
   getUploadBucketName = () =>
     (env as unknown as { UPLOAD_BUCKET_NAME?: string }).UPLOAD_BUCKET_NAME ??
-    null,
-  ensureGenreId = async (genreName: string) => {
-    const db = createDb(),
-      genreSlug = canonicalGenreSlug(genreName),
-      [genreRow] = await db
-        .select({ id: genres.id })
-        .from(genres)
-        .where(eq(genres.slug, genreSlug))
-        .limit(1);
-
-    if (genreRow) {
-      return genreRow.id;
-    }
-
-    const genreId = crypto.randomUUID();
-    await db.insert(genres).values({
-      id: genreId,
-      name: canonicalGenreName(genreName),
-      slug: genreSlug,
-    });
-
-    return genreId;
-  };
+    null;
 
 app.openapi(
   createRoute({
@@ -216,17 +236,17 @@ app.openapi(
           .where(
             and(
               eq(projectCollaborators.collaboratorUserId, user.id),
-              inArray(projectCollaborators.invitationStatus, [
-                "accepted",
-                "pending",
-              ])
+              eq(projectCollaborators.invitationStatus, "accepted")
             )
           ),
         collaboratorProjectIds = collaboratorRows
           .map((r) => r.projectId)
           .filter(Boolean),
         ownerCondition = organizationId
-          ? eq(projects.organizationId, organizationId)
+          ? (or(
+              eq(projects.ownerUserId, user.id),
+              eq(projects.organizationId, organizationId)
+            ) ?? eq(projects.ownerUserId, user.id))
           : eq(projects.ownerUserId, user.id);
 
       projectVisibilityWhere =
@@ -323,7 +343,7 @@ app.openapi(
     for (const { project } of rows) {
       const summary = await buildProjectSummary(project);
 
-      if (projectMatchesExploreFilters(summary, query)) {
+      if (projectMatchesExploreFilters(summary, query, true)) {
         summaries.push(summary);
       }
     }
@@ -354,11 +374,13 @@ app.openapi(
     tags: ["Projects"],
   }),
   async (c) => {
-    const { projectId } = c.req.valid("param");
+    const { projectId: projectLookup } = c.req.valid("param");
 
     if (!isDatabaseConfigured()) {
       const project = sampleProjects.find(
-        (entry) => entry.id === projectId && entry.isPublic
+        (entry) =>
+          (entry.id === projectLookup || entry.slug === projectLookup) &&
+          entry.isPublic
       );
 
       if (!project) {
@@ -382,7 +404,12 @@ app.openapi(
     const [project] = await createDb()
       .select()
       .from(projects)
-      .where(and(eq(projects.id, projectId), eq(projects.isPublic, true)))
+      .where(
+        and(
+          eq(projects.isPublic, true),
+          or(eq(projects.id, projectLookup), eq(projects.slug, projectLookup))
+        )
+      )
       .limit(1);
 
     if (!project) {
@@ -534,7 +561,7 @@ app.openapi(
       });
 
       const existingTrackIds = body.trackIds,
-        newTrackIds = [];
+        newTrackIds: string[] = [];
 
       for (const newTrack of body.newTracks) {
         const trackId = crypto.randomUUID(),
@@ -697,6 +724,46 @@ app.openapi(
         }
       }
 
+      const projectCreditRows = body.collaborators
+        .filter(
+          (collaborator) =>
+            collaborator.userId && collaborator.userId !== user.id
+        )
+        .flatMap((collaborator) =>
+          newTrackIds.flatMap((trackId) => {
+            const baseRow = {
+              canDelete: false,
+              canEdit: true,
+              canUpload: true,
+              collaboratorRole: collaborator.role,
+              collaboratorUserId: collaborator.userId,
+              id: crypto.randomUUID(),
+              invitationStatus: "accepted" as const,
+              invitedByUserId: user.id,
+              trackId,
+            };
+
+            if (
+              collaborator.alsoCreditAsWriter &&
+              collaborator.role !== "songwriter"
+            ) {
+              return [
+                baseRow,
+                {
+                  ...baseRow,
+                  collaboratorRole: "songwriter" as const,
+                  id: crypto.randomUUID(),
+                },
+              ];
+            }
+
+            return [baseRow];
+          })
+        );
+      if (projectCreditRows.length > 0) {
+        await db.insert(trackCollaborators).values(projectCreditRows);
+      }
+
       if (!project) {
         throw new Error("Failed to create project.");
       }
@@ -821,6 +888,10 @@ app.openapi(
         messageResponseSchema,
         "Invalid project media"
       ),
+      [HttpStatusCodes.CONFLICT]: jsonContent(
+        messageResponseSchema,
+        "Project is not ready to release"
+      ),
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         messageResponseSchema,
         "Project not found"
@@ -867,23 +938,18 @@ app.openapi(
       );
     }
 
-    const isCollaborator =
-        (
-          await db
-            .select({ id: projectCollaborators.id })
-            .from(projectCollaborators)
-            .where(
-              and(
-                eq(projectCollaborators.projectId, projectId),
-                eq(projectCollaborators.collaboratorUserId, user.id),
-                inArray(projectCollaborators.invitationStatus, [
-                  "accepted",
-                  "pending",
-                ])
-              )
-            )
-            .limit(1)
-        ).length > 0,
+    const [collaborator] = await db
+        .select({ canEdit: projectCollaborators.canEdit })
+        .from(projectCollaborators)
+        .where(
+          and(
+            eq(projectCollaborators.projectId, projectId),
+            eq(projectCollaborators.collaboratorUserId, user.id),
+            eq(projectCollaborators.invitationStatus, "accepted")
+          )
+        )
+        .limit(1),
+      isCollaborator = collaborator?.canEdit === true,
       isOwner =
         existingProject.ownerUserId === user.id ||
         (organizationId && existingProject.organizationId === organizationId);
@@ -892,7 +958,26 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const releaseDatePatch =
+    const releaseRequested =
+      body.isPublic === true ||
+      body.status === "released" ||
+      body.status === "scheduled";
+    if (releaseRequested && !existingProject.isPublic) {
+      const readiness = await getProjectReleaseReadiness({ projectId });
+      if (!readiness.isReady) {
+        return c.json(
+          {
+            message: `Project is not ready to release: ${readiness.missing.join(" ")}`,
+          },
+          HttpStatusCodes.CONFLICT
+        );
+      }
+    }
+
+    const genreId = body.genre
+        ? await ensureGenreId(body.genre)
+        : existingProject.genreId,
+      releaseDatePatch =
         "releaseDate" in body
           ? {
               releaseDate: body.releaseDate ? new Date(body.releaseDate) : null,
@@ -922,6 +1007,7 @@ app.openapi(
         .set({
           description: body.description,
           exportVersion: sql`${projects.exportVersion} + 1`,
+          genreId,
           isPublic: body.isPublic === false ? false : existingProject.isPublic,
           projectType: body.projectType,
           ...monetizationPatch,
@@ -1065,23 +1151,18 @@ app.openapi(
       );
     }
 
-    const isCollaborator =
-        (
-          await db
-            .select({ id: projectCollaborators.id })
-            .from(projectCollaborators)
-            .where(
-              and(
-                eq(projectCollaborators.projectId, projectId),
-                eq(projectCollaborators.collaboratorUserId, user.id),
-                inArray(projectCollaborators.invitationStatus, [
-                  "accepted",
-                  "pending",
-                ])
-              )
-            )
-            .limit(1)
-        ).length > 0,
+    const [collaborator] = await db
+        .select({ canEdit: projectCollaborators.canEdit })
+        .from(projectCollaborators)
+        .where(
+          and(
+            eq(projectCollaborators.projectId, projectId),
+            eq(projectCollaborators.collaboratorUserId, user.id),
+            eq(projectCollaborators.invitationStatus, "accepted")
+          )
+        )
+        .limit(1),
+      isCollaborator = collaborator?.canEdit === true,
       isOwner =
         project.ownerUserId === user.id ||
         (organizationId && project.organizationId === organizationId);
@@ -1139,6 +1220,183 @@ app.openapi(
 app.openapi(
   createRoute({
     method: "post",
+    path: "/{projectId}/assets",
+    request: {
+      body: jsonContentRequired(
+        projectWorkspaceAssetBodySchema,
+        "Project workspace asset"
+      ),
+      params: z.object({ projectId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        projectDashboardDetailSchema,
+        "Project asset registered"
+      ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid project asset"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Project not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Projects"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { projectId } = c.req.valid("param"),
+      body = c.req.valid("json"),
+      db = createDb(),
+      [project] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .limit(1);
+
+    if (!project) {
+      return c.json(
+        { message: "Project not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const [collaborator] = await db
+        .select({ canUpload: projectCollaborators.canUpload })
+        .from(projectCollaborators)
+        .where(
+          and(
+            eq(projectCollaborators.projectId, projectId),
+            eq(projectCollaborators.collaboratorUserId, user.id),
+            eq(projectCollaborators.invitationStatus, "accepted")
+          )
+        )
+        .limit(1),
+      isOwner = project.ownerUserId === user.id,
+      canUpload = isOwner || collaborator?.canUpload === true;
+
+    if (!canUpload) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (
+      !body.objectKey.startsWith(`projects/${user.id}/`) &&
+      !body.objectKey.startsWith(`uploads/${user.id}/`)
+    ) {
+      return c.json(
+        { message: "Uploaded project asset does not belong to this user." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const object = await c.env.MEDIA_BUCKET?.head(body.objectKey);
+    if (c.env.MEDIA_BUCKET && !object) {
+      return c.json(
+        { message: "Uploaded project asset was not found in storage." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const capabilities = await getDatabaseSchemaCapabilities(db),
+      storedAssetKind =
+        body.assetKind === "beat" && !capabilities.projectAssetKinds.beat
+          ? "attachment"
+          : body.assetKind === "concept" &&
+              !capabilities.projectAssetKinds.concept
+            ? "attachment"
+            : body.assetKind,
+      now = new Date(),
+      assetId = crypto.randomUUID();
+    let version = 1;
+
+    if (capabilities.projectAssetVersioning) {
+      const [latestAsset] = await db
+        .select({ version: projectAssets.version })
+        .from(projectAssets)
+        .where(
+          and(
+            eq(projectAssets.projectId, projectId),
+            eq(projectAssets.assetKind, storedAssetKind)
+          )
+        )
+        .orderBy(desc(projectAssets.version))
+        .limit(1);
+      version = (latestAsset?.version ?? 0) + 1;
+      await db
+        .update(projectAssets)
+        .set({ isCurrent: false, updatedAt: now })
+        .where(
+          and(
+            eq(projectAssets.projectId, projectId),
+            eq(projectAssets.assetKind, storedAssetKind),
+            eq(projectAssets.isCurrent, true)
+          )
+        );
+    }
+
+    await claimUploadIntent({
+      entityId: projectId,
+      entityType: "project_asset",
+      objectKey: body.objectKey,
+      userId: user.id,
+    });
+    await db.insert(projectAssets).values({
+      assetKind: storedAssetKind,
+      bucketName: getUploadBucketName(),
+      id: assetId,
+      metadata:
+        storedAssetKind === body.assetKind
+          ? { displayName: body.displayName }
+          : {
+              displayName: body.displayName,
+              requestedAssetKind: body.assetKind,
+            },
+      mimeType: body.mimeType ?? object?.httpMetadata?.contentType ?? null,
+      objectKey: body.objectKey,
+      projectId,
+      sizeBytes: body.sizeBytes ?? object?.size ?? null,
+      status: "uploaded",
+      storageProvider: "r2",
+      uploaderUserId: user.id,
+      ...(capabilities.projectAssetVersioning
+        ? { isCurrent: true, version }
+        : {}),
+    });
+    await completeUploadIntent({
+      entityId: projectId,
+      entityType: "project_asset",
+      objectKey: body.objectKey,
+      userId: user.id,
+    });
+
+    const [updatedProject] = await db
+      .update(projects)
+      .set({
+        exportVersion: sql`${projects.exportVersion} + 1`,
+        updatedAt: now,
+      })
+      .where(eq(projects.id, projectId))
+      .returning();
+
+    return c.json(
+      await buildProjectDetail(updatedProject ?? project),
+      HttpStatusCodes.CREATED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
     path: "/{projectId}/export",
     request: { params: z.object({ projectId: z.string() }) },
     responses: {
@@ -1172,18 +1430,36 @@ app.openapi(
         session: isAuthenticatedSession(session) ? session : null,
         user,
       }),
-      [project] = await createDb()
+      db = createDb(),
+      [project] = await db
         .select()
         .from(projects)
-        .where(
-          ownedProjectWhere({ organizationId, projectId, userId: user.id })
-        )
+        .where(eq(projects.id, projectId))
         .limit(1);
     if (!project) {
       return c.json(
         { message: "Project not found." },
         HttpStatusCodes.NOT_FOUND
       );
+    }
+
+    const [collaborator] = await db
+      .select({ canEdit: projectCollaborators.canEdit })
+      .from(projectCollaborators)
+      .where(
+        and(
+          eq(projectCollaborators.projectId, projectId),
+          eq(projectCollaborators.collaboratorUserId, user.id),
+          eq(projectCollaborators.invitationStatus, "accepted")
+        )
+      )
+      .limit(1);
+    const canExport =
+      project.ownerUserId === user.id ||
+      (organizationId && project.organizationId === organizationId) ||
+      collaborator?.canEdit === true;
+    if (!canExport) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
     const result = await ensureProjectExportWorkflow({
@@ -1256,17 +1532,35 @@ app.openapi(
         HttpStatusCodes.NOT_FOUND
       );
     }
-    const [purchase] = await db
-        .select({ id: purchases.id })
-        .from(purchases)
-        .where(
-          and(
-            eq(purchases.projectId, projectId),
-            eq(purchases.buyerUserId, user.id)
+    const [purchase, collaborator] = await Promise.all([
+        db
+          .select({ id: purchases.id })
+          .from(purchases)
+          .where(
+            and(
+              eq(purchases.projectId, projectId),
+              eq(purchases.buyerUserId, user.id)
+            )
           )
-        )
-        .limit(1),
-      canAccess = project.ownerUserId === user.id || Boolean(purchase);
+          .limit(1)
+          .then((rows) => rows[0]),
+        db
+          .select({ id: projectCollaborators.id })
+          .from(projectCollaborators)
+          .where(
+            and(
+              eq(projectCollaborators.projectId, projectId),
+              eq(projectCollaborators.collaboratorUserId, user.id),
+              eq(projectCollaborators.invitationStatus, "accepted")
+            )
+          )
+          .limit(1)
+          .then((rows) => rows[0]),
+      ]),
+      canAccess =
+        project.ownerUserId === user.id ||
+        Boolean(purchase) ||
+        Boolean(collaborator);
     if (!canAccess) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
@@ -1285,7 +1579,11 @@ app.openapi(
         .limit(1)
         .then((rows) => rows[0] ?? null),
       db
-        .select()
+        .select({
+          id: projectAssets.id,
+          objectKey: projectAssets.objectKey,
+          status: projectAssets.status,
+        })
         .from(projectAssets)
         .where(
           and(
@@ -1353,14 +1651,19 @@ app.openapi(
         .where(eq(projects.id, projectId))
         .limit(1),
       [asset] = await db
-        .select()
+        .select({
+          assetKind: projectAssets.assetKind,
+          id: projectAssets.id,
+          mimeType: projectAssets.mimeType,
+          objectKey: projectAssets.objectKey,
+          status: projectAssets.status,
+        })
         .from(projectAssets)
         .where(
           and(
             eq(projectAssets.id, assetId),
             eq(projectAssets.projectId, projectId),
-            eq(projectAssets.assetKind, "release_export"),
-            eq(projectAssets.status, "ready")
+            inArray(projectAssets.status, ["uploaded", "ready"])
           )
         )
         .limit(1);
@@ -1370,17 +1673,36 @@ app.openapi(
         HttpStatusCodes.NOT_FOUND
       );
     }
-    const [purchase] = await db
-      .select({ id: purchases.id })
-      .from(purchases)
-      .where(
-        and(
-          eq(purchases.projectId, projectId),
-          eq(purchases.buyerUserId, user.id)
+    const [purchase, collaborator] = await Promise.all([
+      db
+        .select({ id: purchases.id })
+        .from(purchases)
+        .where(
+          and(
+            eq(purchases.projectId, projectId),
+            eq(purchases.buyerUserId, user.id)
+          )
         )
-      )
-      .limit(1);
-    if (!(project.ownerUserId === user.id || purchase)) {
+        .limit(1)
+        .then((rows) => rows[0]),
+      db
+        .select({ id: projectCollaborators.id })
+        .from(projectCollaborators)
+        .where(
+          and(
+            eq(projectCollaborators.projectId, projectId),
+            eq(projectCollaborators.collaboratorUserId, user.id),
+            eq(projectCollaborators.invitationStatus, "accepted")
+          )
+        )
+        .limit(1)
+        .then((rows) => rows[0]),
+    ]);
+    const canAccessWorkspaceAsset =
+      asset.assetKind !== "release_export" && Boolean(collaborator);
+    if (
+      !(project.ownerUserId === user.id || purchase || canAccessWorkspaceAsset)
+    ) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
     const object = await c.env.MEDIA_BUCKET?.get(asset.objectKey);
@@ -1419,6 +1741,10 @@ app.openapi(
         messageResponseSchema,
         "Authentication required"
       ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Project not found"
+      ),
     },
     tags: ["Projects"],
   }),
@@ -1441,9 +1767,17 @@ app.openapi(
       }),
       db = createDb();
 
-    await db
+    const [deletedProject] = await db
       .delete(projects)
-      .where(ownedProjectWhere({ organizationId, projectId, userId: user.id }));
+      .where(ownedProjectWhere({ organizationId, projectId, userId: user.id }))
+      .returning({ id: projects.id });
+
+    if (!deletedProject) {
+      return c.json(
+        { message: "Project not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
 
     return c.json({ message: "Project deleted." }, HttpStatusCodes.OK);
   }
@@ -1535,10 +1869,7 @@ app.openapi(
                 and(
                   eq(projectCollaborators.projectId, projectId),
                   eq(projectCollaborators.collaboratorUserId, user.id),
-                  inArray(projectCollaborators.invitationStatus, [
-                    "accepted",
-                    "pending",
-                  ])
+                  eq(projectCollaborators.invitationStatus, "accepted")
                 )
               )
               .limit(1)
@@ -1622,23 +1953,18 @@ app.openapi(
       );
     }
 
-    const isCollaborator =
-        (
-          await db
-            .select({ id: projectCollaborators.id })
-            .from(projectCollaborators)
-            .where(
-              and(
-                eq(projectCollaborators.projectId, projectId),
-                eq(projectCollaborators.collaboratorUserId, user.id),
-                inArray(projectCollaborators.invitationStatus, [
-                  "accepted",
-                  "pending",
-                ])
-              )
-            )
-            .limit(1)
-        ).length > 0,
+    const [collaborator] = await db
+        .select({ canUpload: projectCollaborators.canUpload })
+        .from(projectCollaborators)
+        .where(
+          and(
+            eq(projectCollaborators.projectId, projectId),
+            eq(projectCollaborators.collaboratorUserId, user.id),
+            eq(projectCollaborators.invitationStatus, "accepted")
+          )
+        )
+        .limit(1),
+      isCollaborator = collaborator?.canUpload === true,
       isOwner =
         project.ownerUserId === user.id ||
         (organizationId && project.organizationId === organizationId);
@@ -1648,6 +1974,7 @@ app.openapi(
     }
 
     if (
+      !body.sourceObjectKey.startsWith(`projects/${user.id}/`) &&
       !body.sourceObjectKey.startsWith(`tracks/${user.id}/`) &&
       !body.sourceObjectKey.startsWith(`uploads/${user.id}/`)
     ) {
@@ -1730,6 +2057,39 @@ app.openapi(
       trackId,
     });
 
+    const acceptedProjectCollaborators = await db
+      .select({
+        collaboratorRole: projectCollaborators.collaboratorRole,
+        collaboratorUserId: projectCollaborators.collaboratorUserId,
+      })
+      .from(projectCollaborators)
+      .where(
+        and(
+          eq(projectCollaborators.projectId, projectId),
+          eq(projectCollaborators.invitationStatus, "accepted")
+        )
+      );
+    const trackCollaboratorRows = acceptedProjectCollaborators
+      .filter(
+        (projectCollaborator) =>
+          projectCollaborator.collaboratorUserId &&
+          projectCollaborator.collaboratorUserId !== user.id
+      )
+      .map((projectCollaborator) => ({
+        canDelete: false,
+        canEdit: true,
+        canUpload: true,
+        collaboratorRole: projectCollaborator.collaboratorRole,
+        collaboratorUserId: projectCollaborator.collaboratorUserId,
+        id: crypto.randomUUID(),
+        invitationStatus: "accepted" as const,
+        invitedByUserId: project.ownerUserId,
+        trackId,
+      }));
+    if (trackCollaboratorRows.length > 0) {
+      await db.insert(trackCollaborators).values(trackCollaboratorRows);
+    }
+
     const [updatedProject] = await db
       .update(projects)
       .set({
@@ -1759,6 +2119,277 @@ app.openapi(
         trackId,
       });
     }
+
+    return c.json(
+      await buildProjectDetail(updatedProject ?? project),
+      HttpStatusCodes.CREATED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{projectId}/library-assets",
+    request: {
+      body: jsonContentRequired(
+        projectLibraryAssetBodySchema,
+        "Project library asset selection"
+      ),
+      params: z.object({ projectId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        projectDashboardDetailSchema,
+        "Library assets added to project"
+      ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid project library asset selection"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Project not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Projects"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { projectId } = c.req.valid("param"),
+      body = c.req.valid("json"),
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb(),
+      [project] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .limit(1);
+
+    if (!project) {
+      return c.json(
+        { message: "Project not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const [collaborator] = await db
+        .select({ canUpload: projectCollaborators.canUpload })
+        .from(projectCollaborators)
+        .where(
+          and(
+            eq(projectCollaborators.projectId, projectId),
+            eq(projectCollaborators.collaboratorUserId, user.id),
+            eq(projectCollaborators.invitationStatus, "accepted")
+          )
+        )
+        .limit(1),
+      isOwner =
+        project.ownerUserId === user.id ||
+        (organizationId && project.organizationId === organizationId),
+      canUpload = isOwner || collaborator?.canUpload === true;
+
+    if (!canUpload) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const uniqueTrackIds = [...new Set(body.trackIds)],
+      sourceOwnership = organizationId
+        ? or(
+            eq(tracks.ownerUserId, user.id),
+            eq(tracks.organizationId, organizationId)
+          )
+        : eq(tracks.ownerUserId, user.id),
+      sourceKind =
+        body.assetKind === "beat"
+          ? eq(tracks.catalogItemType, "beat")
+          : body.assetKind === "concept"
+            ? and(
+                eq(tracks.isPublic, false),
+                notInArray(tracks.catalogItemType, ["beat", "instrumental"])
+              )
+            : undefined,
+      sourceRows = await db
+        .select({
+          assetId: trackAssets.id,
+          bucketName: trackAssets.bucketName,
+          durationMs: trackAssets.durationMs,
+          mimeType: trackAssets.mimeType,
+          objectKey: trackAssets.objectKey,
+          sizeBytes: trackAssets.sizeBytes,
+          status: trackAssets.status,
+          storageProvider: trackAssets.storageProvider,
+          title: tracks.title,
+          trackId: tracks.id,
+        })
+        .from(tracks)
+        .innerJoin(
+          trackAssets,
+          and(
+            eq(trackAssets.trackId, tracks.id),
+            eq(trackAssets.assetKind, "master"),
+            eq(trackAssets.isCurrent, true),
+            isNotNull(trackAssets.objectKey)
+          )
+        )
+        .where(
+          and(
+            inArray(tracks.id, uniqueTrackIds),
+            isNull(tracks.deletedAt),
+            sourceKind,
+            sourceOwnership
+          )
+        );
+
+    if (sourceRows.length !== uniqueTrackIds.length) {
+      return c.json(
+        {
+          message:
+            "One or more selected uploads is unavailable or does not have an uploaded master.",
+        },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const rowsByTrackId = new Map(
+        sourceRows.map((sourceRow) => [sourceRow.trackId, sourceRow])
+      ),
+      orderedSourceRows = uniqueTrackIds.flatMap((trackId) => {
+        const sourceRow = rowsByTrackId.get(trackId);
+        return sourceRow ? [sourceRow] : [];
+      }),
+      [attachedTrackRows, attachedAssetRows] = await Promise.all([
+        db
+          .select({ trackId: projectTracks.trackId })
+          .from(projectTracks)
+          .where(eq(projectTracks.projectId, projectId)),
+        db
+          .select({
+            objectKey: projectAssets.objectKey,
+            sourceAssetId: projectAssets.sourceAssetId,
+          })
+          .from(projectAssets)
+          .where(eq(projectAssets.projectId, projectId)),
+      ]),
+      attachedTrackIds = new Set(
+        attachedTrackRows.map((attachedTrack) => attachedTrack.trackId)
+      ),
+      attachedObjectKeys = new Set(
+        attachedAssetRows
+          .map((attachedAsset) => attachedAsset.objectKey)
+          .filter((objectKey): objectKey is string => Boolean(objectKey))
+      ),
+      attachedSourceAssetIds = new Set(
+        attachedAssetRows
+          .map((attachedAsset) => attachedAsset.sourceAssetId)
+          .filter((sourceAssetId): sourceAssetId is string =>
+            Boolean(sourceAssetId)
+          )
+      );
+
+    let addedCount = 0;
+    if (body.assetKind === "master") {
+      const existingPositions = await db
+          .select({ position: projectTracks.position })
+          .from(projectTracks)
+          .where(eq(projectTracks.projectId, projectId)),
+        nextPositionStart =
+          existingPositions.length > 0
+            ? Math.max(...existingPositions.map((entry) => entry.position)) + 1
+            : 0;
+      let nextPosition = nextPositionStart;
+
+      for (const sourceRow of orderedSourceRows) {
+        if (attachedTrackIds.has(sourceRow.trackId)) {
+          continue;
+        }
+        await db
+          .insert(projectTracks)
+          .values({
+            position: nextPosition,
+            projectId,
+            trackId: sourceRow.trackId,
+          })
+          .onConflictDoNothing();
+        nextPosition += 1;
+        addedCount += 1;
+      }
+    } else {
+      const capabilities = await getDatabaseSchemaCapabilities(db),
+        storedAssetKind: "attachment" | "beat" | "concept" =
+          body.assetKind === "beat" && !capabilities.projectAssetKinds.beat
+            ? "attachment"
+            : body.assetKind === "concept" &&
+                !capabilities.projectAssetKinds.concept
+              ? "attachment"
+              : body.assetKind,
+        projectAssetRows = [];
+
+      for (const sourceRow of orderedSourceRows) {
+        if (
+          !sourceRow.objectKey ||
+          attachedSourceAssetIds.has(sourceRow.assetId) ||
+          attachedObjectKeys.has(sourceRow.objectKey)
+        ) {
+          continue;
+        }
+
+        projectAssetRows.push({
+          assetKind: storedAssetKind,
+          bucketName: sourceRow.bucketName ?? getUploadBucketName(),
+          durationMs: sourceRow.durationMs,
+          id: crypto.randomUUID(),
+          metadata: {
+            displayName: sourceRow.title,
+            originalFileName:
+              sourceRow.objectKey.split("/").pop() ?? sourceRow.title,
+            requestedAssetKind:
+              storedAssetKind === body.assetKind ? undefined : body.assetKind,
+            sourceTrackId: sourceRow.trackId,
+            sourceTrackTitle: sourceRow.title,
+          },
+          mimeType: sourceRow.mimeType,
+          objectKey: sourceRow.objectKey,
+          projectId,
+          sizeBytes: sourceRow.sizeBytes,
+          sourceAssetId: sourceRow.assetId,
+          status: sourceRow.status,
+          storageProvider: sourceRow.storageProvider,
+          uploaderUserId: user.id,
+        });
+      }
+
+      if (projectAssetRows.length > 0) {
+        await db.insert(projectAssets).values(projectAssetRows);
+        addedCount = projectAssetRows.length;
+      }
+    }
+
+    const updatedProject =
+      addedCount > 0
+        ? (
+            await db
+              .update(projects)
+              .set({
+                exportVersion: sql`${projects.exportVersion} + 1`,
+                updatedAt: new Date(),
+              })
+              .where(eq(projects.id, projectId))
+              .returning()
+          )[0]
+        : project;
 
     return c.json(
       await buildProjectDetail(updatedProject ?? project),

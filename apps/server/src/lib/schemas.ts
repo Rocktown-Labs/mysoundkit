@@ -153,6 +153,14 @@ export const battleReadyBodySchema = z.object({
   ready: z.boolean(),
 });
 
+export const streamBotBodySchema = z.object({
+  enabled: z.boolean(),
+});
+
+export const streamNowPlayingBodySchema = z.object({
+  trackId: z.string().nullable(),
+});
+
 export const battleParticipationResultSchema = z.enum([
   "canceled",
   "ducked",
@@ -399,6 +407,8 @@ export const entitlementSummarySchema = z.object({
 });
 
 export const notificationSettingsSchema = z.object({
+  communityMentions: z.boolean(),
+  communityPosts: z.boolean(),
   emailCollaborations: z.boolean(),
   emailComments: z.boolean(),
   emailFollowers: z.boolean(),
@@ -684,8 +694,10 @@ export const dashboardAssetSchema = z.object({
   processingVersion: z.number().int().nullable().optional(),
   purpose: mediaAssetPurposeSchema.nullable().optional(),
   sizeBytes: z.number().int().nullable(),
+  sourceAssetId: z.string().nullable().optional(),
   status: z.string(),
   storageProvider: z.enum(["r2", "mux", "external"]),
+  version: z.number().int().positive().optional(),
 });
 
 export const dashboardCollaboratorSchema = z.object({
@@ -1199,7 +1211,63 @@ export const conversationSummarySchema = z.object({
   updatedAt: z.string(),
 });
 
+export const createCollaborationBodySchema = z.object({
+  clientRequestId: z.string().uuid().optional(),
+  genre: z.string().trim().min(1).optional(),
+  initialTracks: z.array(z.string()).optional(),
+  isProjectLevel: z.boolean().optional(),
+  kind: z.enum(["project", "track"]).default("project").optional(),
+  projectType: z.enum(["album", "ep", "mixtape", "single"]).optional(),
+  title: z.string().trim().min(1).max(160),
+});
+
+export const collaborationCreatedResponseSchema = z.object({
+  expiresAt: z.string(),
+  href: z.string(),
+  id: z.string(),
+  kind: z.enum(["project", "track"]),
+  messageId: z.string(),
+  proposalIds: z.array(z.string()),
+  status: z.string(),
+});
+
+export const respondCollaborationBodySchema = z.object({
+  action: z.enum(["accept", "decline", "cancel"]),
+});
+
+export const respondCollaborationResponseSchema = z.object({
+  action: z.enum(["accept", "decline", "cancel"]),
+  expiresAt: z.string(),
+  href: z.string(),
+  proposalId: z.string(),
+  status: z.string(),
+  success: z.boolean(),
+});
+
+export const projectWorkspaceAssetBodySchema = z.object({
+  assetKind: z.enum(["attachment", "beat", "concept", "photo", "video"]),
+  displayName: z.string().trim().min(1).max(240),
+  mimeType: z.string().max(160).optional(),
+  objectKey: z.string().min(1),
+  sizeBytes: z.number().int().nonnegative().optional(),
+});
+
+export const projectLibraryAssetBodySchema = z.object({
+  assetKind: z.enum(["beat", "concept", "master"]),
+  trackIds: z.array(z.string().min(1)).min(1).max(100),
+});
+
+export const collaborationProposalSchema = z.object({
+  expiresAt: z.string(),
+  href: z.string(),
+  id: z.string(),
+  kind: z.enum(["project", "track"]),
+  status: z.enum(["pending", "accepted", "rejected", "revoked", "expired"]),
+  targetId: z.string(),
+});
+
 export const messageAttachmentSchema = z.object({
+  collaboration: collaborationProposalSchema.nullable().optional(),
   displayName: z.string(),
   id: z.string(),
   mimeType: z.string().nullable(),
@@ -1344,15 +1412,23 @@ export const battleParticipantSchema = z.object({
 });
 
 export const battleSummarySchema = z.object({
+  endedAt: z.string().nullable().optional(),
   featuredRank: z.number().int().positive().nullable().optional(),
   format: z.enum(["best_of_3", "best_of_5", "best_of_7"]),
   genre: z.string(),
+  hasPlayedTurn: z.boolean().default(false),
   id: z.string(),
   isFeatured: z.boolean().default(false),
   joinMode: z.enum(["watch_now", "waiting_room"]).default("watch_now"),
+  outcome: z
+    .enum(["canceled", "ducked", "forfeited", "quit"])
+    .nullable()
+    .optional(),
   participants: battleParticipantSchema.array().max(2).default([]),
   phaseEndsAt: z.string().nullable().optional(),
   queueSize: z.number().int().nonnegative().default(0),
+  replayStatus: z.enum(["available", "none", "processing"]).default("none"),
+  replayVideoId: z.string().nullable().optional(),
   round: z
     .object({
       current: z.number().int().positive(),
@@ -2201,7 +2277,29 @@ export const createProjectBodySchema = z.object({
   trackIds: z.array(z.string()).default([]),
 });
 
-export const updateProjectBodySchema = createProjectBodySchema.partial();
+// Keep PATCH fields separate from create defaults: a sparse update such as a
+// cover-only change must not become `isPublic: true` and trigger release checks.
+export const updateProjectBodySchema = z.object({
+  assetIds: z.array(z.string()).optional(),
+  description: z.string().optional(),
+  exclusiveUntil: z.string().optional(),
+  genre: z.string().min(1).optional(),
+  isForSale: z.boolean().optional(),
+  isPublic: z.boolean().optional(),
+  listeningAccess: z.enum(["public", "premium_or_purchased"]).optional(),
+  priceCents: z.number().int().positive().optional(),
+  projectType: z.enum(["album", "ep", "mixtape", "single"]).optional(),
+  releaseDate: z.string().optional(),
+  status: z.enum(["draft", "scheduled", "released"]).optional(),
+  streamingLinks: z
+    .object({
+      appleMusic: z.url().optional(),
+      spotify: z.url().optional(),
+      youtube: z.url().optional(),
+    })
+    .optional(),
+  title: z.string().min(1).optional(),
+});
 
 export const createVideoBodySchema = z.object({
   description: z.string().optional(),
@@ -2263,15 +2361,18 @@ export const directVideoUploadResponseSchema = z.object({
 export const videoCommentSchema = z.object({
   authorAvatarUrl: z.string().nullable().optional(),
   authorName: z.string().nullable().optional(),
+  authorUsername: z.string().nullable().optional(),
   body: z.string(),
   createdAt: z.string(),
   id: z.string(),
+  parentCommentId: z.string().nullable(),
   userId: z.string(),
 });
 
 export const createVideoCommentBodySchema = z.object({
-  body: z.string().min(1).max(2000),
+  body: z.string().trim().min(1).max(2000),
   clientCommentId: z.string().uuid().optional(),
+  parentCommentId: z.string().trim().min(1).max(120).nullable().optional(),
 });
 
 export const createPlaylistBodySchema = z.object({

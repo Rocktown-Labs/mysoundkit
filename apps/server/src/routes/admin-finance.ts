@@ -14,6 +14,7 @@ import {
   subscriptionEntitlements,
 } from "@soundkit/db/schema/plans";
 import { env } from "@soundkit/env/server";
+import { getPreferredRecipientName } from "@soundkit/transactional/recipient-name";
 import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
@@ -1260,6 +1261,7 @@ app.post("/payments/grant-premium", async (c) => {
         email: user.email,
         id: user.id,
         name: user.name,
+        username: userProfiles.username,
       })
       .from(user)
       .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
@@ -1373,7 +1375,11 @@ app.post("/payments/grant-premium", async (c) => {
       },
       queue: c.env.EMAIL_DELIVERY_QUEUE,
       recipientEmail: target.email,
-      recipientName: target.name ?? "there",
+      recipientName: getPreferredRecipientName({
+        email: target.email,
+        name: target.name,
+        username: target.username,
+      }),
       template: "welcome_premium",
       userId: target.id,
     });

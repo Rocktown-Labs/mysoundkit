@@ -14,8 +14,8 @@ import {
   filterAndSortLiveItems,
   normalizeGenreValue,
 } from "@/lib/live-collection";
-import { musicGenres } from "@/lib/music-genres";
 import {
+  useGenresQuery,
   useMeEntitlementsQuery,
   useMeQuery,
   usePublicLiveExperiencesQuery,
@@ -62,6 +62,7 @@ function LiveStreamsPage() {
     search = Route.useSearch(),
     region = search.region ?? "all",
     regionType = search.regionType ?? "global",
+    genresQuery = useGenresQuery(),
     { data: streams = [], isLoading } = usePublicLiveExperiencesQuery(
       "stream",
       { region, regionType }
@@ -72,6 +73,7 @@ function LiveStreamsPage() {
     sort = search.sort ?? "starts-asc",
     status = search.status ?? "all",
     view = search.view ?? "sections",
+    genres = genresQuery.data ?? [],
     publicStreams = (streams as PublicStream[]).filter(
       (stream) => stream.kind === "stream"
     ),
@@ -113,8 +115,9 @@ function LiveStreamsPage() {
         ) : null}
       </section>
 
-      <div className="hidden lg:block">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <RegionSelectors
+          className="contents"
           onChange={(next) => {
             void navigate({
               search: (previous) => ({ ...previous, ...next }),
@@ -123,16 +126,16 @@ function LiveStreamsPage() {
           region={region}
           regionType={regionType}
         />
+        <LiveCollectionFilters
+          className="contents"
+          onChange={(next) => {
+            void navigate({
+              search: (previous) => ({ ...previous, ...next, view: "all" }),
+            });
+          }}
+          value={{ genre, sort }}
+        />
       </div>
-
-      <LiveCollectionFilters
-        onChange={(next) => {
-          void navigate({
-            search: (previous) => ({ ...previous, ...next, view: "all" }),
-          });
-        }}
-        value={{ genre, sort }}
-      />
 
       {view === "all" ? (
         <ExploreCollectionGrid
@@ -176,26 +179,26 @@ function LiveStreamsPage() {
           >
             {(stream) => <StreamCard {...stream} />}
           </ExploreCollectionSection>
-          {musicGenres.map((sectionGenre) => {
-            const sectionSlug = normalizeGenreValue(sectionGenre.value),
-              sectionLabel = normalizeGenreValue(sectionGenre.label);
+          {genres.map((sectionGenre) => {
+            const sectionSlug = normalizeGenreValue(sectionGenre.slug),
+              sectionLabel = normalizeGenreValue(sectionGenre.name);
             return (
               <ExploreCollectionSection
-                empty={`No ${sectionGenre.label} streams are scheduled.`}
+                empty={`No ${sectionGenre.name} streams are scheduled.`}
+                hideWhenEmpty
                 items={publicStreams.filter((stream) => {
                   const itemGenre = normalizeGenreValue(stream.genre);
                   return (
-                    stream.genre === sectionGenre.value ||
                     itemGenre === sectionSlug ||
                     itemGenre === sectionLabel ||
                     itemGenre.startsWith(sectionSlug) ||
                     sectionSlug.startsWith(itemGenre)
                   );
                 })}
-                key={sectionGenre.value}
+                key={sectionGenre.slug}
                 layout="landscape"
-                onViewAll={() => openCollection({ genre: sectionGenre.value })}
-                title={sectionGenre.label}
+                onViewAll={() => openCollection({ genre: sectionGenre.slug })}
+                title={sectionGenre.name}
               >
                 {(stream) => <StreamCard {...stream} />}
               </ExploreCollectionSection>

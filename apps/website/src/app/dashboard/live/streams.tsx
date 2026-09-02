@@ -3,6 +3,7 @@
 
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  Bot,
   Camera,
   CheckCircle2,
   Copy,
@@ -10,9 +11,11 @@ import {
   Eye,
   EyeOff,
   LoaderCircle,
+  Link2,
   MessageSquare,
   Mic,
   MonitorUp,
+  Music2,
   Radio,
   RefreshCcw,
   Trash2,
@@ -22,6 +25,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { useAudioPlayer } from "@/components/audio-player-provider";
 import { LiveExperienceAuthGuard } from "@/components/dashboard/live-experience-auth-guard";
 import {
   AlertDialog,
@@ -33,6 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,17 +57,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { SoundKitApiError, apiClient } from "@/lib/api";
 import { liveExperienceConfigs } from "@/lib/live-experience";
 import type { LiveScheduleMode } from "@/lib/live-experience";
-import { musicGenres } from "@/lib/music-genres";
+import { useLiveRoom } from "@/lib/live-room";
+import { genreLabelFromValue, musicGenres } from "@/lib/music-genres";
 import {
   useCreateLiveExperienceMutation,
+  useCreateLiveOverlayTokenMutation,
   useDeleteLiveExperienceMutation,
   useGenresQuery,
+  useLiveReviewCatalogQuery,
   useMyLiveExperiencesQuery,
+  useSetLiveNowPlayingMutation,
+  useSetStreamBotMutation,
   useVideosQuery,
 } from "@/lib/soundkit-api-hooks";
 
@@ -105,6 +116,38 @@ function readSavedStream() {
   return saved ? (JSON.parse(saved) as ActiveStream) : null;
 }
 
+function readableStreamStatus(value: unknown): string {
+  if (typeof value === "string" && value.trim()) {
+    return value;
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    "state" in value &&
+    typeof value.state === "string" &&
+    value.state.trim()
+  ) {
+    return value.state;
+  }
+
+  return "unknown";
+}
+
+function normalizeStreamIngestStatus(value: unknown): string {
+  const status = readableStreamStatus(value);
+
+  if (status === "connected" || status === "reconnected") {
+    return "connected";
+  }
+
+  if (status === "reconnecting") {
+    return "reconnecting";
+  }
+
+  return status;
+}
+
 function DashboardLiveStreamsPage() {
   const genresQuery = useGenresQuery(),
     videosQuery = useVideosQuery(),
@@ -122,9 +165,9 @@ function DashboardLiveStreamsPage() {
     [description, setDescription] = useState(""),
     genreOptions =
       genresQuery.data && genresQuery.data.length > 0
-        ? genresQuery.data.map((genre) => genre.name)
+        ? genresQuery.data.map((genre) => genreLabelFromValue(genre.name))
         : musicGenres.map((genre) => genre.label),
-    [genre, setGenre] = useState(genreOptions[0] ?? "Hip-Hop/Rap"),
+    [genre, setGenre] = useState(genreOptions[0] ?? "Hip-Hop"),
     [visibility, setVisibility] = useState("Public"),
     [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap"),
     [source, setSource] = useState<StreamSource>("obs"),
@@ -298,13 +341,11 @@ function DashboardLiveStreamsPage() {
         });
         if (res.ok) {
           const stream = await res.json(),
+            status = readableStreamStatus(stream.status),
             updated = {
               ...activeStream,
-              ingestStatus:
-                stream.status === "connected" || stream.status === "reconnected"
-                  ? "connected"
-                  : "reconnecting",
-              status: stream.status,
+              ingestStatus: normalizeStreamIngestStatus(status),
+              status,
             };
           setActiveStream(updated);
           localStorage.setItem(
@@ -312,7 +353,7 @@ function DashboardLiveStreamsPage() {
             JSON.stringify(updated)
           );
           toast({
-            description: `Current connection state: ${stream.status}`,
+            description: `Current connection state: ${status}`,
             title: "Stream status updated",
           });
         }
@@ -340,18 +381,16 @@ function DashboardLiveStreamsPage() {
           return;
         }
 
-        const stream = await response.json();
+        const stream = await response.json(),
+          status = readableStreamStatus(stream.status);
         setActiveStream((current) => {
           if (!current) {
             return current;
           }
           const updated = {
             ...current,
-            ingestStatus:
-              stream.status === "connected" || stream.status === "reconnected"
-                ? "connected"
-                : "reconnecting",
-            status: stream.status,
+            ingestStatus: normalizeStreamIngestStatus(status),
+            status,
           };
           localStorage.setItem(
             "soundkit_active_creator_stream",
@@ -381,10 +420,11 @@ function DashboardLiveStreamsPage() {
         } catch {
           toast({
             description:
-              "The local stream was cleared, but Cloudflare could not be stopped. Refresh the status and try again.",
+              "Cloudflare could not be stopped. The stream remains open so you can retry without losing the encoder details.",
             title: "Stream stop incomplete",
             variant: "destructive",
           });
+          return;
         }
       }
 
@@ -475,8 +515,8 @@ function DashboardLiveStreamsPage() {
                     <div>
                       <CardTitle>Create Stream</CardTitle>
                       <CardDescription>
-                        RealtimeKit Layer handles chat and room presence while
-                        Cloudflare Stream handles the OBS input.
+                        Choose a camera or encoder, then start your broadcast.
+                        SoundKit keeps your room, chat, and viewers in sync.
                       </CardDescription>
                     </div>
                     <StepTabs
@@ -842,14 +882,16 @@ function ControlRoom({
   toggleShowStreamKey: () => void;
 }) {
   const visibleKey = showStreamKey ? activeStream.rtmpsKey : "••••••••••••",
+    streamStatus = readableStreamStatus(activeStream.status),
+    streamIngestStatus = readableStreamStatus(activeStream.ingestStatus),
     statusLabel =
-      activeStream.ingestStatus === "connected" ||
-      activeStream.status === "connected" ||
-      activeStream.status === "reconnected"
+      streamIngestStatus === "connected" ||
+      streamStatus === "connected" ||
+      streamStatus === "reconnected"
         ? "Live"
-        : activeStream.ingestStatus === "reconnecting"
+        : streamIngestStatus === "reconnecting"
           ? "Reconnecting"
-          : activeStream.ingestStatus === "error"
+          : streamIngestStatus === "error"
             ? "Error"
             : "Waiting for OBS";
 
@@ -869,9 +911,9 @@ function ControlRoom({
             variant={
               statusLabel === "Live"
                 ? "destructive"
-                : statusLabel === "Error"
+                : (statusLabel === "Error"
                   ? "destructive"
-                  : "outline"
+                  : "outline")
             }
           >
             {statusLabel}
@@ -900,9 +942,9 @@ function ControlRoom({
                   {statusLabel === "Error"
                     ? activeStream.errorMessage ||
                       "Cloudflare rejected the ingest. Check your encoder settings and try again."
-                    : statusLabel === "Reconnecting"
+                    : (statusLabel === "Reconnecting"
                       ? "OBS disconnected briefly. The room is holding your broadcast open while you reconnect."
-                      : "Connect OBS to begin the broadcast. You will not appear as live until Cloudflare confirms the input is connected."}
+                      : "Connect OBS to begin the broadcast. You will not appear as live until Cloudflare confirms the input is connected.")}
                 </p>
               </>
             )}
@@ -947,6 +989,8 @@ function ControlRoom({
           </div>
         </div>
 
+        <ReviewStudio experienceId={activeStream.experienceId} />
+
         <div className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
           <Badge variant="outline">{activeStream.visibility}</Badge>
           <div className="flex gap-2">
@@ -967,6 +1011,276 @@ function ControlRoom({
             >
               End Broadcast
             </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReviewStudio({ experienceId }: { experienceId: string }) {
+  const [search, setSearch] = useState(""),
+    [overlayUrl, setOverlayUrl] = useState<string | null>(null),
+    { setCurrentTrack, setQueue } = useAudioPlayer(),
+    catalogQuery = useLiveReviewCatalogQuery(experienceId, search),
+    room = useLiveRoom(experienceId),
+    roomQuery = room.query,
+    setNowPlaying = useSetLiveNowPlayingMutation(experienceId),
+    setStreamBot = useSetStreamBotMutation(experienceId),
+    createOverlayToken = useCreateLiveOverlayTokenMutation(),
+    nowPlaying = roomQuery.data?.stream?.nowPlaying ?? null,
+    botEnabled = roomQuery.data?.stream?.botEnabled ?? false,
+    selectedTrack = catalogQuery.data?.find(
+      (track) => track.id === nowPlaying?.id
+    ),
+    updateNowPlaying = async (trackId: string | null) => {
+      try {
+        await setNowPlaying.mutateAsync({ trackId });
+        toast({
+          description: trackId
+            ? "The track is playing locally and viewers will see it in Now Playing."
+            : "Now Playing has been cleared for viewers.",
+          title: "Now Playing updated",
+        });
+        return true;
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not update Now Playing.",
+          title: "Update failed",
+          variant: "destructive",
+        });
+        return false;
+      }
+    },
+    selectReviewTrack = async (
+      track: NonNullable<typeof catalogQuery.data>[number]
+    ) => {
+      const updated = await updateNowPlaying(track.id);
+      if (!updated) {
+        return;
+      }
+
+      const playerTrack = {
+        artist: track.artistName,
+        cover: track.coverArtUrl,
+        id: track.id,
+        sourceType: "library" as const,
+        src: track.playbackUrl,
+        title: track.title,
+        trackHref: `/tracks/${encodeURIComponent(track.id)}`,
+      };
+      setQueue([playerTrack]);
+      setCurrentTrack(playerTrack);
+    },
+    toggleBot = async (enabled: boolean) => {
+      try {
+        await setStreamBot.mutateAsync({ enabled });
+        toast({
+          description: enabled
+            ? "StreamBot will announce future track changes."
+            : "StreamBot announcements are off.",
+          title: "StreamBot updated",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not update StreamBot.",
+          title: "Update failed",
+          variant: "destructive",
+        });
+      }
+    },
+    generateOverlayUrl = async () => {
+      try {
+        const response = await createOverlayToken.mutateAsync(experienceId);
+        const url = new URL(
+          `/live/streams/overlay/${encodeURIComponent(experienceId)}`,
+          window.location.origin
+        );
+        url.searchParams.set("token", response.token);
+        setOverlayUrl(url.toString());
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not create an OBS overlay token.",
+          title: "Overlay setup failed",
+          variant: "destructive",
+        });
+      }
+    },
+    copyOverlayUrl = async () => {
+      if (!overlayUrl) {
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(overlayUrl);
+        toast({ description: "OBS Browser Source URL copied." });
+      } catch {
+        toast({
+          description: "Clipboard access is unavailable in this browser.",
+          title: "Copy unavailable",
+          variant: "destructive",
+        });
+      }
+    };
+
+  return (
+    <Card className="border-primary/20 bg-primary/[0.03]">
+      <CardHeader className="border-b border-primary/10">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Music2 className="size-4 text-primary" />
+          Live Music Review Studio
+        </CardTitle>
+        <CardDescription>
+          Select a SoundKit track while you review it on stream. Viewers get a
+          linked Now Playing card and optional chat announcement.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-5 p-4 md:p-6">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor={`review-track-search-${experienceId}`}>
+                Review catalog
+              </Label>
+              <span className="text-xs text-muted-foreground">
+                {catalogQuery.data?.length ?? 0} tracks
+              </span>
+            </div>
+            <Input
+              id={`review-track-search-${experienceId}`}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search your tracks and public catalog..."
+              value={search}
+            />
+            <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border p-2">
+              {catalogQuery.isLoading ? (
+                <p className="p-3 text-sm text-muted-foreground">
+                  Loading review catalog...
+                </p>
+              ) : (catalogQuery.data && catalogQuery.data.length > 0 ? (
+                catalogQuery.data.map((track) => {
+                  const isSelected = nowPlaying?.id === track.id;
+                  return (
+                    <button
+                      className={`flex w-full items-center gap-3 rounded-md border p-2 text-left transition-colors ${isSelected ? "border-primary bg-primary/10" : "hover:bg-muted/50"}`}
+                      key={track.id}
+                      onClick={() => void selectReviewTrack(track)}
+                      type="button"
+                    >
+                      <AppImage
+                        alt={track.title}
+                        className="size-10 rounded object-cover"
+                        height={40}
+                        src={track.coverArtUrl ?? "/soundkit-default-cover.svg"}
+                        width={40}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium text-sm">
+                          {track.title}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {track.artistName}
+                        </span>
+                      </span>
+                      {isSelected && (
+                        <Badge className="shrink-0" variant="default">
+                          Live
+                        </Badge>
+                      )}
+                    </button>
+                  );
+                })
+              ) : (
+                <p className="p-3 text-sm text-muted-foreground">
+                  No playable tracks found for this review.
+                </p>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                disabled={!nowPlaying || setNowPlaying.isPending}
+                onClick={() => void updateNowPlaying(null)}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Clear Now Playing
+              </Button>
+              {selectedTrack && (
+                <span className="truncate text-xs text-muted-foreground">
+                  Selected: {selectedTrack.title}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4 rounded-lg border bg-background/60 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="flex items-center gap-2 font-medium text-sm">
+                  <Bot className="size-4 text-primary" />
+                  StreamBot announcements
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Posts a safe linked chat card when you select a new track.
+                </p>
+              </div>
+              <Switch
+                aria-label="Enable StreamBot announcements"
+                checked={botEnabled}
+                disabled={setStreamBot.isPending}
+                onCheckedChange={(checked) => void toggleBot(checked)}
+              />
+            </div>
+            <div className="border-t pt-4">
+              <p className="flex items-center gap-2 font-medium text-sm">
+                <Link2 className="size-4 text-primary" />
+                OBS Browser Source
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Generate a read-only overlay URL for OBS. Anyone with the URL
+                can view this room’s Now Playing state.
+              </p>
+              <Button
+                className="mt-3 w-full"
+                disabled={createOverlayToken.isPending}
+                onClick={() => void generateOverlayUrl()}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                {createOverlayToken.isPending
+                  ? "Generating..."
+                  : "Generate OBS URL"}
+              </Button>
+              {overlayUrl && (
+                <div className="mt-3 flex gap-2">
+                  <Input
+                    aria-label="OBS Browser Source URL"
+                    className="min-w-0 text-xs"
+                    readOnly
+                    value={overlayUrl}
+                  />
+                  <Button
+                    aria-label="Copy OBS Browser Source URL"
+                    onClick={() => void copyOverlayUrl()}
+                    size="icon"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Copy className="size-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </CardContent>
@@ -1223,7 +1537,7 @@ function ActiveScheduledStreamsSection({
                     </div>
                     {exp.genre ? (
                       <Badge className="w-fit text-[10px]" variant="secondary">
-                        {exp.genre}
+                        {genreLabelFromValue(exp.genre)}
                       </Badge>
                     ) : null}
                     <p className="text-muted-foreground text-xs">

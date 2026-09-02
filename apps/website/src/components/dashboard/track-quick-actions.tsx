@@ -1,5 +1,5 @@
 "use client";
-/* eslint-disable no-alert, no-void, one-var, react/no-array-index-key, react/todo, sort-vars */
+/* eslint-disable no-alert, no-void, no-unused-vars, one-var, react/exhaustive-effect-dependencies, react/no-array-index-key, react/todo, sort-vars */
 
 import { useUploadFiles } from "@better-upload/client";
 import {
@@ -16,6 +16,16 @@ import { useEffect, useState } from "react";
 
 import { CreditsEditor } from "@/components/dashboard/credits-editor";
 import type { CreditEntry } from "@/components/dashboard/credits-editor";
+import {
+  EditTrackDetailsDialog,
+  ManageTrackAudioDialog,
+  ProcessTrackEnrichmentDialog,
+  RetryTrackMediaDialog,
+} from "@/components/dashboard/track-edit-dialogs";
+import type {
+  TrackAssetRecord,
+  TrackEditableRecord,
+} from "@/components/dashboard/track-edit-dialogs";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -52,6 +62,7 @@ import {
   rpcJson,
 } from "@/lib/api";
 import { optimizeCoverImageFile } from "@/lib/image-processing";
+import type { TrackDetail } from "@/lib/soundkit-api-hooks";
 import {
   useGenresQuery,
   useSellerStatusQuery,
@@ -152,26 +163,34 @@ interface QuickActionDialogProps {
   trackId: string;
 }
 
-type QuickActionDialogName = "cover" | "credits" | "genre" | "status" | "swap";
+export type QuickActionDialogName =
+  | "audio"
+  | "cover"
+  | "credits"
+  | "details"
+  | "enrichment"
+  | "processing";
+
+const EMPTY_TRACK_ASSETS: TrackAssetRecord[] = [];
 
 /** Renders the quick-action dialogs for a track detail view. */
 export function TrackQuickActionDialogs({
   activeDialog,
+  assets = EMPTY_TRACK_ASSETS,
   collaborators,
-  currentGenre,
-  isLive,
   mediaReady,
   onClose,
   onSaved,
+  track,
   trackId,
 }: {
   activeDialog: null | QuickActionDialogName;
+  assets?: TrackAssetRecord[];
   collaborators: TrackCollaboratorRow[];
-  currentGenre?: null | string;
-  isLive?: boolean;
   mediaReady?: boolean;
   onClose: () => void;
   onSaved: () => unknown;
+  track: TrackEditableRecord | null;
   trackId: string;
 }) {
   const handleOpenChange = (open: boolean) => {
@@ -182,31 +201,37 @@ export function TrackQuickActionDialogs({
 
   return (
     <>
+      <EditTrackDetailsDialog
+        mediaReady={mediaReady}
+        onOpenChange={handleOpenChange}
+        onSaved={onSaved}
+        open={activeDialog === "details"}
+        track={track}
+        trackId={trackId}
+      />
       <ChangeCoverArtDialog
         onOpenChange={handleOpenChange}
         onSaved={onSaved}
         open={activeDialog === "cover"}
         trackId={trackId}
       />
-      <SwapMainFileDialog
+      <ManageTrackAudioDialog
+        assets={assets}
         onOpenChange={handleOpenChange}
         onSaved={onSaved}
-        open={activeDialog === "swap"}
+        open={activeDialog === "audio"}
         trackId={trackId}
       />
-      <TrackGenreDialog
-        currentGenre={currentGenre}
+      <RetryTrackMediaDialog
         onOpenChange={handleOpenChange}
         onSaved={onSaved}
-        open={activeDialog === "genre"}
+        open={activeDialog === "processing"}
         trackId={trackId}
       />
-      <TrackStatusDialog
-        isLive={isLive ?? false}
-        mediaReady={mediaReady ?? false}
+      <ProcessTrackEnrichmentDialog
         onOpenChange={handleOpenChange}
         onSaved={onSaved}
-        open={activeDialog === "status"}
+        open={activeDialog === "enrichment"}
         trackId={trackId}
       />
       <EditCreditsDialog
@@ -1043,25 +1068,29 @@ export function TrackCardQuickMenuItems({
   return (
     <>
       <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={() => onOpenAction("details")}>
+        <Settings2 className="mr-2 size-4" />
+        Edit track details
+      </DropdownMenuItem>
       <DropdownMenuItem onSelect={() => onOpenAction("cover")}>
         <ImagePlus className="mr-2 size-4" />
         Change cover art
       </DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => onOpenAction("genre")}>
-        <Tags className="mr-2 size-4" />
-        Change genre
-      </DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => onOpenAction("status")}>
-        <Settings2 className="mr-2 size-4" />
-        Change release status
-      </DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => onOpenAction("swap")}>
+      <DropdownMenuItem onSelect={() => onOpenAction("audio")}>
         <Repeat className="mr-2 size-4" />
-        Swap main file
+        Manage audio files
       </DropdownMenuItem>
       <DropdownMenuItem onSelect={() => onOpenAction("credits")}>
         <Users className="mr-2 size-4" />
         Edit credits
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => onOpenAction("processing")}>
+        <Repeat className="mr-2 size-4" />
+        Retry media processing
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => onOpenAction("enrichment")}>
+        <Settings2 className="mr-2 size-4" />
+        Generate lyrics and stems
       </DropdownMenuItem>
       <Tooltip>
         <TooltipTrigger asChild={true}>
@@ -1090,6 +1119,46 @@ export function TrackCardQuickMenuItems({
  * Card-level quick action dialogs. Mounts only while an action is active so
  * the per-track detail query runs just for the open dialog.
  */
+export const editableTrackFromDetail = (
+  track: TrackDetail | undefined
+): TrackEditableRecord | null => {
+  if (!track) {
+    return null;
+  }
+
+  const exclusiveUntil =
+      "exclusiveUntil" in track && typeof track.exclusiveUntil === "string"
+        ? track.exclusiveUntil
+        : null,
+    listeningAccess =
+      "listeningAccess" in track &&
+      (track.listeningAccess === "public" ||
+        track.listeningAccess === "premium_or_purchased")
+        ? track.listeningAccess
+        : "public";
+
+  return {
+    description: "description" in track ? track.description : null,
+    downloadsAllowed: track.downloadsAllowed,
+    downloadsRequireFirstPlay: track.downloadsRequireFirstPlay,
+    downloadsRequirePurchase: track.downloadsRequirePurchase,
+    exclusiveUntil,
+    genre: track.genre,
+    isForSale: track.isForSale,
+    isPublic: track.isPublic,
+    isrc: track.isrc,
+    listeningAccess,
+    musicalKey: track.musicalKey,
+    price: track.price,
+    productionStatus: track.productionStatus,
+    purchaseMode: track.purchaseMode,
+    releaseAt: track.releaseAt,
+    releaseStrategy: track.releaseStrategy,
+    streamingLinks: track.streamingLinks,
+    title: track.title,
+  };
+};
+
 export function TrackCardQuickActionDialogs({
   action,
   onClose,
@@ -1100,20 +1169,23 @@ export function TrackCardQuickActionDialogs({
   trackId: string;
 }) {
   const trackQuery = useTrackQuery(trackId),
+    detail = trackQuery.data,
     dialogCollaborators =
-      trackQuery.data && "collaborators" in trackQuery.data
-        ? (trackQuery.data.collaborators as TrackCollaboratorRow[])
-        : [];
+      detail && "collaborators" in detail
+        ? (detail.collaborators as TrackCollaboratorRow[])
+        : [],
+    dialogAssets =
+      detail && "assets" in detail ? (detail.assets as TrackAssetRecord[]) : [];
 
   return (
     <TrackQuickActionDialogs
       activeDialog={action}
+      assets={dialogAssets}
       collaborators={dialogCollaborators}
-      currentGenre={trackQuery.data?.genre}
-      isLive={trackQuery.data?.isPublic}
-      mediaReady={trackQuery.data?.mediaReady}
+      mediaReady={detail?.mediaReady}
       onClose={onClose}
       onSaved={() => void trackQuery.refetch()}
+      track={editableTrackFromDetail(detail)}
       trackId={trackId}
     />
   );

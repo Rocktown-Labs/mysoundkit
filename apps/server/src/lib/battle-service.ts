@@ -2,7 +2,9 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   battles,
   battleChallenges,
+  battleParticipations,
   battleQueueEntries,
+  liveExperiences,
   userNotifications,
   webhookEvents,
 } from "@soundkit/db/schema/app";
@@ -14,11 +16,144 @@ import {
   notifyBattleReminderEmailsForBattle,
   notifyBattleResultsEmailsForBattle,
 } from "@/lib/email-events";
+import type { AppEnv } from "@/lib/types";
 
 const reminderLookaheadMs = 30 * 60 * 1000,
   liveTransitionLookbackMs = 15 * 60 * 1000,
   resultsLookbackMs = 7 * 24 * 60 * 60 * 1000,
   sweepLimit = 100;
+
+export const finalizeBattleNoShow = async ({
+  audienceUserIds,
+  battleId,
+  recordedAt,
+}: {
+  audienceUserIds?: string[];
+  battleId: string;
+  recordedAt: number;
+}) => {
+  if (!isDatabaseConfigured()) {
+    return { skipped: true };
+  }
+
+  const db = createDb(),
+    [battle] = await db
+      .select({
+        challengerArtistUserId: battles.challengerArtistUserId,
+        id: battles.id,
+        opponentArtistUserId: battles.opponentArtistUserId,
+        outcome: battles.outcome,
+        outcomeReason: battles.outcomeReason,
+        status: battles.status,
+        title: battles.title,
+      })
+      .from(battles)
+      .where(
+        or(eq(battles.id, battleId), eq(battles.externalBattleId, battleId))
+      )
+      .limit(1);
+
+  if (!battle) {
+    return { skipped: true };
+  }
+
+  const alreadyFinalized =
+    (battle.status === "completed" || battle.status === "archived") &&
+    !(
+      battle.outcome === "canceled" &&
+      battle.outcomeReason === "artist_unavailable"
+    );
+  if (alreadyFinalized) {
+    return { skipped: false };
+  }
+
+  const finishedAt = new Date(recordedAt),
+    artistUserIds = [
+      battle.challengerArtistUserId,
+      battle.opponentArtistUserId,
+    ].filter((userId): userId is string => Boolean(userId)),
+    recipients = [
+      ...new Set([...(audienceUserIds ?? []), ...artistUserIds]),
+    ].filter((userId) => userId !== "anonymous");
+
+  await Promise.all([
+    db
+      .update(battles)
+      .set({
+        endedAt: finishedAt,
+        isRanked: false,
+        outcome: "canceled",
+        outcomeReason: "artist_unavailable",
+        outcomeUserId: null,
+        status: "archived",
+        updatedAt: finishedAt,
+        winnerUserId: null,
+      })
+      .where(eq(battles.id, battle.id)),
+    db
+      .update(liveExperiences)
+      .set({
+        endsAt: finishedAt,
+        ingestStatus: "disconnected",
+        status: "ended",
+        updatedAt: finishedAt,
+      })
+      .where(eq(liveExperiences.battleId, battle.id)),
+    db
+      .update(battleQueueEntries)
+      .set({
+        completedAt: finishedAt,
+        leftAt: finishedAt,
+        status: "removed",
+        updatedAt: finishedAt,
+      })
+      .where(eq(battleQueueEntries.battleId, battle.id)),
+  ]);
+
+  if (artistUserIds.length > 0) {
+    await db
+      .insert(battleParticipations)
+      .values(
+        artistUserIds.map((userId) => ({
+          battleId: battle.id,
+          id: crypto.randomUUID(),
+          isRanked: false,
+          result: "canceled" as const,
+          roundsPlayed: 0,
+          roundsWon: 0,
+          userId,
+        }))
+      )
+      .onConflictDoUpdate({
+        set: {
+          isRanked: false,
+          result: "canceled",
+          roundsPlayed: 0,
+          roundsWon: 0,
+          updatedAt: finishedAt,
+        },
+        target: [battleParticipations.battleId, battleParticipations.userId],
+      });
+  }
+
+  if (recipients.length > 0) {
+    await db
+      .insert(userNotifications)
+      .values(
+        recipients.map((userId) => ({
+          id: `battle_outcome:${battle.id}:${recordedAt}:${userId}`,
+          link: `/live/battles/${encodeURIComponent(battle.id)}`,
+          message: `${battle.title} was canceled because both artists did not arrive and become ready before the waiting-room deadline. No ratings were changed.`,
+          title: "Battle canceled",
+          type: "battle_outcome",
+          userId,
+        }))
+      )
+      .onConflictDoNothing();
+  }
+
+  return { battleId: battle.id, skipped: false };
+};
 
 type BattleServiceStatus = "ignored" | "processed";
 
@@ -138,12 +273,14 @@ const reminderEventTypes = new Set([
     return typeof payload.summary === "string" ? payload.summary : null;
   },
   applyBattleServiceEvent = async ({
+    battleDirectory,
     battleId,
     emailQueue,
     eventId,
     eventType,
     payload,
   }: {
+    battleDirectory?: AppEnv["Bindings"]["BATTLE_DIRECTORY"];
     battleId: string;
     emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
     eventId: string;
@@ -177,13 +314,21 @@ const reminderEventTypes = new Set([
     }
 
     if (liveEventTypes.has(eventType)) {
-      await createDb()
+      const [transitionedBattle] = await createDb()
         .update(battles)
         .set({
           status: "live",
           updatedAt: new Date(),
         })
-        .where(and(eq(battles.id, battle.id), eq(battles.status, "scheduled")));
+        .where(and(eq(battles.id, battle.id), eq(battles.status, "scheduled")))
+        .returning({ id: battles.id });
+
+      if (transitionedBattle && battleDirectory) {
+        await battleDirectory
+          .getByName("public")
+          .publish(transitionedBattle.id)
+          .catch(() => 0);
+      }
       await insertBattleNotifications({
         battleId: battle.id,
         eventId,
@@ -227,12 +372,14 @@ const reminderEventTypes = new Set([
   };
 
 export const processBattleServiceEvent = async ({
+  battleDirectory,
   battleId,
   emailQueue,
   eventId,
   eventType,
   payload,
 }: {
+  battleDirectory?: AppEnv["Bindings"]["BATTLE_DIRECTORY"];
   battleId: string;
   emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
   eventId: string;
@@ -280,6 +427,7 @@ export const processBattleServiceEvent = async ({
 
   try {
     const status = await applyBattleServiceEvent({
+      battleDirectory,
       battleId,
       emailQueue,
       eventId,
@@ -309,9 +457,11 @@ export const processBattleServiceEvent = async ({
 };
 
 export const runBattleServiceSweep = async ({
+  battleDirectory,
   emailQueue,
   now = new Date(),
 }: {
+  battleDirectory?: AppEnv["Bindings"]["BATTLE_DIRECTORY"];
   emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
   now?: Date;
 }) => {
@@ -397,6 +547,7 @@ export const runBattleServiceSweep = async ({
   for (const battle of reminderBattles) {
     const startsAt = battle.startsAt?.toISOString() ?? "unknown",
       outcome = await processBattleServiceEvent({
+        battleDirectory,
         battleId: battle.id,
         emailQueue,
         eventId: `scheduler:battle.reminder:${battle.id}:${startsAt}`,
@@ -417,6 +568,7 @@ export const runBattleServiceSweep = async ({
   for (const battle of liveBattles) {
     const startsAt = battle.startsAt?.toISOString() ?? "unknown",
       outcome = await processBattleServiceEvent({
+        battleDirectory,
         battleId: battle.id,
         emailQueue,
         eventId: `scheduler:battle.live:${battle.id}:${startsAt}`,
@@ -437,6 +589,7 @@ export const runBattleServiceSweep = async ({
   for (const battle of resultBattles) {
     const endedAt = battle.endedAt?.toISOString() ?? "unknown",
       outcome = await processBattleServiceEvent({
+        battleDirectory,
         battleId: battle.id,
         emailQueue,
         eventId: `scheduler:battle.results_ready:${battle.id}:${endedAt}`,

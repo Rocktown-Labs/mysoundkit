@@ -93,6 +93,21 @@ describe("live experience orchestration", () => {
     ).toBe("soundkit-battle-lobby-text");
   });
 
+  it("gives listening party hosts media controls while listeners stay media-free", () => {
+    expect(
+      resolveRealtimePreset({
+        kind: "party",
+        role: "host",
+      })
+    ).toBe("soundkit-party-host");
+    expect(
+      resolveRealtimePreset({
+        kind: "party",
+        role: "listener",
+      })
+    ).toBe("soundkit-party-listener");
+  });
+
   it("switches battling artists between live and muted presets", () => {
     expect(
       resolveRealtimePreset({

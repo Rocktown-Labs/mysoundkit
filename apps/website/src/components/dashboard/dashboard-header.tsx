@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { authClient } from "@/lib/auth-client";
 import {
   useDbNotificationActions,
   useDbNotificationUnreadCount,
@@ -82,6 +83,16 @@ function SemanticResultLink({
 }
 
 export function DashboardHeader() {
+  const { data: session, isPending } = authClient.useSession();
+
+  if (isPending || !session) {
+    return <div className="h-16 border-b bg-background" />;
+  }
+
+  return <DashboardHeaderContent />;
+}
+
+function DashboardHeaderContent() {
   const [searchValue, setSearchValue] = useState(""),
     [debouncedSearchValue, setDebouncedSearchValue] = useState(""),
     searchInputRef = useRef<HTMLInputElement>(null),
@@ -377,7 +388,7 @@ export function DashboardHeader() {
                               className="flex min-w-[180px] snap-start items-center gap-3 rounded-md border bg-card px-3 py-2 text-sm transition-colors hover:bg-primary/10 hover:border-primary/20"
                               key={`project-${project.id}`}
                               onClick={() => setSearchValue("")}
-                              params={{ id: project.id }}
+                              params={{ id: project.slug || project.id }}
                               to="/projects/$id"
                             >
                               {project.coverArtUrl ? (
@@ -410,7 +421,7 @@ export function DashboardHeader() {
                             className={resultLinkClassName}
                             key={`project-${project.id}`}
                             onClick={() => setSearchValue("")}
-                            params={{ id: project.id }}
+                            params={{ id: project.slug || project.id }}
                             to="/projects/$id"
                           >
                             {project.coverArtUrl ? (
@@ -462,7 +473,12 @@ export function DashboardHeader() {
       <div className="flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button className="relative" size="icon" variant="ghost">
+            <Button
+              aria-label="Notifications"
+              className="relative"
+              size="icon"
+              variant="ghost"
+            >
               <Bell className="size-5" />
               {unreadCount > 0 ? (
                 <Badge className="absolute -top-1 -right-1 flex size-5 items-center justify-center bg-primary p-0 text-primary-foreground text-xs">

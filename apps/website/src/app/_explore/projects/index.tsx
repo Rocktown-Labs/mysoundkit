@@ -2,19 +2,22 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, no-unused-vars */
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Disc, Play, Search, ShoppingBag } from "lucide-react";
+import { Disc, Search, ShoppingBag } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
 import { ExploreCollectionGrid } from "@/components/explore/explore-collection";
-import { AppImage } from "@/components/ui/app-image";
-import { Badge } from "@/components/ui/badge";
+import { ProjectCard } from "@/components/explore/project-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { musicGenres } from "@/lib/music-genres";
-import { usePublicProjectsQuery } from "@/lib/soundkit-api-hooks";
-import type { PublicProjectSummary } from "@/lib/soundkit-api-hooks";
+import {
+  useGenresQuery,
+  usePublicProjectsQuery,
+} from "@/lib/soundkit-api-hooks";
+import type {
+  GenreSummary,
+  PublicProjectSummary,
+} from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
     { label: "Newest Releases", value: "date-desc" },
@@ -88,6 +91,8 @@ function ExploreProjectsPage() {
     q = search.q ?? "",
     { type } = search,
     view = search.view ?? "sections",
+    genresQuery = useGenresQuery(),
+    genres = genresQuery.data ?? [],
     isFilteredView = Boolean(type || forSale || q || genre !== "all"),
     updateFilters = (next: ProjectFilterUpdate) => {
       const nextRegionType = next.regionType ?? regionType,
@@ -225,10 +230,10 @@ function ExploreProjectsPage() {
 
       {view !== "all" && !isFilteredView ? (
         <div className="flex flex-col gap-10">
-          {musicGenres.map((sectionGenre) => (
+          {genres.map((sectionGenre) => (
             <ProjectGenreRail
               forSale={forSale}
-              key={sectionGenre.value}
+              key={sectionGenre.slug}
               q={q}
               region={region}
               regionType={regionType}
@@ -256,13 +261,13 @@ function ProjectGenreRail({
   q: string;
   region: string;
   regionType: "global" | "north-america";
-  sectionGenre: (typeof musicGenres)[number];
+  sectionGenre: GenreSummary;
   sort: string;
   type?: "album" | "ep" | "mixtape";
 }) {
   const { data: projects = [], isLoading } = usePublicProjectsQuery({
     forSale: forSale || undefined,
-    genre: sectionGenre.value,
+    genre: sectionGenre.slug,
     limit: 12,
     q: q || undefined,
     region,
@@ -273,15 +278,16 @@ function ProjectGenreRail({
 
   return (
     <ProjectRail
-      empty={`No ${sectionGenre.label} projects are live yet.`}
+      empty={`No ${sectionGenre.name} projects are live yet.`}
       forSale={forSale}
-      genre={sectionGenre.value}
+      genre={sectionGenre.slug}
+      hideWhenEmpty
       isLoading={isLoading}
       projects={projects}
       region={region}
       regionType={regionType}
       sort={sort}
-      title={sectionGenre.label}
+      title={sectionGenre.name}
       type={type}
     />
   );
@@ -291,6 +297,7 @@ function ProjectRail({
   empty,
   forSale,
   genre,
+  hideWhenEmpty = false,
   isLoading,
   projects,
   region,
@@ -302,6 +309,7 @@ function ProjectRail({
   empty: string;
   forSale: boolean;
   genre: string;
+  hideWhenEmpty?: boolean;
   isLoading: boolean;
   projects: PublicProjectSummary[];
   region: string;
@@ -310,6 +318,10 @@ function ProjectRail({
   title: string;
   type?: "album" | "ep" | "mixtape";
 }) {
+  if (hideWhenEmpty && !isLoading && projects.length === 0) {
+    return null;
+  }
+
   return (
     <section className="mb-10">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -342,7 +354,12 @@ function ProjectRail({
       {isLoading || projects.length > 0 ? (
         <div className="flex gap-4 overflow-x-auto pb-2">
           {projects.slice(0, 12).map((project) => (
-            <ProjectCard key={project.id} project={project} />
+            <div
+              className="w-[140px] shrink-0 sm:w-[160px] md:w-[180px] lg:w-[200px] xl:w-[220px]"
+              key={project.id}
+            >
+              <ProjectCard project={project} />
+            </div>
           ))}
         </div>
       ) : (
@@ -376,62 +393,6 @@ function ProjectGridSection({
         <ProjectEmptyState>{empty}</ProjectEmptyState>
       )}
     </section>
-  );
-}
-
-function ProjectCard({ project }: { project: PublicProjectSummary }) {
-  return (
-    <Card className="group w-full overflow-hidden border-border/40 bg-card/60 transition-colors hover:border-primary/50">
-      <div className="relative aspect-square w-full overflow-hidden bg-muted">
-        {project.coverArtUrl ? (
-          <AppImage
-            alt={project.title}
-            className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
-            src={project.coverArtUrl}
-          />
-        ) : (
-          <div className="flex size-full items-center justify-center bg-accent/40 text-muted-foreground">
-            <Disc className="size-14 opacity-40" />
-          </div>
-        )}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/35 opacity-0 transition-opacity group-hover:opacity-100">
-          <Button asChild className="rounded-full shadow-lg" size="icon">
-            <Link params={{ id: project.id }} to="/projects/$id">
-              <Play className="ml-0.5 size-5 fill-current" />
-            </Link>
-          </Button>
-        </div>
-        <div className="absolute top-2 left-2 flex gap-1">
-          <Badge
-            className="text-[10px] uppercase tracking-wide"
-            variant="secondary"
-          >
-            {project.projectType}
-          </Badge>
-          {project.isForSale && (
-            <Badge className="text-[10px]" variant="outline">
-              For Sale
-            </Badge>
-          )}
-        </div>
-      </div>
-      <CardContent className="p-4">
-        <Link
-          className="line-clamp-1 font-semibold transition-colors group-hover:text-primary"
-          params={{ id: project.id }}
-          to="/projects/$id"
-        >
-          {project.title}
-        </Link>
-        <p className="mt-1 line-clamp-1 text-muted-foreground text-sm">
-          {project.genre ?? "Mixed genre"}
-        </p>
-        <div className="mt-2 flex items-center justify-between text-muted-foreground text-xs">
-          <span>{project.trackCount} tracks</span>
-          <span>{project.duration ?? "0:00"}</span>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

@@ -5,12 +5,13 @@ import {
   artistFollows,
   genres,
   listeningParties,
+  liveExperiences,
   playlists,
   projects,
   userFollows,
   userProfiles,
 } from "@soundkit/db/schema/app";
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, or } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -22,8 +23,13 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
+import { buildLiveExperienceInsert } from "@/lib/live-experience-events";
 import { notify } from "@/lib/notifications";
 import { profileRegionCondition } from "@/lib/public-explore";
+import {
+  createRealtimeMeeting,
+  realtimeSetupRequired,
+} from "@/lib/realtimekit";
 import {
   createListeningPartyBodySchema,
   listeningPartySummarySchema,
@@ -97,7 +103,13 @@ app.openapi(
         )
         .where(
           and(
-            gte(listeningParties.scheduledStartAt, new Date()),
+            or(
+              eq(listeningParties.status, "live"),
+              and(
+                eq(listeningParties.status, "scheduled"),
+                gte(listeningParties.scheduledStartAt, new Date())
+              )
+            ),
             regionCondition
           )
         )
@@ -223,6 +235,10 @@ app.openapi(
         messageResponseSchema,
         "Project not found"
       ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "RealtimeKit unavailable"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
         "Authentication required"
@@ -246,25 +262,26 @@ app.openapi(
 
     const body = c.req.valid("json"),
       session = c.get("session"),
-      entitlements = await resolveEntitlements({
-        session: isAuthenticatedSession(session) ? session : null,
-        user,
-      });
-    if (!entitlements.isPremium) {
-      return c.json(
-        forbiddenMessage("SoundKit Premium is required to host a party."),
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
-
-    const db = createDb(),
+      db = createDb(),
       [profile] = await db
         .select({ accountType: userProfiles.accountType })
         .from(userProfiles)
         .where(eq(userProfiles.userId, user.id))
         .limit(1),
       accountType = profile?.accountType ?? "fan",
-      [project] = body.projectId
+      entitlements = await resolveEntitlements({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
+    if (!(entitlements.isPremium || accountType === "artist")) {
+      return c.json(
+        forbiddenMessage(
+          "SoundKit Premium or an artist account is required to host a party."
+        ),
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+    const [project] = body.projectId
         ? await db
             .select()
             .from(projects)
@@ -312,6 +329,17 @@ app.openapi(
       );
     }
 
+    let meeting;
+    try {
+      meeting = await createRealtimeMeeting({
+        env: c.env,
+        kind: "party",
+        title: body.title.trim(),
+      });
+    } catch {
+      return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
+    }
+
     const playbackMode =
         accountType === "artist" ? "programmed_release" : "artist_hosted",
       sessionForWorkspace = c.get("session"),
@@ -321,26 +349,50 @@ app.openapi(
           : null,
         user,
       }),
-      [party] = await db
-        .insert(listeningParties)
-        .values({
-          description: body.description ?? null,
-          genreId: await resolveGenreId(body.genre),
-          hostUserId: user.id,
-          id: crypto.randomUUID(),
-          liveRoomId: crypto.randomUUID(),
-          organizationId,
-          playbackMode,
-          playlistId: body.playlistId ?? null,
-          projectId: body.projectId ?? null,
-          scheduledStartAt,
-          title: body.title,
-        })
-        .returning();
+      genreId = await resolveGenreId(body.genre),
+      liveRoomId = crypto.randomUUID(),
+      party = await db.transaction(async (tx) => {
+        const [createdParty] = await tx
+          .insert(listeningParties)
+          .values({
+            description: body.description ?? null,
+            genreId,
+            hostUserId: user.id,
+            id: crypto.randomUUID(),
+            liveRoomId,
+            organizationId,
+            playbackMode,
+            playlistId: body.playlistId ?? null,
+            projectId: body.projectId ?? null,
+            scheduledStartAt,
+            title: body.title,
+          })
+          .returning();
 
-    if (!party) {
-      throw new Error("Failed to create listening party.");
-    }
+        if (!createdParty) {
+          throw new Error("Failed to create listening party.");
+        }
+
+        await tx.insert(liveExperiences).values(
+          buildLiveExperienceInsert({
+            battleId: null,
+            battleKitId: null,
+            createdByUserId: user.id,
+            genre: body.genre,
+            id: liveRoomId,
+            kind: "party",
+            meetingId: meeting.id,
+            playlistId: body.playlistId,
+            projectId: body.projectId,
+            source: "playlist",
+            startsAt: scheduledStartAt.toISOString(),
+            title: body.title.trim(),
+            visibility: "public",
+          })
+        );
+
+        return createdParty;
+      });
 
     const [artistFollowers, profileFollowers] = await Promise.all([
         db

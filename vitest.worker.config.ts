@@ -23,6 +23,7 @@ export default defineConfig({
         },
         compatibilityDate: "2026-04-12",
         compatibilityFlags: ["nodejs_compat"],
+        durableObjects: { PRESENCE: "PresenceDurableObject" },
       },
     }),
   ],

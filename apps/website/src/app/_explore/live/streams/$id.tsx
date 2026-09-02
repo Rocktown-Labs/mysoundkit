@@ -11,7 +11,9 @@ import { LiveCreatorPanel } from "@/components/live/live-creator-panel";
 import {
   LiveChatPanel,
   LiveLyricsPanel,
+  LiveNowPlayingCard,
 } from "@/components/live/live-room-panels";
+import { LiveTipButton } from "@/components/live/live-tip-button";
 import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
 import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { AppImage } from "@/components/ui/app-image";
@@ -19,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { API_V1_URL } from "@/lib/api";
 import { useLiveRoom } from "@/lib/live-room";
+import { genreLabelFromValue } from "@/lib/music-genres";
 import { useArtistQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/live/streams/$id")({
@@ -48,6 +51,7 @@ function StreamDetailPage() {
           creatorAvatar: string | null;
           creatorBio?: string | null;
           creatorName: string | null;
+          creatorUserId: string;
           creatorUsername?: string | null;
           genre: string | null;
           id: string;
@@ -80,6 +84,7 @@ function StreamDetailPage() {
     currentTrack = room?.tracklist.find(
       (track) => track.id === room.currentTrackId
     ),
+    nowPlaying = room?.stream?.nowPlaying ?? null,
     rawCreatorUsername =
       experience?.creatorUsername ??
       (experience?.creatorName ?? room?.hostName ?? "")
@@ -218,7 +223,7 @@ function StreamDetailPage() {
           </Badge>
           {experience?.genre ? (
             <Badge className="bg-black/60 backdrop-blur-md" variant="outline">
-              {experience.genre}
+              {genreLabelFromValue(experience.genre)}
             </Badge>
           ) : null}
         </div>
@@ -261,6 +266,19 @@ function StreamDetailPage() {
           }}
           genre={experience?.genre}
           isLive={isLive}
+          nowPlaying={<LiveNowPlayingCard compact track={nowPlaying} />}
+          tipButton={
+            experience?.creatorUserId ? (
+              <LiveTipButton
+                isLive={isLive}
+                kind="stream"
+                liveExperienceId={id}
+                recipients={[
+                  { id: experience.creatorUserId, name: creatorName },
+                ]}
+              />
+            ) : null
+          }
           title={room.title}
           viewerCount={experience?.viewerCount ?? room.viewerCount}
         />

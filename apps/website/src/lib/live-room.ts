@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
 import { API_BASE_URL, API_V1_URL } from "./api";
 
@@ -11,8 +11,18 @@ export type LiveRoomViewerRole =
   | "fan"
   | "host";
 
+export interface LiveRoomChatEntity {
+  artistName: string;
+  href: string | null;
+  id: string;
+  title: string;
+  type: "track";
+}
+
 export interface LiveRoomChatMessage {
+  avatarUrl?: string | null;
   chatScope?: "battle" | "waiting_room";
+  entity?: LiveRoomChatEntity;
   id: string;
   message: string;
   sentAt: string;
@@ -31,6 +41,7 @@ export interface LiveRoomTrack {
   artistName: string;
   coverArtUrl: string;
   durationMs: number;
+  href?: string | null;
   id: string;
   lyrics: LiveRoomLyricsLine[];
   status: "played" | "playing" | "queued";
@@ -42,6 +53,7 @@ export interface LiveRoomArtist {
   id: string;
   isMuted: boolean;
   name: string;
+  rank?: number | string | null;
   roundsWon: number;
   stagePosition: "left" | "right";
   verified: boolean;
@@ -71,6 +83,7 @@ export interface LiveRoomState {
     chatStarted?: boolean;
     coordination?: {
       activeArtistUserId: string | null;
+      artistPresentUserIds?: string[];
       artistReadyUserIds?: string[];
       battleId: string;
       format: "best_of_3" | "best_of_5" | "best_of_7";
@@ -81,6 +94,7 @@ export interface LiveRoomState {
       winnerUserId: string | null;
     };
     currentRoundId: string;
+    hasPlayedTurn?: boolean;
     outcome?: {
       affectedUserId?: string | null;
       kind: "canceled" | "ducked" | "forfeited" | "quit";
@@ -89,6 +103,8 @@ export interface LiveRoomState {
     };
     phase?: string;
     queueSize?: number;
+    replayStatus?: "available" | "none" | "processing";
+    replayVideoId?: string | null;
     viewerQueueStatus?: "admitted" | "queued" | "waiting" | null;
     waitingRoomCount?: number;
     rounds: LiveBattleRound[];
@@ -97,6 +113,7 @@ export interface LiveRoomState {
   party?: {
     playback: {
       hostMode: "off_camera" | "on_camera";
+      mediaAvailable?: boolean;
       hostUserId: string;
       playbackState: "paused" | "playing";
       positionMs: number;
@@ -116,6 +133,7 @@ export interface LiveRoomState {
   serverNow?: number;
   status: "ended" | "live" | "upcoming";
   stream?: {
+    botEnabled?: boolean;
     errorCode?: string | null;
     errorMessage?: string | null;
     ingestStatus:
@@ -125,6 +143,7 @@ export interface LiveRoomState {
       | "idle"
       | "reconnecting";
     reconnectUntil?: number | null;
+    nowPlaying?: LiveRoomTrack | null;
     replayStatus: "available" | "none" | "processing";
   };
   summary: string;
@@ -133,8 +152,12 @@ export interface LiveRoomState {
   viewerCount: number;
 }
 
-const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
-  sortChatMessages = (messages: LiveRoomChatMessage[]) =>
+export const liveRoomKey = (roomId: string, overlayToken?: string) =>
+  overlayToken
+    ? (["live", "rooms", roomId, "overlay"] as const)
+    : (["live", "rooms", roomId] as const);
+
+const sortChatMessages = (messages: LiveRoomChatMessage[]) =>
     [...messages].sort((left, right) => {
       const leftTime = Date.parse(left.sentAt),
         rightTime = Date.parse(right.sentAt);
@@ -156,9 +179,21 @@ const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
             : sortChatMessages([...room.chat, message]).slice(-80),
         }
       : room,
-  fetchLiveRoom = async (roomId: string): Promise<LiveRoomState> => {
-    const response = await fetch(`${API_V1_URL}/live/rooms/${roomId}`, {
+  fetchLiveRoom = async (
+    roomId: string,
+    signal?: AbortSignal,
+    overlayToken?: string
+  ): Promise<LiveRoomState> => {
+    const url = new URL(
+      `${API_V1_URL}/live/rooms/${encodeURIComponent(roomId)}${overlayToken ? "/overlay" : ""}`
+    );
+    if (overlayToken) {
+      url.searchParams.set("token", overlayToken);
+    }
+
+    const response = await fetch(url, {
       credentials: "include",
+      signal,
     });
 
     if (!response.ok) {
@@ -199,8 +234,13 @@ const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
 
     return response.json() as Promise<LiveRoomChatResult | LiveRoomState>;
   },
-  wsUrlForRoom = (roomId: string) => {
-    const url = new URL(`${API_BASE_URL}/v1/live/rooms/${roomId}/ws`);
+  wsUrlForRoom = (roomId: string, overlayToken?: string) => {
+    const url = new URL(
+      `${API_BASE_URL}/v1/live/rooms/${encodeURIComponent(roomId)}/ws`
+    );
+    if (overlayToken) {
+      url.searchParams.set("token", overlayToken);
+    }
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     return url.toString();
   };
@@ -213,16 +253,27 @@ interface LiveRoomChatResult {
   room: LiveRoomState;
 }
 
-export const useLiveRoom = (roomId: string) => {
-  const queryClient = useQueryClient(),
+export interface LiveRoomOptions {
+  overlayToken?: string;
+}
+
+export const useLiveRoom = (
+  roomId: string,
+  { overlayToken }: LiveRoomOptions = {}
+) => {
+  const roomQueryKey = useMemo(
+      () => liveRoomKey(roomId, overlayToken),
+      [overlayToken, roomId]
+    ),
+    queryClient = useQueryClient(),
     invalidateBattleQueries = () => {
       void queryClient.invalidateQueries({ queryKey: ["battles"] });
       void queryClient.invalidateQueries({ queryKey: ["soundkit-db"] });
     },
     query = useQuery({
       enabled: Boolean(roomId),
-      queryFn: () => fetchLiveRoom(roomId),
-      queryKey: liveRoomKey(roomId),
+      queryFn: ({ signal }) => fetchLiveRoom(roomId, signal, overlayToken),
+      queryKey: roomQueryKey,
       refetchInterval: 30_000,
       retry: false,
     });
@@ -232,28 +283,121 @@ export const useLiveRoom = (roomId: string) => {
       return;
     }
 
-    const socket = new WebSocket(wsUrlForRoom(roomId));
-
-    socket.addEventListener("message", (event) => {
-      const payload = JSON.parse(String(event.data)) as {
-        message?: LiveRoomChatMessage;
-        room?: LiveRoomState;
-        type?: string;
-      };
-
-      if (payload.type === "state" && payload.room) {
-        queryClient.setQueryData(liveRoomKey(roomId), payload.room);
-      } else if (payload.type === "chat" && payload.message) {
-        queryClient.setQueryData<LiveRoomState | undefined>(
-          liveRoomKey(roomId),
-          (room) =>
-            appendChatMessage(room, payload.message as LiveRoomChatMessage)
-        );
+    let reconnectAttempt = 0,
+      reconnectTimer: ReturnType<typeof setTimeout> | null = null,
+      socket: WebSocket | null = null,
+      stopped = false;
+    const connect = () => {
+      if (stopped || socket || reconnectTimer) {
+        return;
       }
-    });
 
-    return () => socket.close();
-  }, [queryClient, roomId]);
+      try {
+        const currentSocket = new WebSocket(wsUrlForRoom(roomId, overlayToken));
+        socket = currentSocket;
+        currentSocket.addEventListener("open", () => {
+          if (socket !== currentSocket) {
+            return;
+          }
+          reconnectAttempt = 0;
+          void queryClient.invalidateQueries({
+            queryKey: roomQueryKey,
+          });
+        });
+        currentSocket.addEventListener("message", (event) => {
+          try {
+            const payload = JSON.parse(String(event.data)) as {
+              message?: LiveRoomChatMessage;
+              playback?: NonNullable<LiveRoomState["party"]>["playback"];
+              room?: LiveRoomState;
+              type?: string;
+            };
+
+            if (payload.type === "state" && payload.room) {
+              queryClient.setQueryData(roomQueryKey, payload.room);
+            } else if (payload.type === "chat" && payload.message) {
+              queryClient.setQueryData<LiveRoomState | undefined>(
+                roomQueryKey,
+                (room) =>
+                  appendChatMessage(
+                    room,
+                    payload.message as LiveRoomChatMessage
+                  )
+              );
+            } else if (
+              payload.type === "party.playback_changed" &&
+              payload.playback
+            ) {
+              const { playback } = payload;
+              queryClient.setQueryData<LiveRoomState | undefined>(
+                roomQueryKey,
+                (room) =>
+                  room && room.party
+                    ? {
+                        ...room,
+                        currentTrackId: playback.trackId ?? room.currentTrackId,
+                        party: { playback },
+                      }
+                    : room
+              );
+            }
+          } catch {
+            // Ignore malformed realtime payloads; the HTTP query remains the
+            // authoritative recovery path.
+          }
+        });
+        currentSocket.addEventListener("error", () => {
+          // The close event owns reconnect scheduling. Closing here causes
+          // noisy “closed before connection” errors during failed handshakes.
+        });
+        currentSocket.addEventListener("close", () => {
+          if (socket !== currentSocket) {
+            return;
+          }
+          socket = null;
+          if (stopped) {
+            return;
+          }
+          const delay = Math.min(
+            30_000,
+            1000 * 2 ** reconnectAttempt + Math.floor(Math.random() * 500)
+          );
+          reconnectAttempt += 1;
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            connect();
+          }, delay);
+        });
+      } catch {
+        socket = null;
+        if (!stopped) {
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            connect();
+          }, 1000);
+        }
+      }
+    };
+
+    connect();
+
+    return () => {
+      stopped = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+      reconnectTimer = null;
+      const currentSocket = socket;
+      socket = null;
+      if (
+        currentSocket &&
+        (currentSocket.readyState === WebSocket.CONNECTING ||
+          currentSocket.readyState === WebSocket.OPEN)
+      ) {
+        currentSocket.close(1000, "Live room client is leaving");
+      }
+    };
+  }, [overlayToken, queryClient, roomId, roomQueryKey]);
 
   const chatMutation = useMutation({
       mutationFn: (body: { message: string; userName?: string }) =>

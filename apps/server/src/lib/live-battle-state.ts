@@ -69,6 +69,7 @@ export const PRODUCTION_BATTLE_DURATIONS: BattleDurations = {
 export interface BattleCoordination {
   activeArtistUserId: string | null;
   admissionBatchSize?: number;
+  artistPresentUserIds?: string[];
   artistReadyUserIds?: string[];
   admittedUserIds?: string[];
   battleId: string;
@@ -112,6 +113,56 @@ export const isTiebreakerPhase = (phase: BattlePhase) =>
 
 export const isVotingPhase = (phase: BattlePhase) =>
   phase === "voting" || phase === "tiebreaker_voting";
+
+export const battleArtistsAreReady = (
+  battle: BattleStateHost["battle"],
+  coordination: BattleCoordination
+) => {
+  const readyUserIds = coordination.artistReadyUserIds ?? [];
+  return battle.artists.every((artist) => readyUserIds.includes(artist.id));
+};
+
+export const battleArtistsArePresent = (
+  battle: BattleStateHost["battle"],
+  coordination: BattleCoordination
+) => {
+  const presentUserIds = coordination.artistPresentUserIds;
+  return presentUserIds === undefined
+    ? true
+    : battle.artists.every((artist) => presentUserIds.includes(artist.id));
+};
+
+export const cancelBattleForNoShow = (
+  host: BattleStateHost,
+  recordedAt: number
+): BattleStateHost => ({
+  ...host,
+  coordination: {
+    ...host.coordination,
+    activeArtistUserId: null,
+    outcome: {
+      affectedUserId: null,
+      kind: "canceled",
+      reason: "artist_unavailable",
+      recordedAt,
+    },
+    phase: "ended",
+    phaseEndsAt: null,
+    winnerUserId: null,
+  },
+});
+
+export const isBattleTerminalState = ({
+  phase,
+  status,
+}: {
+  phase?: BattlePhase | null;
+  status?: string | null;
+}) =>
+  phase === "ended" ||
+  status === "ended" ||
+  status === "completed" ||
+  status === "archived";
 
 export const phaseDuration = (
   phase: BattlePhase,
@@ -211,7 +262,9 @@ export const createBattleCoordination = ({
   phase:
     scheduledStartAt && scheduledStartAt > now ? "scheduled" : "waiting_room",
   phaseEndsAt:
-    scheduledStartAt && scheduledStartAt > now ? scheduledStartAt : null,
+    scheduledStartAt && scheduledStartAt > now
+      ? scheduledStartAt
+      : now + durations.waitingRoomMs,
   phaseStartedAt: now,
   queuedUserIds: [],
   removedUserIds: [],
@@ -334,15 +387,13 @@ export const transitionBattle = (
   }
 
   const [artistA, artistB] = battle.artists,
-    bothArtistsReady =
-      (coordination.artistReadyUserIds ?? []).every(
-        (userId) => userId === artistA.id || userId === artistB.id
-      ) &&
-      [artistA.id, artistB.id].every((userId) =>
-        (coordination.artistReadyUserIds ?? []).includes(userId)
-      );
-  if (coordination.phase === "waiting_room" && !bothArtistsReady) {
-    return host;
+    bothArtistsReady = battleArtistsAreReady(battle, coordination),
+    bothArtistsPresent = battleArtistsArePresent(battle, coordination);
+  if (
+    coordination.phase === "waiting_room" &&
+    (!bothArtistsReady || !bothArtistsPresent)
+  ) {
+    return cancelBattleForNoShow(host, now);
   }
 
   const currentRound = battle.rounds.find(
@@ -358,8 +409,8 @@ export const transitionBattle = (
   if (phase === "scheduled") {
     nextPhase = "waiting_room";
   } else if (phase === "waiting_room") {
-    if (!bothArtistsReady) {
-      return host;
+    if (!bothArtistsReady || !bothArtistsPresent) {
+      return cancelBattleForNoShow(host, now);
     }
     nextPhase = "round_intro";
   } else if (phase === "round_intro") {
@@ -473,10 +524,7 @@ export const transitionBattle = (
         : shouldAdmitBatch
           ? [...admittedUsers, ...admittedBatch]
           : admittedUsers,
-    nextDuration =
-      nextPhase === "waiting_room"
-        ? null
-        : phaseDuration(nextPhase, coordination.durations),
+    nextDuration = phaseDuration(nextPhase, coordination.durations),
     nextStartedAt = coordination.phaseEndsAt,
     nextCoordination: BattleCoordination = {
       ...coordination,

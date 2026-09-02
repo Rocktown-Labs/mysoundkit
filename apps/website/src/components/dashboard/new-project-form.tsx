@@ -94,7 +94,14 @@ import {
   TRACK_SOURCE_UPLOAD_URL,
 } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import {
+  COLLABORATOR_CREDIT_ROLES,
+  DEFAULT_COLLABORATOR_CREDIT_ROLE,
+  isCollaboratorCreditRole,
+} from "@/lib/collaborator-credits";
+import type { CollaboratorCreditRole } from "@/lib/collaborator-credits";
 import { readAudioDurationMs } from "@/lib/media-duration";
+import { projectCoverFile } from "@/lib/project-cover";
 import {
   soundkitQueryKeys,
   useGenresQuery,
@@ -105,12 +112,11 @@ import {
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@/lib/zod-resolver";
 
-const collaboratorRoles = ["songwriter", "producer"] as const;
+const collaboratorRoles = COLLABORATOR_CREDIT_ROLES;
 
-type CollaboratorRole = (typeof collaboratorRoles)[number];
+type CollaboratorRole = CollaboratorCreditRole;
 
-const isCollaboratorRole = (value: string): value is CollaboratorRole =>
-    collaboratorRoles.includes(value as CollaboratorRole),
+const isCollaboratorRole = isCollaboratorCreditRole,
   collaboratorSchema = z.preprocess(
     (value) => {
       if (!(value && typeof value === "object")) {
@@ -123,13 +129,19 @@ const isCollaboratorRole = (value: string): value is CollaboratorRole =>
         ...collaborator,
         displayName:
           collaborator.displayName ?? collaborator.name ?? collaborator.email,
-        role: collaborator.role === "producer" ? "producer" : "songwriter",
+        role:
+          collaborator.role === "producer"
+            ? "producer"
+            : collaborator.role === "artist"
+              ? "artist"
+              : "songwriter",
       };
     },
     z.object({
+      alsoCreditAsWriter: z.boolean().optional(),
       displayName: z.string().min(1, "Name is required"),
       inviteEmail: z.string().optional(),
-      role: z.enum(["songwriter", "producer"]).default("songwriter"),
+      role: z.enum(collaboratorRoles).default("artist"),
       userId: z.string().optional(),
     })
   ),
@@ -356,8 +368,10 @@ export function NewProjectForm({
     [step, setStep] = useState("identity"),
     [isSubmittingProject, setIsSubmittingProject] = useState(false),
     [collaboratorQuery, setCollaboratorQuery] = useState(""),
-    [collaboratorRole, setCollaboratorRole] =
-      useState<CollaboratorRole>("songwriter"),
+    [collaboratorRole, setCollaboratorRole] = useState<CollaboratorRole>(
+      DEFAULT_COLLABORATOR_CREDIT_ROLE
+    ),
+    [alsoCreditAsWriter, setAlsoCreditAsWriter] = useState(true),
     [projectCover, setProjectCover] = useState<{
       fileName: string;
       objectKey: string;
@@ -424,6 +438,7 @@ export function NewProjectForm({
 
     form.reset({
       collaborators: rawCollaborators.map((collaborator) => ({
+        alsoCreditAsWriter: collaborator.role === "artist" ? true : undefined,
         displayName:
           (collaborator.name as string) ||
           (collaborator.email as string) ||
@@ -432,7 +447,12 @@ export function NewProjectForm({
           (collaborator.email as string) ||
           (collaborator.inviteEmail as string) ||
           undefined,
-        role: collaborator.role === "producer" ? "producer" : "songwriter",
+        role:
+          collaborator.role === "producer"
+            ? "producer"
+            : collaborator.role === "artist"
+              ? "artist"
+              : "songwriter",
         userId: (collaborator.userId as string) || undefined,
       })),
       description: (initialProject.description as string) ?? "",
@@ -560,7 +580,10 @@ export function NewProjectForm({
           let coverKey = selectedCoverFile ? "" : values.projectCoverObjectKey;
 
           if (selectedCoverFile && !coverKey) {
-            coverKey = await uploadSelectedProjectCover(selectedCoverFile);
+            coverKey = await uploadSelectedProjectCover(
+              selectedCoverFile,
+              values.name
+            );
           }
 
           await updateProjectMutation.mutateAsync({
@@ -618,7 +641,10 @@ export function NewProjectForm({
       let coverKey = values.projectCoverObjectKey;
 
       if (selectedCoverFile && !coverKey) {
-        coverKey = await uploadSelectedProjectCover(selectedCoverFile);
+        coverKey = await uploadSelectedProjectCover(
+          selectedCoverFile,
+          values.name
+        );
       }
 
       if (!coverKey && releaseState.isListed) {
@@ -696,6 +722,7 @@ export function NewProjectForm({
               (collaborator) => collaborator.displayName
             ),
             collaborators: values.collaborators.map((collaborator) => ({
+              alsoCreditAsWriter: collaborator.alsoCreditAsWriter,
               inviteEmail: collaborator.inviteEmail,
               name: collaborator.displayName,
               role: collaborator.role,
@@ -924,8 +951,9 @@ export function NewProjectForm({
       },
       route: "track-source",
     }),
-    uploadSelectedProjectCover = async (file: File) => {
-      const result = await uploadCoverAsync([file]),
+    uploadSelectedProjectCover = async (file: File, projectTitle: string) => {
+      const namedCover = projectCoverFile(file, projectTitle),
+        result = await uploadCoverAsync([namedCover]),
         uploadedFile = result.files[0];
       if (!uploadedFile) {
         throw new Error(
@@ -988,6 +1016,7 @@ export function NewProjectForm({
       displayName: string;
       inviteEmail?: string;
       role: CollaboratorRole;
+      alsoCreditAsWriter?: boolean;
       userId?: string;
     }) => {
       if (!entry.displayName.trim()) {
@@ -1020,6 +1049,8 @@ export function NewProjectForm({
       }
 
       addCollaborator({
+        alsoCreditAsWriter:
+          collaboratorRole === "artist" ? alsoCreditAsWriter : undefined,
         displayName: query,
         inviteEmail: query.includes("@") ? query : undefined,
         role: collaboratorRole,
@@ -2190,6 +2221,7 @@ export function NewProjectForm({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="artist">Artist</SelectItem>
                         <SelectItem value="songwriter">Writer</SelectItem>
                         <SelectItem value="producer">Producer</SelectItem>
                       </SelectContent>
@@ -2215,6 +2247,18 @@ export function NewProjectForm({
                       Add New
                     </Button>
                   </div>
+                  {collaboratorRole === "artist" ? (
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <input
+                        checked={alsoCreditAsWriter}
+                        onChange={(event) =>
+                          setAlsoCreditAsWriter(event.target.checked)
+                        }
+                        type="checkbox"
+                      />
+                      Also credit this artist as a writer
+                    </label>
+                  ) : null}
                   {collaboratorQuery.trim().length >= 2 ? (
                     <div className="rounded-xl border border-border/40 bg-background/40 p-2 space-y-1">
                       {peopleSearch.isLoading ? (
@@ -2229,6 +2273,10 @@ export function NewProjectForm({
                           className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-emerald-500"
                           onClick={() =>
                             addCollaborator({
+                              alsoCreditAsWriter:
+                                collaboratorRole === "artist"
+                                  ? alsoCreditAsWriter
+                                  : undefined,
                               displayName:
                                 person.stageName ??
                                 person.displayName ??

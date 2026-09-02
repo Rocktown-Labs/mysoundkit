@@ -2,10 +2,21 @@
 import { once } from "node:events";
 import { createServer } from "node:http";
 
-const json = (response, status, body, origin) => {
+const normalizeGenre = (value) =>
+    value
+      ?.toLowerCase()
+      .replaceAll(/[^a-z0-9]+/gu, "-")
+      .replaceAll(/^-+|-+$/gu, "")
+      .replace(/^hip-hop-rap$/u, "hip-hop"),
+  getClientKey = (request) =>
+    request.headers["x-soundkit-test-id"] ??
+    request.headers["user-agent"] ??
+    "default",
+  json = (response, status, body, origin) => {
     response.writeHead(status, {
       "access-control-allow-credentials": "true",
-      "access-control-allow-headers": "content-type,cookie",
+      "access-control-allow-headers":
+        "content-type,cookie,x-soundkit-test-id,x-soundkit-fail-notification-action",
       "access-control-allow-origin": origin,
       "content-type": "application/json",
     });
@@ -22,13 +33,29 @@ const json = (response, status, body, origin) => {
       };
     }
 
-    if (session === "complete") {
+    if (
+      session === "complete" ||
+      session === "participant" ||
+      session === "setup-incomplete" ||
+      session === "setup-monetization-complete"
+    ) {
       return {
         accountType: "artist",
+        avatarUrl: "/summer-music-album-cover.webp",
         displayName: "Complete Artist",
         id: "user_complete",
         onboardingCompletedAt: "2026-05-24T12:00:00.000Z",
         username: "complete_artist",
+      };
+    }
+
+    if (session === "nonparticipant") {
+      return {
+        accountType: "artist",
+        displayName: "Other Artist",
+        id: "user_other_artist",
+        onboardingCompletedAt: "2026-05-24T12:00:00.000Z",
+        username: "other_artist",
       };
     }
 
@@ -54,10 +81,63 @@ const json = (response, status, body, origin) => {
 
     return null;
   },
+  mockConversations = [
+    {
+      conversationType: "direct",
+      id: "mock-conversation-rhythm",
+      participantAvatarUrl: "/soundkit-default-avatar.svg",
+      participantId: "artist-mc-rhythm",
+      participantName: "MC Rhythm",
+      participantUsername: "mc-rhythm",
+      title: "MC Rhythm",
+      unreadCount: 3,
+      updatedAt: "2026-05-26T12:03:00.000Z",
+    },
+  ],
+  mockMessages = [
+    {
+      attachments: [],
+      body: "Your latest verse is sounding great.",
+      createdAt: "2026-05-26T12:01:00.000Z",
+      id: "mock-message-1",
+      senderId: "artist-mc-rhythm",
+      status: "sent",
+    },
+    {
+      attachments: [],
+      body: "Let’s sync on the hook when you have a minute.",
+      createdAt: "2026-05-26T12:02:00.000Z",
+      id: "mock-message-2",
+      senderId: "artist-mc-rhythm",
+      status: "sent",
+    },
+    {
+      attachments: [],
+      body: "I left a third note in the thread.",
+      createdAt: "2026-05-26T12:03:00.000Z",
+      id: "mock-message-3",
+      senderId: "artist-mc-rhythm",
+      status: "sent",
+    },
+  ],
+  mockVideoComments = [
+    {
+      authorAvatarUrl: "/soundkit-default-avatar.svg",
+      authorName: "MusicFan99",
+      authorUsername: "musicfan99",
+      body: "Incredible production quality!",
+      createdAt: "2026-05-26T12:00:00.000Z",
+      id: "comment-1",
+      parentCommentId: null,
+      userId: "user_other_artist",
+    },
+  ],
   liveRoom = (roomId, session) => {
     const isBattle = roomId.includes("battle"),
       isStream = roomId.includes("stream"),
-      isWaitingArtistBattle = roomId === "battle-waiting-artist";
+      isParty = !isBattle && !isStream,
+      isWaitingArtistBattle = roomId === "battle-waiting-artist",
+      isEndedBattle = roomId === "battle-completed-result";
     let kind = "party",
       title = "Single Album Spotlight";
 
@@ -65,7 +145,9 @@ const json = (response, status, body, origin) => {
       kind = "battle";
       title = isWaitingArtistBattle
         ? "Artist Battle Waiting Room"
-        : "West Coast Showdown";
+        : isEndedBattle
+          ? "Completed Artist Battle"
+          : "Artist Battle - Hip-Hop";
     } else if (isStream) {
       kind = "stream";
       title = "Beat Making From The First Drum Hit";
@@ -98,7 +180,8 @@ const json = (response, status, body, origin) => {
       battle: isBattle
         ? {
             artistControls:
-              isWaitingArtistBattle && session === "complete"
+              isWaitingArtistBattle &&
+              (session === "complete" || session === "participant")
                 ? {
                     availableTrackIds: [],
                     currentTrackId: null,
@@ -110,9 +193,20 @@ const json = (response, status, body, origin) => {
             artists: [
               {
                 avatarUrl: "/soundkit-default-avatar.svg",
-                id: isWaitingArtistBattle ? "user_complete" : "artist-dj-nova",
+                id:
+                  isWaitingArtistBattle ||
+                  isEndedBattle ||
+                  session === "participant"
+                    ? "user_complete"
+                    : "artist-dj-nova",
                 isMuted: false,
-                name: isWaitingArtistBattle ? "Complete Artist" : "DJ Nova",
+                name:
+                  isWaitingArtistBattle ||
+                  isEndedBattle ||
+                  session === "participant"
+                    ? "Complete Artist"
+                    : "DJ Nova",
+                rank: 1,
                 roundsWon: 1,
                 stagePosition: "left",
                 verified: true,
@@ -122,11 +216,15 @@ const json = (response, status, body, origin) => {
                 id: "artist-mc-rhythm",
                 isMuted: true,
                 name: "MC Rhythm",
+                rank: 7,
                 roundsWon: 1,
                 stagePosition: "right",
                 verified: false,
               },
             ],
+            hasPlayedTurn: isBattle && !isWaitingArtistBattle && !isEndedBattle,
+            replayStatus: "none",
+            replayVideoId: null,
             coordination: isWaitingArtistBattle
               ? {
                   battleId: roomId,
@@ -136,7 +234,18 @@ const json = (response, status, body, origin) => {
                   phaseStartedAt: Date.now(),
                   roundNumber: 0,
                 }
-              : undefined,
+              : isEndedBattle
+                ? {
+                    activeArtistUserId: null,
+                    battleId: roomId,
+                    format: "best_of_3",
+                    phase: "ended",
+                    phaseEndsAt: null,
+                    phaseStartedAt: Date.now(),
+                    roundNumber: 1,
+                    winnerUserId: null,
+                  }
+                : undefined,
             currentRoundId: isWaitingArtistBattle ? "" : "round-1",
             rounds: isWaitingArtistBattle ? [] : [
               {
@@ -150,7 +259,7 @@ const json = (response, status, body, origin) => {
                 id: "round-1",
                 isTiebreaker: false,
                 number: 1,
-                status: "voting",
+                status: isEndedBattle ? "complete" : "voting",
                 voteTotals: { "artist-dj-nova": 12, "artist-mc-rhythm": 10 },
                 winnerArtistId: null,
               },
@@ -159,6 +268,29 @@ const json = (response, status, body, origin) => {
           }
         : undefined,
       chat: [
+        ...(isBattle
+          ? [
+              {
+                id: `${roomId}-bot-chat-1`,
+                message: isWaitingArtistBattle
+                  ? "The lobby is open. Waiting for both artists to check in and lock their Battle Kits."
+                  : isEndedBattle
+                    ? "The battle ended before the first turn. No result was recorded. The room is now read-only."
+                    : "The next round is ready.",
+                sentAt: "2026-05-26T11:59:00.000Z",
+                userId: "soundkit-battlebot",
+                userName: "BattleBot",
+              },
+              {
+                id: `${roomId}-artist-chat-1`,
+                message: "MC Rhythm is in the waiting room.",
+                sentAt: "2026-05-26T11:59:30.000Z",
+                userId: "artist-mc-rhythm",
+                userName: "MC Rhythm",
+                userRole: "artist_b",
+              },
+            ]
+          : []),
         {
           id: `${roomId}-chat-1`,
           message: "This room is synced.",
@@ -171,10 +303,35 @@ const json = (response, status, body, origin) => {
       hostName: isStream ? "Neon Pulse" : "Luna Eclipse",
       id: roomId,
       kind,
+      party: isParty
+        ? {
+            playback: {
+              hostMode: "off_camera",
+              hostUserId: "user_complete",
+              mediaAvailable: true,
+              playbackState: "playing",
+              positionMs: 0,
+              stateChangedAt: Date.now(),
+              trackId: track.id,
+              trackIndex: 0,
+            },
+          }
+        : undefined,
       role:
-        isWaitingArtistBattle && session === "complete" ? "artist_a" : "fan",
+        (isWaitingArtistBattle ||
+          isEndedBattle ||
+          (isBattle && session === "participant")) &&
+        (session === "complete" || session === "participant")
+          ? "artist_a"
+          : isParty && session === "complete"
+            ? "host"
+            : "fan",
       serverNow: Date.now(),
-      status: isWaitingArtistBattle ? "upcoming" : "live",
+      status: isWaitingArtistBattle
+        ? "upcoming"
+        : isEndedBattle
+          ? "ended"
+          : "live",
       summary: "A live room with chat, track context, and lyrics.",
       title,
       tracklist: [track],
@@ -185,10 +342,12 @@ const json = (response, status, body, origin) => {
     {
       artistName: "Luna Eclipse",
       artistUsername: "luna-eclipse",
+      catalogItemType: "single",
       coverArtUrl: "/summer-music-album-cover.webp",
       duration: "3:24",
       genre: "R&B/Soul",
       id: "track_summer_nights",
+      masterDownloadUrl: "/v1/tracks/track_summer_nights/master",
       isForSale: true,
       isPublic: true,
       plays: 2_400_000,
@@ -201,10 +360,12 @@ const json = (response, status, body, origin) => {
     {
       artistName: "Luna Eclipse",
       artistUsername: "luna-eclipse",
+      catalogItemType: "single",
       coverArtUrl: "/hip-hop-album-cover.webp",
       duration: "3:12",
       genre: "Hip-Hop",
       id: "track_city_lights",
+      masterDownloadUrl: "/v1/tracks/track_city_lights/master",
       isForSale: false,
       isPublic: true,
       plays: 1200,
@@ -217,10 +378,12 @@ const json = (response, status, body, origin) => {
     {
       artistName: "Luna Eclipse",
       artistUsername: "luna-eclipse",
+      catalogItemType: "beat",
       coverArtUrl: "/night-music-album-cover.webp",
       duration: "2:58",
       genre: "Hip-Hop",
       id: "track_after_hours",
+      masterDownloadUrl: "/v1/tracks/track_after_hours/master",
       isForSale: false,
       isPublic: true,
       plays: 980,
@@ -233,18 +396,38 @@ const json = (response, status, body, origin) => {
     {
       artistName: "Luna Eclipse",
       artistUsername: "luna-eclipse",
+      catalogItemType: "single",
       coverArtUrl: "/music-battle-video-thumbnail.jpg",
       duration: "4:01",
       genre: "Hip-Hop",
       id: "track_battle_ready",
       isForSale: false,
-      isPublic: true,
+      isPublic: false,
+      masterDownloadUrl: "/v1/tracks/track_battle_ready/master",
       plays: 750,
       price: "$0.00",
       priceCents: 0,
       releaseAt: null,
       releaseStrategy: "publish_when_ready",
       title: "Battle Ready",
+    },
+    {
+      artistName: "Luna Eclipse",
+      artistUsername: "luna-eclipse",
+      catalogItemType: "single",
+      coverArtUrl: "/summer-music-album-cover.webp",
+      duration: "3:36",
+      genre: "R&B/Soul",
+      id: "track_golden_hour",
+      isForSale: false,
+      isPublic: true,
+      masterDownloadUrl: "/v1/tracks/track_golden_hour/master",
+      plays: 640,
+      price: "$0.00",
+      priceCents: 0,
+      releaseAt: null,
+      releaseStrategy: "publish_when_ready",
+      title: "Golden Hour",
     },
   ],
   mockProjects = [
@@ -254,6 +437,7 @@ const json = (response, status, body, origin) => {
       collaboratorCount: 1,
       coverArtUrl: "/summer-music-album-cover.webp",
       duration: "12:44",
+      genre: "Hip-Hop",
       id: "project_after_dark",
       isForSale: false,
       isPublic: true,
@@ -264,6 +448,94 @@ const json = (response, status, body, origin) => {
       trackCount: 4,
     },
   ],
+  mockProjectDetail = {
+    ...mockProjects[0],
+    assets: [
+      {
+        assetKind: "cover_art",
+        downloadUrl: null,
+        id: "project-cover",
+        metadata: { displayName: "After Dark Cover" },
+        mimeType: "image/webp",
+        objectKey: "projects/user_complete/after-dark.webp",
+        sizeBytes: 1024,
+        status: "uploaded",
+        storageProvider: "r2",
+      },
+    ],
+    collaborators: [],
+    isPublic: false,
+    status: "draft",
+    tracks: [mockTracks[0]],
+  },
+  mockCommunities = [
+    {
+      artist: {
+        avatarUrl: "/soundkit-default-avatar.svg",
+        name: "Luna Eclipse",
+        username: "luna-eclipse",
+      },
+      artistUserId: "artist_luna_eclipse",
+      coverImageUrl: "/summer-music-album-cover.webp",
+      currency: "USD",
+      description: "Release notes, studio conversations, and listening rooms.",
+      genre: { id: "genre-hip-hop", name: "Hip-Hop", slug: "hip-hop" },
+      id: "community_luna",
+      isMember: false,
+      isOwner: false,
+      memberCount: 128,
+      monthlyPriceCents: 0,
+      name: "Luna Eclipse Circle",
+      slug: "luna-eclipse-circle",
+      updatedAt: "2026-08-28T12:00:00.000Z",
+    },
+  ],
+  mockCommunityMessages = [],
+  mockCommunityPosts = [],
+  mockNotifications = [
+    {
+      createdAt: "2026-08-29T08:00:00.000Z",
+      id: "notification-battle-invite",
+      link: "/dashboard/live/battles",
+      message: "Matt Alvis challenged you to a battle.",
+      read: false,
+      title: "New battle invitation",
+      type: "battle_challenge",
+    },
+    {
+      createdAt: "2026-08-28T08:00:00.000Z",
+      id: "notification-release",
+      link: "/tracks/track_summer_nights",
+      message: "Summer Nights is now available in the library.",
+      read: true,
+      title: "Release published",
+      type: "track_release",
+    },
+  ],
+  mockCommunityMembers = [
+    {
+      avatarUrl: "/soundkit-default-avatar.svg",
+      joinedAt: "2026-07-01T12:00:00.000Z",
+      name: "Luna Eclipse",
+      role: "owner",
+      userId: "artist_luna_eclipse",
+      username: "luna-eclipse",
+    },
+  ],
+  mockNotificationSettings = {
+    communityMentions: true,
+    communityPosts: true,
+    emailCollaborations: true,
+    emailComments: true,
+    emailFollowers: true,
+    emailLive: true,
+    emailMessages: true,
+    emailSales: true,
+    emailTrackProcessing: true,
+    pushMentions: true,
+    pushMessages: true,
+    pushReleases: true,
+  },
   mockArtists = [
     {
       avatarUrl: "/soundkit-default-avatar.svg",
@@ -299,16 +571,51 @@ const json = (response, status, body, origin) => {
       creatorName: "Luna Eclipse",
       creatorUsername: "luna-eclipse",
       duration: "3:42",
+      genre: "Hip-Hop",
       id: "video_midnight_vibes_mv",
-      muxPlaybackId: null,
+      muxPlaybackId: "mux_midnight_vibes_mv",
       playbackPolicy: "public",
-      sourceProvider: "external",
+      sourceProvider: "mux",
       status: "ready",
       thumbnailUrl: "/music-video-thumbnail.webp",
       title: "Midnight Vibes",
       verifiedOnPlatform: true,
       videoKind: "music_video",
       viewCount: "42K",
+    },
+    {
+      creatorName: "Battle Replay Bot",
+      creatorUsername: "soundkit-battlebot",
+      duration: "12:48",
+      externalPlaybackUrl: "/media/live-recordings/battle-replayed/recording.mp4",
+      genre: "Hip-Hop",
+      id: "video_battle_replay",
+      muxPlaybackId: null,
+      playbackPolicy: "public",
+      sourceProvider: "external",
+      status: "ready",
+      thumbnailUrl: "/music-battle-video-thumbnail.jpg",
+      title: "DJ Nova vs MC Rhythm — Battle Replay",
+      verifiedOnPlatform: true,
+      videoKind: "battle_replay",
+      viewCount: "0",
+    },
+    {
+      creatorName: "CG Stewart",
+      creatorUsername: "cgstewart",
+      duration: "0:00",
+      externalPlaybackUrl: "https://www.youtube.com/watch?v=4U4tFM8iapc",
+      genre: "Hip-Hop",
+      id: "video_all_votes_matter",
+      muxPlaybackId: null,
+      playbackPolicy: "public",
+      sourceProvider: "external",
+      status: "ready",
+      thumbnailUrl: "/music-video-thumbnail.webp",
+      title: "All Votes Matter",
+      verifiedOnPlatform: false,
+      videoKind: "music_video",
+      viewCount: "0",
     },
   ],
   mockArtistMedia = {
@@ -350,9 +657,86 @@ const json = (response, status, body, origin) => {
   },
   mockBattles = [
     {
+      endedAt: "2026-08-29T10:30:00.000Z",
+      format: "best_of_3",
+      genre: "Hip-Hop",
+      hasPlayedTurn: false,
+      id: "battle-completed-result",
+      replayStatus: "none",
+      replayVideoId: null,
+      isFeatured: false,
+      joinMode: "watch_now",
+      participants: [
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "user_complete",
+          name: "Complete Artist",
+          username: "complete_artist",
+        },
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "artist-mc-rhythm",
+          name: "MC Rhythm",
+          username: "mc-rhythm",
+        },
+      ],
+      queueSize: 0,
+      round: {
+        current: 1,
+        id: "round-1",
+        isVoting: false,
+        status: "completed",
+        total: 3,
+      },
+      status: "completed",
+      title: "Completed Artist Battle",
+      tracks: [],
+      viewerCount: 0,
+      visibility: "public",
+    },
+    {
+      endedAt: "2026-08-29T12:30:00.000Z",
+      format: "best_of_3",
+      genre: "Hip-Hop",
+      hasPlayedTurn: true,
+      id: "battle-replayed",
+      isFeatured: false,
+      joinMode: "watch_now",
+      participants: [
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "mock-artist-dj-nova",
+          name: "DJ Nova",
+          username: "dj-nova",
+        },
+        {
+          avatarUrl: "/soundkit-default-avatar.svg",
+          id: "mock-artist-mc-rhythm",
+          name: "MC Rhythm",
+          username: "mc-rhythm",
+        },
+      ],
+      queueSize: 0,
+      replayStatus: "available",
+      replayVideoId: "video_battle_replay",
+      round: {
+        current: 3,
+        id: "round-3",
+        isVoting: false,
+        status: "completed",
+        total: 3,
+      },
+      status: "completed",
+      title: "DJ Nova vs MC Rhythm",
+      tracks: [],
+      viewerCount: 0,
+      visibility: "public",
+    },
+    {
       featuredRank: 1,
       format: "best_of_5",
       genre: "Hip-Hop",
+      hasPlayedTurn: true,
       id: "battle_west_coast_showdown",
       isFeatured: true,
       joinMode: "waiting_room",
@@ -380,7 +764,7 @@ const json = (response, status, body, origin) => {
         total: 5,
       },
       status: "live",
-      title: "West Coast Showdown",
+      title: "Artist Battle - Hip-Hop",
       tracks: [
         {
           artist: "DJ Nova",
@@ -403,7 +787,10 @@ const json = (response, status, body, origin) => {
     {
       format: "best_of_3",
       genre: "Hip-Hop",
+      hasPlayedTurn: false,
       id: "battle-waiting-artist",
+      replayStatus: "none",
+      replayVideoId: null,
       isFeatured: false,
       joinMode: "waiting_room",
       participants: [
@@ -432,7 +819,10 @@ const json = (response, status, body, origin) => {
     {
       format: "best_of_3",
       genre: "Hip-Hop",
+      hasPlayedTurn: false,
       id: "battle_upcoming_duel",
+      replayStatus: "none",
+      replayVideoId: null,
       isFeatured: false,
       joinMode: "watch_now",
       participants: [
@@ -452,7 +842,7 @@ const json = (response, status, body, origin) => {
       queueSize: 0,
       startsAt: "2026-09-30T20:00:00.000Z",
       status: "scheduled",
-      title: "Upcoming Artist Duel",
+      title: "Artist Battle - Hip-Hop",
       tracks: [],
       viewerCount: 0,
       visibility: "public",
@@ -466,14 +856,169 @@ export const createMockApiServer = async ({
 } = {}) => {
   const mockBattleChallengesByClient = new Map(),
     mockBattleKitsByClient = new Map(),
+    mockBattlesByClient = new Map(),
+    mockProjectDetailsByClient = new Map(),
+    mockCommunityCommunitiesByClient = new Map(),
+    mockCommunityMembersByClient = new Map(),
+    mockCommunityMessagesByClient = new Map(),
+    mockCommunityPostsByClient = new Map(),
+    mockLiveRoomsByClient = new Map(),
+    mockNotificationsByClient = new Map(),
+    mockPresenceByClient = new Map(),
+    mockConversationsByClient = new Map(),
+    mockMessagesByClient = new Map(),
+    mockVideoCommentsByClient = new Map(),
+    getMockLiveRoom = (request, roomId, session) => {
+      const clientKey = `${getClientKey(request)}:${roomId}:${session ?? "anonymous"}`,
+        existing = mockLiveRoomsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const room = liveRoom(roomId, session);
+      mockLiveRoomsByClient.set(clientKey, room);
+      return room;
+    },
+    getMockCommunityCommunities = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockCommunityCommunitiesByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const communities = structuredClone(mockCommunities);
+      mockCommunityCommunitiesByClient.set(clientKey, communities);
+      return communities;
+    },
+    getMockCommunityMembers = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockCommunityMembersByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const members = structuredClone(mockCommunityMembers);
+      mockCommunityMembersByClient.set(clientKey, members);
+      return members;
+    },
+    getMockCommunityMessages = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockCommunityMessagesByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const messages = structuredClone(mockCommunityMessages);
+      mockCommunityMessagesByClient.set(clientKey, messages);
+      return messages;
+    },
+    getMockCommunityPosts = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockCommunityPostsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const posts = structuredClone(mockCommunityPosts);
+      mockCommunityPostsByClient.set(clientKey, posts);
+      return posts;
+    },
+    getMockVideoComments = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockVideoCommentsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const comments = structuredClone(mockVideoComments);
+      mockVideoCommentsByClient.set(clientKey, comments);
+      return comments;
+    },
+    getMockPresence = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockPresenceByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const presence = {
+        "artist-mc-rhythm": {
+          isOnline: true,
+          lastSeen: Date.now(),
+          status: "online",
+        },
+      };
+      mockPresenceByClient.set(clientKey, presence);
+      return presence;
+    },
+    getMockConversations = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockConversationsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const conversations = structuredClone(mockConversations);
+      mockConversationsByClient.set(clientKey, conversations);
+      return conversations;
+    },
+    getMockMessages = (request, conversationId) => {
+      const clientKey = `${getClientKey(request)}:${conversationId}`,
+        existing = mockMessagesByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const messages = structuredClone(
+        conversationId === "mock-conversation-rhythm" ? mockMessages : []
+      ).map((message) => ({ ...message, conversationId }));
+      mockMessagesByClient.set(clientKey, messages);
+      return messages;
+    },
+    getMockNotifications = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockNotificationsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const notifications = structuredClone(mockNotifications);
+      mockNotificationsByClient.set(clientKey, notifications);
+      return notifications;
+    },
+    getMockProjectDetail = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockProjectDetailsByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const projectDetail = structuredClone(mockProjectDetail);
+      mockProjectDetailsByClient.set(clientKey, projectDetail);
+      return projectDetail;
+    },
     getMockBattleChallenges = (request) => {
-      const clientKey = request.headers["user-agent"] ?? "default",
+      const clientKey = getClientKey(request),
         existing = mockBattleChallengesByClient.get(clientKey);
       if (existing) {
         return existing;
       }
 
       const challenges = [
+        {
+          challengerUsername: "mattalvis",
+          createdAt: "2026-08-28T08:00:00.000Z",
+          direction: "incoming",
+          expiresAt: "2026-09-04T08:00:00.000Z",
+          format: "best_of_3",
+          genre: "Hip-Hop",
+          id: "mock-incoming-challenge",
+          message: "Let’s run it.",
+          opponentUsername: "complete_artist",
+          proposedDate: "2026-08-29T20:00:00.000Z",
+          proposedTimeLabel: "Aug 29, 2026, 8:00 PM",
+          status: "pending",
+        },
         {
           challengerUsername: "complete_artist",
           createdAt: "2026-07-01T12:00:00.000Z",
@@ -507,7 +1052,7 @@ export const createMockApiServer = async ({
       return challenges;
     },
     getMockBattleKits = (request) => {
-      const clientKey = request.headers["user-agent"] ?? "default",
+      const clientKey = getClientKey(request),
         existing = mockBattleKitsByClient.get(clientKey);
       if (existing) {
         return existing;
@@ -517,11 +1062,25 @@ export const createMockApiServer = async ({
       mockBattleKitsByClient.set(clientKey, kits);
       return kits;
     },
+    getMockBattles = (request) => {
+      const clientKey = getClientKey(request),
+        existing = mockBattlesByClient.get(clientKey);
+      if (existing) {
+        return existing;
+      }
+
+      const battles = structuredClone(mockBattles);
+      mockBattlesByClient.set(clientKey, battles);
+      return battles;
+    },
     server = createServer((request, response) => {
     const effectiveOrigin = request.headers.origin || webOrigin;
     response.setHeader("access-control-allow-origin", effectiveOrigin);
     response.setHeader("access-control-allow-credentials", "true");
-    response.setHeader("access-control-allow-headers", "content-type,cookie");
+    response.setHeader(
+      "access-control-allow-headers",
+      "content-type,cookie,x-soundkit-test-id,x-soundkit-fail-notification-action"
+    );
     response.setHeader(
       "access-control-allow-methods",
       "GET,POST,PATCH,PUT,DELETE,OPTIONS"
@@ -550,30 +1109,61 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (url.pathname === "/auth/sign-out" && request.method === "POST") {
+      response.writeHead(200, {
+        "content-type": "application/json",
+        "set-cookie":
+          "soundkit_test_session=; Max-Age=0; Path=/; SameSite=Lax",
+      });
+      response.end(JSON.stringify({ success: true }));
+      return;
+    }
+
+    if (url.pathname === "/auth/sign-out" && request.method === "POST") {
+      response.writeHead(200, {
+        "content-type": "application/json",
+        "set-cookie":
+          "soundkit_test_session=; Max-Age=0; Path=/; SameSite=Lax",
+      });
+      response.end(JSON.stringify({ success: true }));
+      return;
+    }
+
     if (url.pathname === "/auth/get-session") {
-      if (session !== "admin" && session !== "complete") {
+      if (
+        session !== "admin" &&
+        session !== "complete" &&
+        session !== "participant" &&
+        session !== "nonparticipant" &&
+        session !== "setup-incomplete" &&
+        session !== "setup-monetization-complete"
+      ) {
         json(response, 200, null, webOrigin);
         return;
       }
 
+      const authenticatedUser = mockUser(session),
+        isAdminSession = session === "admin";
       json(
         response,
         200,
         {
           session: {
             expiresAt: "2026-07-22T12:00:00.000Z",
-            id: "session_admin",
+            id: `session_${session}`,
             token: "test-token",
-            userId: "user_admin",
+            userId: authenticatedUser.id,
           },
           user: {
             banned: false,
             createdAt: "2026-06-22T12:00:00.000Z",
-            email: "cg@rocktownlabs.com",
+            email: isAdminSession
+              ? "cg@rocktownlabs.com"
+              : "complete@rocktownlabs.com",
             emailVerified: true,
-            id: "user_admin",
-            name: "CG Admin",
-            role: "admin",
+            id: authenticatedUser.id,
+            name: authenticatedUser.displayName,
+            role: isAdminSession ? "admin" : "user",
             updatedAt: "2026-06-22T12:00:00.000Z",
           },
         },
@@ -652,6 +1242,33 @@ export const createMockApiServer = async ({
         },
         webOrigin
       );
+      return;
+    }
+
+    if (url.pathname === "/v1/discover/genres") {
+      const genres = [
+        "hip-hop",
+        "rb-soul",
+        "electronic",
+        "pop",
+        "spoken-word",
+        "rock",
+        "jazz",
+        "afrobeats",
+        "latin",
+        "country",
+        "reggae",
+        "indie",
+        "metal",
+      ].map((slug) => ({
+        id: `genre_${slug}`,
+        name: slug === "hip-hop" ? "Hip Hop" : slug.replaceAll("-", " "),
+        slug,
+        totalCount: slug === "hip-hop" ? 8 : 0,
+        trackCount: slug === "hip-hop" ? 3 : 0,
+        videoCount: slug === "hip-hop" ? 1 : 0,
+      }));
+      json(response, 200, genres, webOrigin);
       return;
     }
 
@@ -788,8 +1405,108 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/projects/project_after_dark"
+    ) {
+      json(response, 200, getMockProjectDetail(request), webOrigin);
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/projects/project_after_dark/library-assets"
+    ) {
+      const projectDetail = getMockProjectDetail(request);
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          selectedTracks = Array.isArray(body.trackIds)
+            ? body.trackIds
+                .map((trackId) =>
+                  mockTracks.find((track) => track.id === trackId)
+                )
+                .filter(Boolean)
+            : [];
+
+        if (body.assetKind === "master" && selectedTracks.length > 0) {
+          projectDetail.tracks = [
+            ...new Map(
+              [...projectDetail.tracks, ...selectedTracks].map((track) => [
+                track.id,
+                track,
+              ])
+            ).values(),
+          ];
+          projectDetail.trackCount = projectDetail.tracks.length;
+        }
+        json(response, 201, projectDetail, webOrigin);
+      });
+      return;
+    }
+
+    if (
+      url.pathname === "/v1/projects/public" ||
+      url.pathname === "/v1/projects/public/"
+    ) {
+      const requestedGenre = url.searchParams.get("genre"),
+        projects =
+          requestedGenre && requestedGenre !== "all"
+            ? mockProjects.filter(
+                (project) =>
+                  normalizeGenre(project.genre) === normalizeGenre(requestedGenre)
+              )
+            : mockProjects;
+      json(response, 200, projects, webOrigin);
+      return;
+    }
+
+    const publicProjectDetailMatch = url.pathname.match(
+      /^\/v1\/projects\/public\/([^/]+)$/
+    );
+    if (publicProjectDetailMatch) {
+      const project = mockProjects.find(
+        (entry) =>
+          entry.id === publicProjectDetailMatch[1] ||
+          entry.slug === publicProjectDetailMatch[1]
+      );
+      if (!project) {
+        json(response, 404, { message: "Project not found." }, webOrigin);
+        return;
+      }
+
+      json(
+        response,
+        200,
+        {
+          ...project,
+          assets: [],
+          collaborators: [],
+          tracks: mockTracks.slice(0, 2).map((track) => ({
+            ...track,
+            artistUsername: project.artistUsername,
+            playbackUrl: "/demo-audio/fantasy26.wav",
+            previewUrl: null,
+          })),
+        },
+        webOrigin
+      );
+      return;
+    }
+
     if (url.pathname === "/v1/tracks" || url.pathname === "/v1/tracks/") {
-      json(response, 200, mockTracks, webOrigin);
+      const requestedGenre = url.searchParams.get("genre"),
+        tracks =
+          requestedGenre && requestedGenre !== "all"
+            ? mockTracks.filter(
+                (track) =>
+                  normalizeGenre(track.genre) === normalizeGenre(requestedGenre)
+              )
+            : mockTracks;
+      json(response, 200, tracks, webOrigin);
       return;
     }
 
@@ -800,6 +1517,7 @@ export const createMockApiServer = async ({
         200,
         {
           ...mockTracks[0],
+          assets: [],
           artist: {
             avatarUrl: mockArtists[0].avatarUrl,
             handle: "luna-eclipse",
@@ -892,12 +1610,28 @@ export const createMockApiServer = async ({
     }
 
     if (url.pathname === "/v1/artists" || url.pathname === "/v1/artists/") {
-      json(response, 200, mockArtists, webOrigin);
+      const requestedGenre = url.searchParams.get("genre"),
+        artists =
+          requestedGenre && requestedGenre !== "all"
+            ? mockArtists.filter(
+                (artist) =>
+                  normalizeGenre(artist.genre) === normalizeGenre(requestedGenre)
+              )
+            : mockArtists;
+      json(response, 200, artists, webOrigin);
       return;
     }
 
     if (url.pathname === "/v1/videos" || url.pathname === "/v1/videos/") {
-      json(response, 200, mockVideos, webOrigin);
+      const requestedGenre = url.searchParams.get("genre"),
+        videos =
+          requestedGenre && requestedGenre !== "all"
+            ? mockVideos.filter(
+                (video) =>
+                  normalizeGenre(video.genre) === normalizeGenre(requestedGenre)
+              )
+            : mockVideos;
+      json(response, 200, videos, webOrigin);
       return;
     }
 
@@ -905,7 +1639,11 @@ export const createMockApiServer = async ({
       /^\/v1\/videos\/([^/]+)\/analytics$/
     );
     if (videoAnalyticsMatch) {
-      const premium = session === "complete" || session === "admin";
+      const premium =
+        session === "complete" ||
+        session === "participant" ||
+        session === "nonparticipant" ||
+        session === "admin";
       json(
         response,
         200,
@@ -952,18 +1690,229 @@ export const createMockApiServer = async ({
       /^\/v1\/videos\/([^/]+)\/comments$/
     );
     if (videoCommentsMatch) {
+      if (request.method === "GET") {
+        json(response, 200, getMockVideoComments(request), webOrigin);
+        return;
+      }
+      if (request.method === "POST") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            comments = getMockVideoComments(request),
+            parent = body.parentCommentId
+              ? comments.find(
+                  (comment) => comment.id === body.parentCommentId
+                )
+              : null;
+          if (body.parentCommentId && !parent) {
+            json(
+              response,
+              400,
+              { message: "The comment you are replying to does not exist." },
+              webOrigin
+            );
+            return;
+          }
+          const comment = {
+            authorAvatarUrl: "/summer-music-album-cover.webp",
+            authorName: "Complete Artist",
+            authorUsername: "complete_artist",
+            body: body.body,
+            createdAt: new Date().toISOString(),
+            id: body.clientCommentId ?? `mock-comment-${Date.now()}`,
+            parentCommentId: body.parentCommentId ?? null,
+            userId: "user_complete",
+          };
+          comments.push(comment);
+          json(response, 201, comment, webOrigin);
+        });
+        return;
+      }
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/presence") {
+      const onlineCount = Object.values(getMockPresence(request)).filter(
+        (presence) => presence.isOnline
+      ).length;
+      json(response, 200, { onlineCount }, webOrigin);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/presence/query") {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          users = Object.fromEntries(
+            (Array.isArray(body.userIds) ? body.userIds : []).map((id) => [
+              id,
+              getMockPresence(request)[id] ?? {
+                isOnline: false,
+                lastSeen: 0,
+                status: "offline",
+              },
+            ])
+          );
+        json(response, 200, { users }, webOrigin);
+      });
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/presence/heartbeat"
+    ) {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          user = mockUser(session),
+          status =
+            body.status === "away" || body.status === "offline"
+              ? body.status
+              : "online";
+        if (user) {
+          getMockPresence(request)[user.id] = {
+            isOnline: status !== "offline",
+            lastSeen: Date.now(),
+            status,
+          };
+        }
+        json(response, 200, { success: true }, webOrigin);
+      });
+      return;
+    }
+
+    const messageConversationsMatch = url.pathname.match(
+      /^\/v1\/messages\/conversations\/([^/]+)\/messages$/
+    );
+    if (messageConversationsMatch) {
+      const conversationId = decodeURIComponent(messageConversationsMatch[1]);
+      if (request.method === "GET") {
+        json(response, 200, getMockMessages(request, conversationId), webOrigin);
+        return;
+      }
+      if (request.method === "POST") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            messages = getMockMessages(request, conversationId),
+            message = {
+              attachments: body.attachments ?? [],
+              body: body.body ?? "",
+              conversationId,
+              createdAt: new Date().toISOString(),
+              id: body.clientMessageId ?? `mock-message-${Date.now()}`,
+              senderId: "user_complete",
+              status: "sent",
+            },
+            conversation = getMockConversations(request).find(
+              (entry) => entry.id === conversationId
+            );
+          messages.push(message);
+          if (conversation) {
+            conversation.updatedAt = message.createdAt;
+            conversation.unreadCount = 0;
+          }
+          json(response, 201, message, webOrigin);
+        });
+        return;
+      }
+    }
+
+    const messageReadMatch = url.pathname.match(
+      /^\/v1\/messages\/conversations\/([^/]+)\/read$/
+    );
+    if (request.method === "POST" && messageReadMatch) {
+      const conversationId = decodeURIComponent(messageReadMatch[1]),
+        conversation = getMockConversations(request).find(
+          (entry) => entry.id === conversationId
+        );
+      if (conversation) {
+        conversation.unreadCount = 0;
+      }
+      json(response, 200, { success: true }, webOrigin);
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/messages/conversations") {
+      json(response, 200, getMockConversations(request), webOrigin);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/messages/conversations") {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          id = `mock-conversation-${Date.now()}`,
+          conversation = {
+            conversationType: body.participantUserIds?.length > 1 ? "group" : "direct",
+            id,
+            participantAvatarUrl: "/soundkit-default-avatar.svg",
+            participantId: body.participantUserIds?.[0] ?? null,
+            participantName: body.title ?? "New conversation",
+            participantUsername: null,
+            title: body.title ?? "New conversation",
+            unreadCount: 0,
+            updatedAt: new Date().toISOString(),
+          };
+        getMockConversations(request).unshift(conversation);
+        json(response, 201, conversation, webOrigin);
+      });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/messages/friends") {
       json(
         response,
         200,
         [
           {
-            authorAvatarUrl: "/soundkit-default-avatar.svg",
-            authorName: "MusicFan99",
-            body: "Incredible production quality!",
-            createdAt: "2026-05-26T12:00:00.000Z",
-            id: "comment-1",
+            avatarUrl: "/soundkit-default-avatar.svg",
+            email: null,
+            id: "artist-mc-rhythm",
+            lastInteractionAt: "2026-05-26T12:03:00.000Z",
+            name: "MC Rhythm",
+            relationship: "collaborator",
+            role: "Artist",
+            username: "mc-rhythm",
           },
         ],
+        webOrigin
+      );
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/messages/people") {
+      const query = (url.searchParams.get("q") ?? "").toLowerCase();
+      json(
+        response,
+        200,
+        "musicfan99".startsWith(query) || query.includes("fan")
+          ? [
+              {
+                avatarUrl: "/soundkit-default-avatar.svg",
+                displayName: "Music Fan",
+                email: null,
+                stageName: null,
+                userId: "user_other_artist",
+                username: "musicfan99",
+              },
+            ]
+          : [],
         webOrigin
       );
       return;
@@ -1130,13 +2079,55 @@ export const createMockApiServer = async ({
       }
 
       if (request.method === "PATCH") {
-        mockBattleChallenges[challengeIndex].status = "canceled";
-        json(
-          response,
-          200,
-          { message: "Battle challenge canceled." },
-          webOrigin
-        );
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            status = body.status === "accepted" ? "accepted" : body.status;
+          mockBattleChallenges[challengeIndex].status = status;
+          if (status === "accepted") {
+            const challenge = mockBattleChallenges[challengeIndex],
+              battleId = `mock-battle-${challenge.id}`,
+              clientBattles = getMockBattles(request);
+            if (!clientBattles.some((battle) => battle.id === battleId)) {
+              clientBattles.push({
+                format: challenge.format,
+                genre: challenge.genre,
+                id: battleId,
+                isFeatured: false,
+                joinMode: "watch_now",
+                participants: [
+                  {
+                    avatarUrl: "/soundkit-default-avatar.svg",
+                    id: "mock-artist-mattalvis",
+                    name: "Matt Alvis",
+                    username: challenge.challengerUsername,
+                  },
+                  {
+                    avatarUrl: "/soundkit-default-avatar.svg",
+                    id: "user_complete",
+                    name: "Complete Artist",
+                    username: "complete_artist",
+                  },
+                ],
+                startsAt: challenge.proposedDate,
+                status: "scheduled",
+                title: "Artist Battle - Hip-Hop",
+                tracks: [],
+                viewerCount: 0,
+                visibility: "public",
+              });
+            }
+          }
+          json(
+            response,
+            200,
+            { message: `Battle challenge ${status}.` },
+            webOrigin
+          );
+        });
         return;
       }
     }
@@ -1168,6 +2159,185 @@ export const createMockApiServer = async ({
             (challenge) => challenge.direction === "outgoing"
           ),
         },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/me/notification-settings"
+    ) {
+      json(response, 200, mockNotificationSettings, webOrigin);
+      return;
+    }
+
+    if (
+      request.method === "PATCH" &&
+      url.pathname === "/v1/me/notification-settings"
+    ) {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        Object.assign(mockNotificationSettings, JSON.parse(bodyText || "{}"));
+        json(response, 200, mockNotificationSettings, webOrigin);
+      });
+      return;
+    }
+
+    if (
+      url.pathname === "/v1/communities" ||
+      url.pathname === "/v1/communities/"
+    ) {
+      json(response, 200, getMockCommunityCommunities(request), webOrigin);
+      return;
+    }
+
+    const communityDetailMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)$/
+    );
+    if (communityDetailMatch && request.method === "GET") {
+      const community = getMockCommunityCommunities(request).find(
+        (entry) => entry.id === communityDetailMatch[1]
+      );
+      json(
+        response,
+        community ? 200 : 404,
+        community ?? { message: "Community not found." },
+        webOrigin
+      );
+      return;
+    }
+
+    const communityJoinMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)\/join$/
+    );
+    if (communityJoinMatch && request.method === "POST") {
+      const community = getMockCommunityCommunities(request).find(
+        (entry) => entry.id === communityJoinMatch[1]
+      );
+      if (community && !community.isMember) {
+        community.isMember = true;
+        community.memberCount += 1;
+        getMockCommunityMembers(request).push({
+          avatarUrl: "/summer-music-album-cover.webp",
+          joinedAt: new Date().toISOString(),
+          name: "Complete Artist",
+          role: "member",
+          userId: "user_complete",
+          username: "complete_artist",
+        });
+      }
+      json(
+        response,
+        community ? 201 : 404,
+        community
+          ? { message: "Community joined." }
+          : { message: "Community not found." },
+        webOrigin
+      );
+      return;
+    }
+
+    const communityMessagesMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)\/messages$/
+    );
+    if (communityMessagesMatch) {
+      if (request.method === "GET") {
+        json(response, 200, getMockCommunityMessages(request), webOrigin);
+        return;
+      }
+      if (request.method === "POST") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            message = {
+              author: {
+                avatarUrl: "/summer-music-album-cover.webp",
+                name: "Complete Artist",
+                username: "complete_artist",
+              },
+              body: body.body,
+              createdAt: new Date().toISOString(),
+              id: body.clientMessageId ?? `mock-message-${Date.now()}`,
+              userId: "user_complete",
+            };
+          getMockCommunityMessages(request).push(message);
+          json(response, 201, message, webOrigin);
+        });
+        return;
+      }
+    }
+
+    const communityPostsMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)\/posts$/
+    );
+    if (communityPostsMatch) {
+      if (request.method === "GET") {
+        json(response, 200, getMockCommunityPosts(request), webOrigin);
+        return;
+      }
+      if (request.method === "POST") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            post = {
+              author: {
+                avatarUrl: "/summer-music-album-cover.webp",
+                name: "Complete Artist",
+                username: "complete_artist",
+              },
+              body: body.body ?? null,
+              createdAt: new Date().toISOString(),
+              id: `mock-post-${Date.now()}`,
+              isPinned: false,
+              mediaUrl: null,
+              metadata: null,
+              postType: body.postType ?? "text",
+              userId: "user_complete",
+            };
+          getMockCommunityPosts(request).push(post);
+          json(response, 201, post, webOrigin);
+        });
+        return;
+      }
+    }
+
+    const communityMembersMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)\/members$/
+    );
+    if (communityMembersMatch && request.method === "GET") {
+      json(response, 200, getMockCommunityMembers(request), webOrigin);
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/battles/opponents"
+    ) {
+      const normalizedQuery = (url.searchParams.get("q") ?? "")
+        .replace(/^@+/u, "")
+        .toLowerCase();
+      json(
+        response,
+        200,
+        normalizedQuery && "new-opponent".includes(normalizedQuery)
+          ? [
+              {
+                genre: "Hip-Hop",
+                name: "New Opponent",
+                username: "new-opponent",
+              },
+            ]
+          : [],
         webOrigin
       );
       return;
@@ -1212,11 +2382,12 @@ export const createMockApiServer = async ({
 
     const battleDeleteMatch = url.pathname.match(/^\/v1\/battles\/([^/]+)$/);
     if (request.method === "DELETE" && battleDeleteMatch) {
-      const battleIndex = mockBattles.findIndex(
-        (battle) => battle.id === battleDeleteMatch[1]
-      );
+      const clientBattles = getMockBattles(request),
+        battleIndex = clientBattles.findIndex(
+          (battle) => battle.id === battleDeleteMatch[1]
+        );
       if (battleIndex >= 0) {
-        mockBattles.splice(battleIndex, 1);
+        clientBattles.splice(battleIndex, 1);
       }
       json(
         response,
@@ -1266,7 +2437,19 @@ export const createMockApiServer = async ({
     }
 
     if (url.pathname === "/v1/battles" || url.pathname === "/v1/battles/") {
-      json(response, 200, mockBattles, webOrigin);
+      const battles = getMockBattles(request),
+        visibleBattles =
+          url.searchParams.get("scope") === "public"
+            ? battles.filter(
+                (battle) =>
+                  battle.status === "live" ||
+                  battle.status === "scheduled" ||
+                  (battle.hasPlayedTurn &&
+                    battle.replayStatus === "available" &&
+                    battle.replayVideoId)
+              )
+            : battles;
+      json(response, 200, visibleBattles, webOrigin);
       return;
     }
 
@@ -1293,10 +2476,42 @@ export const createMockApiServer = async ({
     }
 
     if (
+      url.pathname === "/v1/seller/status" ||
+      url.pathname === "/v1/seller/status/"
+    ) {
+      const enabled =
+        session === "complete" ||
+        session === "participant" ||
+        session === "nonparticipant" ||
+        session === "admin" ||
+        session === "setup-monetization-complete";
+      json(
+        response,
+        200,
+        {
+          accountLinkUrl: null,
+          chargesEnabled: enabled,
+          detailsSubmitted: enabled,
+          onboardingStatus: enabled ? "enabled" : "not_started",
+          payoutsEnabled: enabled,
+          stripeAccountId: enabled ? "acct_mock_enabled" : null,
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
       url.pathname === "/v1/artist-setup-guide" ||
       url.pathname === "/v1/artist-setup-guide/"
     ) {
-      const complete = session === "complete" || session === "admin";
+      const complete =
+          session === "complete" ||
+          session === "participant" ||
+          session === "nonparticipant" ||
+          session === "admin",
+        monetizationComplete =
+          complete || session === "setup-monetization-complete";
       json(
         response,
         200,
@@ -1310,9 +2525,9 @@ export const createMockApiServer = async ({
             canCreateLiveBattles: complete,
             canHostLiveStreams: complete,
             canOperatePaidCommunity: complete,
-            canReceivePayouts: complete,
-            canSellProducts: complete,
-            isPremium: complete,
+            canReceivePayouts: monetizationComplete,
+            canSellProducts: monetizationComplete,
+            isPremium: monetizationComplete,
           },
           catalog: {
             hasPlayablePublicRelease: complete,
@@ -1329,10 +2544,12 @@ export const createMockApiServer = async ({
             hasVideo: complete,
           },
           monetization: {
-            chargesEnabled: complete,
-            detailsSubmitted: complete,
-            onboardingStatus: complete ? "enabled" : "not_started",
-            payoutsEnabled: complete,
+            chargesEnabled: monetizationComplete,
+            detailsSubmitted: monetizationComplete,
+            onboardingStatus: monetizationComplete
+              ? "enabled"
+              : "not_started",
+            payoutsEnabled: monetizationComplete,
           },
           profile: { isPublicReady: true },
           referrals: { inviteSent: complete },
@@ -1356,8 +2573,98 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (
+      request.method === "GET" &&
+      (url.pathname === "/v1/notifications" ||
+        url.pathname === "/v1/notifications/")
+    ) {
+      const notifications = getMockNotifications(request),
+        limit = Math.min(
+          50,
+          Math.max(1, Number(url.searchParams.get("limit") ?? 20))
+        ),
+        offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0)),
+        items = notifications.slice(offset, offset + limit),
+        nextItem = notifications[offset + limit];
+      json(
+        response,
+        200,
+        {
+          items,
+          nextCursor: nextItem ? String(offset + limit) : null,
+          unreadCount: notifications.filter((item) => !item.read).length,
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/notifications/summary"
+    ) {
+      const notifications = getMockNotifications(request);
+      json(
+        response,
+        200,
+        { unreadCount: notifications.filter((item) => !item.read).length },
+        webOrigin
+      );
+      return;
+    }
+
+    const notificationReadMatch = url.pathname.match(
+      /^\/v1\/notifications\/([^/]+)\/read$/
+    );
+    if (notificationReadMatch && request.method === "POST") {
+      const notification = getMockNotifications(request).find(
+        (item) => item.id === notificationReadMatch[1]
+      );
+      if (notification) {
+        notification.read = true;
+      }
+      json(response, 200, { success: true }, webOrigin);
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/notifications/read-all"
+    ) {
+      if (
+        request.headers["x-soundkit-fail-notification-action"] === "read-all"
+      ) {
+        json(
+          response,
+          500,
+          { message: "Notification action failed in the test fixture." },
+          webOrigin
+        );
+        return;
+      }
+
+      for (const notification of getMockNotifications(request)) {
+        notification.read = true;
+      }
+      json(response, 200, { success: true }, webOrigin);
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/notifications/clear"
+    ) {
+      getMockNotifications(request).length = 0;
+      json(response, 200, { success: true }, webOrigin);
+      return;
+    }
+
     if (url.pathname === "/v1/me/entitlements") {
-      const complete = session === "complete" || session === "admin";
+      const complete =
+        session === "complete" ||
+        session === "participant" ||
+        session === "nonparticipant" ||
+        session === "admin";
       json(
         response,
         200,
@@ -1416,6 +2723,128 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/eligibility"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: "independent",
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: null,
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/exit"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: null,
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: new Date().toISOString(),
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "DELETE" &&
+      url.pathname === "/v1/onboarding/state"
+    ) {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/eligibility"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: "independent",
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: null,
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/exit"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: null,
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: new Date().toISOString(),
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "DELETE" &&
+      url.pathname === "/v1/onboarding/state"
+    ) {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+
     if (url.pathname === "/v1/onboarding/username-availability") {
       const username = (url.searchParams.get("username") ?? "")
           .trim()
@@ -1455,10 +2884,51 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (url.pathname === "/v1/live/rooms/queue") {
+      const user = mockUser(session);
+
+      if (!user) {
+        json(
+          response,
+          401,
+          { message: "Authentication is required." },
+          webOrigin
+        );
+        return;
+      }
+
+      json(
+        response,
+        200,
+        {
+          battles: [],
+          participatingBattles:
+            session === "participant"
+              ? [
+                  {
+                    battleId: "battle-west-coast-showdown",
+                    role: "artist_a",
+                    startsAt: null,
+                    status: "live",
+                    title: "West Coast Showdown",
+                  },
+                ]
+              : [],
+        },
+        webOrigin
+      );
+      return;
+    }
+
     const liveRoomMatch = url.pathname.match(/^\/v1\/live\/rooms\/([^/]+)$/);
 
     if (liveRoomMatch) {
-      json(response, 200, liveRoom(liveRoomMatch[1], session), webOrigin);
+      json(
+        response,
+        200,
+        getMockLiveRoom(request, liveRoomMatch[1], session),
+        webOrigin
+      );
       return;
     }
 
@@ -1470,7 +2940,45 @@ export const createMockApiServer = async ({
       json(
         response,
         200,
-        liveRoom(liveExperienceMatch[1], session),
+        getMockLiveRoom(request, liveExperienceMatch[1], session),
+        webOrigin
+      );
+      return;
+    }
+
+    const liveExperienceJoinMatch = url.pathname.match(
+      /^\/v1\/live\/experiences\/([^/]+)\/join$/
+    );
+
+    if (liveExperienceJoinMatch && request.method === "POST") {
+      if (liveExperienceJoinMatch[1] === "battle-completed-result") {
+        json(
+          response,
+          409,
+          {
+            message:
+              "This battle has ended. The result is available to view, but the room cannot be re-entered.",
+          },
+          webOrigin
+        );
+        return;
+      }
+
+      json(
+        response,
+        201,
+        {
+          participant: {
+            authToken: "mock-party-token",
+            meetingId: `meeting-${liveExperienceJoinMatch[1]}`,
+            participantId: `participant-${session ?? "anonymous"}`,
+            presetName:
+              session === "complete"
+                ? "soundkit-party-host"
+                : "soundkit-party-listener",
+          },
+          setupScreen: true,
+        },
         webOrigin
       );
       return;
@@ -1484,7 +2992,7 @@ export const createMockApiServer = async ({
       json(
         response,
         200,
-        liveRoom(listeningPartyDetailMatch[1], session),
+        getMockLiveRoom(request, listeningPartyDetailMatch[1], session),
         webOrigin
       );
       return;
@@ -1519,7 +3027,11 @@ export const createMockApiServer = async ({
       });
       request.on("end", () => {
         const body = JSON.parse(bodyText || "{}"),
-          room = liveRoom(liveRoomBattleActionMatch[1], session);
+          room = getMockLiveRoom(
+            request,
+            liveRoomBattleActionMatch[1],
+            session
+          );
         if (liveRoomBattleActionMatch[2] === "ready" && room.battle) {
           room.battle.coordination.artistReadyUserIds = body.ready
             ? [room.battle.artists[0].id]
@@ -1535,7 +3047,11 @@ export const createMockApiServer = async ({
     );
 
     if (liveRoomQueueMutationMatch && request.method === "POST") {
-      const room = liveRoom(liveRoomQueueMutationMatch[1], session);
+      const room = getMockLiveRoom(
+        request,
+        liveRoomQueueMutationMatch[1],
+        session
+      );
       if (room.battle) {
         room.battle.viewerQueueStatus =
           liveRoomQueueMutationMatch[2] === "queue" ? "queued" : null;
@@ -1543,6 +3059,40 @@ export const createMockApiServer = async ({
           liveRoomQueueMutationMatch[2] === "queue" ? 1 : 0;
       }
       json(response, 200, room, webOrigin);
+      return;
+    }
+
+    const liveRoomPartyPlaybackMatch = url.pathname.match(
+      /^\/v1\/live\/rooms\/([^/]+)\/party\/playback$/
+    );
+
+    if (liveRoomPartyPlaybackMatch && request.method === "POST") {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          room = getMockLiveRoom(
+            request,
+            liveRoomPartyPlaybackMatch[1],
+            session
+          ),
+          playback = room.party?.playback;
+        if (playback) {
+          playback.playbackState =
+            body.type === "pause"
+              ? "paused"
+              : body.type === "resume"
+                ? "playing"
+                : playback.playbackState;
+          if (body.trackId) {
+            playback.trackId = body.trackId;
+            playback.positionMs = 0;
+          }
+        }
+        json(response, 200, room, webOrigin);
+      });
       return;
     }
 
@@ -1554,7 +3104,7 @@ export const createMockApiServer = async ({
       json(
         response,
         200,
-        liveRoom(liveRoomMutationMatch[1], session),
+        getMockLiveRoom(request, liveRoomMutationMatch[1], session),
         webOrigin
       );
       return;

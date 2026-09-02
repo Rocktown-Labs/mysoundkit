@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
+/* oxlint-disable sort-vars */
 
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
@@ -265,6 +266,14 @@ const API_ORIGIN = "http://soundkit.test",
       path: "/v1/tracks/track_midnight_vibes/lyrics/lyrics_1",
     },
     {
+      init: jsonRequest({
+        assetKind: "master",
+        trackIds: ["track_midnight_vibes"],
+      }),
+      label: "project library asset selection",
+      path: "/v1/projects/project_after_dark/library-assets",
+    },
+    {
       init: jsonRequest({ title: "Updated Project" }, "PATCH"),
       label: "project update",
       path: "/v1/projects/project_after_dark",
@@ -273,6 +282,11 @@ const API_ORIGIN = "http://soundkit.test",
       init: { method: "DELETE" },
       label: "project deletion",
       path: "/v1/projects/project_after_dark",
+    },
+    {
+      init: { method: "DELETE" },
+      label: "onboarding progress deletion",
+      path: "/v1/onboarding/state",
     },
     {
       label: "battle record retrieval",
@@ -331,6 +345,30 @@ const API_ORIGIN = "http://soundkit.test",
       path: "/v1/live/experiences/live_battle_123/battlebot",
     },
     {
+      init: jsonRequest({ targetOrigin: "https://bio.mysoundkit.com" }),
+      label: "cross-domain auth handoff",
+      path: "/v1/auth/handoff-token",
+    },
+    {
+      label: "live review catalog retrieval",
+      path: "/v1/live/experiences/live_stream_123/review-catalog",
+    },
+    {
+      init: { method: "POST" },
+      label: "live overlay token creation",
+      path: "/v1/live/experiences/live_stream_123/overlay-token",
+    },
+    {
+      init: jsonRequest({ enabled: true }, "POST"),
+      label: "StreamBot configuration",
+      path: "/v1/live/rooms/live_stream_123/stream/bot",
+    },
+    {
+      init: jsonRequest({ trackId: "track_123" }, "POST"),
+      label: "Now Playing update",
+      path: "/v1/live/rooms/live_stream_123/stream/now-playing",
+    },
+    {
       label: "cloudflare stream live input retrieval",
       path: "/v1/live/cloudflare-stream/stream_123",
     },
@@ -357,6 +395,17 @@ describe("SoundKit API authentication boundaries", () => {
       expect(body).toEqual(AUTHENTICATION_REQUIRED);
     }
   );
+
+  it("rejects auth handoff requests for unapproved origins", async () => {
+    const response = await SELF.fetch(
+        `${API_ORIGIN}/v1/auth/handoff-token`,
+        jsonRequest({ targetOrigin: "https://malicious.example" })
+      ),
+      body = (await response.json()) as { message: string };
+
+    expect(response.status).toBe(403);
+    expect(body.message).toBe("This handoff origin is not allowed.");
+  });
 
   it("does not treat arbitrary cookies as an authenticated session", async () => {
     const response = await SELF.fetch(`${API_ORIGIN}/v1/me`, {

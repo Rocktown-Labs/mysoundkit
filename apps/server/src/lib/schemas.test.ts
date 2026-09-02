@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { resolveCollaborationProjectMetadata } from "./collaboration-defaults";
 import { normalizeProfileLink } from "./profile-links";
 import {
   artistSummarySchema,
+  createCollaborationBodySchema,
   createProjectBodySchema,
   createTrackAssetBodySchema,
   finalizeTrackUploadBodySchema,
@@ -10,6 +12,8 @@ import {
   onboardingArtistBodySchema,
   onboardingFanBodySchema,
   settleTrackBodySchema,
+  updateProjectBodySchema,
+  updateTrackBodySchema,
   userSummarySchema,
 } from "./schemas";
 
@@ -149,7 +153,51 @@ describe("onboarding plan codes", () => {
   );
 });
 
+describe("chat collaboration project defaults", () => {
+  it("defaults project collaborations to EP and a usable genre", () => {
+    expect(resolveCollaborationProjectMetadata({})).toEqual({
+      genre: "Hip-Hop/Rap",
+      projectType: "ep",
+    });
+  });
+
+  it("preserves explicit project metadata", () => {
+    expect(
+      resolveCollaborationProjectMetadata({
+        genre: "  R&B/Soul ",
+        projectType: "album",
+      })
+    ).toEqual({
+      genre: "R&B/Soul",
+      projectType: "album",
+    });
+  });
+
+  it("accepts genre metadata in the collaboration request", () => {
+    const result = createCollaborationBodySchema.safeParse({
+      genre: "Hip-Hop/Rap",
+      projectType: "ep",
+      title: "Summer EP",
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("artist dashboard release schemas", () => {
+  it("keeps partial project updates from defaulting to a release", () => {
+    const result = updateProjectBodySchema.safeParse({
+      assetIds: ["projects/user/cover.jpg"],
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({
+        assetIds: ["projects/user/cover.jpg"],
+      });
+    }
+  });
+
   it("accepts mixtape projects for multi-track releases", () => {
     const result = createProjectBodySchema.safeParse({
       assetIds: ["asset_cover"],
@@ -196,6 +244,30 @@ describe("artist dashboard release schemas", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts an artist credit with an additional writer credit", () => {
+    const result = createProjectBodySchema.safeParse({
+      collaborators: [
+        {
+          alsoCreditAsWriter: true,
+          name: "Ava Rhodes",
+          role: "artist",
+          userId: "user_ava",
+        },
+      ],
+      projectType: "single",
+      title: "Artist-led Project",
+      trackIds: [],
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.collaborators[0]).toMatchObject({
+        alsoCreditAsWriter: true,
+        role: "artist",
+      });
+    }
+  });
+
   it("accepts uploaded cover art metadata for track publishing", () => {
     const result = createTrackAssetBodySchema.safeParse({
       assetKind: "cover_art",
@@ -208,6 +280,31 @@ describe("artist dashboard release schemas", () => {
       mimeType: "image/jpeg",
       objectKey: "tracks/track_1/cover.jpg",
       sizeBytes: 512_000,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts complete in-place track updates, including clearing links", () => {
+    const result = updateTrackBodySchema.safeParse({
+      description: "Updated description",
+      downloadsAllowed: true,
+      downloadsRequireFirstPlay: false,
+      downloadsRequirePurchase: false,
+      exclusiveUntil: "",
+      genre: "Hip-Hop",
+      isForSale: false,
+      isPublic: false,
+      isrc: "",
+      listeningAccess: "public",
+      musicalKey: "C minor",
+      priceCents: 0,
+      productionStatus: "mixed",
+      purchaseMode: "digital_download",
+      releaseAt: "",
+      releaseStrategy: "private",
+      streamingLinks: {},
+      title: "Updated title",
     });
 
     expect(result.success).toBe(true);

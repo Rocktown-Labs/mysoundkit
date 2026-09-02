@@ -7,6 +7,7 @@ import {
   analyticsTimeseriesQuerySchema,
   battleEligibilityBodySchema,
   createFriendRequestBodySchema,
+  createCollaborationBodySchema,
   createWorkspaceInvitationBodySchema,
   playlistSchema,
   respondFriendRequestBodySchema,
@@ -49,13 +50,18 @@ import {
   peopleSearchQuerySchema,
   publicSearchQuerySchema,
   reviewLyricsRevisionBodySchema,
+  respondCollaborationBodySchema,
   battleKitQuerySchema,
   createBattleKitBodySchema,
   updateBattleKitBodySchema,
   settleTrackBodySchema,
+  streamBotBodySchema,
+  streamNowPlayingBodySchema,
   updateBattleChallengeBodySchema,
   updateNotificationSettingsBodySchema,
   updateProjectBodySchema,
+  projectWorkspaceAssetBodySchema,
+  projectLibraryAssetBodySchema,
   updateTrackBodySchema,
   usernameAvailabilityQuerySchema,
 } from "./lib/schemas";
@@ -82,6 +88,7 @@ import type {
   battleEligibilitySchema,
   battleKitSchema,
   battleSummarySchema,
+  collaborationCreatedResponseSchema,
   conversationSummarySchema,
   directVideoUploadResponseSchema,
   entitlementSummarySchema,
@@ -111,6 +118,7 @@ import type {
   projectSummarySchema,
   purchasedCatalogDetailSchema,
   purchasedCatalogItemSchema,
+  respondCollaborationResponseSchema,
   sellerOnboardingResponseSchema,
   sellerStatusSchema,
   trackDashboardDetailSchema,
@@ -349,7 +357,26 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
       message: z.string().optional(),
       snapshot: z.object({}).passthrough().optional(),
     })
-    .passthrough();
+    .passthrough(),
+  liveReviewCatalogQuerySchema = z.object({
+    q: z.string().optional(),
+  }),
+  liveReviewCatalogTrackSchema = z
+    .object({
+      artistName: z.string(),
+      coverArtUrl: z.string().nullable(),
+      id: z.string(),
+      isPublic: z.boolean(),
+      mediaReady: z.boolean(),
+      playbackUrl: z.string(),
+      title: z.string(),
+    })
+    .passthrough(),
+  liveOverlayTokenResponseSchema = z.object({
+    createdAt: z.number(),
+    token: z.string(),
+  }),
+  liveRoomStateResponseSchema = z.object({}).passthrough();
 
 export const rpcContract = new Hono()
   .get(
@@ -441,6 +468,7 @@ export const rpcContract = new Hono()
     jsonValidator(updateOnboardingStateBodySchema),
     (c) => c.json({} as z.infer<typeof onboardingStateSchema>)
   )
+  .delete("/v1/onboarding/state", (c) => c.body(null, 204))
   .get(
     "/v1/onboarding/username-availability",
     validator("query", (value) => usernameAvailabilityQuerySchema.parse(value)),
@@ -869,6 +897,14 @@ export const rpcContract = new Hono()
     })
   )
   .delete("/v1/live/experiences/:experienceId", (c) => c.json({ message: "" }))
+  .get(
+    "/v1/live/experiences/:experienceId/review-catalog",
+    validator("query", (value) => liveReviewCatalogQuerySchema.parse(value)),
+    (c) => c.json([] as z.infer<typeof liveReviewCatalogTrackSchema>[], 200)
+  )
+  .post("/v1/live/experiences/:experienceId/overlay-token", (c) =>
+    c.json({} as z.infer<typeof liveOverlayTokenResponseSchema>, 201)
+  )
   .post(
     "/v1/live/experiences/:experienceId/join",
     jsonValidator(joinLiveExperienceBodySchema),
@@ -883,6 +919,16 @@ export const rpcContract = new Hono()
     "/v1/live/experiences/:experienceId/session-locks/check",
     jsonValidator(liveSessionLockCheckBodySchema),
     (c) => c.json({} as z.infer<typeof liveExperienceActionResponseSchema>, 200)
+  )
+  .post(
+    "/v1/live/rooms/:roomId/stream/bot",
+    jsonValidator(streamBotBodySchema),
+    (c) => c.json({} as z.infer<typeof liveRoomStateResponseSchema>, 200)
+  )
+  .post(
+    "/v1/live/rooms/:roomId/stream/now-playing",
+    jsonValidator(streamNowPlayingBodySchema),
+    (c) => c.json({} as z.infer<typeof liveRoomStateResponseSchema>, 200)
   )
   .post(
     "/v1/live/cloudflare-stream",
@@ -1158,6 +1204,11 @@ export const rpcContract = new Hono()
   .get("/v1/analytics/earnings", (c) =>
     c.json({} as z.infer<typeof artistEarningsOverviewSchema>)
   )
+  .post(
+    "/v1/auth/handoff-token",
+    jsonValidator(z.object({ targetOrigin: z.url() })),
+    (c) => c.json({} as { token: string }, 200)
+  )
   .get("/v1/auth/capabilities", (c) => c.json({} as Record<string, unknown>))
   .get("/v1/battles/:battleId", (c) =>
     c.json({} as z.infer<typeof battleSummarySchema>)
@@ -1253,6 +1304,16 @@ export const rpcContract = new Hono()
     jsonValidator(genericJsonBodySchema),
     (c) => c.json({} as Record<string, unknown>, 201)
   )
+  .post(
+    "/v1/projects/:projectId/assets",
+    jsonValidator(projectWorkspaceAssetBodySchema),
+    (c) => c.json({} as z.infer<typeof projectDashboardDetailSchema>, 201)
+  )
+  .post(
+    "/v1/projects/:projectId/library-assets",
+    jsonValidator(projectLibraryAssetBodySchema),
+    (c) => c.json({} as z.infer<typeof projectDashboardDetailSchema>, 201)
+  )
   .get("/v1/projects/:projectId/export", (c) =>
     c.json({} as Record<string, unknown>)
   )
@@ -1306,13 +1367,13 @@ export const rpcContract = new Hono()
   )
   .post(
     "/v1/messages/conversations/:conversationId/collaborations",
-    jsonValidator(genericJsonBodySchema),
-    (c) => c.json({} as Record<string, unknown>, 201)
+    jsonValidator(createCollaborationBodySchema),
+    (c) => c.json({} as z.infer<typeof collaborationCreatedResponseSchema>, 201)
   )
   .post(
     "/v1/messages/conversations/:conversationId/collaborations/:collaborationId/respond",
-    jsonValidator(genericJsonBodySchema),
-    (c) => c.json({} as Record<string, unknown>)
+    jsonValidator(respondCollaborationBodySchema),
+    (c) => c.json({} as z.infer<typeof respondCollaborationResponseSchema>)
   )
   .post(
     "/v1/onboarding/eligibility",

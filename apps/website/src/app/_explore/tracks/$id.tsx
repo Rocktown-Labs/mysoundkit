@@ -13,6 +13,7 @@ import type { TrackSeoData } from "@/lib/seo-data";
 
 export const Route = createFileRoute("/_explore/tracks/$id")({
   component: LegacyTrackPage,
+  ssr: "data-only",
   head: ({ loaderData, params }) => {
     const track = loaderData as unknown as TrackSeoData | null,
       canonicalPath =

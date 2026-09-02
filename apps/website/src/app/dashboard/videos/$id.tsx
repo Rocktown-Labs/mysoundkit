@@ -6,7 +6,9 @@ import {
   Clock3,
   Eye,
   Globe2,
+  Info,
   Play,
+  RefreshCw,
   Users,
 } from "lucide-react";
 import { useState } from "react";
@@ -65,8 +67,13 @@ function DashboardVideoDetailPage() {
   const { id } = Route.useParams(),
     [range, setRange] = useState<VideoRange>("28d"),
     videoQuery = useVideoQuery(id),
-    analyticsQuery = useVideoAnalyticsQuery(id, range),
     video = videoQuery.data,
+    isExternalVideo = video?.sourceProvider === "external",
+    analyticsQuery = useVideoAnalyticsQuery(
+      id,
+      range,
+      video?.sourceProvider === "mux"
+    ),
     analytics = analyticsQuery.data;
 
   if (videoQuery.isPending) {
@@ -164,7 +171,9 @@ function DashboardVideoDetailPage() {
         <div>
           <p className="text-sm font-semibold">Performance window</p>
           <p className="text-xs text-muted-foreground">
-            First-party view sessions, updated from playback activity.
+            {isExternalVideo
+              ? "External players do not report first-party playback milestones."
+              : "First-party view sessions, updated from playback activity."}
           </p>
         </div>
         <div className="flex flex-wrap gap-1 rounded-lg bg-muted/40 p-1">
@@ -172,6 +181,7 @@ function DashboardVideoDetailPage() {
             <Button
               className="h-8 px-3 text-xs"
               key={option.value}
+              disabled={isExternalVideo}
               onClick={() => setRange(option.value)}
               size="sm"
               variant={range === option.value ? "secondary" : "ghost"}
@@ -182,11 +192,46 @@ function DashboardVideoDetailPage() {
         </div>
       </div>
 
-      {analyticsQuery.isError ? (
+      {isExternalVideo ? (
+        <Card aria-live="polite" className="border-primary/20 bg-primary/5">
+          <CardContent className="flex gap-3 p-5 text-sm">
+            <Info className="mt-0.5 size-4 shrink-0 text-primary" />
+            <div>
+              <p className="font-semibold">External source analytics</p>
+              <p className="mt-1 text-muted-foreground">
+                YouTube and other external players do not send reliable playback
+                milestones to SoundKit. Host this video on SoundKit to unlock
+                verified views, watch time, completion, and audience geography.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : analyticsQuery.isError ? (
         <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="p-5 text-sm text-destructive">
-            Analytics are temporarily unavailable. Your video is still live and
-            playback tracking will retry on the next visit.
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5 text-sm text-destructive">
+            <div>
+              <p className="font-semibold">
+                Analytics are temporarily unavailable.
+              </p>
+              <p className="mt-1 text-destructive/80">
+                {analyticsQuery.error instanceof Error
+                  ? analyticsQuery.error.message
+                  : "The analytics request failed. Please try again."}
+              </p>
+            </div>
+            <Button
+              disabled={analyticsQuery.isFetching}
+              onClick={() => analyticsQuery.refetch()}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <RefreshCw
+                className={analyticsQuery.isFetching ? "animate-spin" : ""}
+                size={14}
+              />
+              {analyticsQuery.isFetching ? "Retrying..." : "Retry analytics"}
+            </Button>
           </CardContent>
         </Card>
       ) : null}
@@ -226,7 +271,7 @@ function DashboardVideoDetailPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {analyticsQuery.isPending ? (
+          {analyticsQuery.isLoading ? (
             <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
               Loading chart...
             </div>
@@ -290,13 +335,15 @@ function DashboardVideoDetailPage() {
           <CardHeader>
             <CardTitle>Audience geography</CardTitle>
             <CardDescription>
-              {analytics?.geography.level === "region"
-                ? "Premium regional detail, protected by a minimum three-viewer cohort."
-                : "Country-level audience totals. Premium unlocks state and region detail."}
+              {isExternalVideo
+                ? "External players do not provide first-party audience data."
+                : analytics?.geography.level === "region"
+                  ? "Premium regional detail, protected by a minimum three-viewer cohort."
+                  : "Country-level audience totals. Premium unlocks state and region detail."}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {analyticsQuery.isPending ? (
+            {analyticsQuery.isLoading ? (
               <div className="py-10 text-center text-sm text-muted-foreground">
                 Loading audience data...
               </div>
@@ -324,7 +371,13 @@ function DashboardVideoDetailPage() {
                 ))}
               </div>
             ) : (
-              <EmptyAnalyticsState message="Audience geography appears after at least three verified viewers." />
+              <EmptyAnalyticsState
+                message={
+                  isExternalVideo
+                    ? "Audience geography is unavailable for external videos."
+                    : "Audience geography appears after at least three verified viewers."
+                }
+              />
             )}
           </CardContent>
         </Card>

@@ -1,6 +1,6 @@
 /* eslint-disable one-var, sort-vars, require-unicode-regexp, no-nested-ternary, unicorn/no-nested-ternary */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarClock, Zap } from "lucide-react";
+import { CalendarClock, Trophy, Zap } from "lucide-react";
 
 import { BattleCard } from "@/components/explore/battle-card";
 import {
@@ -9,12 +9,18 @@ import {
 } from "@/components/explore/explore-collection";
 import { LiveCollectionFilters } from "@/components/explore/live-collection-filters";
 import {
+  PublicCard,
+  PublicCardMeta,
+  PublicCardThumbnail,
+} from "@/components/explore/public-card";
+import { AppImage } from "@/components/ui/app-image";
+import {
   filterAndSortLiveItems,
   normalizeGenreValue,
 } from "@/lib/live-collection";
-import { musicGenres } from "@/lib/music-genres";
 import {
   useBattlesQuery,
+  useGenresQuery,
   useListeningPartiesQuery,
   usePublicLiveExperiencesQuery,
 } from "@/lib/soundkit-api-hooks";
@@ -76,7 +82,9 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
       <div className="w-full min-w-0">
         <BattleCard
           currentRound={item.battle.round?.current ?? 1}
+          format={item.battle.format}
           genre={item.battle.genre}
+          hasPlayedTurn={item.battle.hasPlayedTurn}
           id={item.battle.id}
           isLive={item.battle.status === "live"}
           isPremiumUser={false}
@@ -85,11 +93,13 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
           participants={item.battle.participants}
           phaseEndsAt={item.battle.phaseEndsAt}
           queueSize={item.battle.queueSize}
+          replayStatus={item.battle.replayStatus}
+          replayVideoId={item.battle.replayVideoId}
           showActions={false}
           startsAt={item.battle.startsAt}
           status={item.battle.status}
           title={item.battle.title}
-          totalRounds={item.battle.round?.total ?? 1}
+          totalRounds={item.battle.round?.total}
           track1={
             tracks[0]
               ? {
@@ -116,6 +126,7 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
   }
 
   const isLive = item.status === "live",
+    isCompleted = item.status === "completed" || item.status === "archived",
     posterImage =
       item.kind === "battle"
         ? "/music-battle-video-thumbnail.jpg"
@@ -126,7 +137,7 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
     tags = [
       item.genre,
       categoryLabel.toLowerCase(),
-      isLive ? "live" : "upcoming",
+      isLive ? "live" : isCompleted ? "completed" : "upcoming",
     ].filter(Boolean) as string[];
 
   return (
@@ -135,12 +146,14 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
       params={{ id: item.id }}
       to={item.href}
     >
-      <div className="flex flex-col gap-2.5">
-        <div className="relative aspect-video w-full overflow-hidden rounded-md bg-muted transition-transform duration-300 group-hover:scale-[1.02]">
-          <img
-            alt={item.title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+      <PublicCard>
+        <PublicCardThumbnail className="transition-transform duration-300 group-hover:scale-[1.02]">
+          <AppImage
+            alt={`${item.title} thumbnail`}
+            className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
             height={720}
+            layout="constrained"
+            loading="lazy"
             src={posterImage}
             width={1280}
           />
@@ -153,8 +166,12 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
               </div>
             ) : (
               <div className="flex items-center gap-1 rounded-[4px] bg-black/75 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">
-                <CalendarClock className="size-3 text-primary" />
-                Upcoming
+                {isCompleted ? (
+                  <Trophy className="size-3 text-primary" />
+                ) : (
+                  <CalendarClock className="size-3 text-primary" />
+                )}
+                {isCompleted ? "Completed" : "Upcoming"}
               </div>
             )}
           </div>
@@ -165,6 +182,10 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
               <div className="rounded-[4px] bg-black/70 px-1.5 py-0.5 text-xs font-semibold text-white backdrop-blur">
                 {formatLiveHubViewers(item.viewerCount)} viewers
               </div>
+            ) : isCompleted ? (
+              <div className="rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">
+                Final result
+              </div>
             ) : item.startsAt ? (
               <div className="flex items-center gap-1 rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">
                 <CalendarClock className="size-3 text-primary" />
@@ -172,10 +193,10 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
               </div>
             ) : null}
           </div>
-        </div>
+        </PublicCardThumbnail>
 
         {/* Card info */}
-        <div className="space-y-0.5 px-0.5">
+        <PublicCardMeta className="space-y-0.5">
           <h3 className="line-clamp-1 font-bold text-sm leading-tight text-foreground transition-colors group-hover:text-primary">
             {item.title}
           </h3>
@@ -192,8 +213,8 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
               </span>
             ))}
           </div>
-        </div>
-      </div>
+        </PublicCardMeta>
+      </PublicCard>
     </Link>
   );
 }
@@ -201,28 +222,25 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
 function LiveHubPage() {
   const navigate = Route.useNavigate(),
     search = Route.useSearch(),
-    battlesQuery = useBattlesQuery(),
+    battlesQuery = useBattlesQuery({ scope: "public" }),
+    genresQuery = useGenresQuery(),
     partiesQuery = useListeningPartiesQuery(),
     streamsQuery = usePublicLiveExperiencesQuery("stream"),
     genre = search.genre ?? "all",
     sort = search.sort ?? "starts-asc",
     status = search.status ?? "all",
     view = search.view ?? "sections",
-    battleItems: LiveHubItem[] = (battlesQuery.data ?? [])
-      .filter(
-        (battle) => battle.status === "live" || battle.status === "scheduled"
-      )
-      .map((battle) => ({
-        battle,
-        genre: battle.genre,
-        href: "/live/battles/$id",
-        id: battle.id,
-        kind: "battle" as const,
-        startsAt: battle.startsAt ?? null,
-        status: battle.status,
-        title: battle.title,
-        viewerCount: battle.viewerCount,
-      })),
+    battleItems: LiveHubItem[] = (battlesQuery.data ?? []).map((battle) => ({
+      battle,
+      genre: battle.genre,
+      href: "/live/battles/$id",
+      id: battle.id,
+      kind: "battle" as const,
+      startsAt: battle.startsAt ?? null,
+      status: battle.status,
+      title: battle.title,
+      viewerCount: battle.viewerCount,
+    })),
     partyItems: LiveHubItem[] = (partiesQuery.data ?? []).map((party) => ({
       genre: party.genre ?? null,
       href: "/live/parties/$id",
@@ -246,6 +264,7 @@ function LiveHubPage() {
         viewerCount: stream.viewerCount,
       })),
     allItems = [...battleItems, ...partyItems, ...streamItems],
+    genres = genresQuery.data ?? [],
     filteredItems = filterAndSortLiveItems({
       genre,
       items: allItems,
@@ -324,26 +343,42 @@ function LiveHubPage() {
           >
             {(item) => <LiveHubCard item={item} />}
           </ExploreCollectionSection>
-          {musicGenres.map((sectionGenre) => {
-            const sectionSlug = normalizeGenreValue(sectionGenre.value),
-              sectionLabel = normalizeGenreValue(sectionGenre.label);
+          <ExploreCollectionSection
+            empty="No published battle replays yet."
+            hideWhenEmpty
+            items={allItems.filter(
+              (item) =>
+                item.kind === "battle" &&
+                (item.status === "completed" || item.status === "archived") &&
+                item.battle?.hasPlayedTurn &&
+                item.battle.replayStatus === "available" &&
+                Boolean(item.battle.replayVideoId)
+            )}
+            layout="landscape"
+            title="Recent Replays"
+          >
+            {(item) => <LiveHubCard item={item} />}
+          </ExploreCollectionSection>
+          {genres.map((sectionGenre) => {
+            const sectionSlug = normalizeGenreValue(sectionGenre.slug),
+              sectionLabel = normalizeGenreValue(sectionGenre.name);
             return (
               <ExploreCollectionSection
-                empty={`No ${sectionGenre.label} live experiences yet.`}
+                empty={`No ${sectionGenre.name} live experiences yet.`}
+                hideWhenEmpty
                 items={allItems.filter((item) => {
                   const itemGenre = normalizeGenreValue(item.genre);
                   return (
-                    item.genre === sectionGenre.value ||
                     itemGenre === sectionSlug ||
                     itemGenre === sectionLabel ||
                     itemGenre.startsWith(sectionSlug) ||
                     sectionSlug.startsWith(itemGenre)
                   );
                 })}
-                key={sectionGenre.value}
+                key={sectionGenre.slug}
                 layout="landscape"
-                onViewAll={() => openCollection({ genre: sectionGenre.value })}
-                title={sectionGenre.label}
+                onViewAll={() => openCollection({ genre: sectionGenre.slug })}
+                title={sectionGenre.name}
               >
                 {(item) => <LiveHubCard item={item} />}
               </ExploreCollectionSection>

@@ -1,9 +1,10 @@
 "use client";
-/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, unicorn/consistent-function-scoping */
+/* eslint-disable complexity, no-nested-ternary, no-unused-vars, no-void, react/set-state-in-effect, sort-vars, one-var, require-unicode-regexp, unicorn/consistent-function-scoping, unicorn/no-nested-ternary */
 
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  Camera,
   CalendarClock,
   CheckCircle2,
   Disc3,
@@ -15,6 +16,7 @@ import {
   Mic,
   MicOff,
   Minimize,
+  Play,
   Radio,
   RefreshCw,
   Share2,
@@ -24,7 +26,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import { BattleArtistControlPanel } from "@/components/live/battle-artist-control-panel";
@@ -32,11 +34,18 @@ import { BattleLifecycleControls } from "@/components/live/battle-lifecycle-cont
 import { BattleMediaStage } from "@/components/live/battle-media-stage";
 import { BattleTimer } from "@/components/live/battle-timer";
 import { LiveChatPanel } from "@/components/live/live-room-panels";
+import { LiveTipButton } from "@/components/live/live-tip-button";
 import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
 import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { UserProfilePreviewModal } from "@/components/live/user-profile-preview-modal";
 import type { UserPreviewData } from "@/components/live/user-profile-preview-modal";
 import { AppImage } from "@/components/ui/app-image";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,6 +72,16 @@ import {
   clearBattleKitSelection,
   readBattleKitSelection,
 } from "@/lib/battle-kit-selection";
+import type { BattleMediaDeviceSelection } from "@/lib/battle-media-selection";
+import {
+  readBattleMediaDeviceSelection,
+  rememberBattleMediaDeviceSelection,
+  resolveBattleMediaDeviceSelection,
+} from "@/lib/battle-media-selection";
+import {
+  clearBattleReturnIntent,
+  rememberBattleReturnIntent,
+} from "@/lib/battle-return-intent";
 import {
   completeBattleShareReferral,
   rememberBattleShareReferral,
@@ -81,7 +100,27 @@ function PublicBattlePage() {
   return <BattlePage roomId={id} />;
 }
 
-const voteTotal = (round: LiveBattleRound) =>
+const mediaErrorMessage = (error: unknown) => {
+    if (error instanceof Error && !(error instanceof DOMException)) {
+      return error.message;
+    }
+
+    const name = error instanceof DOMException ? error.name : "";
+    if (name === "NotAllowedError" || name === "SecurityError") {
+      return "Camera or microphone access is blocked. Allow both devices in your browser site settings, then try again.";
+    }
+    if (name === "NotFoundError") {
+      return "No camera or microphone was found. Connect both devices, then try again.";
+    }
+    if (name === "NotReadableError") {
+      return "Another app is using your camera or microphone. Close it, then try again.";
+    }
+    if (name === "OverconstrainedError") {
+      return "The saved device is no longer available. SoundKit reset to your browser’s default devices; try again.";
+    }
+    return "We could not access your camera or microphone. Check browser permissions and try again.";
+  },
+  voteTotal = (round: LiveBattleRound) =>
     Object.values(round.voteTotals).reduce((sum, votes) => sum + votes, 0),
   votePercent = (round: LiveBattleRound, artistId: string) => {
     const total = voteTotal(round);
@@ -195,14 +234,10 @@ function BattleStageVisual({
   return (
     <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-gradient-to-br from-primary/30 via-black to-secondary/30">
       <AppImage
-        alt={artistView ? "Artist battle waiting room" : "Upcoming battle"}
-        className="absolute inset-0 size-full object-cover opacity-25"
-        height={720}
-        src={
-          artistView
-            ? "/music-battle-live-performance-video.jpg"
-            : "/soundkit-default-banner.svg"
-        }
+        alt="SoundKit branded battle backdrop"
+        className="absolute inset-0 size-full object-cover opacity-70"
+        height={500}
+        src="/soundkit-default-banner.svg"
         width={1280}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/30" />
@@ -216,28 +251,28 @@ function BattleStageVisual({
         </Badge>
         <div className="flex items-center gap-6 sm:gap-10">
           <div className="flex flex-col items-center gap-2">
-            <Avatar className="size-16 border-2 border-primary ring-4 ring-primary/20 shadow-xl sm:size-20">
+            <Avatar className="size-16 rounded-xl border-2 border-primary ring-4 ring-primary/20 shadow-xl sm:size-20">
               <AvatarImage src={artistA.avatarUrl} />
-              <AvatarFallback className="text-lg font-bold">
+              <AvatarFallback className="rounded-xl text-lg font-bold">
                 {artistA.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <p className="max-w-[120px] truncate text-sm font-bold text-white sm:text-base">
-              {artistA.name}
+            <p className="max-w-[140px] truncate text-sm font-bold text-white sm:text-base">
+              {artistNameWithRank(artistA)}
             </p>
           </div>
           <div className="rounded-full bg-destructive/90 p-3 text-white shadow-lg">
             <Swords className="size-6 sm:size-8" />
           </div>
           <div className="flex flex-col items-center gap-2">
-            <Avatar className="size-16 border-2 border-secondary ring-4 ring-secondary/20 shadow-xl sm:size-20">
+            <Avatar className="size-16 rounded-xl border-2 border-secondary ring-4 ring-secondary/20 shadow-xl sm:size-20">
               <AvatarImage src={artistB.avatarUrl} />
-              <AvatarFallback className="text-lg font-bold">
+              <AvatarFallback className="rounded-xl text-lg font-bold">
                 {artistB.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <p className="max-w-[120px] truncate text-sm font-bold text-white sm:text-base">
-              {artistB.name}
+            <p className="max-w-[140px] truncate text-sm font-bold text-white sm:text-base">
+              {artistNameWithRank(artistB)}
             </p>
           </div>
         </div>
@@ -250,20 +285,6 @@ function BattleStageVisual({
     </div>
   );
 }
-
-const artistForfeitPhases = new Set([
-  "artist_a_turn",
-  "artist_b_turn",
-  "between_rounds",
-  "pre_vote",
-  "round_result",
-  "turn_transition",
-  "tiebreaker_a",
-  "tiebreaker_b",
-  "tiebreaker_transition",
-  "voting",
-  "tiebreaker_voting",
-]);
 
 const battleFormatDetails = {
   best_of_3: {
@@ -280,19 +301,521 @@ const battleFormatDetails = {
   },
 } satisfies Record<BattleKit["format"], { label: string; rounds: string }>;
 
+const artistNameWithRank = (artist: LiveRoomArtist) => {
+  if (typeof artist.rank === "number" && artist.rank > 0) {
+    return `#${artist.rank} ${artist.name}`;
+  }
+
+  if (typeof artist.rank === "string" && artist.rank.trim()) {
+    const rankLabel = artist.rank.trim().startsWith("#")
+      ? artist.rank.trim()
+      : `#${artist.rank.trim()}`;
+    return `${rankLabel} ${artist.name}`;
+  }
+
+  return artist.name;
+};
+
+function BattleStartStatus({
+  artists,
+  phase,
+  phaseEndsAt,
+  presentArtistUserIds,
+  readyArtistUserIds,
+  serverNow,
+}: {
+  artists: [LiveRoomArtist, LiveRoomArtist];
+  phase?: string;
+  phaseEndsAt: number | null | undefined;
+  presentArtistUserIds: string[];
+  readyArtistUserIds: string[];
+  serverNow?: number;
+}) {
+  const allArtistsReady = artists.every((artist) =>
+      readyArtistUserIds.includes(artist.id)
+    ),
+    allArtistsPresent = artists.every((artist) =>
+      presentArtistUserIds.includes(artist.id)
+    ),
+    timerLabel =
+      phase === "scheduled"
+        ? "Battle opens in"
+        : phase === "waiting_room"
+          ? "Waiting room closes in"
+          : "Battle starts in";
+
+  return (
+    <div className="mx-auto w-full max-w-2xl rounded-xl border border-border/60 bg-background/50 p-3 text-center">
+      <p className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
+        Battle starts
+      </p>
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+        <BattleTimer
+          label={timerLabel}
+          phaseEndsAt={phaseEndsAt}
+          serverNow={serverNow}
+        />
+        <Badge
+          className="gap-1.5 font-mono text-[10px]"
+          variant={allArtistsReady ? "default" : "outline"}
+        >
+          {allArtistsReady ? (
+            <CheckCircle2 className="size-3.5 text-emerald-300" />
+          ) : (
+            <Users className="size-3.5" />
+          )}
+          {allArtistsReady && allArtistsPresent
+            ? "Ready"
+            : `${readyArtistUserIds.length}/2 ready · ${presentArtistUserIds.length}/2 in room`}
+        </Badge>
+      </div>
+      <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+        {artists.map((artist) => {
+          const isPresent = presentArtistUserIds.includes(artist.id),
+            isReady = readyArtistUserIds.includes(artist.id);
+          return (
+            <Badge
+              className="max-w-56 gap-1.5 truncate text-[10px]"
+              key={artist.id}
+              variant={isReady && isPresent ? "secondary" : "outline"}
+            >
+              {isReady && isPresent ? (
+                <CheckCircle2 className="size-3 text-emerald-400" />
+              ) : (
+                <span className="size-1.5 rounded-full bg-muted-foreground/50" />
+              )}
+              {artist.name} ·{" "}
+              {isPresent ? (isReady ? "Ready" : "Preparing") : "Not in room"}
+            </Badge>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BattleDeviceSetup({
+  onSaved,
+  pending,
+}: {
+  onSaved: (selection: BattleMediaDeviceSelection) => void;
+  pending: boolean;
+}) {
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]),
+    [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]),
+    [selectedVideoDeviceId, setSelectedVideoDeviceId] = useState(""),
+    [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState(""),
+    [mediaStream, setMediaStream] = useState<MediaStream | null>(null),
+    [mediaStatus, setMediaStatus] = useState<
+      "error" | "idle" | "ready" | "requesting"
+    >("idle"),
+    [error, setError] = useState<string | null>(null),
+    [saved, setSaved] = useState(false),
+    restoredSelectionRef = useRef<string | null>(null),
+    previewRef = useRef<HTMLVideoElement | null>(null);
+
+  const refreshDevices = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      return [];
+    }
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
+      setAudioDevices(devices.filter((device) => device.kind === "audioinput"));
+      return devices;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const requestPermissions = useCallback(
+    async (
+      videoDeviceId = selectedVideoDeviceId,
+      audioDeviceId = selectedAudioDeviceId
+    ): Promise<BattleMediaDeviceSelection | null> => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError("This browser does not provide camera and microphone access.");
+        setMediaStatus("error");
+        return null;
+      }
+
+      setMediaStatus("requesting");
+      setError(null);
+      setSaved(false);
+
+      let acquiredStream: MediaStream | null = null;
+      try {
+        const devicesBeforeRequest = await refreshDevices(),
+          availableDeviceSelection = resolveBattleMediaDeviceSelection(
+            devicesBeforeRequest,
+            {
+              audioDeviceId,
+              videoDeviceId,
+            }
+          ),
+          validVideoDeviceId =
+            availableDeviceSelection.videoDeviceId === videoDeviceId
+              ? videoDeviceId
+              : "",
+          validAudioDeviceId =
+            availableDeviceSelection.audioDeviceId === audioDeviceId
+              ? audioDeviceId
+              : "",
+          constraints = {
+            audio: validAudioDeviceId
+              ? { deviceId: { exact: validAudioDeviceId } }
+              : true,
+            video: validVideoDeviceId
+              ? { deviceId: { exact: validVideoDeviceId } }
+              : true,
+          };
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          acquiredStream = stream;
+        } catch (mediaError) {
+          const errorName =
+            mediaError instanceof DOMException ? mediaError.name : "";
+          if (
+            errorName !== "OverconstrainedError" &&
+            errorName !== "NotFoundError"
+          ) {
+            throw mediaError;
+          }
+
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: true,
+          });
+          acquiredStream = stream;
+        }
+        const devices = await refreshDevices(),
+          streamVideoDeviceId =
+            stream.getVideoTracks()[0]?.getSettings().deviceId ?? "",
+          streamAudioDeviceId =
+            stream.getAudioTracks()[0]?.getSettings().deviceId ?? "",
+          refreshedDeviceSelection = resolveBattleMediaDeviceSelection(
+            devices,
+            {
+              audioDeviceId: validAudioDeviceId,
+              videoDeviceId: validVideoDeviceId,
+            }
+          ),
+          nextVideoDevice =
+            streamVideoDeviceId ||
+            validVideoDeviceId ||
+            refreshedDeviceSelection.videoDeviceId,
+          nextAudioDevice =
+            streamAudioDeviceId ||
+            validAudioDeviceId ||
+            refreshedDeviceSelection.audioDeviceId,
+          selection = {
+            audioDeviceId: nextAudioDevice,
+            videoDeviceId: nextVideoDevice,
+          };
+        if (!(selection.videoDeviceId && selection.audioDeviceId)) {
+          throw new Error(
+            "SoundKit could not find both a camera and microphone. Connect both devices, then try again."
+          );
+        }
+
+        setMediaStream(stream);
+        setSelectedVideoDeviceId(selection.videoDeviceId);
+        setSelectedAudioDeviceId(selection.audioDeviceId);
+        setMediaStatus("ready");
+        return selection;
+      } catch (permissionError) {
+        for (const track of acquiredStream?.getTracks() ?? []) {
+          track.stop();
+        }
+        setMediaStatus("error");
+        setError(mediaErrorMessage(permissionError));
+        return null;
+      }
+    },
+    [refreshDevices, selectedAudioDeviceId, selectedVideoDeviceId]
+  );
+
+  useEffect(() => {
+    const stream = mediaStream;
+    return () => {
+      for (const track of stream?.getTracks() ?? []) {
+        track.stop();
+      }
+    };
+  }, [mediaStream]);
+
+  useEffect(() => {
+    const video = previewRef.current;
+    if (!video) {
+      return;
+    }
+
+    video.srcObject = mediaStream;
+    return () => {
+      video.srcObject = null;
+    };
+  }, [mediaStream]);
+
+  useEffect(() => {
+    void refreshDevices();
+  }, [refreshDevices]);
+
+  useEffect(() => {
+    const savedSelection = readBattleMediaDeviceSelection();
+    if (!savedSelection) {
+      return;
+    }
+
+    setSelectedVideoDeviceId(savedSelection.videoDeviceId);
+    setSelectedAudioDeviceId(savedSelection.audioDeviceId);
+
+    if (!navigator.permissions?.query) {
+      return;
+    }
+
+    const selectionKey = `${savedSelection.videoDeviceId}:${savedSelection.audioDeviceId}`;
+    if (restoredSelectionRef.current === selectionKey) {
+      return;
+    }
+    restoredSelectionRef.current = selectionKey;
+
+    let disposed = false;
+    const restoreSavedSetup = async () => {
+      try {
+        const [cameraPermission, microphonePermission] = await Promise.all([
+          navigator.permissions.query({ name: "camera" }),
+          navigator.permissions.query({ name: "microphone" }),
+        ]);
+        if (
+          disposed ||
+          cameraPermission.state !== "granted" ||
+          microphonePermission.state !== "granted"
+        ) {
+          return;
+        }
+
+        const restoredSelection = await requestPermissions(
+          savedSelection.videoDeviceId,
+          savedSelection.audioDeviceId
+        );
+        if (restoredSelection && !disposed) {
+          rememberBattleMediaDeviceSelection(restoredSelection);
+          setSaved(true);
+          onSaved(restoredSelection);
+        }
+      } catch {
+        if (!disposed) {
+          setMediaStatus("idle");
+        }
+      }
+    };
+
+    void restoreSavedSetup();
+    return () => {
+      disposed = true;
+    };
+  }, [onSaved, requestPermissions]);
+
+  useEffect(() => {
+    const { mediaDevices } = navigator;
+    if (!mediaDevices) {
+      return;
+    }
+
+    const handleDeviceChange = () => {
+      void refreshDevices();
+    };
+    mediaDevices.addEventListener("devicechange", handleDeviceChange);
+    return () =>
+      mediaDevices.removeEventListener("devicechange", handleDeviceChange);
+  }, [refreshDevices]);
+
+  const saveSetup = () => {
+    if (
+      !(
+        mediaStatus === "ready" &&
+        selectedVideoDeviceId &&
+        selectedAudioDeviceId
+      )
+    ) {
+      return;
+    }
+
+    const hasSelectedDevices =
+      videoDevices.some(
+        (device) => device.deviceId === selectedVideoDeviceId
+      ) &&
+      audioDevices.some((device) => device.deviceId === selectedAudioDeviceId);
+    if (!hasSelectedDevices) {
+      setMediaStatus("error");
+      setError(
+        "The selected camera or microphone is no longer available. Choose another device and try again."
+      );
+      return;
+    }
+
+    const selection = {
+      audioDeviceId: selectedAudioDeviceId,
+      videoDeviceId: selectedVideoDeviceId,
+    };
+    rememberBattleMediaDeviceSelection(selection);
+    onSaved(selection);
+    setSaved(true);
+  };
+
+  return (
+    <>
+      <div className="space-y-2 rounded-xl border border-border/60 bg-background/40 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <Camera className="size-3.5 text-primary" />
+            <p className="font-semibold text-xs">Camera</p>
+          </div>
+          <Badge
+            className="text-[10px]"
+            variant={mediaStatus === "ready" ? "secondary" : "outline"}
+          >
+            {mediaStatus === "ready" ? "Ready" : "Not set"}
+          </Badge>
+        </div>
+        <div className="aspect-video overflow-hidden rounded-lg bg-black">
+          {mediaStream ? (
+            <video
+              aria-label="Camera preview"
+              autoPlay
+              className="size-full object-cover"
+              muted
+              playsInline
+              ref={previewRef}
+            />
+          ) : (
+            <div className="flex size-full items-center justify-center px-3 text-center text-[10px] text-muted-foreground">
+              Preview appears after permission is granted.
+            </div>
+          )}
+        </div>
+        <Select
+          disabled={mediaStatus === "requesting" || videoDevices.length === 0}
+          onValueChange={(value) => {
+            setSelectedVideoDeviceId(value);
+            void requestPermissions(value, selectedAudioDeviceId);
+          }}
+          value={selectedVideoDeviceId}
+        >
+          <SelectTrigger aria-label="Battle camera" className="text-xs">
+            <SelectValue placeholder="Select camera" />
+          </SelectTrigger>
+          <SelectContent>
+            {videoDevices.map((device) => (
+              <SelectItem key={device.deviceId} value={device.deviceId}>
+                {device.label || `Camera ${device.deviceId.slice(0, 6)}`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {mediaStatus !== "ready" && (
+          <Button
+            className="w-full gap-1.5 text-xs"
+            disabled={mediaStatus === "requesting" || pending}
+            onClick={() => void requestPermissions()}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <Camera className="size-3.5" />
+            {mediaStatus === "requesting"
+              ? "Requesting access..."
+              : "Enable camera & mic"}
+          </Button>
+        )}
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-border/60 bg-background/40 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <Mic className="size-3.5 text-primary" />
+            <p className="font-semibold text-xs">Microphone</p>
+          </div>
+          <Badge
+            className="text-[10px]"
+            variant={mediaStatus === "ready" ? "secondary" : "outline"}
+          >
+            {mediaStatus === "ready" ? "Ready" : "Not set"}
+          </Badge>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Choose the input used for your live battle turn.
+        </p>
+        <Select
+          disabled={mediaStatus === "requesting" || audioDevices.length === 0}
+          onValueChange={(value) => {
+            setSelectedAudioDeviceId(value);
+            void requestPermissions(selectedVideoDeviceId, value);
+          }}
+          value={selectedAudioDeviceId}
+        >
+          <SelectTrigger aria-label="Battle microphone" className="text-xs">
+            <SelectValue placeholder="Select microphone" />
+          </SelectTrigger>
+          <SelectContent>
+            {audioDevices.map((device) => (
+              <SelectItem key={device.deviceId} value={device.deviceId}>
+                {device.label || `Mic ${device.deviceId.slice(0, 6)}`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="rounded-lg border border-dashed border-border/70 p-2 text-[10px] text-muted-foreground">
+          {mediaStatus === "ready"
+            ? "Access granted. Your selected camera and microphone will be restored next time."
+            : "Camera and microphone permissions are requested together. Browser permission is remembered after you allow it."}
+        </div>
+        {error && <p className="text-[10px] text-destructive">{error}</p>}
+        <Button
+          className="w-full gap-1.5 text-xs"
+          disabled={
+            pending ||
+            mediaStatus !== "ready" ||
+            !selectedVideoDeviceId ||
+            !selectedAudioDeviceId
+          }
+          onClick={saveSetup}
+          size="sm"
+          type="button"
+        >
+          <CheckCircle2 className="size-3.5" />
+          {saved ? "Device setup saved" : "Save device setup"}
+        </Button>
+      </div>
+    </>
+  );
+}
+
 function ArtistBattlePreparation({
   format,
+  isReady,
   lockedKitId,
   onLock,
+  onMediaSetupSaved,
+  onReady,
+  pending,
 }: {
   format: BattleKit["format"];
+  isReady: boolean;
   lockedKitId: string | null;
   onLock: (kitId: string) => Promise<void>;
+  onMediaSetupSaved: (selection: BattleMediaDeviceSelection) => void;
+  onReady: (ready: boolean) => Promise<void>;
+  pending: boolean;
 }) {
   const formatDetails = battleFormatDetails[format],
     kitsQuery = useBattleKitsQuery({ format, ready: true }),
     kits = kitsQuery.data ?? [],
     [draftKitId, setDraftKitId] = useState(lockedKitId ?? ""),
+    [isSetupOpen, setIsSetupOpen] = useState(!isReady),
+    [mediaSetupSaved, setMediaSetupSaved] = useState(false),
     [saveError, setSaveError] = useState<string | null>(null),
     draftKit = kits.find((kit) => kit.id === draftKitId),
     lockedKit = kits.find((kit) => kit.id === lockedKitId),
@@ -314,40 +837,58 @@ function ArtistBattlePreparation({
             : "Could not lock this Battle Kit."
         );
       }
+    },
+    handleMediaSetupSaved = (selection: BattleMediaDeviceSelection) => {
+      setMediaSetupSaved(true);
+      onMediaSetupSaved(selection);
+    },
+    handleReady = async (ready: boolean) => {
+      await onReady(ready);
     };
 
   return (
     <Card className="border-primary/30 bg-primary/5 shadow-sm">
-      <CardHeader className="gap-2 pb-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-2.5">
-            <div className="mt-0.5 rounded-md bg-primary/15 p-2 text-primary">
-              <Disc3 className="size-4" />
-            </div>
-            <div>
-              <CardTitle className="text-sm">
-                Prepare your battle lineup
-              </CardTitle>
-              <CardDescription className="mt-1 text-xs">
-                {formatDetails.label} · {formatDetails.rounds}. Choose a
-                battle-ready kit before the room opens.
-              </CardDescription>
-            </div>
-          </div>
-          <Badge
-            className="gap-1.5 text-[10px]"
-            variant={isLocked ? "default" : "outline"}
-          >
-            {isLocked ? (
-              <LockKeyhole className="size-3" />
-            ) : (
-              <Swords className="size-3" />
-            )}
-            {isLocked ? "Kit locked" : "Artist only"}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3 pt-0">
+      <Accordion
+        collapsible
+        onValueChange={(value) => setIsSetupOpen(value === "setup")}
+        type="single"
+        value={isSetupOpen ? "setup" : ""}
+      >
+        <AccordionItem className="border-0" value="setup">
+          <CardHeader className="gap-2 pb-3">
+            <AccordionTrigger className="items-start gap-3 py-0 hover:no-underline [&>svg]:mt-1 [&>svg]:text-muted-foreground">
+              <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-3 text-left">
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-0.5 rounded-md bg-primary/15 p-2 text-primary">
+                    <Disc3 className="size-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm">
+                      {isReady ? "Ready for battle" : "Prepare your battle lineup"}
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs">
+                      {isReady
+                        ? `${formatDetails.label} kit and media permissions saved.`
+                        : `${formatDetails.label} · ${formatDetails.rounds}. Choose a battle-ready kit before the room opens.`}
+                    </CardDescription>
+                  </div>
+                </div>
+                <Badge
+                  className="gap-1.5 text-[10px]"
+                  variant={isReady ? "default" : isLocked ? "secondary" : "outline"}
+                >
+                  {isReady || isLocked ? (
+                    <LockKeyhole className="size-3" />
+                  ) : (
+                    <Swords className="size-3" />
+                  )}
+                  {isReady ? "Ready" : isLocked ? "Kit locked" : "Setup needed"}
+                </Badge>
+              </div>
+            </AccordionTrigger>
+          </CardHeader>
+          <AccordionContent className="px-6 pb-6 pt-0">
+            <div className="space-y-3">
         {kitsQuery.isLoading && (
           <div className="rounded-lg border border-dashed border-border/70 bg-background/40 p-3 text-xs text-muted-foreground">
             Loading your {formatDetails.label} Battle Kits...
@@ -391,87 +932,115 @@ function ArtistBattlePreparation({
         )}
 
         {!kitsQuery.isLoading && !kitsQuery.error && kits.length > 0 && (
-          <>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1 space-y-1.5">
-                <label
-                  className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground"
-                  htmlFor="battle-kit-select"
-                >
-                  Battle Kit
-                </label>
-                <Select
-                  onValueChange={(value) => {
-                    setSaveError(null);
-                    setDraftKitId(value);
-                  }}
-                  value={selectedKitId}
-                >
-                  <SelectTrigger
-                    aria-label="Battle Kit"
-                    className="bg-background/70"
-                    id="battle-kit-select"
+          <div className="grid gap-3 lg:grid-cols-3">
+            <div className="space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <label
+                    className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground"
+                    htmlFor="battle-kit-select"
                   >
-                    <SelectValue
-                      placeholder={`Choose a ${formatDetails.label} kit`}
-                    />
-                  </SelectTrigger>
-                  <SelectContent className="[&_[data-highlighted]]:bg-muted [&_[data-highlighted]]:text-foreground">
-                    {kits.map((kit) => (
-                      <SelectItem key={kit.id} value={kit.id}>
-                        <span className="flex items-center gap-2">
-                          <span>{kit.name}</span>
-                          <span className="text-muted-foreground">
-                            · {kit.totalUniqueTracks} tracks
-                          </span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                className="gap-1.5 text-xs"
-                disabled={!selectedKitId || isLocked || kitsQuery.isFetching}
-                onClick={async () => {
-                  await lockKit();
-                }}
-                size="sm"
-              >
-                <LockKeyhole className="size-3.5" />
-                {isLocked ? "Locked for battle" : "Lock Kit"}
-              </Button>
-            </div>
-
-            {selectedKit && (
-              <div className="rounded-lg border border-border/60 bg-background/40 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-semibold text-xs">{selectedKit.name}</p>
-                  <Badge className="text-[10px]" variant="secondary">
-                    {selectedKit.totalUniqueTracks} tracks ready
-                  </Badge>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {selectedKit.tracks.map((track) => (
-                    <Badge
-                      className="max-w-full truncate text-[10px]"
-                      key={track.id}
-                      variant="outline"
+                    Battle Kit
+                  </label>
+                  <Select
+                    onValueChange={(value) => {
+                      setSaveError(null);
+                      setDraftKitId(value);
+                    }}
+                    value={selectedKitId}
+                  >
+                    <SelectTrigger
+                      aria-label="Battle Kit"
+                      className="bg-background/70"
+                      id="battle-kit-select"
                     >
-                      {track.role === "tiebreaker"
-                        ? "TB"
-                        : `R${track.mainSlot ?? "?"}`}{" "}
-                      {track.title}
-                    </Badge>
-                  ))}
+                      <SelectValue
+                        placeholder={`Choose a ${formatDetails.label} kit`}
+                      />
+                    </SelectTrigger>
+                    <SelectContent className="[&_[data-highlighted]]:bg-muted [&_[data-highlighted]]:text-foreground">
+                      {kits.map((kit) => (
+                        <SelectItem key={kit.id} value={kit.id}>
+                          <span className="flex items-center gap-2">
+                            <span>{kit.name}</span>
+                            <span className="text-muted-foreground">
+                              · {kit.totalUniqueTracks} tracks
+                            </span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+                <Button
+                  className="gap-1.5 text-xs"
+                  disabled={!selectedKitId || isLocked || kitsQuery.isFetching}
+                  onClick={async () => {
+                    await lockKit();
+                  }}
+                  size="sm"
+                >
+                  <LockKeyhole className="size-3.5" />
+                  {isLocked ? "Locked for battle" : "Lock Kit"}
+                </Button>
               </div>
-            )}
-          </>
+
+              {selectedKit && (
+                <div className="rounded-lg border border-border/60 bg-background/40 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold text-xs">{selectedKit.name}</p>
+                    <Badge className="text-[10px]" variant="secondary">
+                      {selectedKit.totalUniqueTracks} tracks ready
+                    </Badge>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {selectedKit.tracks.map((track) => (
+                      <Badge
+                        className="max-w-full truncate text-[10px]"
+                        key={track.id}
+                        variant="outline"
+                      >
+                        {track.role === "tiebreaker"
+                          ? "TB"
+                          : `R${track.mainSlot ?? "?"}`}{" "}
+                        {track.title}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <BattleDeviceSetup
+              onSaved={handleMediaSetupSaved}
+              pending={pending}
+            />
+          </div>
         )}
 
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
+          <p className="text-[11px] text-muted-foreground">
+            {mediaSetupSaved
+              ? "Device setup saved. Mark yourself ready when your Battle Kit is locked."
+              : "Save your Battle Kit, camera, and microphone before marking yourself ready."}
+          </p>
+          <Button
+            className="gap-1.5"
+            disabled={pending || !isLocked || !mediaSetupSaved}
+            onClick={() => void handleReady(!isReady)}
+            size="sm"
+            type="button"
+            variant={isReady ? "secondary" : "default"}
+          >
+            <CheckCircle2 className="size-3.5" />
+            {isReady ? "Not ready" : "I’m ready"}
+          </Button>
+        </div>
+
         {saveError && <p className="text-xs text-destructive">{saveError}</p>}
-      </CardContent>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </Card>
   );
 }
@@ -508,6 +1077,8 @@ export function BattlePage({
     [selectedBattleKitId, setSelectedBattleKitId] = useState<string | null>(
       () => readBattleKitSelection()?.kitId ?? null
     ),
+    [mediaDeviceSelection, setMediaDeviceSelection] =
+      useState<BattleMediaDeviceSelection | null>(null),
     selectedBattleKit = useRef(readBattleKitSelection()),
     battleKitApplied = useRef(false),
     {
@@ -518,16 +1089,28 @@ export function BattlePage({
     room = query.data,
     battle = room?.battle,
     phase = battle?.coordination?.phase,
+    isBattleEnded = Boolean(room?.status === "ended" || phase === "ended"),
     canonicalRoomId = battle?.coordination?.battleId ?? id,
-    isAdmin = room?.role === "admin",
+    artistRole =
+      room?.role === "artist_a" || room?.role === "artist_b"
+        ? room.role
+        : session?.user?.id === battle?.artists[0]?.id
+          ? "artist_a"
+          : session?.user?.id === battle?.artists[1]?.id
+            ? "artist_b"
+            : null,
+    isAdmin = room?.role === "admin" || session?.user?.role === "admin",
     isScheduled =
       room?.status === "upcoming" ||
       phase === "scheduled" ||
       phase === "waiting_room",
-    viewerQueueStatus = battle?.viewerQueueStatus ?? null,
+    isPreStartBattle = phase === "scheduled" || phase === "waiting_room",
+    isBattleActive = Boolean(phase && !isPreStartBattle && !isBattleEnded),
+    viewerQueueStatus = isBattleEnded
+      ? null
+      : (battle?.viewerQueueStatus ?? null),
     isAdmitted = viewerQueueStatus === "admitted",
-    isArtist = Boolean(room?.role === "artist_a" || room?.role === "artist_b"),
-    isArtistForfeitPhase = isArtist && artistForfeitPhases.has(phase ?? ""),
+    isArtist = artistRole !== null,
     isQueued =
       viewerQueueStatus === "queued" || viewerQueueStatus === "waiting",
     readyArtistUserIds = battle?.coordination?.artistReadyUserIds ?? [],
@@ -535,7 +1118,9 @@ export function BattlePage({
       battle &&
       !battle.outcome &&
       !battle.coordination?.winnerUserId &&
-      (phase === "battle_result" || phase === "ended")
+      (phase === "battle_result" || phase === "ended") &&
+      battle.rounds.find((round) => round.id === battle.currentRoundId)
+        ?.status === "complete"
     ),
     lockedBattleKitId =
       battle?.artistControls?.selectedKitId ?? selectedBattleKitId,
@@ -544,6 +1129,9 @@ export function BattlePage({
     ),
     currentTrack = room?.tracklist.find(
       (track) => track.id === room.currentTrackId
+    ),
+    battleWinner = battle?.artists.find(
+      (artist) => artist.id === battle.coordination?.winnerUserId
     ),
     { dialog: battleLeaveDialog } = useBattleLeaveGuard({
       isArtist,
@@ -569,11 +1157,20 @@ export function BattlePage({
             });
           }
         : undefined,
-      shouldBlock:
-        Boolean(currentRound) &&
-        (isAdmitted || isArtistForfeitPhase) &&
-        !(isArtist && (phase === "scheduled" || phase === "waiting_room")),
+      shouldBlock: isBattleActive,
     });
+
+  const currentArtistId =
+      artistRole === "artist_a"
+        ? battle?.artists[0]?.id
+        : artistRole === "artist_b"
+          ? battle?.artists[1]?.id
+          : null,
+    currentArtistReady = Boolean(
+      isArtist &&
+      currentArtistId &&
+      readyArtistUserIds.includes(currentArtistId)
+    );
 
   useEffect(() => {
     if (!referrerUsername) {
@@ -591,13 +1188,19 @@ export function BattlePage({
   }, [id, referrerUsername, session?.user?.id]);
 
   useEffect(() => {
-    if (
-      artistView ||
-      !isArtist ||
-      !battle ||
-      room?.status === "ended" ||
-      phase === "ended"
-    ) {
+    if (!isArtist || !session?.user?.id || !battle) {
+      return;
+    }
+
+    if (isPreStartBattle) {
+      rememberBattleReturnIntent({ battleId: id, userId: session.user.id });
+    } else {
+      clearBattleReturnIntent(id);
+    }
+  }, [battle, id, isArtist, isPreStartBattle, session?.user?.id]);
+
+  useEffect(() => {
+    if (artistView || !isArtist || !battle || isBattleEnded) {
       return;
     }
 
@@ -611,8 +1214,66 @@ export function BattlePage({
     battle,
     canonicalRoomId,
     isArtist,
+    isBattleEnded,
     phase,
-    room?.status,
+    router,
+  ]);
+
+  useEffect(() => {
+    if (
+      !artistView ||
+      query.isLoading ||
+      query.isError ||
+      !room ||
+      !battle ||
+      isArtist ||
+      isAdmin
+    ) {
+      return;
+    }
+
+    void router.navigate({
+      params: { id },
+      replace: true,
+      to: "/live/battles/$id",
+    });
+  }, [
+    artistView,
+    battle,
+    id,
+    isAdmin,
+    isArtist,
+    query.isError,
+    query.isLoading,
+    room,
+    router,
+  ]);
+
+  useEffect(() => {
+    if (
+      !artistView ||
+      !isBattleEnded ||
+      query.isLoading ||
+      query.isError ||
+      !room ||
+      !battle
+    ) {
+      return;
+    }
+
+    void router.navigate({
+      params: { id },
+      replace: true,
+      to: "/live/battles/$id",
+    });
+  }, [
+    artistView,
+    battle,
+    id,
+    isBattleEnded,
+    query.isError,
+    query.isLoading,
+    room,
     router,
   ]);
 
@@ -694,6 +1355,7 @@ export function BattlePage({
           ? (session?.user?.id ?? null)
           : disposition.affectedUserId,
     });
+    clearBattleReturnIntent(id);
     toast({
       description:
         disposition.kind === "ducked"
@@ -755,10 +1417,10 @@ export function BattlePage({
       <div className="flex min-h-[50vh] items-center justify-center p-6">
         <Card className="max-w-lg text-center">
           <CardHeader>
-            <CardTitle>Artist room access required</CardTitle>
+            <CardTitle>Opening public battle room</CardTitle>
             <CardDescription>
-              This route is reserved for the two artists assigned to this
-              battle. Join the public room as a viewer instead.
+              This account is not assigned to this battle. Sending you to the
+              viewer room now.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -775,6 +1437,63 @@ export function BattlePage({
 
   const [artistA, artistB] = battle.artists;
 
+  if (isBattleEnded) {
+    const replayIsReady =
+      battle.replayStatus === "available" && Boolean(battle.replayVideoId),
+      endedBeforeFirstTurn = battle.hasPlayedTurn === false;
+
+    return (
+      <LiveRoomAccessGuard allowPublic roomTitle={room.title}>
+        <div className="flex min-h-[50vh] items-center justify-center p-6">
+          <Card className="max-w-lg text-center">
+            <CardHeader>
+              <CardTitle>
+                {endedBeforeFirstTurn
+                  ? "Battle ended before the first turn"
+                  : "Battle ended"}
+              </CardTitle>
+              <CardDescription>
+                {endedBeforeFirstTurn
+                  ? "No result was recorded because the first turn never opened."
+                  : replayIsReady
+                    ? "The final result is locked. Watch the published replay to review every turn."
+                    : battle.replayStatus === "processing"
+                      ? "The battle had real activity. Its replay is being prepared for publication."
+                      : "The final result is locked, but no replay has been published for this battle."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              {replayIsReady ? (
+                <Button asChild>
+                  <Link
+                    params={{ id: battle.replayVideoId ?? "" }}
+                    to="/videos/$id"
+                  >
+                    <Play aria-hidden="true" data-icon="inline-start" />
+                    Watch Replay
+                  </Link>
+                </Button>
+              ) : null}
+              <Button asChild variant="outline">
+                <Link
+                  search={{
+                    genre: undefined,
+                    region: undefined,
+                    regionType: "north-america",
+                    sort: undefined,
+                  }}
+                  to="/live/battles"
+                >
+                  Browse recent replays
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </LiveRoomAccessGuard>
+    );
+  }
+
   if (isScheduled || !currentRound) {
     return (
       <LiveRoomAccessGuard
@@ -784,8 +1503,11 @@ export function BattlePage({
         <LiveTwitchShell
           chatPanel={
             <LiveChatPanel
+              artistAvatarUrls={Object.fromEntries(
+                battle.artists.map((artist) => [artist.id, artist.avatarUrl])
+              )}
               artistUserIds={battle.artists.map((artist) => artist.id)}
-              disabled={chat.isPending}
+              disabled={chat.isPending || isBattleEnded}
               fillHeight
               messages={chatMessages}
               onCollapse={() => setIsChatOpen(false)}
@@ -806,15 +1528,13 @@ export function BattlePage({
           <div className="space-y-4 pt-4">
             <Card className="border-primary/40 bg-card/90 shadow-xl overflow-hidden">
               <CardHeader className="border-b border-border/60 bg-muted/40">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <CalendarClock className="size-4.5 text-primary" />
-                    <div>
-                      <CardTitle className="text-sm">{room.title}</CardTitle>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {artistA.name} vs {artistB.name}
-                      </p>
-                    </div>
+                <div className="flex flex-wrap items-center justify-center gap-2 text-center">
+                  <div>
+                    <CardTitle className="text-sm">{room.title}</CardTitle>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {artistNameWithRank(artistA)} vs{" "}
+                      {artistNameWithRank(artistB)}
+                    </p>
                   </div>
                   <Badge
                     className="gap-1.5 text-xs font-mono"
@@ -824,92 +1544,77 @@ export function BattlePage({
                     {battle.queueSize?.toLocaleString() ?? 0} in queue
                   </Badge>
                 </div>
+                <div className="mt-3">
+                  <BattleStartStatus
+                    artists={battle.artists}
+                    phase={phase}
+                    phaseEndsAt={battle.coordination?.phaseEndsAt}
+                    presentArtistUserIds={
+                      battle.coordination?.artistPresentUserIds ?? []
+                    }
+                    readyArtistUserIds={readyArtistUserIds}
+                    serverNow={room.serverNow}
+                  />
+                </div>
               </CardHeader>
               <CardContent className="space-y-4 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/50 p-3">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Battle starts
-                    </p>
-                    <BattleTimer
-                      label={
-                        phase === "scheduled"
-                          ? "Battle opens in"
-                          : "Waiting for both artists"
-                      }
-                      phaseEndsAt={battle.coordination?.phaseEndsAt}
-                      serverNow={room.serverNow}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isArtist || isAdmin ? (
-                      <>
-                        <Badge
-                          className="font-mono text-[10px]"
-                          variant="outline"
-                        >
-                          {readyArtistUserIds.length}/2 ready
-                        </Badge>
-                        <Badge className="gap-1.5 text-xs" variant="secondary">
-                          <Swords className="size-3.5" />
-                          Artist room
-                        </Badge>
-                      </>
-                    ) : isQueued ? (
-                      <>
-                        <Badge variant="secondary" className="gap-1.5 text-xs">
-                          <ListPlus className="size-3.5" />
-                          You are in the queue
-                        </Badge>
-                        <Button
-                          className="gap-1.5 text-xs"
-                          disabled={leave.isPending}
-                          onClick={() => leave.mutate()}
-                          size="sm"
-                          variant="outline"
-                        >
-                          <LogOut className="size-3.5" />
-                          Leave
-                        </Button>
-                      </>
-                    ) : (
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {isArtist || isAdmin ? (
+                    <Badge className="gap-1.5 text-xs" variant="secondary">
+                      <Swords className="size-3.5" />
+                      Artist room
+                    </Badge>
+                  ) : isQueued ? (
+                    <>
+                      <Badge variant="secondary" className="gap-1.5 text-xs">
+                        <ListPlus className="size-3.5" />
+                        You are in the queue
+                      </Badge>
                       <Button
                         className="gap-1.5 text-xs"
-                        disabled={queue.isPending}
-                        onClick={handleJoinQueue}
+                        disabled={leave.isPending}
+                        onClick={() => leave.mutate()}
                         size="sm"
+                        variant="outline"
                       >
-                        <ListPlus className="size-3.5" />
-                        {session?.user ? "Join Queue" : "Sign up to Join Queue"}
+                        <LogOut className="size-3.5" />
+                        Leave
                       </Button>
-                    )}
-                  </div>
-                </div>
-                {(room.role === "artist_a" || room.role === "artist_b") &&
-                  battle.coordination?.format && (
-                    <ArtistBattlePreparation
-                      format={battle.coordination.format}
-                      lockedKitId={lockedBattleKitId ?? null}
-                      onLock={handleLockBattleKit}
-                    />
+                    </>
+                  ) : (
+                    <Button
+                      className="gap-1.5 text-xs"
+                      disabled={queue.isPending}
+                      onClick={handleJoinQueue}
+                      size="sm"
+                    >
+                      <ListPlus className="size-3.5" />
+                      {session?.user ? "Join Queue" : "Sign up to Join Queue"}
+                    </Button>
                   )}
+                </div>
+                {artistRole && battle.coordination?.format && (
+                  <ArtistBattlePreparation
+                    format={battle.coordination.format}
+                    isReady={currentArtistReady}
+                    lockedKitId={lockedBattleKitId ?? null}
+                    onLock={handleLockBattleKit}
+                    onMediaSetupSaved={setMediaDeviceSelection}
+                    onReady={async (ready) => {
+                      await battleReady.mutateAsync({ ready });
+                    }}
+                    pending={
+                      battleReady.isPending || battleDisposition.isPending
+                    }
+                  />
+                )}
                 <BattleLifecycleControls
                   artists={battle.artists}
+                  compact
                   currentUserId={session?.user?.id}
-                  hasSelectedKit={Boolean(lockedBattleKitId)}
-                  isAdmin={room.role === "admin"}
+                  isAdmin={isAdmin}
                   isArtist={isArtist}
-                  isReady={Boolean(
-                    readyArtistUserIds.includes(
-                      room.role === "artist_a"
-                        ? battle.artists[0].id
-                        : battle.artists[1].id
-                    )
-                  )}
                   onDisposition={handleBattleDisposition}
-                  onReady={async (ready) => {
-                    await battleReady.mutateAsync({ ready });
-                  }}
                   pending={battleReady.isPending || battleDisposition.isPending}
                   phase={phase ?? "waiting_room"}
                   readyArtistUserIds={readyArtistUserIds}
@@ -917,8 +1622,8 @@ export function BattlePage({
                 />
                 <p className="text-xs text-muted-foreground">
                   {artistView
-                    ? "Your artist seat stays connected while BattleBot prepares the stage. Chat with the fans here; your battle chat continues when round one begins."
-                    : "You will be admitted automatically, in batches, when the battle opens and between rounds. Chat is open while you wait, and your place in the queue is saved even if you close SoundKit."}
+                    ? "You can leave before the battle starts. SoundKit will bring you back when your match opens."
+                    : "Join the queue to be admitted in batches when the battle opens."}
                 </p>
                 <Button
                   className="px-0"
@@ -972,26 +1677,24 @@ export function BattlePage({
               {isArtist && battle.coordination?.format && (
                 <ArtistBattlePreparation
                   format={battle.coordination.format}
+                  isReady={currentArtistReady}
                   lockedKitId={lockedBattleKitId ?? null}
                   onLock={handleLockBattleKit}
+                  onMediaSetupSaved={setMediaDeviceSelection}
+                  onReady={async (ready) => {
+                    await battleReady.mutateAsync({ ready });
+                  }}
+                  pending={battleReady.isPending || battleDisposition.isPending}
                 />
               )}
               {isArtist && (
                 <BattleLifecycleControls
                   artists={battle.artists}
+                  compact
                   currentUserId={session?.user?.id}
-                  hasSelectedKit={Boolean(lockedBattleKitId)}
-                  isAdmin={room.role === "admin"}
+                  isAdmin={isAdmin}
                   isArtist={isArtist}
-                  isReady={readyArtistUserIds.includes(
-                    room.role === "artist_a"
-                      ? battle.artists[0].id
-                      : battle.artists[1].id
-                  )}
                   onDisposition={handleBattleDisposition}
-                  onReady={async (ready) => {
-                    await battleReady.mutateAsync({ ready });
-                  }}
                   pending={battleReady.isPending || battleDisposition.isPending}
                   phase={phase ?? "waiting_room"}
                   readyArtistUserIds={readyArtistUserIds}
@@ -1073,8 +1776,11 @@ export function BattlePage({
 
   const chatPanel = (
       <LiveChatPanel
+        artistAvatarUrls={Object.fromEntries(
+          battle.artists.map((artist) => [artist.id, artist.avatarUrl])
+        )}
         artistUserIds={battle.artists.map((artist) => artist.id)}
-        disabled={chat.isPending}
+        disabled={chat.isPending || isBattleEnded}
         extraHeaderAction={
           <Badge className="font-mono text-[10px]" variant="outline">
             BattleBot Control
@@ -1110,8 +1816,13 @@ export function BattlePage({
               ROUND {currentRound.number}{" "}
               {currentRound.isTiebreaker ? "TIEBREAKER" : ""}
             </Badge>
-            <Badge className="bg-black/60 backdrop-blur-md" variant="outline">
-              Status: {currentRound.status.toUpperCase()}
+            <Badge
+              className="bg-black/60 backdrop-blur-md"
+              variant={isBattleEnded ? "secondary" : "outline"}
+            >
+              {isBattleEnded
+                ? "Battle Ended"
+                : `Status: ${currentRound.status.toUpperCase()}`}
             </Badge>
           </div>
 
@@ -1123,11 +1834,20 @@ export function BattlePage({
               <Users className="mr-1 size-3" />
               {room.viewerCount.toLocaleString()} watching
             </Badge>
-            <BattleTimer
-              phaseEndsAt={battle.coordination?.phaseEndsAt}
-              serverNow={room.serverNow}
-              label={battle.coordination?.phase ?? "Round"}
-            />
+            {isBattleEnded ? (
+              <Badge
+                className="bg-black/70 font-mono text-white backdrop-blur-md"
+                variant="outline"
+              >
+                Ended
+              </Badge>
+            ) : (
+              <BattleTimer
+                phaseEndsAt={battle.coordination?.phaseEndsAt}
+                serverNow={room.serverNow}
+                label={battle.coordination?.phase ?? "Round"}
+              />
+            )}
             <Button
               className="size-8 bg-black/60 text-white hover:bg-black/80 backdrop-blur-md"
               onClick={toggleFullscreen}
@@ -1160,14 +1880,14 @@ export function BattlePage({
               }
               type="button"
             >
-              <Avatar className="size-16 sm:size-20 border-2 border-primary ring-4 ring-primary/20 shadow-xl">
+              <Avatar className="size-16 rounded-xl border-2 border-primary ring-4 ring-primary/20 shadow-xl sm:size-20">
                 <AvatarImage src={artistA.avatarUrl} />
-                <AvatarFallback className="font-bold text-lg">
+                <AvatarFallback className="rounded-xl font-bold text-lg">
                   {artistA.name.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <p className="font-bold text-sm sm:text-base text-white truncate max-w-[120px]">
-                {artistA.name}
+              <p className="max-w-[140px] truncate font-bold text-sm text-white sm:text-base">
+                {artistNameWithRank(artistA)}
               </p>
               <span className="text-xs text-amber-400 font-bold">
                 {artistA.roundsWon} Wins
@@ -1192,14 +1912,14 @@ export function BattlePage({
               }
               type="button"
             >
-              <Avatar className="size-16 sm:size-20 border-2 border-secondary ring-4 ring-secondary/20 shadow-xl">
+              <Avatar className="size-16 rounded-xl border-2 border-secondary ring-4 ring-secondary/20 shadow-xl sm:size-20">
                 <AvatarImage src={artistB.avatarUrl} />
-                <AvatarFallback className="font-bold text-lg">
+                <AvatarFallback className="rounded-xl font-bold text-lg">
                   {artistB.name.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <p className="font-bold text-sm sm:text-base text-white truncate max-w-[120px]">
-                {artistB.name}
+              <p className="max-w-[140px] truncate font-bold text-sm text-white sm:text-base">
+                {artistNameWithRank(artistB)}
               </p>
               <span className="text-xs text-amber-400 font-bold">
                 {artistB.roundsWon} Wins
@@ -1208,19 +1928,17 @@ export function BattlePage({
           </div>
         </div>
 
-        {phase !== "ended" && (
+        {!isBattleEnded && phase !== "round_intro" && (
           <BattleMediaStage
             activeArtistUserId={battle.coordination?.activeArtistUserId}
             artists={battle.artists}
+            audioDeviceId={mediaDeviceSelection?.audioDeviceId}
             className="absolute inset-0 z-10 rounded-none border-0 bg-transparent"
             experienceId={id}
+            videoDeviceId={mediaDeviceSelection?.videoDeviceId}
             phase={phase}
             showHeader={false}
-            viewerOnly={
-              room.role !== "admin" &&
-              room.role !== "artist_a" &&
-              room.role !== "artist_b"
-            }
+            viewerOnly={!isAdmin && !isArtist}
           />
         )}
 
@@ -1228,7 +1946,7 @@ export function BattlePage({
           <div className="absolute bottom-4 left-4 right-4 z-20 flex items-center justify-between rounded-xl border border-white/10 bg-black/75 px-4 py-2.5 backdrop-blur-md">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                Now Performing Track
+                {isBattleEnded ? "Final track" : "Now Performing Track"}
               </p>
               <p className="truncate font-semibold text-white text-sm">
                 {currentTrack.title} — {currentTrack.artistName}
@@ -1259,8 +1977,11 @@ export function BattlePage({
                 <h2 className="font-bold text-lg sm:text-xl text-foreground truncate">
                   {room.title}
                 </h2>
-                <Badge className="bg-destructive text-destructive-foreground text-[10px] font-bold">
-                  LIVE
+                <Badge
+                  className="text-[10px] font-bold"
+                  variant={isBattleEnded ? "secondary" : "destructive"}
+                >
+                  {isBattleEnded ? "ENDED" : "LIVE"}
                 </Badge>
                 <Badge variant="outline" className="text-[10px]">
                   Trap / Boom Bap
@@ -1286,7 +2007,7 @@ export function BattlePage({
                   }
                   type="button"
                 >
-                  {artistA.name}
+                  {artistNameWithRank(artistA)}
                 </button>{" "}
                 vs{" "}
                 <button
@@ -1305,7 +2026,7 @@ export function BattlePage({
                   }
                   type="button"
                 >
-                  {artistB.name}
+                  {artistNameWithRank(artistB)}
                 </button>{" "}
                 • Click artist to view profile
               </p>
@@ -1319,7 +2040,15 @@ export function BattlePage({
                 <Radio className="size-3 text-destructive animate-pulse" />
                 {room.viewerCount.toLocaleString()} Viewers
               </Badge>
-              {isArtist || isAdmin ? (
+              {isBattleEnded ? (
+                <Badge
+                  variant="secondary"
+                  className="gap-1.5 py-1 px-2.5 text-xs"
+                >
+                  <Trophy className="size-3.5" />
+                  Read-only result
+                </Badge>
+              ) : isArtist || isAdmin ? (
                 <Badge
                   variant="secondary"
                   className="gap-1.5 py-1 px-2.5 text-xs"
@@ -1348,6 +2077,7 @@ export function BattlePage({
                   Leave
                 </Button>
               ) : (
+                !isBattleEnded &&
                 !isArtist &&
                 !isAdmin &&
                 !isQueued && (
@@ -1362,6 +2092,16 @@ export function BattlePage({
                   </Button>
                 )
               )}
+              <LiveTipButton
+                isLive={room.status === "live" && !isBattleEnded}
+                kind="battle"
+                liveExperienceId={id}
+                recipients={battle.artists.map((artist) => ({
+                  avatarUrl: artist.avatarUrl,
+                  id: artist.id,
+                  name: artist.name,
+                }))}
+              />
               <Button
                 className="gap-1.5 text-xs"
                 onClick={handleToggleFollow}
@@ -1430,10 +2170,18 @@ export function BattlePage({
               <Badge
                 className="text-[11px]"
                 variant={
-                  currentRound.status === "voting" ? "default" : "secondary"
+                  isBattleEnded
+                    ? "secondary"
+                    : currentRound.status === "voting"
+                      ? "default"
+                      : "secondary"
                 }
               >
-                {currentRound.status === "voting" ? "Voting Open" : "Turn Live"}
+                {isBattleEnded
+                  ? "Battle Ended"
+                  : currentRound.status === "voting"
+                    ? "Voting Open"
+                    : "Turn Live"}
               </Badge>
             </div>
 
@@ -1442,7 +2190,7 @@ export function BattlePage({
               <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
                 {battle.artists.map((artist) => {
                   const percent = votePercent(currentRound, artist.id),
-                    isActive = !artist.isMuted;
+                    isActive = !isBattleEnded && !artist.isMuted;
 
                   return (
                     <div
@@ -1493,9 +2241,20 @@ export function BattlePage({
 
                         <Badge
                           className="text-[9px] sm:text-[10px] px-1.5 py-0 self-start sm:self-center shrink-0"
-                          variant={isActive ? "default" : "outline"}
+                          variant={
+                            isBattleEnded
+                              ? "outline"
+                              : isActive
+                                ? "default"
+                                : "outline"
+                          }
                         >
-                          {isActive ? (
+                          {isBattleEnded ? (
+                            <>
+                              <MicOff className="mr-1 size-2.5" />
+                              Battle ended
+                            </>
+                          ) : isActive ? (
                             <>
                               <Mic className="mr-1 size-2.5" />
                               Turn
@@ -1526,7 +2285,9 @@ export function BattlePage({
                       <Button
                         className="w-full text-xs h-8 sm:h-9"
                         disabled={
-                          currentRound.status !== "voting" || vote.isPending
+                          isBattleEnded ||
+                          currentRound.status !== "voting" ||
+                          vote.isPending
                         }
                         onClick={() =>
                           vote.mutate({
@@ -1591,37 +2352,38 @@ export function BattlePage({
             </CardContent>
           </Card>
 
-          {isBattleTie && (
-            <Card className="border-amber-400/40 bg-amber-500/10">
+          {isBattleEnded && (
+            <Card
+              className={
+                battle.outcome
+                  ? "border-purple-400/40 bg-purple-500/10"
+                  : "border-amber-400/40 bg-amber-500/10"
+              }
+            >
               <CardContent className="flex items-start gap-3 p-4">
                 <Swords className="mt-0.5 size-5 shrink-0 text-amber-300" />
                 <div>
-                  <p className="font-semibold text-sm">Battle ended in a tie</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    The final score stayed even. This result is shown in your
-                    participation history and does not change ratings.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {battle.outcome && (
-            <Card className="border-purple-400/40 bg-purple-500/10">
-              <CardContent className="flex items-start gap-3 p-4">
-                <Swords className="mt-0.5 size-5 shrink-0 text-purple-300" />
-                <div>
                   <p className="font-semibold text-sm">
-                    {battle.outcome.kind === "ducked"
+                    {battle.outcome?.kind === "ducked"
                       ? "Battle ended: opponent ducked"
-                      : battle.outcome.kind === "forfeited"
+                      : battle.outcome?.kind === "forfeited"
                         ? "Battle ended by forfeit"
-                        : battle.outcome.kind === "quit"
+                        : battle.outcome?.kind === "quit"
                           ? "Battle ended by quit"
-                          : "Battle canceled"}
+                          : battle.outcome?.kind === "canceled"
+                            ? "Battle canceled"
+                            : isBattleTie
+                              ? "Battle ended in a tie"
+                              : battleWinner
+                                ? `${battleWinner.name} won the battle`
+                                : "Battle complete"}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    This outcome did not change battle ratings.
+                    {battle.outcome
+                      ? "The room is closed. No new turns, votes, or lineup changes are available."
+                      : isBattleTie
+                        ? "The final score stayed even. The result is locked and this room is now read-only."
+                        : "The final result is locked. This room is now read-only."}
                   </p>
                 </div>
               </CardContent>
@@ -1631,30 +2393,19 @@ export function BattlePage({
           <BattleLifecycleControls
             artists={battle.artists}
             currentUserId={session?.user?.id}
-            hasSelectedKit={Boolean(lockedBattleKitId)}
-            isAdmin={room.role === "admin"}
+            isAdmin={isAdmin}
             isArtist={isArtist}
-            isReady={Boolean(
-              readyArtistUserIds.includes(
-                room.role === "artist_a"
-                  ? battle.artists[0].id
-                  : battle.artists[1].id
-              )
-            )}
             onDisposition={handleBattleDisposition}
-            onReady={async (ready) => {
-              await battleReady.mutateAsync({ ready });
-            }}
             pending={battleReady.isPending || battleDisposition.isPending}
             phase={phase ?? "waiting_room"}
             readyArtistUserIds={readyArtistUserIds}
             roundNumber={battle.coordination?.roundNumber}
           />
 
-          {(room.role === "artist_a" || room.role === "artist_b") && (
+          {artistRole && !isBattleEnded && (
             <BattleArtistControlPanel
               artistId={
-                room.role === "artist_a"
+                artistRole === "artist_a"
                   ? battle.artists[0].id
                   : battle.artists[1].id
               }

@@ -1,0 +1,18 @@
+name: Set up Node and pnpm
+description: Prepare the runner's available Node installation with the repository's pnpm version.
+runs:
+  using: composite
+  steps:
+    - name: Enable pnpm through Corepack
+      shell: bash
+      run: |
+        set -euo pipefail
+        if command -v corepack >/dev/null 2>&1; then
+          corepack enable
+          corepack prepare pnpm@11.9.0 --activate
+        else
+          npm install --global pnpm@11.9.0
+        fi
+        echo "$(dirname "$(command -v pnpm)")" >> "$GITHUB_PATH"
+        node --version
+        pnpm --version

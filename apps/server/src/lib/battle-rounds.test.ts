@@ -17,13 +17,12 @@ describe("battle round provisioning", () => {
       artistB: { artistUserId: "artist-b", tracks: tracksFor("b") },
       battleId: "battle-1",
       format: "best_of_3",
-      status: "live",
     });
 
     expect(rounds).toHaveLength(4);
     expect(rounds?.[0]).toMatchObject({
       roundNumber: 1,
-      status: "active",
+      status: "upcoming",
       trackOneId: "a-1",
       trackTwoId: "b-1",
     });
@@ -43,7 +42,6 @@ describe("battle round provisioning", () => {
         artistB: undefined,
         battleId: "battle-1",
         format: "best_of_3",
-        status: "live",
       })
     ).toBeNull();
   });

@@ -12,6 +12,7 @@ import type { VideoSeoData } from "@/lib/seo-data";
 
 export const Route = createFileRoute("/_explore/videos/$id")({
   component: LegacyVideoPage,
+  ssr: "data-only",
   head: ({ loaderData, params }) => {
     const video = loaderData as unknown as VideoSeoData | null,
       canonicalPath =

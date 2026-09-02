@@ -170,6 +170,11 @@ function ProjectsPage() {
                       <span className="text-xs text-muted-foreground">
                         {project.trackCount} tracks
                       </span>
+                      {project.genre ? (
+                        <span className="max-w-32 truncate text-xs text-muted-foreground">
+                          {project.genre}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -194,7 +199,12 @@ function ProjectsPage() {
                     >
                       <DropdownMenuItem>Edit Project</DropdownMenuItem>
                     </Link>
-                    <DropdownMenuItem>Add Tracks</DropdownMenuItem>
+                    <Link
+                      to="/dashboard/projects/$id"
+                      params={{ id: project.id }}
+                    >
+                      <DropdownMenuItem>Add Tracks</DropdownMenuItem>
+                    </Link>
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
                       disabled={deleteProjectMutation.isPending}

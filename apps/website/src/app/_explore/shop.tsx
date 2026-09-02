@@ -22,9 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { musicGenres } from "@/lib/music-genres";
-import { useTracksQuery } from "@/lib/soundkit-api-hooks";
-import type { TrackSummary } from "@/lib/soundkit-api-hooks";
+import { useGenresQuery, useTracksQuery } from "@/lib/soundkit-api-hooks";
+import type { GenreSummary, TrackSummary } from "@/lib/soundkit-api-hooks";
 
 interface ShopSearch {
   genre?: string;
@@ -43,17 +42,18 @@ export const Route = createFileRoute("/_explore/shop")({
 });
 
 const PAGE_SIZE = 20,
-
- formatTrackPrice = (track: TrackSummary) =>
-  typeof track.priceCents === "number"
-    ? `$${(track.priceCents / 100).toFixed(2)}`
-    : "$1.99";
+  formatTrackPrice = (track: TrackSummary) =>
+    typeof track.priceCents === "number"
+      ? `$${(track.priceCents / 100).toFixed(2)}`
+      : "$1.99";
 
 function ShopPage() {
   const search = Route.useSearch(),
     activeGenre = search.genre ?? "all",
     [viewMode, setViewMode] = useState<"grid" | "list">(search.view ?? "grid"),
     [currentPage, setCurrentPage] = useState(1),
+    genresQuery = useGenresQuery(),
+    genres = genresQuery.data ?? [],
     { data: rawTracks = [], isLoading } = useTracksQuery(undefined, {
       forSale: true,
       genre: activeGenre,
@@ -71,7 +71,7 @@ function ShopPage() {
       currentPage * PAGE_SIZE
     ),
     activeGenreLabel =
-      musicGenres.find((g) => g.value === activeGenre)?.label ?? "All Genres";
+      genres.find((g) => g.slug === activeGenre)?.name ?? "All Genres";
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
@@ -109,17 +109,17 @@ function ShopPage() {
               All Genres
             </Link>
           </Button>
-          {musicGenres.map((g) => (
+          {genres.map((g) => (
             <Button
-              key={g.value}
+              key={g.slug}
               size="sm"
-              variant={activeGenre === g.value ? "default" : "outline"}
-              className="rounded-full shrink-0 text-xs border-border/40"
+              variant={activeGenre === g.slug ? "default" : "outline"}
+              className="rounded-full shrink-0 border-border/40 text-xs"
               onClick={() => setCurrentPage(1)}
               asChild
             >
-              <Link to="/shop" search={{ genre: g.value, view: viewMode }}>
-                {g.label}
+              <Link to="/shop" search={{ genre: g.slug, view: viewMode }}>
+                {g.name}
               </Link>
             </Button>
           ))}
@@ -338,12 +338,8 @@ function ShopPage() {
       {/* Genre Rails if 'all' is selected */}
       {activeGenre === "all" && (
         <div className="flex flex-col gap-10">
-          {musicGenres.map((genre) => (
-            <GenreShopRail
-              key={genre.value}
-              genre={genre}
-              viewMode={viewMode}
-            />
+          {genres.map((genre) => (
+            <GenreShopRail genre={genre} key={genre.slug} viewMode={viewMode} />
           ))}
         </div>
       )}
@@ -399,12 +395,12 @@ function GenreShopRail({
   genre,
   viewMode,
 }: {
-  genre: (typeof musicGenres)[number];
+  genre: GenreSummary;
   viewMode: "grid" | "list";
 }) {
-  const { data: tracks = [] } = useTracksQuery(undefined, {
+  const { data: tracks = [], isLoading } = useTracksQuery(undefined, {
       forSale: true,
-      genre: genre.value,
+      genre: genre.slug,
       limit: 12,
       region: "us-arkansas",
       regionType: "north-america",
@@ -413,32 +409,32 @@ function GenreShopRail({
     }),
     shopTracks = tracks.filter((t) => t.isForSale);
 
+  if (!isLoading && shopTracks.length === 0) {
+    return null;
+  }
+
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="font-semibold text-xl">{genre.label}</h2>
+          <h2 className="font-semibold text-xl">{genre.name}</h2>
           <p className="text-muted-foreground text-sm">
-            Top purchasable tracks in {genre.label}.
+            Top purchasable tracks in {genre.name}.
           </p>
         </div>
         <Button asChild size="sm" variant="ghost">
-          <Link to="/shop" search={{ genre: genre.value, view: viewMode }}>
-            View All {genre.label}
+          <Link to="/shop" search={{ genre: genre.slug, view: viewMode }}>
+            View All {genre.name}
           </Link>
         </Button>
       </div>
-      {shopTracks.length > 0 ? (
+      {isLoading || shopTracks.length > 0 ? (
         <div className="flex gap-4 overflow-x-auto pb-2">
           {shopTracks.map((track) => (
             <ShopTrackCard key={track.id} track={track} />
           ))}
         </div>
-      ) : (
-        <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
-          No {genre.label} tracks are currently listed for sale.
-        </div>
-      )}
+      ) : null}
     </section>
   );
 }

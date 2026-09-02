@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   advanceBattleToNow,
   createBattleCoordination,
+  isBattleTerminalState,
   phaseDuration,
   transitionBattle,
 } from "@/lib/live-battle-state";
@@ -87,14 +88,59 @@ const artists: [LiveRoomArtist, LiveRoomArtist] = [
     };
   };
 
+describe("battle terminal state", () => {
+  it("treats ended room and persisted battle statuses as terminal", () => {
+    expect(isBattleTerminalState({ phase: "ended", status: "live" })).toBe(
+      true
+    );
+    expect(
+      isBattleTerminalState({ phase: "voting", status: "completed" })
+    ).toBe(true);
+    expect(isBattleTerminalState({ phase: "voting", status: "live" })).toBe(
+      false
+    );
+  });
+});
+
 describe("live battle state machine", () => {
-  it("waits for both artists before starting the first round", () => {
+  it("cancels when both artists are not ready by the waiting-room deadline", () => {
     const state = host();
     state.coordination.phaseEndsAt = 10;
 
-    expect(transitionBattle(state, 10).coordination.phase).toBe("waiting_room");
+    const ended = transitionBattle(state, 10);
 
-    state.coordination.artistReadyUserIds = ["artist-a", "artist-b"];
+    expect(ended.coordination.phase).toBe("ended");
+    expect(ended.coordination.phaseEndsAt).toBeNull();
+    expect(ended.coordination.outcome).toMatchObject({
+      kind: "canceled",
+      reason: "artist_unavailable",
+    });
+  });
+
+  it("requires both artists to be present as well as ready", () => {
+    const state = host();
+    state.coordination = {
+      ...state.coordination,
+      artistPresentUserIds: ["artist-a"],
+      artistReadyUserIds: ["artist-a", "artist-b"],
+      phaseEndsAt: 10,
+    };
+
+    const ended = transitionBattle(state, 10);
+
+    expect(ended.coordination.phase).toBe("ended");
+    expect(ended.coordination.outcome?.reason).toBe("artist_unavailable");
+  });
+
+  it("starts the first round when both artists are present and ready", () => {
+    const state = host();
+    state.coordination = {
+      ...state.coordination,
+      artistPresentUserIds: ["artist-a", "artist-b"],
+      artistReadyUserIds: ["artist-a", "artist-b"],
+      phaseEndsAt: 10,
+    };
+
     const started = transitionBattle(state, 10);
     expect(started.coordination.phase).toBe("round_intro");
     expect(started.coordination.phaseEndsAt).toBe(20);
@@ -219,7 +265,7 @@ describe("live battle state machine", () => {
       7_200_000
     );
     expect(opened.coordination.phase).toBe("waiting_room");
-    expect(opened.coordination.phaseEndsAt).toBeNull();
+    expect(opened.coordination.phaseEndsAt).toBe(7_200_010);
   });
 
   it("admits the first batch of queued users when the battle opens and keeps the rest waiting", () => {

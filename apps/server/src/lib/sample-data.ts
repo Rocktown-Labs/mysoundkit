@@ -620,7 +620,7 @@ export const sampleBattles = [
     ],
     queueSize: 128,
     status: "live" as const,
-    title: "West Coast Showdown",
+    title: "Artist Battle - Hip-Hop",
     tracks: [
       {
         artist: "Marco",
@@ -663,7 +663,7 @@ export const sampleBattles = [
     ],
     queueSize: 0,
     status: "live" as const,
-    title: "Spoken Word Cypher",
+    title: "Artist Battle - Spoken Word",
     tracks: [
       {
         artist: "Toni",
@@ -707,7 +707,7 @@ export const sampleBattles = [
     queueSize: 0,
     startsAt: new Date(Date.now() + 86_400_000).toISOString(),
     status: "scheduled" as const,
-    title: "After Hours Duel",
+    title: "Artist Battle - R&B/Soul",
     tracks: [],
     viewerCount: 0,
     visibility: "public" as const,
@@ -735,7 +735,7 @@ export const sampleBattles = [
     ],
     queueSize: 0,
     status: "completed" as const,
-    title: "Synth City Finals",
+    title: "Artist Battle - Electronic",
     tracks: [],
     viewerCount: 18_204,
     visibility: "public" as const,

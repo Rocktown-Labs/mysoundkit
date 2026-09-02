@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isLocationSelectionUnchanged,
   normalizeLocationComponents,
   parseManualLocation,
 } from "./location-normalization";
@@ -56,6 +57,23 @@ describe("normalizeLocationComponents", () => {
   });
 });
 
+describe("isLocationSelectionUnchanged", () => {
+  it("keeps a verified selection stable until the query changes", () => {
+    expect(
+      isLocationSelectionUnchanged(
+        "Little Rock, AR, United States",
+        "Little Rock, AR, United States"
+      )
+    ).toBe(true);
+    expect(
+      isLocationSelectionUnchanged(
+        "Little Rock, AR, United States remix",
+        "Little Rock, AR, United States"
+      )
+    ).toBe(false);
+  });
+});
+
 describe("parseManualLocation", () => {
   it("recognizes the existing US city and state format", () => {
     expect(parseManualLocation("Little Rock, AR")).toEqual({
@@ -72,6 +90,15 @@ describe("parseManualLocation", () => {
       country: "Canada",
       query: "Toronto, Ontario, Canada",
       state: "Ontario",
+    });
+  });
+
+  it("normalizes a full US state name when the lookup is unavailable", () => {
+    expect(parseManualLocation("Little Rock, Arkansas")).toEqual({
+      city: "Little Rock",
+      country: "United States",
+      query: "Little Rock, Arkansas",
+      state: "AR",
     });
   });
 });

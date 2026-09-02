@@ -35,17 +35,17 @@ export function LiveTwitchShell({
     };
 
   return (
-    <div className="relative flex h-full min-h-0 w-full overflow-hidden">
+    <div className="relative flex h-full min-h-0 max-h-full w-full overflow-hidden">
       {/* 2-Column Responsive Layout: Left content (video + creator details) / Right sticky chat */}
       <div
-        className={`grid size-full min-h-0 min-w-0 transition-[grid-template-columns] duration-300 ease-in-out ${
+        className={`grid h-full min-h-0 min-w-0 w-full transition-[grid-template-columns] duration-300 ease-in-out ${
           isChatOpen && chatPanel
             ? "lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]"
             : "grid-cols-1"
         }`}
       >
         {/* Left Column: Player & Creator Panels (independently scrolling) */}
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-4 pb-24 md:p-6 md:pb-6">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4 pb-24 md:p-6 md:pb-6">
           {/* Video Container */}
           <div
             className="relative w-full shrink-0 overflow-hidden rounded-xl bg-black shadow-2xl"

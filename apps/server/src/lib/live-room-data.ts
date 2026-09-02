@@ -12,8 +12,18 @@ export type LiveRoomViewerRole =
   | "fan"
   | "host";
 
+export interface LiveRoomChatEntity {
+  artistName: string;
+  href: string | null;
+  id: string;
+  title: string;
+  type: "track";
+}
+
 export interface LiveRoomChatMessage {
+  avatarUrl?: string | null;
   chatScope?: "battle" | "waiting_room";
+  entity?: LiveRoomChatEntity;
   id: string;
   message: string;
   sentAt: string;
@@ -32,6 +42,7 @@ export interface LiveRoomTrack {
   artistName: string;
   coverArtUrl: string;
   durationMs: number;
+  href?: string | null;
   id: string;
   lyrics: LiveRoomLyricsLine[];
   status: "played" | "playing" | "queued";
@@ -43,6 +54,7 @@ export interface LiveRoomArtist {
   id: string;
   isMuted: boolean;
   name: string;
+  rank?: number | string | null;
   roundsWon: number;
   stagePosition: "left" | "right";
   verified: boolean;
@@ -69,6 +81,7 @@ export interface LiveBattleArtistControls {
 
 export interface LivePartyPlayback {
   hostMode: "off_camera" | "on_camera";
+  mediaAvailable?: boolean;
   hostUserId: string;
   playbackState: "paused" | "playing";
   positionMs: number;
@@ -78,6 +91,7 @@ export interface LivePartyPlayback {
 }
 
 export interface LiveStreamLifecycle {
+  botEnabled?: boolean;
   errorCode?: string | null;
   errorMessage?: string | null;
   ingestStatus:
@@ -86,6 +100,7 @@ export interface LiveStreamLifecycle {
     | "error"
     | "idle"
     | "reconnecting";
+  nowPlaying?: LiveRoomTrack | null;
   reconnectUntil?: number | null;
   replayStatus: "available" | "none" | "processing";
 }
@@ -102,8 +117,11 @@ export interface LiveRoomState {
     waitingRoomCount?: number;
     coordination?: BattleCoordination;
     currentRoundId: string;
+    hasPlayedTurn?: boolean;
     outcome?: BattleOutcome;
     phase?: BattlePhase;
+    replayStatus?: "available" | "none" | "processing";
+    replayVideoId?: string | null;
     rounds: LiveBattleRound[];
     tiePolicy: string;
   };
@@ -230,6 +248,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
           id: "artist-dj-nova",
           isMuted: false,
           name: "DJ Nova",
+          rank: 1,
           roundsWon: 1,
           stagePosition: "left",
           verified: true,
@@ -239,6 +258,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
           id: "artist-mc-rhythm",
           isMuted: true,
           name: "MC Rhythm",
+          rank: 7,
           roundsWon: 1,
           stagePosition: "right",
           verified: false,
@@ -370,7 +390,7 @@ export const sampleLiveRooms: LiveRoomState[] = [
     status: "live",
     summary:
       "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
-    title: "West Coast Showdown",
+    title: "Artist Battle - Hip-Hop",
     tracklist: [
       makeTrack(
         "battle-a-3",

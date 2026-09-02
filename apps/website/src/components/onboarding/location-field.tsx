@@ -8,8 +8,9 @@ import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { RequiredFieldLabel } from "@/components/onboarding/required-field-label";
 import {
+  isLocationSelectionUnchanged,
   normalizeLocationComponents,
   parseManualLocation,
 } from "@/lib/location-normalization";
@@ -67,6 +68,19 @@ function LocationInput({ city, country, onChange, state }: LocationFieldProps) {
     search = useAsyncDebouncedCallback(
       async (value: string, requestId: number) => {
         if (!places) {
+          if (requestId !== requestIdRef.current) {
+            return;
+          }
+          const manual = parseManualLocation(value);
+          setSuggestions([]);
+          setActiveSuggestionIndex(-1);
+          if (manual) {
+            setSelectedLabel(manual.query);
+            onChange(manual);
+            setStatus("manual");
+          } else {
+            setStatus("config");
+          }
           return;
         }
 
@@ -105,13 +119,33 @@ function LocationInput({ city, country, onChange, state }: LocationFieldProps) {
 
           setSuggestions(nextSuggestions);
           setActiveSuggestionIndex(-1);
-          setStatus(nextSuggestions.length > 0 ? "ready" : "empty");
+          if (nextSuggestions.length > 0) {
+            setStatus("ready");
+            return;
+          }
+
+          const manual = parseManualLocation(value);
+          if (manual) {
+            setSelectedLabel(manual.query);
+            onChange(manual);
+            setStatus("manual");
+          } else {
+            setStatus("empty");
+          }
         } catch {
           if (requestId !== requestIdRef.current) {
             return;
           }
+          const manual = parseManualLocation(value);
           setSuggestions([]);
-          setStatus("error");
+          setActiveSuggestionIndex(-1);
+          if (manual) {
+            setSelectedLabel(manual.query);
+            onChange(manual);
+            setStatus("manual");
+          } else {
+            setStatus("error");
+          }
         }
       },
       { wait: 350 }
@@ -127,20 +161,25 @@ function LocationInput({ city, country, onChange, state }: LocationFieldProps) {
       setStatus("empty");
       return;
     }
+    if (isLocationSelectionUnchanged(value, selectedLabel)) {
+      setSuggestions([]);
+      setActiveSuggestionIndex(-1);
+      setStatus("selected");
+      return;
+    }
     if (value.length < MIN_QUERY_LENGTH) {
       setSuggestions([]);
       setStatus("idle");
       return;
     }
     if (!places) {
-      setSuggestions([]);
       setStatus("searching");
+      void search(value, requestId);
       return;
     }
-
     setStatus("searching");
     void search(value, requestId);
-  }, [places, query, search]);
+  }, [places, query, search, selectedLabel]);
 
   const selectSuggestion = async (suggestion: LocationSuggestion) => {
     if (!places) {
@@ -159,19 +198,37 @@ function LocationInput({ city, country, onChange, state }: LocationFieldProps) {
       setSuggestions([]);
       setActiveSuggestionIndex(-1);
 
-      if (!location) {
-        setStatus("error");
+      if (location) {
+        setQuery(suggestion.label);
+        setSelectedLabel(suggestion.label);
+        setStatus("selected");
+        onChange({ ...location, query: suggestion.label });
         return;
       }
 
-      setQuery(suggestion.label);
-      setSelectedLabel(suggestion.label);
-      setStatus("selected");
-      onChange({ ...location, query: suggestion.label });
+      const manual = parseManualLocation(suggestion.label);
+      if (manual) {
+        setQuery(manual.query);
+        setSelectedLabel(manual.query);
+        setStatus("manual");
+        onChange(manual);
+        return;
+      }
+
+      setStatus("error");
     } catch {
       sessionTokenRef.current = null;
       setSuggestions([]);
-      setStatus("error");
+      setActiveSuggestionIndex(-1);
+      const manual = parseManualLocation(suggestion.label);
+      if (manual) {
+        setQuery(manual.query);
+        setSelectedLabel(manual.query);
+        setStatus("manual");
+        onChange(manual);
+      } else {
+        setStatus("error");
+      }
     }
   };
 
@@ -290,13 +347,13 @@ function statusMessageFor(
       return "Using the entered city and region.";
     }
     case "config": {
-      return "Enter City, Region, Country while location search is unavailable.";
+      return "Location search is unavailable. Enter City, Region, Country to continue.";
     }
     case "empty": {
       return "Enter a city and region to continue.";
     }
     case "error": {
-      return "Location lookup failed. Try again or check the spelling.";
+      return "Location search failed. Enter City, Region, Country to continue.";
     }
     default: {
       return "Use a city and region, not a street address.";
@@ -352,7 +409,9 @@ function LocationFieldFrame({
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="onboarding-location">Location</Label>
+      <RequiredFieldLabel htmlFor="onboarding-location">
+        Location
+      </RequiredFieldLabel>
       <div className="relative">
         <MapPin className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input

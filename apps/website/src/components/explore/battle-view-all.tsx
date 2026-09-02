@@ -1,4 +1,4 @@
-/* eslint-disable one-var, sort-vars, complexity, react/memo-dependencies, react/preserve-manual-memoization, react/set-state-in-effect, react-hooks/exhaustive-deps, unicorn/consistent-function-scoping, react/no-array-index-key */
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, react/memo-dependencies, react/preserve-manual-memoization, react/set-state-in-effect, react-hooks/exhaustive-deps, unicorn/consistent-function-scoping, react/no-array-index-key */
 import { Link, useSearch } from "@tanstack/react-router";
 import { Swords, TrendingUp, Trophy } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -8,12 +8,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { musicGenres } from "@/lib/music-genres";
+import { normalizeGenreValue } from "@/lib/live-collection";
 import {
   useBattlesQuery,
+  useGenresQuery,
   useMeEntitlementsQuery,
 } from "@/lib/soundkit-api-hooks";
-import type { BattleSummary } from "@/lib/soundkit-api-hooks";
+import type { BattleSummary, GenreSummary } from "@/lib/soundkit-api-hooks";
 
 import { BattleCard } from "./battle-card";
 import { BattleFilters } from "./battle-filters";
@@ -105,17 +106,9 @@ const sortOptionsMap = {
       views: Math.floor(Math.random() * 100_000) + 1000,
       winner: Math.random() > 0.5 ? "artist1" : "artist2",
     })),
-  normalizedGenreValue = (value: string) => {
-    const normalized = value
-      .toLowerCase()
-      .replaceAll(/[^a-z0-9]+/gu, "-")
-      .replaceAll(/^-|-$/gu, "");
-
-    return normalized === "r-b-soul" ? "rb-soul" : normalized;
-  },
   matchesSelectedGenre = (battle: BattleSummary, selectedGenre: string) =>
     selectedGenre === DEFAULT_GENRE ||
-    normalizedGenreValue(battle.genre) === selectedGenre,
+    normalizeGenreValue(battle.genre) === normalizeGenreValue(selectedGenre),
   sortedLiveBattles = (battles: BattleSummary[], sort: string) => {
     const ordered = [...battles];
 
@@ -129,23 +122,23 @@ const sortOptionsMap = {
       (first, second) => second.viewerCount - first.viewerCount
     );
   },
-  groupBattlesByGenre = (battles: BattleSummary[]) => {
+  groupBattlesByGenre = (battles: BattleSummary[], genres: GenreSummary[]) => {
     const grouped = new Map<string, BattleSummary[]>();
 
     for (const battle of battles) {
-      const groupKey = normalizedGenreValue(battle.genre),
+      const groupKey = normalizeGenreValue(battle.genre),
         group = grouped.get(groupKey) ?? [];
       group.push(battle);
       grouped.set(groupKey, group);
     }
 
-    const knownGenreValues = new Set<string>(
-        musicGenres.map((genre) => genre.value)
+    const knownGenreValues = new Set(
+        genres.map((genre) => normalizeGenreValue(genre.slug))
       ),
-      orderedGenres = musicGenres.map((genre) => ({
-        battles: grouped.get(genre.value) ?? [],
-        genre: genre.label,
-        value: genre.value,
+      orderedGenres = genres.map((genre) => ({
+        battles: grouped.get(normalizeGenreValue(genre.slug)) ?? [],
+        genre: genre.name,
+        value: genre.slug,
       })),
       customGenres = [...grouped.keys()]
         .filter((genreValue) => !knownGenreValues.has(genreValue))
@@ -221,7 +214,9 @@ function LiveBattleSummaryCard({
     <div className="w-full min-w-0">
       <BattleCard
         currentRound={battle.round?.current ?? 1}
+        format={battle.format}
         genre={battle.genre}
+        hasPlayedTurn={battle.hasPlayedTurn}
         id={battle.id}
         isLive={battle.status === "live"}
         isPremiumUser={isPremiumUser}
@@ -230,10 +225,12 @@ function LiveBattleSummaryCard({
         participants={battle.participants}
         phaseEndsAt={battle.phaseEndsAt}
         queueSize={battle.queueSize}
+        replayStatus={battle.replayStatus}
+        replayVideoId={battle.replayVideoId}
         startsAt={battle.startsAt}
         status={battle.status}
         title={battle.title}
-        totalRounds={battle.round?.total ?? 1}
+        totalRounds={battle.round?.total}
         track1={
           tracks[0]
             ? {
@@ -262,6 +259,7 @@ function LiveBattleSummaryCard({
 function BattleRail({
   battles,
   emptyMessage,
+  hideWhenEmpty = false,
   isPremiumUser,
   showViewAll = true,
   title,
@@ -269,11 +267,16 @@ function BattleRail({
 }: {
   battles: BattleSummary[];
   emptyMessage?: string;
+  hideWhenEmpty?: boolean;
   isPremiumUser: boolean;
   showViewAll?: boolean;
   title: string;
   viewAllGenre?: string;
 }) {
+  if (hideWhenEmpty && battles.length === 0) {
+    return null;
+  }
+
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
@@ -346,7 +349,9 @@ export function BattleViewAll({
     [genre, setGenre] = useState(() => genreFromSearch ?? DEFAULT_GENRE),
     [sort, setSort] = useState(() => sortFromSearch ?? defaultSort),
     { data: battleSummaries = [], isLoading: isLoadingBattles } =
-      useBattlesQuery({ region, regionType }),
+      useBattlesQuery({ region, regionType, scope: "public" }),
+    genresQuery = useGenresQuery(),
+    genres = genresQuery.data ?? [],
     entitlementsQuery = useMeEntitlementsQuery(),
     isPremiumUser = Boolean(
       entitlementsQuery.data?.isPremium ||
@@ -393,44 +398,62 @@ export function BattleViewAll({
   }, [regionType, region, genre, sort]);
 
   const liveBattleSections = useMemo(() => {
-      const filtered = sortedLiveBattles(
-          battleSummaries.filter(
-            (battle) =>
-              battle.status === "live" && matchesSelectedGenre(battle, genre)
-          ),
+      const eligible = battleSummaries.filter((battle) =>
+          matchesSelectedGenre(battle, genre)
+        ),
+        active = eligible.filter(
+          (battle) => battle.status === "live" || battle.status === "scheduled"
+        ),
+        live = sortedLiveBattles(
+          active.filter((battle) => battle.status === "live"),
           sort
         ),
-        featured = filtered
+        upcoming = active
+          .filter((battle) => battle.status === "scheduled")
+          .toSorted((first, second) => {
+            const firstTime = first.startsAt
+              ? new Date(first.startsAt).getTime()
+              : Number.MAX_SAFE_INTEGER;
+            const secondTime = second.startsAt
+              ? new Date(second.startsAt).getTime()
+              : Number.MAX_SAFE_INTEGER;
+            return sort === "time-desc"
+              ? secondTime - firstTime
+              : firstTime - secondTime;
+          }),
+        featured = active
           .filter((battle) => battle.isFeatured)
           .toSorted(
             (first, second) =>
               (first.featuredRank ?? Number.MAX_SAFE_INTEGER) -
               (second.featuredRank ?? Number.MAX_SAFE_INTEGER)
           ),
-        byGenre = groupBattlesByGenre(filtered).filter(
+        completed = eligible
+          .filter(
+            (battle) =>
+              (battle.status === "completed" || battle.status === "archived") &&
+              battle.hasPlayedTurn &&
+              battle.replayStatus === "available" &&
+              Boolean(battle.replayVideoId)
+          )
+          .toSorted(
+            (first, second) =>
+              Date.parse(second.endedAt ?? second.startsAt ?? "") -
+              Date.parse(first.endedAt ?? first.startsAt ?? "")
+          ),
+        byGenre = groupBattlesByGenre(active, genres).filter(
           (section) => section.battles.length > 0
         );
 
-      return { byGenre, featured, live: filtered, total: filtered.length };
-    }, [battleSummaries, genre, sort]),
-    upcomingBattles = useMemo(() => {
-      const scheduled = battleSummaries.filter(
-        (battle) =>
-          battle.status === "scheduled" && matchesSelectedGenre(battle, genre)
-      );
-
-      return scheduled.toSorted((first, second) => {
-        const firstTime = first.startsAt
-          ? new Date(first.startsAt).getTime()
-          : Number.MAX_SAFE_INTEGER;
-        const secondTime = second.startsAt
-          ? new Date(second.startsAt).getTime()
-          : Number.MAX_SAFE_INTEGER;
-        return sort === "time-desc"
-          ? secondTime - firstTime
-          : firstTime - secondTime;
-      });
-    }, [battleSummaries, genre, sort]),
+      return {
+        byGenre,
+        completed,
+        featured,
+        live,
+        total: eligible.length,
+        upcoming,
+      };
+    }, [battleSummaries, genre, genres, sort]),
     data = useMemo(() => {
       if (type === "leaderboard") {
         return generateLeaderboardArtists(100);
@@ -459,6 +482,13 @@ export function BattleViewAll({
             title="Featured"
           />
           <BattleRail
+            battles={liveBattleSections.upcoming}
+            emptyMessage="No upcoming battles are scheduled yet."
+            isPremiumUser={isPremiumUser}
+            showViewAll={false}
+            title="Upcoming"
+          />
+          <BattleRail
             battles={liveBattleSections.live}
             emptyMessage="No battles are live right now."
             isPremiumUser={isPremiumUser}
@@ -466,14 +496,16 @@ export function BattleViewAll({
             title="Live Now"
           />
           <BattleRail
-            battles={upcomingBattles}
-            emptyMessage="No upcoming battles are scheduled yet."
+            battles={liveBattleSections.completed}
+            emptyMessage="No published battle replays yet."
+            hideWhenEmpty
             isPremiumUser={isPremiumUser}
             showViewAll={false}
-            title="Upcoming"
+            title="Recent Replays"
           />
           {liveBattleSections.byGenre.map((section) => (
             <BattleRail
+              hideWhenEmpty
               key={section.genre}
               battles={section.battles}
               isPremiumUser={isPremiumUser}
@@ -483,7 +515,7 @@ export function BattleViewAll({
           ))}
         </>
       );
-    }, [isLoadingBattles, isPremiumUser, liveBattleSections, upcomingBattles]),
+    }, [isLoadingBattles, isPremiumUser, liveBattleSections]),
     getBattleTypeIcon = (battleType: BattleType) => {
       switch (battleType) {
         case "leaderboard": {
@@ -663,19 +695,19 @@ export function BattleViewAll({
             <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-muted-foreground">
               Loading upcoming battles...
             </div>
-          ) : (upcomingBattles.length === 0 ? (
+          ) : liveBattleSections.upcoming.length === 0 ? (
             <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-muted-foreground">
               No upcoming battles are scheduled yet.
             </div>
           ) : (
-            upcomingBattles.map((battle) => (
+            liveBattleSections.upcoming.map((battle) => (
               <LiveBattleSummaryCard
                 battle={battle}
                 isPremiumUser={isPremiumUser}
                 key={battle.id}
               />
             ))
-          ))}
+          )}
         </div>
       )}
     </div>

@@ -4,7 +4,6 @@ import { queryCollectionOptions } from "@tanstack/query-db-collection";
 import {
   createCollection,
   createOptimisticAction,
-  eq,
   useLiveInfiniteQuery,
   useLiveQuery,
 } from "@tanstack/react-db";
@@ -21,12 +20,15 @@ import type { ReactNode } from "react";
 import { z } from "zod";
 
 import { API_V1_URL, apiClient, rpcJson } from "./api";
+import { reconcileCollections } from "./mutation-reconciliation";
+import { soundkitQueryKeys } from "./soundkit-api-hooks";
 import type {
   CreateBattleChallengeBody,
   LibrarySavedTrack,
 } from "./soundkit-api-hooks";
 
-const notificationsGet = apiClient.v1.notifications.index.$get,
+const noopCleanup = () => null,
+  notificationsGet = apiClient.v1.notifications.index.$get,
   notificationReadPost =
     apiClient.v1.notifications[":notificationId"].read.$post,
   notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post,
@@ -35,6 +37,7 @@ const notificationsGet = apiClient.v1.notifications.index.$get,
   videoCommentsPost = apiClient.v1.videos[":videoId"].comments.$post,
   librarySavedGet = apiClient.v1.library.saved.$get,
   librarySaveTrackPost = apiClient.v1.library.saved[":trackId"].$post,
+  librarySaveTrackDelete = apiClient.v1.library.saved[":trackId"].$delete,
   libraryPlaylistsGet = apiClient.v1.library.playlists.$get,
   libraryPlaylistsPost = apiClient.v1.library.playlists.$post,
   libraryPlaylistDelete = apiClient.v1.library.playlists[":id"].$delete,
@@ -83,9 +86,11 @@ const notificationsGet = apiClient.v1.notifications.index.$get,
   videoCommentSchema = z.object({
     authorAvatarUrl: z.string().nullable(),
     authorName: z.string().nullable(),
+    authorUsername: z.string().nullable(),
     body: z.string(),
     createdAt: z.string(),
     id: z.string(),
+    parentCommentId: z.string().nullable(),
     userId: z.string(),
   }),
   savedTrackIdSchema = z.object({ id: z.string() }),
@@ -249,6 +254,52 @@ const notificationStatsSchema = z.object({
   unreadCount: z.number().int().nonnegative(),
 });
 
+interface NotificationCollectionRef {
+  utils: { refetch: () => Promise<unknown> };
+}
+
+const reconcileNotificationState = async (
+    collection: NotificationCollectionRef,
+    notificationStats: NotificationCollectionRef,
+    queryClient: QueryClient
+  ) => {
+    await Promise.all([
+      reconcileCollections(collection, notificationStats),
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.notifications,
+      }),
+    ]);
+  },
+  runNotificationMutation = async ({
+    collection,
+    notificationStats,
+    queryClient,
+    request,
+  }: {
+    collection: NotificationCollectionRef;
+    notificationStats: NotificationCollectionRef;
+    queryClient: QueryClient;
+    request: () => Promise<unknown>;
+  }) => {
+    try {
+      await request();
+    } catch (error) {
+      // A failed request can race with an incoming notification. Refresh the
+      // authoritative collections before the optimistic transaction rolls
+      // back so that the rollback never becomes the final state.
+      await Promise.allSettled([
+        reconcileNotificationState(collection, notificationStats, queryClient),
+      ]);
+      throw error;
+    }
+
+    await reconcileNotificationState(
+      collection,
+      notificationStats,
+      queryClient
+    );
+  };
+
 interface DataCollections {
   battleChallenges: ReturnType<typeof makeBattleChallengesCollection>;
   battles: ReturnType<typeof makeBattlesCollection>;
@@ -276,7 +327,8 @@ interface DataCollections {
   getPlaylistTracks: (
     playlistId: string
   ) => ReturnType<typeof makePlaylistTracksCollection>;
-  cleanup: () => void;
+  cleanup: () => Promise<void>;
+  cleanupWhenIdle: () => () => void;
 }
 
 interface DataDbContextValue extends DataCollections {
@@ -372,6 +424,7 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
                   json: {
                     body: comment.body,
                     clientCommentId: comment.id,
+                    parentCommentId: comment.parentCommentId,
                   },
                   param: { videoId },
                 })
@@ -380,8 +433,11 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
               ...created,
               authorAvatarUrl: created.authorAvatarUrl ?? null,
               authorName: created.authorName ?? null,
+              authorUsername: created.authorUsername ?? null,
+              parentCommentId: created.parentCommentId ?? null,
             });
           }
+          await collection.utils.refetch();
           return { refetch: false };
         },
         queryClient,
@@ -393,6 +449,8 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
             ...comment,
             authorAvatarUrl: comment.authorAvatarUrl ?? null,
             authorName: comment.authorName ?? null,
+            authorUsername: comment.authorUsername ?? null,
+            parentCommentId: comment.parentCommentId ?? null,
           }));
         },
         queryKey: ["soundkit-db", scopeKey, "video-comments", videoId],
@@ -482,6 +540,7 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         queryFn: async () =>
           rpcJson(await communityPostsGet({ param: { communityId } })),
         queryKey: ["soundkit-db", scopeKey, "community-posts", communityId],
+        refetchInterval: 5000,
         schema: communityPostSchema,
       })
     ),
@@ -517,6 +576,7 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         queryFn: async () =>
           rpcJson(await communityMembersGet({ param: { communityId } })),
         queryKey: ["soundkit-db", scopeKey, "community-members", communityId],
+        refetchInterval: 10_000,
         schema: communityMemberSchema,
       })
     ),
@@ -703,37 +763,68 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
         playlistTracks.set(playlistId, collection);
         return collection;
       },
-      cleanup = () => {
-        battleChallenges.cleanup();
-        battles.cleanup();
-        communities.cleanup();
-        notifications.cleanup();
-        notificationStats.cleanup();
-        following.cleanup();
-        playlists.cleanup();
-        savedTrackIds.cleanup();
-        for (const collection of comments.values()) {
-          collection.cleanup();
+      getAllCollections = () => [
+        battleChallenges,
+        battles,
+        communities,
+        notifications,
+        notificationStats,
+        following,
+        playlists,
+        savedTrackIds,
+        ...comments.values(),
+        ...playlistTracks.values(),
+        ...communityPosts.values(),
+        ...communityMessages.values(),
+        ...communityMembers.values(),
+        ...communityBans.values(),
+      ],
+      hasActiveSubscribers = () =>
+        getAllCollections().some(
+          (collection) => collection.subscriberCount > 0
+        ),
+      cleanup = async () => {
+        if (hasActiveSubscribers()) {
+          return;
         }
-        for (const collection of playlistTracks.values()) {
-          collection.cleanup();
+        await Promise.all(
+          getAllCollections().map((collection) => collection.cleanup())
+        );
+      },
+      cleanupWhenIdle = () => {
+        const collections = getAllCollections();
+        if (!collections.some((collection) => collection.subscriberCount > 0)) {
+          void cleanup();
+          return noopCleanup;
         }
-        for (const collectionMap of [
-          communityPosts,
-          communityMessages,
-          communityMembers,
-          communityBans,
-        ]) {
-          for (const collection of collectionMap.values()) {
-            collection.cleanup();
+
+        let stopped = false;
+        const unsubscribe = collections.map((collection) =>
+          collection.on("subscribers:change", () => {
+            if (stopped || hasActiveSubscribers()) {
+              return;
+            }
+            stopped = true;
+            for (const stop of unsubscribe) {
+              stop();
+            }
+            void cleanup();
+          })
+        );
+
+        return () => {
+          stopped = true;
+          for (const stop of unsubscribe) {
+            stop();
           }
-        }
+        };
       };
 
     return {
       battleChallenges,
       battles,
       cleanup,
+      cleanupWhenIdle,
       communities,
       following,
       getComments,
@@ -766,7 +857,12 @@ export function DataDbProvider({
       [collections, queryClient, scopeKey]
     );
 
-  useEffect(() => () => collections.cleanup(), [collections]);
+  useEffect(
+    () => () => {
+      collections.cleanupWhenIdle();
+    },
+    [collections]
+  );
 
   return (
     <DataDbContext.Provider value={value}>{children}</DataDbContext.Provider>
@@ -794,7 +890,7 @@ export const useDbBattles = () => {
 };
 
 export const useDbBattleActions = () => {
-  const { battleChallenges, battles } = useDataDb(),
+  const { battleChallenges, battles, queryClient } = useDataDb(),
     createChallenge = useMemo(
       () =>
         createOptimisticAction<{
@@ -803,13 +899,18 @@ export const useDbBattleActions = () => {
         }>({
           mutationFn: async ({ body }) => {
             await rpcJson(await battleChallengePost({ json: body }));
-            await battleChallenges.utils.refetch();
+            await Promise.all([
+              battleChallenges.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.battles,
+              }),
+            ]);
           },
           onMutate: ({ optimistic }) => {
             battleChallenges.insert(optimistic);
           },
         }),
-      [battleChallenges]
+      [battleChallenges, queryClient]
     ),
     updateChallenge = useMemo(
       () =>
@@ -827,6 +928,9 @@ export const useDbBattleActions = () => {
             await Promise.all([
               battleChallenges.utils.refetch(),
               battles.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.battles,
+              }),
             ]);
           },
           onMutate: ({ challengeId, status }) => {
@@ -835,7 +939,7 @@ export const useDbBattleActions = () => {
             });
           },
         }),
-      [battleChallenges, battles]
+      [battleChallenges, battles, queryClient]
     ),
     clearChallenge = useMemo(
       () =>
@@ -844,13 +948,18 @@ export const useDbBattleActions = () => {
             await rpcJson(
               await battleChallengeDelete({ param: { challengeId } })
             );
-            await battleChallenges.utils.refetch();
+            await Promise.all([
+              battleChallenges.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.battles,
+              }),
+            ]);
           },
           onMutate: (challengeId) => {
             battleChallenges.delete(challengeId);
           },
         }),
-      [battleChallenges]
+      [battleChallenges, queryClient]
     ),
     deleteBattle = useMemo(
       () =>
@@ -860,13 +969,16 @@ export const useDbBattleActions = () => {
             await Promise.all([
               battles.utils.refetch(),
               battleChallenges.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.battles,
+              }),
             ]);
           },
           onMutate: (battleId) => {
             battles.delete(battleId);
           },
         }),
-      [battleChallenges, battles]
+      [battleChallenges, battles, queryClient]
     );
 
   return { clearChallenge, createChallenge, deleteBattle, updateChallenge };
@@ -885,43 +997,53 @@ export const useDbNotifications = () => {
 };
 
 export const useDbNotificationActions = () => {
-  const { getNotifications, notificationStats } = useDataDb(),
+  const { getNotifications, notificationStats, queryClient } = useDataDb(),
     collection = getNotifications(),
     markRead = useMemo(
       () =>
         createOptimisticAction<string>({
           mutationFn: async (notificationId) => {
-            await rpcJson(
-              await notificationReadPost({
-                param: { notificationId },
-              })
-            );
+            await runNotificationMutation({
+              collection,
+              notificationStats,
+              queryClient,
+              request: async () =>
+                rpcJson(
+                  await notificationReadPost({
+                    param: { notificationId },
+                  })
+                ),
+            });
           },
           onMutate: (notificationId) => {
             const notification = collection.toArray.find(
               (item) => item.id === notificationId
             );
+            if (!notification || notification.read) {
+              return;
+            }
             collection.update(notificationId, (draft) => {
               draft.read = true;
             });
-            if (
-              notification &&
-              !notification.read &&
-              notificationStats.toArray.length > 0
-            ) {
+            if (notificationStats.toArray.length > 0) {
               notificationStats.update("summary", (draft) => {
                 draft.unreadCount = Math.max(0, draft.unreadCount - 1);
               });
             }
           },
         }),
-      [collection, notificationStats]
+      [collection, notificationStats, queryClient]
     ),
     markAllRead = useMemo(
       () =>
         createOptimisticAction<void>({
           mutationFn: async () => {
-            await rpcJson(await notificationsReadAllPost());
+            await runNotificationMutation({
+              collection,
+              notificationStats,
+              queryClient,
+              request: async () => rpcJson(await notificationsReadAllPost()),
+            });
           },
           onMutate: () => {
             for (const notification of collection.toArray) {
@@ -938,18 +1060,26 @@ export const useDbNotificationActions = () => {
             }
           },
         }),
-      [collection, notificationStats]
+      [collection, notificationStats, queryClient]
     ),
     clearAll = useMemo(
       () =>
         createOptimisticAction<void>({
           mutationFn: async () => {
-            await rpcJson(await notificationsClearPost());
+            await runNotificationMutation({
+              collection,
+              notificationStats,
+              queryClient,
+              request: async () => rpcJson(await notificationsClearPost()),
+            });
           },
           onMutate: () => {
-            collection.delete(
-              collection.toArray.map((notification) => notification.id)
+            const notificationIds = collection.toArray.map(
+              (notification) => notification.id
             );
+            if (notificationIds.length > 0) {
+              collection.delete(notificationIds);
+            }
             if (notificationStats.toArray.length > 0) {
               notificationStats.update("summary", (draft) => {
                 draft.unreadCount = 0;
@@ -957,7 +1087,7 @@ export const useDbNotificationActions = () => {
             }
           },
         }),
-      [collection, notificationStats]
+      [collection, notificationStats, queryClient]
     );
 
   return { clearAll, markAllRead, markRead };
@@ -983,20 +1113,33 @@ export const useDbVideoComments = (videoId: string) => {
 
 export const useCreateDbVideoComment = (
   videoId: string,
-  author: { avatarUrl?: string | null; id: string; name?: string | null }
+  author: {
+    avatarUrl?: string | null;
+    id: string;
+    name?: string | null;
+    username?: string | null;
+  }
 ) => {
   const { getComments } = useDataDb(),
     collection = useMemo(() => getComments(videoId), [getComments, videoId]),
     [isPending, setIsPending] = useState(false),
     mutate = useCallback(
-      (body: string, options?: { onError?: (error: unknown) => void }) => {
+      (
+        body: string,
+        options?: {
+          onError?: (error: unknown) => void;
+          parentCommentId?: string | null;
+        }
+      ) => {
         const id = crypto.randomUUID(),
           optimisticComment: DbVideoComment = {
             authorAvatarUrl: author.avatarUrl ?? null,
             authorName: author.name ?? "You",
+            authorUsername: author.username ?? null,
             body,
             createdAt: new Date().toISOString(),
             id,
+            parentCommentId: options?.parentCommentId ?? null,
             userId: author.id,
           };
         setIsPending(true);
@@ -1013,7 +1156,7 @@ export const useCreateDbVideoComment = (
           return null;
         }
       },
-      [author.avatarUrl, author.id, author.name, collection]
+      [author.avatarUrl, author.id, author.name, author.username, collection]
     );
   return { isPending, mutate };
 };
@@ -1030,7 +1173,7 @@ export const useDbPlaylists = () => {
 };
 
 export const useDbPlaylistActions = () => {
-  const collection = useDataDb().playlists,
+  const { playlists: collection, queryClient } = useDataDb(),
     create = useMemo(
       () =>
         createOptimisticAction<{
@@ -1044,6 +1187,15 @@ export const useDbPlaylistActions = () => {
                 json: { clientPlaylistId: id, description, title },
               })
             );
+            await Promise.all([
+              collection.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryPlaylists,
+              }),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryOverview,
+              }),
+            ]);
           },
           onMutate: ({ description, id, title }) => {
             collection.insert({
@@ -1055,19 +1207,28 @@ export const useDbPlaylistActions = () => {
             });
           },
         }),
-      [collection]
+      [collection, queryClient]
     ),
     deletePlaylist = useMemo(
       () =>
         createOptimisticAction<string>({
           mutationFn: async (id) => {
             await rpcJson(await libraryPlaylistDelete({ param: { id } }));
+            await Promise.all([
+              collection.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryPlaylists,
+              }),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryOverview,
+              }),
+            ]);
           },
           onMutate: (id) => {
             collection.delete(id);
           },
         }),
-      [collection]
+      [collection, queryClient]
     );
 
   return {
@@ -1095,7 +1256,7 @@ export const useDbPlaylistTracks = (playlistId: string) => {
 };
 
 export const useDbPlaylistTrackActions = (playlistId: string) => {
-  const { getPlaylistTracks } = useDataDb(),
+  const { getPlaylistTracks, queryClient } = useDataDb(),
     collection = useMemo(
       () => getPlaylistTracks(playlistId),
       [getPlaylistTracks, playlistId]
@@ -1120,7 +1281,15 @@ export const useDbPlaylistTrackActions = (playlistId: string) => {
                 param: { id: playlistId },
               })
             );
-            await collection.utils.refetch();
+            await Promise.all([
+              collection.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryPlaylist(playlistId),
+              }),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryPlaylists,
+              }),
+            ]);
           },
           onMutate: (track) => {
             if (!collection.toArray.some((item) => item.id === track.id)) {
@@ -1128,7 +1297,7 @@ export const useDbPlaylistTrackActions = (playlistId: string) => {
             }
           },
         }),
-      [collection, playlistId]
+      [collection, playlistId, queryClient]
     ),
     remove = useMemo(
       () =>
@@ -1139,13 +1308,21 @@ export const useDbPlaylistTrackActions = (playlistId: string) => {
                 param: { id: playlistId, trackId },
               })
             );
-            await collection.utils.refetch();
+            await Promise.all([
+              collection.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryPlaylist(playlistId),
+              }),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.libraryPlaylists,
+              }),
+            ]);
           },
           onMutate: (trackId) => {
             collection.delete(trackId);
           },
         }),
-      [collection, playlistId]
+      [collection, playlistId, queryClient]
     );
 
   return { add, remove };
@@ -1158,12 +1335,42 @@ export const useDbSavedTrackIds = () => {
 };
 
 export const useDbSavedTrackActions = () => {
-  const collection = useDataDb().savedTrackIds,
+  const { queryClient, savedTrackIds: collection } = useDataDb(),
+    remove = useMemo(
+      () =>
+        createOptimisticAction<string>({
+          mutationFn: async (trackId) => {
+            await rpcJson(await librarySaveTrackDelete({ param: { trackId } }));
+            await Promise.all([
+              collection.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: ["library", "saved"],
+              }),
+              queryClient.invalidateQueries({
+                queryKey: ["library", "overview"],
+              }),
+            ]);
+          },
+          onMutate: (trackId) => {
+            collection.delete(trackId);
+          },
+        }),
+      [collection, queryClient]
+    ),
     toggle = useMemo(
       () =>
         createOptimisticAction<string>({
           mutationFn: async (trackId) => {
             await rpcJson(await librarySaveTrackPost({ param: { trackId } }));
+            await Promise.all([
+              collection.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: ["library", "saved"],
+              }),
+              queryClient.invalidateQueries({
+                queryKey: ["library", "overview"],
+              }),
+            ]);
           },
           onMutate: (trackId) => {
             const existing = collection.toArray.some(
@@ -1176,9 +1383,9 @@ export const useDbSavedTrackActions = () => {
             }
           },
         }),
-      [collection]
+      [collection, queryClient]
     );
-  return { toggle };
+  return { remove, toggle };
 };
 
 export const useDbFollowing = () => {
@@ -1217,6 +1424,7 @@ export const useDbFollowActions = () => {
               await requestProfileFollow(username, "POST");
             }
             await Promise.all([
+              collection.utils.refetch(),
               queryClient.invalidateQueries({
                 queryKey: ["artists", username],
               }),
@@ -1266,6 +1474,7 @@ export const useDbFollowActions = () => {
               await requestProfileFollow(username, "DELETE");
             }
             await Promise.all([
+              collection.utils.refetch(),
               queryClient.invalidateQueries({
                 queryKey: ["artists", username],
               }),
@@ -1296,15 +1505,12 @@ export const useDbCommunities = () => {
 };
 
 export const useDbCommunity = (communityId: string) => {
-  const collection = useDataDb().communities,
-    result = useLiveQuery(
-      (q) =>
-        q
-          .from({ community: collection })
-          .where(({ community }) => eq(community.id, communityId)),
-      [communityId]
-    );
-  return { ...result, community: result.data?.[0] ?? null };
+  const result = useDbCommunities();
+  return {
+    ...result,
+    community:
+      result.data.find((community) => community.id === communityId) ?? null,
+  };
 };
 
 export const useDbCommunityActions = () => {
@@ -1328,6 +1534,7 @@ export const useDbCommunityActions = () => {
         createOptimisticAction<string>({
           mutationFn: async (communityId) => {
             await rpcJson(await communityJoinPost({ param: { communityId } }));
+            await collection.utils.refetch();
           },
           onMutate: (communityId) => {
             collection.update(communityId, (draft) => {
@@ -1354,6 +1561,7 @@ export const useDbCommunityActions = () => {
             await rpcJson(
               await communityPatch({ json, param: { communityId } })
             );
+            await collection.utils.refetch();
           },
           onMutate: ({ communityId, ...changes }) => {
             collection.update(communityId, (draft) => {
@@ -1481,12 +1689,13 @@ export const useSendDbCommunityMessage = (
             const previous =
                 communityMessageQueues.get(communityId) ?? Promise.resolve(),
               persistMessage = async () => {
-                await rpcJson(
+                const createdMessage = await rpcJson(
                   await communityMessagesPost({
                     json: { body, clientMessageId: id },
                     param: { communityId },
                   })
                 );
+                collection.utils.writeUpsert(createdMessage);
               },
               queued = previous.then(persistMessage, persistMessage);
             communityMessageQueues.set(communityId, queued);
@@ -1500,6 +1709,7 @@ export const useSendDbCommunityMessage = (
             if (outcome.error) {
               throw outcome.error;
             }
+            await collection.utils.refetch();
           },
           onMutate: ({ body, id }) => {
             collection.insert({
@@ -1577,6 +1787,7 @@ export const useDbCommunityModeration = (communityId: string) => {
                 param: { communityId, userId },
               })
             );
+            await members.utils.refetch();
           },
           onMutate: ({ role, userId }) => {
             members.update(userId, (draft) => {
@@ -1595,6 +1806,10 @@ export const useDbCommunityModeration = (communityId: string) => {
                 param: { communityId, userId },
               })
             );
+            await Promise.all([
+              members.utils.refetch(),
+              communities.utils.refetch(),
+            ]);
           },
           onMutate: (userId) => {
             members.delete(userId);
@@ -1618,6 +1833,11 @@ export const useDbCommunityModeration = (communityId: string) => {
                 param: { communityId, userId: member.userId },
               })
             );
+            await Promise.all([
+              members.utils.refetch(),
+              bans.utils.refetch(),
+              communities.utils.refetch(),
+            ]);
           },
           onMutate: ({ member, reason }) => {
             members.delete(member.userId);
@@ -1643,12 +1863,13 @@ export const useDbCommunityModeration = (communityId: string) => {
             await rpcJson(
               await communityBanDelete({ param: { communityId, userId } })
             );
+            await Promise.all([members.utils.refetch(), bans.utils.refetch()]);
           },
           onMutate: (userId) => {
             bans.delete(userId);
           },
         }),
-      [bans, communityId]
+      [bans, communityId, members]
     );
   return { ban, remove, setRole, unban };
 };

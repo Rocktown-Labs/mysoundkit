@@ -2,6 +2,8 @@ import { Check, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
+const EMPTY_FEATURES: string[] = [];
+
 export interface BillingPlanOption {
   audience: "artist" | "fan";
   code: string;
@@ -13,20 +15,33 @@ export interface BillingPlanOption {
 
 export function PlanSelectionCard({
   description,
+  features = EMPTY_FEATURES,
   onSelect,
   plan,
   selected,
+  showRecommendedBadge = true,
 }: {
   description: string;
+  features?: string[];
   onSelect: () => void;
   plan: BillingPlanOption;
   selected: boolean;
+  showRecommendedBadge?: boolean;
 }) {
   const isPremium = plan.code.startsWith("soundkit_premium_");
   return (
     <div
-      className={`relative w-full rounded-lg border-2 p-5 text-left transition ${selected ? "border-primary bg-primary/10" : "border-border bg-background/50 hover:border-primary/60"}`}
+      aria-checked={selected}
+      className={`relative min-w-0 w-full cursor-pointer rounded-lg border-2 p-5 text-left transition ${selected ? "border-primary bg-primary/10" : "border-border bg-background/50 hover:border-primary/60"}`}
       onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      role="radio"
+      tabIndex={0}
     >
       <input
         aria-label={`Choose ${plan.name}`}
@@ -37,7 +52,7 @@ export function PlanSelectionCard({
         type="radio"
         value={plan.code}
       />
-      {isPremium ? (
+      {isPremium && showRecommendedBadge ? (
         <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground">
           <Sparkles className="size-3" /> Recommended
         </span>
@@ -61,8 +76,18 @@ export function PlanSelectionCard({
         {plan.maxSeats ?? 1}{" "}
         {plan.maxSeats === 1 ? "account" : "accounts/seats"}
       </div>
+      {features.length > 0 ? (
+        <ul className="mt-4 space-y-2 border-t border-border/60 pt-4 text-sm">
+          {features.map((feature) => (
+            <li className="flex items-start gap-2" key={feature}>
+              <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+              <span>{feature}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <Button
-        className="mt-4 h-11 w-full"
+        className="mt-4 h-11 w-full px-2 text-xs sm:px-4 sm:text-sm"
         onClick={(event) => {
           event.stopPropagation();
           onSelect();

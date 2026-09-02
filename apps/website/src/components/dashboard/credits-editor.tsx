@@ -15,6 +15,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { authClient } from "@/lib/auth-client";
+import {
+  DEFAULT_COLLABORATOR_CREDIT_ROLE,
+  isCollaboratorCreditRole,
+} from "@/lib/collaborator-credits";
+import type { CollaboratorCreditRole } from "@/lib/collaborator-credits";
 import { usePeopleSearchQuery } from "@/lib/soundkit-api-hooks";
 
 export interface CreditEntry {
@@ -39,9 +44,9 @@ interface CreditsEditorProps {
  */
 export function CreditsEditor({ onChange, value }: CreditsEditorProps) {
   const [creditQuery, setCreditQuery] = useState(""),
-    [creditRole, setCreditRole] = useState<
-      "artist" | "producer" | "songwriter"
-    >("songwriter"),
+    [creditRole, setCreditRole] = useState<CollaboratorCreditRole>(
+      DEFAULT_COLLABORATOR_CREDIT_ROLE
+    ),
     [alsoCreditAsWriter, setAlsoCreditAsWriter] = useState(true),
     { data: session } = authClient.useSession(),
     peopleSearch = usePeopleSearchQuery(creditQuery),
@@ -105,11 +110,7 @@ export function CreditsEditor({ onChange, value }: CreditsEditorProps) {
       <div className="flex flex-col gap-2 sm:flex-row">
         <Select
           onValueChange={(nextRole) => {
-            if (
-              nextRole === "artist" ||
-              nextRole === "producer" ||
-              nextRole === "songwriter"
-            ) {
+            if (isCollaboratorCreditRole(nextRole)) {
               setCreditRole(nextRole);
             }
           }}
@@ -226,7 +227,7 @@ export function CreditsEditor({ onChange, value }: CreditsEditorProps) {
         ))}
         {value.length === 0 ? (
           <p className="w-full rounded-xl border-2 border-dashed border-border/20 py-4 text-center text-xs text-muted-foreground">
-            No writers or producers added yet.
+            No artists, writers, or producers added yet.
           </p>
         ) : null}
       </div>

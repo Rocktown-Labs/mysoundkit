@@ -1,0 +1,15 @@
+{
+  "name": "soundkit-bio-ci",
+  "main": "@tanstack/react-start/server-entry",
+  "compatibility_date": "2026-04-12",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env",
+  ],
+  "vars": {
+    "VITE_SERVER_URL": "http://127.0.0.1:3000",
+    "VITE_SOUNDKIT_BIO_URL": "http://127.0.0.1:4312",
+    "VITE_SOUNDKIT_WEB_URL": "http://127.0.0.1:4311",
+    "VITE_STRIPE_PUBLISHABLE_KEY": "",
+  },
+}

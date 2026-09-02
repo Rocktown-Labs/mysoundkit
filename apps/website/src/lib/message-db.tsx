@@ -1,6 +1,11 @@
 import { queryCollectionOptions } from "@tanstack/query-db-collection";
 /* eslint-disable one-var, sort-vars, prefer-destructuring, promise/prefer-await-to-then, promise/prefer-await-to-callbacks, react/hook-use-state */
-import { createCollection, useLiveQuery } from "@tanstack/react-db";
+import {
+  createCollection,
+  createOptimisticAction,
+  useLiveQuery,
+} from "@tanstack/react-db";
+import { useMutation } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import {
   createContext,
@@ -13,6 +18,8 @@ import type { ReactNode } from "react";
 
 import { apiClient, API_V1_URL, rpcJson } from "./api";
 import type { LiveRoomChatMessage } from "./live-room";
+import { removeOptimisticMessage } from "./message-reconciliation";
+import { soundkitQueryKeys } from "./soundkit-api-hooks";
 import type { ConversationSummary, MessageSummary } from "./soundkit-api-hooks";
 
 const conversationGet = apiClient.v1.messages.conversations.$get,
@@ -20,7 +27,18 @@ const conversationGet = apiClient.v1.messages.conversations.$get,
   conversationMessagesGet =
     apiClient.v1.messages.conversations[":conversationId"].messages.$get,
   conversationMessagesPost =
-    apiClient.v1.messages.conversations[":conversationId"].messages.$post;
+    apiClient.v1.messages.conversations[":conversationId"].messages.$post,
+  collaborationPost =
+    apiClient.v1.messages.conversations[":conversationId"].collaborations.$post,
+  collaborationRespondPost =
+    apiClient.v1.messages.conversations[":conversationId"].collaborations[
+      ":collaborationId"
+    ].respond.$post,
+  conversationReadPost =
+    apiClient.v1.messages.conversations[":conversationId"].read.$post;
+
+const MESSAGE_SYNC_INTERVAL_MS = 15_000,
+  NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
 
 interface MessageAttachmentInput {
   displayName: string;
@@ -42,11 +60,21 @@ export interface MessageCollectionMutationOptions {
   onSuccess?: (message: MessageSummary) => void;
 }
 
-const makeConversationCollection = (queryClient: QueryClient) =>
+export interface StartCollaborationInput {
+  genre?: string;
+  kind: "project" | "track";
+  projectType?: "album" | "ep" | "mixtape" | "single";
+  title: string;
+}
+
+const makeConversationCollection = (
+    queryClient: QueryClient,
+    scopeKey: string
+  ) =>
     createCollection(
       queryCollectionOptions<ConversationSummary>({
         getKey: (conversation) => conversation.id,
-        id: "soundkit-conversations",
+        id: `soundkit-conversations-${scopeKey}`,
         onInsert: async ({ transaction, collection }) => {
           const mutation = transaction.mutations[0],
             created = await rpcJson(
@@ -63,22 +91,29 @@ const makeConversationCollection = (queryClient: QueryClient) =>
           return { refetch: false };
         },
         queryClient,
-        queryFn: async () => rpcJson(await conversationGet()),
-        queryKey: ["messages", "conversations"],
-        refetchOnWindowFocus: false,
-        staleTime: 30_000,
+        queryFn: async ({ signal }) =>
+          rpcJson(await conversationGet(undefined, { init: { signal } })),
+        queryKey: ["messages", scopeKey, "conversations"],
+        refetchInterval: MESSAGE_SYNC_INTERVAL_MS,
+        refetchOnReconnect: true,
+        refetchOnWindowFocus: true,
+        staleTime: 5000,
       })
     ),
-  makeLiveRoomChatCollection = (queryClient: QueryClient, roomId: string) =>
+  makeLiveRoomChatCollection = (
+    queryClient: QueryClient,
+    scopeKey: string,
+    roomId: string
+  ) =>
     createCollection(
       queryCollectionOptions<LiveRoomChatMessage>({
         getKey: (message) => message.id,
-        id: `soundkit-live-room-chat-${roomId}`,
+        id: `soundkit-live-room-chat-${scopeKey}-${roomId}`,
         queryClient,
-        queryFn: async () => {
+        queryFn: async ({ signal }) => {
           const response = await fetch(
             `${API_V1_URL}/live/rooms/${encodeURIComponent(roomId)}`,
-            { credentials: "include" }
+            { credentials: "include", signal }
           );
           if (!response.ok) {
             throw new Error(
@@ -90,17 +125,25 @@ const makeConversationCollection = (queryClient: QueryClient) =>
           };
           return room.chat ?? [];
         },
-        queryKey: ["live-room", roomId, "chat"],
-        refetchOnWindowFocus: false,
-        staleTime: 30_000,
+        queryKey: ["messages", scopeKey, "live-room", roomId, "chat"],
+        refetchInterval: MESSAGE_SYNC_INTERVAL_MS,
+        refetchOnReconnect: true,
+        refetchOnWindowFocus: true,
+        staleTime: 5000,
       })
     ),
-  makeMessageCollection = (queryClient: QueryClient, conversationId: string) =>
+  makeMessageCollection = (
+    queryClient: QueryClient,
+    scopeKey: string,
+    conversationId: string,
+    conversations: ReturnType<typeof makeConversationCollection>
+  ) =>
     createCollection(
       queryCollectionOptions<MessageSummary>({
         enabled: Boolean(conversationId),
         getKey: (message) => message.id,
-        id: `soundkit-messages-${conversationId}`,
+        id: `soundkit-messages-${scopeKey}-${conversationId}`,
+        onDelete: () => Promise.resolve({ refetch: false }),
         onInsert: async ({ transaction, collection }) => {
           const mutation = transaction.mutations[0],
             message = mutation.modified,
@@ -123,23 +166,31 @@ const makeConversationCollection = (queryClient: QueryClient) =>
               })
             );
           collection.utils.writeUpsert(created);
+          await removeOptimisticMessage(collection, message.id);
+          await conversations.utils.refetch();
           return { refetch: false };
         },
         queryClient,
-        queryFn: async () =>
+        queryFn: async ({ signal }) =>
           conversationId
             ? rpcJson(
-                await conversationMessagesGet({ param: { conversationId } })
+                await conversationMessagesGet(
+                  { param: { conversationId } },
+                  { init: { signal } }
+                )
               )
             : [],
         queryKey: [
           "messages",
+          scopeKey,
           "conversations",
           conversationId || "empty",
           "messages",
         ],
-        refetchOnWindowFocus: false,
-        staleTime: 30_000,
+        refetchInterval: conversationId ? MESSAGE_SYNC_INTERVAL_MS : false,
+        refetchOnReconnect: true,
+        refetchOnWindowFocus: true,
+        staleTime: 5000,
       })
     );
 
@@ -155,12 +206,28 @@ interface MessagingCollections {
 }
 
 interface MessagingDbContextValue extends MessagingCollections {
+  activeConversationId: string;
   queryClient: QueryClient;
+  setActiveConversationId: (conversationId: string) => void;
+}
+
+export interface StartConversationInput {
+  conversation: {
+    participantUserIds: string[];
+    title?: string;
+  };
+  message?: {
+    attachments: MessageAttachmentInput[];
+    body: string;
+  };
 }
 
 const MessagingDbContext = createContext<MessagingDbContextValue | null>(null),
-  createCollections = (queryClient: QueryClient): MessagingCollections => {
-    const conversations = makeConversationCollection(queryClient),
+  createCollections = (
+    queryClient: QueryClient,
+    scopeKey: string
+  ): MessagingCollections => {
+    const conversations = makeConversationCollection(queryClient, scopeKey),
       liveRoomChatCollections = new Map<string, LiveRoomChatCollection>(),
       messageCollections = new Map<string, MessageCollection>(),
       getLiveRoomChat = (roomId: string) => {
@@ -168,7 +235,11 @@ const MessagingDbContext = createContext<MessagingDbContextValue | null>(null),
         if (existing) {
           return existing;
         }
-        const collection = makeLiveRoomChatCollection(queryClient, roomId);
+        const collection = makeLiveRoomChatCollection(
+          queryClient,
+          scopeKey,
+          roomId
+        );
         liveRoomChatCollections.set(roomId, collection);
         return collection;
       },
@@ -179,7 +250,12 @@ const MessagingDbContext = createContext<MessagingDbContextValue | null>(null),
           return existing;
         }
 
-        const collection = makeMessageCollection(queryClient, conversationId);
+        const collection = makeMessageCollection(
+          queryClient,
+          scopeKey,
+          conversationId,
+          conversations
+        );
         messageCollections.set(collectionKey, collection);
         return collection;
       };
@@ -190,14 +266,24 @@ const MessagingDbContext = createContext<MessagingDbContextValue | null>(null),
 export function MessagingDbProvider({
   children,
   queryClient,
+  scopeKey = "anonymous",
 }: {
   children: ReactNode;
   queryClient: QueryClient;
+  scopeKey?: string;
 }) {
-  const [collections] = useState(() => createCollections(queryClient)),
+  const [collections] = useState(() =>
+      createCollections(queryClient, scopeKey)
+    ),
+    [activeConversationId, setActiveConversationId] = useState(""),
     value = useMemo(
-      () => ({ ...collections, queryClient }),
-      [collections, queryClient]
+      () => ({
+        ...collections,
+        activeConversationId,
+        queryClient,
+        setActiveConversationId,
+      }),
+      [activeConversationId, collections, queryClient, setActiveConversationId]
     );
 
   return (
@@ -215,14 +301,23 @@ const useMessagingDb = () => {
   return context;
 };
 
+export const useMessagingWorkspace = () => {
+  const { activeConversationId, setActiveConversationId } = useMessagingDb();
+  return { activeConversationId, setActiveConversationId };
+};
+
 export const useMessagingConversations = () => {
-  const { conversations } = useMessagingDb();
-  return useLiveQuery((q) =>
-    q
-      .from({ conversation: conversations })
-      .orderBy(({ conversation }) => conversation.updatedAt, "desc")
-      .orderBy(({ conversation }) => conversation.id, "desc")
-  );
+  const { conversations } = useMessagingDb(),
+    result = useLiveQuery((q) =>
+      q
+        .from({ conversation: conversations })
+        .orderBy(({ conversation }) => conversation.updatedAt, "desc")
+        .orderBy(({ conversation }) => conversation.id, "desc")
+    ),
+    refetch = useCallback(async () => {
+      await conversations.utils.refetch();
+    }, [conversations]);
+  return { ...result, refetch };
 };
 
 export const useLiveRoomChat = (roomId: string) => {
@@ -248,17 +343,266 @@ export const useMessagingMessages = (conversationId: string) => {
       () => getMessages(conversationId),
       [conversationId, getMessages]
     ),
-    result = useLiveQuery((q) =>
-      q
-        .from({ message: collection })
-        .orderBy(({ message }) => message.createdAt, "asc")
-        .orderBy(({ message }) => message.id, "asc")
+    result = useLiveQuery(
+      (q) =>
+        conversationId
+          ? q
+              .from({ message: collection })
+              .orderBy(({ message }) => message.createdAt, "asc")
+              .orderBy(({ message }) => message.id, "asc")
+          : undefined,
+      [collection, conversationId]
     ),
-    data = result.data as unknown as MessageSummary[],
+    data = (result.data ?? []) as unknown as MessageSummary[],
     refetch = useCallback(async () => {
       await collection.utils.refetch();
     }, [collection]);
-  return { ...result, data, refetch };
+  return { ...result, collection, data, refetch };
+};
+
+export const useMarkConversationReadMutation = () => {
+  const { conversations, queryClient } = useMessagingDb(),
+    [pendingConversationIds, setPendingConversationIds] = useState<Set<string>>(
+      () => new Set()
+    ),
+    markRead = useMemo(
+      () =>
+        createOptimisticAction<string>({
+          mutationFn: async (conversationId) => {
+            await rpcJson(
+              await conversationReadPost({ param: { conversationId } })
+            );
+            await Promise.all([
+              conversations.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: NOTIFICATIONS_QUERY_KEY,
+              }),
+            ]);
+          },
+          onMutate: (conversationId) => {
+            const conversation = conversations.toArray.find(
+              (item) => item.id === conversationId
+            );
+            if (conversation && conversation.unreadCount > 0) {
+              conversations.update(conversationId, (draft) => {
+                draft.unreadCount = 0;
+              });
+            }
+          },
+        }),
+      [conversations, queryClient]
+    ),
+    mutate = useCallback(
+      (conversationId: string) => {
+        const conversation = conversations.toArray.find(
+          (item) => item.id === conversationId
+        );
+        if (
+          !conversation ||
+          conversation.unreadCount === 0 ||
+          pendingConversationIds.has(conversationId)
+        ) {
+          return;
+        }
+
+        setPendingConversationIds((current) =>
+          new Set(current).add(conversationId)
+        );
+        const transaction = markRead(conversationId),
+          clearPending = () => {
+            setPendingConversationIds((current) => {
+              const next = new Set(current);
+              next.delete(conversationId);
+              return next;
+            });
+          };
+        void transaction.isPersisted.promise.then(clearPending, clearPending);
+      },
+      [
+        conversations,
+        markRead,
+        pendingConversationIds,
+        setPendingConversationIds,
+      ]
+    );
+
+  return { isPending: pendingConversationIds.size > 0, mutate };
+};
+
+export const useStartConversationMutation = () => {
+  const { conversations } = useMessagingDb();
+
+  return useMutation({
+    mutationFn: async ({
+      conversation,
+      message,
+    }: StartConversationInput): Promise<ConversationSummary> => {
+      const createdConversation = await rpcJson(
+        await conversationPost({ json: conversation })
+      );
+      if (message?.body && message.body.trim()) {
+        await rpcJson(
+          await conversationMessagesPost({
+            json: message,
+            param: { conversationId: createdConversation.id },
+          })
+        );
+      }
+      return createdConversation;
+    },
+    onSuccess: async (createdConversation, { message }) => {
+      conversations.utils.writeUpsert(createdConversation);
+      if (message?.body && message.body.trim()) {
+        await conversations.utils.refetch();
+      }
+    },
+  });
+};
+
+export const useStartCollaborationMutation = (
+  conversationId: string,
+  senderId?: string
+) => {
+  const { conversations, getMessages, queryClient } = useMessagingDb(),
+    collection = useMemo(
+      () => getMessages(conversationId),
+      [conversationId, getMessages]
+    ),
+    [isPending, setIsPending] = useState(false),
+    startCollaboration = useMemo(
+      () =>
+        createOptimisticAction<
+          StartCollaborationInput & {
+            clientRequestId: string;
+            localMessageId: string;
+          }
+        >({
+          mutationFn: async (input) => {
+            await rpcJson(
+              await collaborationPost({
+                json: {
+                  clientRequestId: input.clientRequestId,
+                  genre: input.genre,
+                  kind: input.kind,
+                  projectType: input.projectType,
+                  title: input.title,
+                },
+                param: { conversationId },
+              })
+            );
+            await removeOptimisticMessage(collection, input.localMessageId);
+            await Promise.all([
+              collection.utils.refetch(),
+              conversations.utils.refetch(),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.projects,
+              }),
+              queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.tracksPrefix,
+              }),
+            ]);
+          },
+          onMutate: (input) => {
+            collection.insert({
+              attachments: [
+                {
+                  collaboration: null,
+                  displayName: input.title,
+                  id: `local-attachment-${input.localMessageId}`,
+                  mimeType: "soundkit/collaboration-proposal",
+                  objectKey: null,
+                  sizeBytes: null,
+                  sourceProjectId: null,
+                  sourceTrackId: null,
+                  url: "/dashboard/messages",
+                },
+              ],
+              body: `Starting shared ${input.kind}: ${input.title}`,
+              createdAt: new Date().toISOString(),
+              id: input.localMessageId,
+              senderId: senderId ?? "",
+              status: "sent",
+            });
+          },
+        }),
+      [collection, conversationId, conversations, queryClient, senderId]
+    ),
+    mutate = useCallback(
+      (
+        input: StartCollaborationInput,
+        options?: MessageCollectionMutationOptions
+      ) => {
+        if (!conversationId || !senderId) {
+          return;
+        }
+
+        setIsPending(true);
+        try {
+          const transaction = startCollaboration({
+            ...input,
+            clientRequestId: crypto.randomUUID(),
+            localMessageId: `local-collaboration-${crypto.randomUUID()}`,
+          });
+          void transaction.isPersisted.promise
+            .then(() => {
+              options?.onSuccess?.({
+                attachments: [],
+                body: input.title,
+                createdAt: new Date().toISOString(),
+                id: "",
+                senderId,
+                status: "sent",
+              });
+            })
+            .catch((error: unknown) => {
+              options?.onError?.(error);
+            })
+            .finally(() => setIsPending(false));
+        } catch (error) {
+          setIsPending(false);
+          options?.onError?.(error);
+        }
+      },
+      [conversationId, senderId, startCollaboration]
+    );
+
+  return { isPending, mutate };
+};
+
+export const useRespondCollaborationMutation = (conversationId: string) => {
+  const { conversations, getMessages, queryClient } = useMessagingDb(),
+    collection = useMemo(
+      () => getMessages(conversationId),
+      [conversationId, getMessages]
+    );
+
+  return useMutation({
+    mutationFn: async ({
+      action,
+      collaborationId,
+    }: {
+      action: "accept" | "cancel" | "decline";
+      collaborationId: string;
+    }) =>
+      rpcJson(
+        await collaborationRespondPost({
+          json: { action },
+          param: { collaborationId, conversationId },
+        })
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        collection.utils.refetch(),
+        conversations.utils.refetch(),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.projects,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.tracksPrefix,
+        }),
+      ]);
+    },
+  });
 };
 
 export const useCreateMessageCollectionMutation = (

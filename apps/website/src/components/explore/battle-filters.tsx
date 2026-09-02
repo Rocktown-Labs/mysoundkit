@@ -7,7 +7,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { allGenreOptions } from "@/lib/music-genres";
+import { normalizeGenreValue } from "@/lib/live-collection";
+import { useGenresQuery } from "@/lib/soundkit-api-hooks";
 
 export const northAmericaLocations = [
     { label: "All North America", value: "all" },
@@ -97,6 +98,8 @@ export function BattleFilters({
   onSortChange,
   sortOptions,
 }: BattleFiltersProps) {
+  const { data: genres = [] } = useGenresQuery();
+
   return (
     <div className="space-y-6 mb-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -169,14 +172,18 @@ export function BattleFilters({
           <Label htmlFor="genre" className="text-sm font-medium">
             Genre
           </Label>
-          <Select value={genre} onValueChange={onGenreChange}>
+          <Select
+            value={normalizeGenreValue(genre)}
+            onValueChange={onGenreChange}
+          >
             <SelectTrigger id="genre">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {allGenreOptions.map((g) => (
-                <SelectItem key={g.value} value={g.value}>
-                  {g.label}
+              <SelectItem value="all">All Genres</SelectItem>
+              {genres.map((g) => (
+                <SelectItem key={g.slug} value={g.slug}>
+                  {g.name}
                 </SelectItem>
               ))}
             </SelectContent>

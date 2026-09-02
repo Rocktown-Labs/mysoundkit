@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import {
   ChevronLeft,
@@ -53,6 +54,7 @@ import { useFormDraftGuard } from "@/hooks/use-form-draft-guard";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
 import {
+  soundkitQueryKeys,
   useGenresQuery,
   useProjectsQuery,
   useTracksQuery,
@@ -297,7 +299,8 @@ function LinkHistoryDropdown({
 }
 
 function NewVideoPage() {
-  const router = useRouter(),
+  const queryClient = useQueryClient(),
+    router = useRouter(),
     [step, setStep] = useState("identity"),
     [isSubmitting, setIsSubmitting] = useState(false),
     [uploadProgress, setUploadProgress] = useState<number | null>(null),
@@ -327,9 +330,9 @@ function NewVideoPage() {
           .map((genre) =>
             typeof genre === "string"
               ? genre
-              : typeof genre === "object" && genre && "name" in genre
+              : (typeof genre === "object" && genre && "name" in genre
                 ? String(genre.name)
-                : null
+                : null)
           )
           .filter((genre): genre is string => Boolean(genre))
       : [...SUPPORTED_GENRES],
@@ -465,6 +468,9 @@ function NewVideoPage() {
 
         allowNavigation();
         clearDraft();
+        await queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.videosPrefix,
+        });
         toast({
           description: `${values.title} is now ${values.sourceType === "upload" ? "processing" : "linked"}.`,
           title: "Video Added",

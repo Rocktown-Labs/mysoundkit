@@ -15,6 +15,7 @@ import {
 import {
   paymentRefunds,
   stripeWebhookEvents,
+  tips,
   transactions,
 } from "@soundkit/db/schema/payments";
 import { env } from "@soundkit/env/server";
@@ -29,6 +30,7 @@ import {
   notifyPayoutFailedEmail,
 } from "@/lib/email-events";
 import {
+  executeSellerTransfer,
   retrieveStripeCharge,
   reverseStripeTransfer,
   verifyStripeSignatureWithSecrets,
@@ -71,6 +73,7 @@ interface StripeObject {
   };
   status?: string;
   subscription?: string;
+  payment_status?: string;
 }
 
 interface StripeEvent {
@@ -224,6 +227,63 @@ const processConnectAccountEvent = async ({
       }
     }
   },
+  settleTipTransfers = async ({
+    db,
+    transactionId,
+  }: {
+    db: ReturnType<typeof createDb>;
+    transactionId: string;
+  }) => {
+    const tipRows = await db
+      .select({
+        artistAmountCents: tips.artistAmountCents,
+        artistUserId: tips.artistUserId,
+        id: tips.id,
+        stripeTransferId: tips.stripeTransferId,
+      })
+      .from(tips)
+      .where(eq(tips.transactionId, transactionId));
+
+    for (const tip of tipRows) {
+      if (tip.stripeTransferId) {
+        continue;
+      }
+
+      const [seller] = await db
+        .select({ stripeAccountId: sellerAccounts.stripeAccountId })
+        .from(sellerAccounts)
+        .where(
+          and(
+            eq(sellerAccounts.userId, tip.artistUserId),
+            eq(sellerAccounts.onboardingStatus, "enabled"),
+            eq(sellerAccounts.chargesEnabled, true),
+            eq(sellerAccounts.payoutsEnabled, true)
+          )
+        )
+        .limit(1);
+
+      if (!seller) {
+        throw new Error(
+          `Tip recipient ${tip.artistUserId} is not ready for transfer.`
+        );
+      }
+
+      const transferId = await executeSellerTransfer({
+        amountCents: tip.artistAmountCents,
+        destinationAccountId: seller.stripeAccountId,
+        idempotencyKey: `tip-transfer:${tip.id}`,
+      });
+
+      if (!transferId) {
+        throw new Error(`Tip transfer ${tip.id} could not be created.`);
+      }
+
+      await db
+        .update(tips)
+        .set({ stripeTransferId: transferId })
+        .where(eq(tips.id, tip.id));
+    }
+  },
   processStripeEvent = async ({
     emailQueue,
     event,
@@ -238,7 +298,10 @@ const processConnectAccountEvent = async ({
       transactionId = object.metadata?.transactionId,
       db = createDb();
 
-    if (eventType === "checkout.session.completed") {
+    if (
+      eventType === "checkout.session.completed" ||
+      eventType === "checkout.session.async_payment_succeeded"
+    ) {
       if (transactionId) {
         const [order] = await db
           .select()
@@ -254,6 +317,10 @@ const processConnectAccountEvent = async ({
             stripeSubscriptionId: object.subscription,
           })
           .where(eq(transactions.id, transactionId));
+
+        if (object.metadata?.tipDelivery === "transfers") {
+          await settleTipTransfers({ db, transactionId });
+        }
         await db
           .update(orders)
           .set({
@@ -454,40 +521,59 @@ app.openapi(
 
     const db = createDb(),
       [existing] = await db
-        .select({ id: stripeWebhookEvents.id })
+        .select({
+          id: stripeWebhookEvents.id,
+          status: stripeWebhookEvents.status,
+        })
         .from(stripeWebhookEvents)
         .where(eq(stripeWebhookEvents.stripeEventId, event.id))
         .limit(1);
 
-    if (existing) {
+    if (existing?.status === "processed") {
       return c.json(
         { message: "Stripe webhook already processed." },
         HttpStatusCodes.OK
       );
     }
 
-    const eventRowId = crypto.randomUUID();
-    await db.insert(stripeWebhookEvents).values({
-      eventType: event.type ?? "unknown",
-      id: eventRowId,
-      payload: event as unknown as Record<string, unknown>,
-      stripeEventId: event.id,
-    });
+    const eventRowId = existing?.id ?? crypto.randomUUID();
+    if (!existing) {
+      await db.insert(stripeWebhookEvents).values({
+        eventType: event.type ?? "unknown",
+        id: eventRowId,
+        payload: event as unknown as Record<string, unknown>,
+        stripeEventId: event.id,
+      });
+    }
 
-    await processStripeEvent({
-      emailQueue: c.env.EMAIL_DELIVERY_QUEUE,
-      event,
-      purchaseFulfillmentWorkflow: c.env.PURCHASE_FULFILLMENT_WORKFLOW ?? null,
-    });
-    await db
-      .update(stripeWebhookEvents)
-      .set({ processedAt: new Date(), status: "processed" })
-      .where(
-        and(
-          eq(stripeWebhookEvents.id, eventRowId),
-          eq(stripeWebhookEvents.stripeEventId, event.id)
-        )
-      );
+    try {
+      await processStripeEvent({
+        emailQueue: c.env.EMAIL_DELIVERY_QUEUE,
+        event,
+        purchaseFulfillmentWorkflow:
+          c.env.PURCHASE_FULFILLMENT_WORKFLOW ?? null,
+      });
+      await db
+        .update(stripeWebhookEvents)
+        .set({ processedAt: new Date(), status: "processed" })
+        .where(
+          and(
+            eq(stripeWebhookEvents.id, eventRowId),
+            eq(stripeWebhookEvents.stripeEventId, event.id)
+          )
+        );
+    } catch (error) {
+      await db
+        .update(stripeWebhookEvents)
+        .set({ status: "failed" })
+        .where(
+          and(
+            eq(stripeWebhookEvents.id, eventRowId),
+            eq(stripeWebhookEvents.stripeEventId, event.id)
+          )
+        );
+      throw error;
+    }
 
     return c.json({ message: "Stripe webhook accepted." }, HttpStatusCodes.OK);
   }

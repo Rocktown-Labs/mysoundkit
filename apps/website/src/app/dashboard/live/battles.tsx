@@ -1,6 +1,11 @@
 "use client";
 
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useRouterState,
+} from "@tanstack/react-router";
 import {
   AlertCircle,
   Flag,
@@ -82,6 +87,7 @@ import {
 
 export const Route = createFileRoute("/dashboard/live/battles")({
   component: BattleRoutePage,
+  ssr: false,
 });
 
 function BattleRoutePage() {
@@ -131,7 +137,10 @@ function BattleHubPage() {
     }),
     handleCancelBattle = async (id: string) => {
       const battle = battles.find((candidate) => candidate.id === id);
-      if (!battle) {
+      if (
+        !battle ||
+        (battle.status !== "live" && battle.status !== "scheduled")
+      ) {
         return;
       }
 
@@ -155,7 +164,9 @@ function BattleHubPage() {
       }
       setDeletingBattleId(null);
     },
-    handleShareBattle = async (battle: BattleSummary) => {
+    handleShareBattle = async (
+      battle: Pick<BattleSummary, "id" | "participants" | "title">
+    ) => {
       const senderUsername = meQuery.data?.user.username;
       if (!senderUsername) {
         toast({
@@ -287,9 +298,10 @@ function BattleHubPage() {
         form = new FormData(formElement),
         opponent =
           targetUsername.trim() ||
-          String(form.get("opponentUsername") ?? "").trim();
+          String(form.get("opponentUsername") ?? "").trim(),
+        normalizedOpponent = opponent.replace(/^@+/u, "");
 
-      if (!opponent) {
+      if (!normalizedOpponent) {
         toast({
           description: "Choose or search for an artist to challenge.",
           title: "Opponent Required",
@@ -328,7 +340,7 @@ function BattleHubPage() {
           genre: selectedGenre,
           id: crypto.randomUUID(),
           message: message || null,
-          opponentUsername: opponent.replace(/^@/u, ""),
+          opponentUsername: normalizedOpponent,
           proposedDate: proposedDate || null,
           proposedTimeLabel: proposedTimeLabel || null,
           status: "pending" as const,
@@ -337,7 +349,7 @@ function BattleHubPage() {
       if (selectedBattleKitId) {
         rememberBattleKitSelection({
           kitId: selectedBattleKitId,
-          opponentUsername: opponent.replace(/^@/u, "").toLowerCase(),
+          opponentUsername: normalizedOpponent.toLowerCase(),
         });
       }
 
@@ -349,14 +361,14 @@ function BattleHubPage() {
               format,
               genre: selectedGenre,
               message,
-              opponentUsername: opponent,
+              opponentUsername: normalizedOpponent,
               proposedDate,
               proposedTimeLabel,
             },
             optimistic,
           }).isPersisted.promise;
           toast({
-            description: `Battle challenge request sent to @${opponent}.`,
+            description: `Battle challenge request sent to @${normalizedOpponent}.`,
             title: "Challenge Sent",
           });
           setTargetUsername("");
@@ -634,10 +646,11 @@ function BattleHubPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Trophy className="size-5 text-primary" />
-                  Live &amp; Scheduled Battles
+                  Battle Feed &amp; History
                 </CardTitle>
                 <CardDescription>
-                  Explore active matchups from the SoundKit community.
+                  Follow active matchups and review completed results from the
+                  SoundKit community.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -659,6 +672,9 @@ function BattleHubPage() {
                 <div className="space-y-3">
                   {battles.map((battle) => {
                     const isLive = battle.status === "live",
+                      isActive =
+                        battle.status === "live" ||
+                        battle.status === "scheduled",
                       isParticipant = Boolean(
                         meQuery.data?.user.id &&
                         battle.participants.some(
@@ -692,7 +708,7 @@ function BattleHubPage() {
                             className="w-full sm:w-auto"
                             size="sm"
                           >
-                            {isParticipant ? (
+                            {isParticipant && isActive ? (
                               <Link
                                 onClick={() => {
                                   if (selectedBattleKitId) {
@@ -712,27 +728,33 @@ function BattleHubPage() {
                                 params={{ id: battle.id }}
                                 to="/live/battles/$id"
                               >
-                                {isLive ? "Watch Live" : "View Room"}
+                                {isLive
+                                  ? "Watch Live"
+                                  : isActive
+                                    ? "View Room"
+                                    : "View Result"}
                               </Link>
                             )}
                           </Button>
-                          <Button
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            disabled={
-                              deletingBattleId === battle.id ||
-                              deleteExperience.isPending
-                            }
-                            onClick={() => {
-                              setCancellingBattleId(battle.id);
-                              setConfirmText("");
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
-                            <Flag className="mr-1 size-3.5" />
-                            {isLive ? "Forfeit" : "Cancel"}
-                          </Button>
-                          {isLive ? null : (
+                          {isActive && (
+                            <Button
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              disabled={
+                                deletingBattleId === battle.id ||
+                                deleteExperience.isPending
+                              }
+                              onClick={() => {
+                                setCancellingBattleId(battle.id);
+                                setConfirmText("");
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              <Flag className="mr-1 size-3.5" />
+                              {isLive ? "Forfeit" : "Cancel"}
+                            </Button>
+                          )}
+                          {battle.status === "scheduled" ? (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -754,7 +776,7 @@ function BattleHubPage() {
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     );

@@ -9,6 +9,7 @@ import type { InferRequestType, InferResponseType } from "hono/client";
 import { useEffect } from "react";
 
 import { API_V1_URL, SoundKitApiError, apiClient, rpcJson } from "./api";
+import { liveRoomKey } from "./live-room";
 
 const meGet = apiClient.v1.me.index.$get,
   meProfilePatch = apiClient.v1.me.profile.$patch,
@@ -61,6 +62,8 @@ const meGet = apiClient.v1.me.index.$get,
   projectsPost = apiClient.v1.projects.index.$post,
   projectGet = apiClient.v1.projects[":projectId"].$get,
   projectPatch = apiClient.v1.projects[":projectId"].$patch,
+  projectLibraryAssetsPost =
+    apiClient.v1.projects[":projectId"]["library-assets"].$post,
   listeningPartyPost = apiClient.v1["listening-parties"].index.$post,
   listeningPartiesGet = apiClient.v1["listening-parties"].index.$get,
   battlesGet = apiClient.v1.battles.index.$get,
@@ -77,8 +80,15 @@ const meGet = apiClient.v1.me.index.$get,
   liveMyExperiencesGet = apiClient.v1.live.experiences.me.$get,
   liveExperienceDelete = apiClient.v1.live.experiences[":experienceId"].$delete,
   liveExperiencePost = apiClient.v1.live.experiences.index.$post,
+  liveExperienceReviewCatalogGet =
+    apiClient.v1.live.experiences[":experienceId"]["review-catalog"].$get,
+  liveExperienceOverlayTokenPost =
+    apiClient.v1.live.experiences[":experienceId"]["overlay-token"].$post,
   liveExperienceJoinPost =
     apiClient.v1.live.experiences[":experienceId"].join.$post,
+  liveRoomStreamBotPost = apiClient.v1.live.rooms[":roomId"].stream.bot.$post,
+  liveRoomNowPlayingPost =
+    apiClient.v1.live.rooms[":roomId"].stream["now-playing"].$post,
   liveExperienceBattleBotPost =
     apiClient.v1.live.experiences[":experienceId"].battlebot.$post,
   liveExperienceSessionLockCheckPost =
@@ -118,8 +128,6 @@ const meGet = apiClient.v1.me.index.$get,
     apiClient.v1.messages.conversations[":conversationId"].messages.$get,
   conversationMessagesPost =
     apiClient.v1.messages.conversations[":conversationId"].messages.$post,
-  conversationReadPost =
-    apiClient.v1.messages.conversations[":conversationId"].read.$post,
   openVersesGet = apiClient.v1["open-verses"].index.$get,
   openVersesPost = apiClient.v1["open-verses"].index.$post,
   openVerseGet = apiClient.v1["open-verses"][":listingId"].$get,
@@ -191,6 +199,9 @@ type ReviewLyricsRevisionBody = InferRequestType<
 >["json"];
 type CreateProjectBody = InferRequestType<typeof projectsPost>["json"];
 type UpdateProjectBody = InferRequestType<typeof projectPatch>["json"];
+type AttachProjectLibraryAssetsBody = InferRequestType<
+  typeof projectLibraryAssetsPost
+>["json"];
 export type ProjectSummary = InferResponseType<typeof projectsGet, 200>[number];
 export type PublicProjectSummary = InferResponseType<
   typeof publicProjectsGet,
@@ -228,6 +239,7 @@ export type VideoComment = InferResponseType<
 >[number];
 export type NotificationPage = InferResponseType<typeof notificationsGet, 200>;
 export type ArtistSummary = InferResponseType<typeof artistsGet, 200>[number];
+export type GenreSummary = InferResponseType<typeof genresGet, 200>[number];
 export type ArtistProfileMedia = InferResponseType<typeof artistMediaGet, 200>;
 export type ArtistProfileCredit = ArtistProfileMedia["credits"][number];
 type ArtistFollowResponse = InferResponseType<typeof artistFollowPost, 200>;
@@ -268,6 +280,10 @@ type UpdateMeProfileBody = InferRequestType<typeof meProfilePatch>["json"];
 type UpdateNotificationSettingsBody = InferRequestType<
   typeof meNotificationSettingsPatch
 >["json"];
+type NotificationSettings = InferResponseType<
+  typeof meNotificationSettingsGet,
+  200
+>;
 export type BattleSummary = InferResponseType<typeof battlesGet, 200>[number];
 export type BattleParticipant = BattleSummary["participants"][number];
 export type BattleChallengesResponse = InferResponseType<
@@ -319,6 +335,10 @@ type JoinLiveExperienceBody = InferRequestType<
 type BattleBotActionBody = InferRequestType<
   typeof liveExperienceBattleBotPost
 >["json"];
+type StreamBotBody = InferRequestType<typeof liveRoomStreamBotPost>["json"];
+type StreamNowPlayingBody = InferRequestType<
+  typeof liveRoomNowPlayingPost
+>["json"];
 type LiveSessionLockCheckBody = InferRequestType<
   typeof liveExperienceSessionLockCheckPost
 >["json"];
@@ -328,6 +348,14 @@ export type LiveExperienceCreateResponse = InferResponseType<
 >;
 export type LiveExperienceJoinResponse = InferResponseType<
   typeof liveExperienceJoinPost,
+  201
+>;
+export type LiveReviewCatalogTrack = InferResponseType<
+  typeof liveExperienceReviewCatalogGet,
+  200
+>[number];
+export type LiveOverlayTokenResponse = InferResponseType<
+  typeof liveExperienceOverlayTokenPost,
   201
 >;
 export type ListeningPartySummary = InferResponseType<
@@ -456,6 +484,9 @@ export const soundkitQueryKeys = {
   libraryWatched: ["library", "watched"] as const,
   listeningParties: ["listening-parties"] as const,
   liveExperience: (id: string) => ["live", "experiences", id] as const,
+  liveReviewCatalog: (id: string, query?: string) =>
+    ["live", "experiences", id, "review-catalog", query ?? ""] as const,
+  liveRoom: (id: string) => ["live", "rooms", id] as const,
   me: ["me"] as const,
   meEntitlements: ["me", "entitlements"] as const,
   meNotificationSettings: ["me", "notification-settings"] as const,
@@ -518,6 +549,35 @@ const fetchApiJson = async <T>(
   return (await response.json()) as T;
 };
 
+export type LiveTipKind = "battle" | "party" | "stream";
+
+export interface TipCheckoutBody {
+  amountCents: number;
+  cancelUrl: string;
+  idempotencyKey?: string;
+  liveExperienceId?: string;
+  liveKind?: LiveTipKind;
+  message?: string;
+  recipientUserIds: string[];
+  successUrl: string;
+}
+
+export interface TipCheckoutResponse {
+  checkoutUrl: string | null;
+  clientSecret: string | null;
+  setupRequired: boolean;
+  transactionId: string | null;
+}
+
+export const useTipCheckoutMutation = () =>
+  useMutation({
+    mutationFn: (body: TipCheckoutBody) =>
+      fetchApiJson<TipCheckoutResponse>("/payments/tips", {
+        body: JSON.stringify(body),
+        method: "POST",
+      }),
+  });
+
 export const useAdWalletQuery = () =>
   useQuery({
     queryFn: async () => fetchApiJson<AdWalletSummary>("/ads/wallet"),
@@ -547,14 +607,15 @@ export const useCreateAdCampaignMutation = () => {
         body: JSON.stringify(body),
         method: "POST",
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adCampaigns,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adAdminCampaigns,
-      });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adCampaigns,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adAdminCampaigns,
+        }),
+      ]),
   });
 };
 
@@ -613,14 +674,15 @@ export const useImportStripePlanMutation = () => {
   return useMutation({
     mutationFn: async (body: ImportStripePlanBody) =>
       rpcJson(await adminImportStripePlanPost({ json: body })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adminPayments,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adminOverview,
-      });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adminPayments,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adminOverview,
+        }),
+      ]),
   });
 };
 
@@ -630,14 +692,15 @@ export const useSyncStripePlansMutation = () => {
   return useMutation({
     mutationFn: async (body: SyncStripePlansBody = {}) =>
       rpcJson(await adminSyncStripePlansPost({ json: body })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adminPayments,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adminOverview,
-      });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adminPayments,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adminOverview,
+        }),
+      ]),
   });
 };
 
@@ -647,11 +710,10 @@ export const useBackfillTrackDurationsMutation = () => {
   return useMutation({
     mutationFn: async (body: BackfillTrackDurationsBody) =>
       rpcJson(await adminBackfillTrackDurationsPost({ json: body })),
-    onSuccess: () => {
+    onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.adminOverview,
-      });
-    },
+      }),
   });
 };
 
@@ -699,8 +761,14 @@ export const useUpdateMeProfileMutation = () => {
   return useMutation({
     mutationFn: async (body: UpdateMeProfileBody) =>
       rpcJson(await meProfilePatch({ json: body })),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me }),
+        queryClient.invalidateQueries({ queryKey: ["artists"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-profile"] }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network }),
+      ]);
+    },
   });
 };
 
@@ -716,10 +784,33 @@ export const useUpdateNotificationSettingsMutation = () => {
   return useMutation({
     mutationFn: async (body: UpdateNotificationSettingsBody) =>
       rpcJson(await meNotificationSettingsPatch({ json: body })),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
+    onError: (_error, _body, context) => {
+      const rollback = context as OptimisticRollback | undefined;
+      queryClient.setQueryData(
+        soundkitQueryKeys.meNotificationSettings,
+        rollback?.previousNotificationSettings
+      );
+    },
+    onMutate: async (body) => {
+      await queryClient.cancelQueries({
         queryKey: soundkitQueryKeys.meNotificationSettings,
-      }),
+      });
+      const previousNotificationSettings =
+        queryClient.getQueryData<NotificationSettings>(
+          soundkitQueryKeys.meNotificationSettings
+        );
+      queryClient.setQueryData<NotificationSettings | undefined>(
+        soundkitQueryKeys.meNotificationSettings,
+        (settings) => (settings ? { ...settings, ...body } : settings)
+      );
+      return { previousNotificationSettings };
+    },
+    onSuccess: (settings) => {
+      queryClient.setQueryData(
+        soundkitQueryKeys.meNotificationSettings,
+        settings
+      );
+    },
   });
 };
 
@@ -785,7 +876,9 @@ export const useFriendRequestsQuery = () =>
   });
 
 interface OptimisticRollback {
+  previousConversations?: ConversationSummary[];
   previousNetwork?: NetworkResponse;
+  previousNotificationSettings?: NotificationSettings;
   previousProject?: PublicProjectSummary;
   previousProjects?: ProjectSummary[];
   previousRequests?: FriendRequestSummary[];
@@ -855,11 +948,14 @@ export const useCreateFriendRequestMutation = () => {
       );
       return { previousNetwork, previousRequests };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.friendRequests,
-      });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.friends });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.friendRequests,
+        }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.friends }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network }),
+      ]);
     },
   });
 };
@@ -969,14 +1065,17 @@ export const useRespondFriendRequestMutation = () => {
       );
       return { previousNetwork, previousRequests };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.friendRequests,
-      });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.friends });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.conversations,
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.friendRequests,
+        }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.friends }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.conversations,
+        }),
+      ]);
     },
   });
 };
@@ -999,79 +1098,12 @@ export const usePeopleSearchQuery = (q: string) =>
     queryKey: soundkitQueryKeys.peopleSearch(q.trim()),
   });
 
-export const useConversationsQuery = (enabled = true) =>
-  useQuery<ConversationSummary[]>({
-    enabled,
-    queryFn: async () => rpcJson(await conversationsGet()),
-    queryKey: soundkitQueryKeys.conversations,
-    refetchOnWindowFocus: false,
-    staleTime: 30_000,
-  });
-
-export const useConversationMessagesQuery = (conversationId: string) =>
-  useQuery<MessageSummary[]>({
-    enabled: Boolean(conversationId),
-    queryFn: async () =>
-      rpcJson(await conversationMessagesGet({ param: { conversationId } })),
-    queryKey: soundkitQueryKeys.conversationMessages(conversationId),
-    refetchOnWindowFocus: false,
-    staleTime: 30_000,
-  });
-
-export const useMarkConversationReadMutation = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (conversationId: string) =>
-      rpcJson(await conversationReadPost({ param: { conversationId } })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.conversations,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.notifications,
-      });
-    },
-  });
-};
-
 export const useCreateConversationMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (body: CreateConversationBody) =>
       rpcJson(await conversationsPost({ json: body })),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.conversations,
-      }),
-  });
-};
-
-export const useStartConversationMutation = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      conversation,
-      message,
-    }: {
-      conversation: CreateConversationBody;
-      message?: CreateMessageBody;
-    }): Promise<ConversationSummary> => {
-      const createdConversation = await rpcJson(
-        await conversationsPost({ json: conversation })
-      );
-      if (message?.body && message.body.trim()) {
-        await rpcJson(
-          await conversationMessagesPost({
-            json: message,
-            param: { conversationId: createdConversation.id },
-          })
-        );
-      }
-      return createdConversation;
-    },
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.conversations,
@@ -1090,14 +1122,15 @@ export const useCreateMessageMutation = (conversationId: string) => {
           param: { conversationId },
         })
       ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.conversationMessages(conversationId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.conversations,
-      });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.conversationMessages(conversationId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.conversations,
+        }),
+      ]),
   });
 };
 
@@ -1154,16 +1187,19 @@ export const useFollowArtistMutation = (username: string) => {
   return useMutation({
     mutationFn: async (): Promise<ArtistFollowResponse> =>
       rpcJson(await artistFollowPost({ param: { username } })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.artist(username),
-      });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.artists() });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.notifications,
-      });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.artist(username),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.artists(),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.notifications,
+        }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network }),
+      ]),
   });
 };
 
@@ -1172,13 +1208,16 @@ export const useUnfollowArtistMutation = (username: string) => {
   return useMutation({
     mutationFn: async (): Promise<ArtistFollowResponse> =>
       rpcJson(await artistFollowDelete({ param: { username } })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.artist(username),
-      });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.artists() });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.artist(username),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.artists(),
+        }),
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network }),
+      ]),
   });
 };
 
@@ -1297,13 +1336,18 @@ export const useUpdateTrackMutation = (trackId: string) => {
       }
       return { previousTrack };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.tracksPrefix,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.track(trackId),
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.tracksPrefix,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.track(trackId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["track-detail", trackId],
+        }),
+      ]);
     },
   });
 };
@@ -1346,15 +1390,15 @@ export const useDeleteTrackMutation = () => {
       );
       return { previousTracks };
     },
-    onSuccess: (_, trackId) => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.tracksPrefix,
-      });
-      queryClient.refetchQueries({
+    onSuccess: async (_, trackId) => {
+      await queryClient.refetchQueries({
         queryKey: soundkitQueryKeys.tracksPrefix,
       });
       queryClient.removeQueries({
         queryKey: soundkitQueryKeys.track(trackId),
+      });
+      queryClient.removeQueries({
+        queryKey: ["track-detail", trackId],
       });
     },
   });
@@ -1384,13 +1428,18 @@ export const useSettleTrackMutation = () => {
       body: SettleTrackBody;
       trackId: string;
     }) => rpcJson(await trackSettlePost({ json: body, param: { trackId } })),
-    onSuccess: (_, { trackId }) => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.tracksPrefix,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.track(trackId),
-      });
+    onSuccess: async (_, { trackId }) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.tracksPrefix,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.track(trackId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["track-detail", trackId],
+        }),
+      ]);
     },
   });
 };
@@ -1418,13 +1467,18 @@ export const useRetryTrackMediaProcessingMutation = (trackId: string) => {
   return useMutation({
     mutationFn: async () =>
       rpcJson(await trackMediaProcessingRetryPost({ param: { trackId } })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.trackMediaProcessing(trackId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.track(trackId),
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.trackMediaProcessing(trackId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.track(trackId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.tracksPrefix,
+        }),
+      ]);
     },
   });
 };
@@ -1498,6 +1552,26 @@ export const useProjectQuery = (projectId: string) =>
     queryKey: soundkitQueryKeys.project(projectId),
   });
 
+export const useAttachProjectLibraryAssetsMutation = (projectId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: AttachProjectLibraryAssetsBody) =>
+      rpcJson(
+        await projectLibraryAssetsPost({
+          json: body,
+          param: { projectId },
+        })
+      ),
+    onSuccess: async (project) => {
+      queryClient.setQueryData(soundkitQueryKeys.project(projectId), project);
+      await queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.projects,
+      });
+    },
+  });
+};
+
 export const usePublicProjectQuery = (projectId: string) =>
   useQuery<PublicProjectDetail>({
     enabled: Boolean(projectId),
@@ -1545,11 +1619,16 @@ export const useUpdateProjectMutation = (projectId: string) => {
       }
       return { previousProject };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.project(projectId),
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.project(projectId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.publicProject(projectId),
+        }),
+      ]);
     },
   });
 };
@@ -1596,11 +1675,15 @@ export const useDeleteProjectMutation = () => {
       );
       return { previousProjects };
     },
-    onSuccess: (_, projectId) => {
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects });
-      queryClient.refetchQueries({ queryKey: soundkitQueryKeys.projects });
+    onSuccess: async (_, projectId) => {
+      await queryClient.refetchQueries({
+        queryKey: soundkitQueryKeys.projects,
+      });
       queryClient.removeQueries({
         queryKey: soundkitQueryKeys.project(projectId),
+      });
+      queryClient.removeQueries({
+        queryKey: soundkitQueryKeys.publicProject(projectId),
       });
     },
   });
@@ -1622,6 +1705,7 @@ export const useCreateListeningPartyMutation = () => {
 export interface PublicRegionQuery {
   region?: string;
   regionType?: "global" | "north-america";
+  scope?: "dashboard" | "public";
 }
 
 export const useListeningPartiesQuery = (query: PublicRegionQuery = {}) =>
@@ -1630,9 +1714,16 @@ export const useListeningPartiesQuery = (query: PublicRegionQuery = {}) =>
     queryKey: [...soundkitQueryKeys.listeningParties, query],
   });
 
+interface BattleDirectorySubscription {
+  count: number;
+  reconnectTimer: number | null;
+  socket: WebSocket | null;
+  stopped: boolean;
+}
+
 const battleDirectorySubscriptions = new WeakMap<
     QueryClient,
-    { count: number; socket: WebSocket }
+    BattleDirectorySubscription
   >(),
   subscribeToBattleDirectory = (queryClient: QueryClient) => {
     if (typeof window === "undefined") {
@@ -1645,28 +1736,59 @@ const battleDirectorySubscriptions = new WeakMap<
       return () => {
         current.count -= 1;
         if (current.count === 0) {
-          current.socket.close();
+          current.stopped = true;
+          if (current.reconnectTimer !== null) {
+            window.clearTimeout(current.reconnectTimer);
+          }
+          current.socket?.close();
           battleDirectorySubscriptions.delete(queryClient);
         }
       };
     }
 
-    const url = new URL(`${API_V1_URL}/battles/directory/ws`);
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    const socket = new WebSocket(url.toString()),
-      subscription = { count: 1, socket };
-    socket.addEventListener("message", () => {
-      void queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.battles,
-      });
-    });
-    socket.addEventListener("error", () => socket.close());
+    const connect = () => {
+        if (subscription.stopped) {
+          return;
+        }
+
+        const url = new URL(`${API_V1_URL}/battles/directory/ws`);
+        url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+        const socket = new WebSocket(url.toString());
+        subscription.socket = socket;
+        socket.addEventListener("message", () => {
+          void queryClient.invalidateQueries({
+            queryKey: soundkitQueryKeys.battles,
+          });
+        });
+        socket.addEventListener("close", () => {
+          if (subscription.stopped || subscription.reconnectTimer !== null) {
+            return;
+          }
+          subscription.reconnectTimer = window.setTimeout(() => {
+            subscription.reconnectTimer = null;
+            connect();
+          }, 1000);
+        });
+        socket.addEventListener("error", () => socket.close(), { once: true });
+      },
+      subscription: BattleDirectorySubscription = {
+        count: 1,
+        reconnectTimer: null,
+        socket: null,
+        stopped: false,
+      };
+
     battleDirectorySubscriptions.set(queryClient, subscription);
+    connect();
 
     return () => {
       subscription.count -= 1;
       if (subscription.count === 0) {
-        socket.close();
+        subscription.stopped = true;
+        if (subscription.reconnectTimer !== null) {
+          window.clearTimeout(subscription.reconnectTimer);
+        }
+        subscription.socket?.close();
         battleDirectorySubscriptions.delete(queryClient);
       }
     };
@@ -1691,13 +1813,17 @@ export const useBattleOpponentsQuery = ({
 }: {
   genre: string;
   q: string;
-}) =>
-  useQuery({
-    enabled: q.trim().length > 0,
+}) => {
+  const normalizedQuery = q.trim().replace(/^@+/u, "");
+  return useQuery({
+    enabled: normalizedQuery.length > 0,
     queryFn: async () =>
-      rpcJson(await battleOpponentsGet({ query: { genre, q: q.trim() } })),
-    queryKey: ["battle-opponents", genre, q.trim()],
+      rpcJson(
+        await battleOpponentsGet({ query: { genre, q: normalizedQuery } })
+      ),
+    queryKey: ["battle-opponents", genre, normalizedQuery],
   });
+};
 
 export const usePublicLiveExperiencesQuery = (
   kind: "party" | "stream",
@@ -1710,21 +1836,68 @@ export const usePublicLiveExperiencesQuery = (
     refetchInterval: 10_000,
   });
 
-export const useMyLiveExperiencesQuery = () =>
+export const useMyLiveExperiencesQuery = (enabled = true) =>
   useQuery({
+    enabled,
     queryFn: async () => rpcJson(await liveMyExperiencesGet()),
     queryKey: ["live", "experiences", "me"],
     refetchInterval: 5000,
   });
+
+export const useLiveReviewCatalogQuery = (
+  experienceId: string,
+  query = "",
+  enabled = true
+) =>
+  useQuery({
+    enabled: enabled && experienceId.length > 0,
+    queryFn: async () =>
+      rpcJson(
+        await liveExperienceReviewCatalogGet({
+          param: { experienceId },
+          query: query.trim() ? { q: query.trim() } : {},
+        })
+      ),
+    queryKey: soundkitQueryKeys.liveReviewCatalog(experienceId, query),
+  });
+
+export const useCreateLiveOverlayTokenMutation = () =>
+  useMutation({
+    mutationFn: async (experienceId: string) =>
+      rpcJson(
+        await liveExperienceOverlayTokenPost({ param: { experienceId } })
+      ),
+  });
+
+export const useSetLiveNowPlayingMutation = (roomId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: StreamNowPlayingBody) =>
+      rpcJson(await liveRoomNowPlayingPost({ json: body, param: { roomId } })),
+    onSuccess: (room) => {
+      queryClient.setQueryData(liveRoomKey(roomId), room);
+    },
+  });
+};
+
+export const useSetStreamBotMutation = (roomId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: StreamBotBody) =>
+      rpcJson(await liveRoomStreamBotPost({ json: body, param: { roomId } })),
+    onSuccess: (room) => {
+      queryClient.setQueryData(liveRoomKey(roomId), room);
+    },
+  });
+};
 
 export const useDeleteLiveExperienceMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (experienceId: string) =>
       rpcJson(await liveExperienceDelete({ param: { experienceId } })),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["live", "experiences"] });
-    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["live", "experiences"] }),
   });
 };
 
@@ -1752,11 +1925,10 @@ export const useCreateBattleKitMutation = () => {
   return useMutation({
     mutationFn: async (body: InferRequestType<typeof battleKitsPost>["json"]) =>
       rpcJson(await battleKitsPost({ json: body })),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
+    onSuccess: () =>
+      queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.battleKits,
-      });
-    },
+      }),
   });
 };
 
@@ -1769,10 +1941,10 @@ export const useUpdateBattleKitMutation = () => {
     }: InferRequestType<typeof battleKitPatch>["json"] & { kitId: string }) =>
       rpcJson(await battleKitPatch({ json: body, param: { kitId } })),
     onSuccess: (kit) => {
-      void queryClient.invalidateQueries({
+      queryClient.setQueryData(soundkitQueryKeys.battleKit(kit.id), kit);
+      return queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.battleKits,
       });
-      void queryClient.setQueryData(soundkitQueryKeys.battleKit(kit.id), kit);
     },
   });
 };
@@ -1782,11 +1954,10 @@ export const useDeleteBattleKitMutation = () => {
   return useMutation({
     mutationFn: async (kitId: string) =>
       rpcJson(await battleKitDelete({ param: { kitId } })),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
+    onSuccess: () =>
+      queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.battleKits,
-      });
-    },
+      }),
   });
 };
 
@@ -1993,10 +2164,13 @@ export const useUpdateWorkspaceMutation = () => {
           json: { name },
         })
       ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.workspace });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.workspace,
+        }),
+      ]),
   });
 };
 
@@ -2076,15 +2250,19 @@ export const useCreateLiveExperienceMutation = () => {
       body: CreateLiveExperienceBody
     ): Promise<LiveExperienceCreateResponse> =>
       rpcJson(await liveExperiencePost({ json: body })),
-    onSuccess: (experience) => {
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.listeningParties,
-      });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.liveExperience(experience.experience.id),
-      });
-    },
+    onSuccess: (experience) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.listeningParties,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.liveExperience(experience.experience.id),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["live", "experiences"],
+        }),
+      ]),
   });
 };
 
@@ -2335,12 +2513,13 @@ export const useSubmitOpenVerseMutation = (listingId: string) => {
           param: { listingId },
         })
       ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["open-verses"] });
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.openVerse(listingId),
-      });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["open-verses"] }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.openVerse(listingId),
+        }),
+      ]),
   });
 };
 
@@ -2432,10 +2611,11 @@ export const useVideoQuery = (videoId: string) =>
 
 export const useVideoAnalyticsQuery = (
   videoId: string,
-  range: "7d" | "28d" | "90d" | "12m" = "28d"
+  range: "7d" | "28d" | "90d" | "12m" = "28d",
+  enabled = true
 ) =>
   useQuery({
-    enabled: videoId.length > 0,
+    enabled: enabled && videoId.length > 0,
     queryFn: async (): Promise<VideoAnalytics> =>
       rpcJson(
         await videoAnalyticsGet({ param: { videoId }, query: { range } })
@@ -2521,11 +2701,14 @@ export const useSellerAccountLinkMutation = () =>
       rpcJson(await sellerAccountLinkPost({ json: body })),
   });
 
-export const useArtistSetupGuideQuery = () =>
+export const useArtistSetupGuideQuery = (enabled = true) =>
   useQuery<ArtistSetupGuide>({
+    enabled,
     queryFn: async () => rpcJson(await artistSetupGuideGet()),
     queryKey: soundkitQueryKeys.artistSetupGuide,
-    staleTime: 30_000,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+    staleTime: 5000,
   });
 
 export const usePlatformInviteMutation = () => {

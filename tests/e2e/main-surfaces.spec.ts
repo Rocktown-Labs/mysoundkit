@@ -1,4 +1,4 @@
-/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, prefer-named-capture-group */
+/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-await, require-unicode-regexp, prefer-named-capture-group */
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
@@ -36,6 +36,100 @@ const gotoWithViteRetry = async (page: Page, path: string) => {
 };
 
 test.describe("main application surfaces", () => {
+  test.beforeEach(async ({ context }, testInfo) => {
+    await context.setExtraHTTPHeaders({
+      "x-soundkit-test-id": `${testInfo.testId}-${testInfo.project.name}`,
+    });
+  });
+
+  test("artist messages stay synchronized across full and floating chat", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(
+      page,
+      "/dashboard/messages?conversationId=mock-conversation-rhythm"
+    );
+    await expect(
+      page.getByText("Your latest verse is sounding great.")
+    ).toBeVisible({ timeout: 60_000 });
+
+    await gotoWithViteRetry(page, "/");
+    await expect(
+      page.getByRole("button", { name: "Open artist chat" })
+    ).toBeVisible({ timeout: 60_000 });
+    await page.getByRole("button", { name: "Open navigation menu" }).click();
+    await expect(
+      page.getByRole("menuitem", { name: "Dashboard" })
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Open artist chat" }).click();
+    await expect(page.getByText("Messages").last()).toBeVisible();
+    await page
+      .getByRole("button", { name: /MC Rhythm/ })
+      .last()
+      .click();
+    await expect(
+      page.getByText("Let’s sync on the hook when you have a minute.")
+    ).toBeVisible();
+
+    await page.getByTitle("Enlarge to full messages page").click();
+    await expect(page).toHaveURL(/\/dashboard\/messages/);
+    await expect(
+      page.getByText("I left a third note in the thread.")
+    ).toBeVisible();
+  });
+
+  test("battle chat shares global presence status", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/live/battles/battle-waiting-artist");
+    await expect(page.getByText("Waiting Room Chat")).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page.getByLabel("MC Rhythm is online")).toBeVisible({
+      timeout: 60_000,
+    });
+  });
+
+  test("playback uses the responsive player presentation", async ({ page }) => {
+    test.setTimeout(90_000);
+
+    await gotoWithViteRetry(page, "/tracks/track_summer_nights");
+    await page.getByRole("button", { exact: true, name: "Play" }).click();
+
+    const playerButtonName =
+      (page.viewportSize()?.width ?? 0) < 768
+        ? "Expand player"
+        : "Minimize player";
+    await expect(
+      page.getByRole("button", { name: playerButtonName })
+    ).toBeVisible({ timeout: 60_000 });
+  });
+
   test("fan can browse discovery, playback, pricing, and signup surfaces", async ({
     page,
   }) => {
@@ -167,6 +261,35 @@ test.describe("main application surfaces", () => {
     ).toBeVisible();
     await expect(page.getByText("City Lights").first()).toBeVisible();
 
+    const trackGrid = page.getByTestId("artist-track-grid").first();
+    await expect(trackGrid).toBeVisible();
+    const isMobileViewport = (page.viewportSize()?.width ?? 0) < 768;
+    await expect(trackGrid).toHaveClass(
+      isMobileViewport ? /flex-wrap/ : /justify-start/
+    );
+    await expect(trackGrid.locator("article:visible")).toHaveCount(
+      isMobileViewport ? 5 : 4
+    );
+    if (isMobileViewport) {
+      const firstRowCardCount = await trackGrid
+        .locator("article")
+        .evaluateAll((cards) => {
+          const [firstCard] = cards;
+          if (!firstCard) {
+            return 0;
+          }
+
+          const firstRowTop = firstCard.getBoundingClientRect().top;
+          return cards.filter(
+            (card) =>
+              Math.abs(card.getBoundingClientRect().top - firstRowTop) < 1
+          ).length;
+        });
+      expect(firstRowCardCount).toBe(3);
+    }
+    await page.getByRole("button", { name: "View all Tracks" }).click();
+    await expect(page).toHaveURL(/#tracks$/);
+
     await page.getByRole("tab", { name: "Credits" }).click();
     await expect(page).toHaveURL(/#credits$/);
     await expect(
@@ -216,7 +339,23 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText(/battle/i).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Live Now" })).toBeVisible();
-    await expect(page.getByText("West Coast Showdown").first()).toBeVisible();
+    await expect(
+      page.getByText("Artist Battle - Hip-Hop - BO5").first()
+    ).toBeVisible();
+    await expect(page.getByText("Hip-Hop • BO5", { exact: true })).toHaveCount(
+      0
+    );
+    await expect(page.getByText("BO5").first()).toBeVisible();
+    await expect(page.getByText(/Round 1\/5/).first()).toBeVisible();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Electronic" })
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Recent Replays" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Watch Replay" }).first()
+    ).toHaveAttribute("href", "/videos/video_battle_replay");
     const battleEntryLink = page
       .locator('a[href="/live/battles/battle_west_coast_showdown"]')
       .filter({ hasText: /watch live|join waiting room/i })
@@ -228,10 +367,19 @@ test.describe("main application surfaces", () => {
     );
     await gotoWithViteRetry(page, "/live/battles/battle_west_coast_showdown");
     await expect(
-      page.getByRole("heading", { name: "West Coast Showdown" }).first()
+      page.getByRole("heading", { name: "Artist Battle - Hip-Hop" }).first()
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /vote dj nova/i })
+    ).toBeVisible();
+    await gotoWithViteRetry(page, "/live/battles/battle-completed-result");
+    await expect(
+      page.getByText("Battle ended before the first turn", { exact: true })
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "No result was recorded because the first turn never opened."
+      )
     ).toBeVisible();
     await gotoWithViteRetry(
       page,
@@ -240,7 +388,9 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { exact: true, name: "Upcoming" })
     ).toBeVisible();
-    await expect(page.getByText("Upcoming Artist Duel")).toBeVisible();
+    await expect(
+      page.getByText("Artist Battle - Hip-Hop - BO3").first()
+    ).toBeVisible();
     await expect(page.getByText("Luna Eclipse").first()).toBeVisible();
     await expect(page.getByText("Neon Pulse").first()).toBeVisible();
     await expect(page).toHaveURL(/region=us-arkansas/);
@@ -254,17 +404,21 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { name: "Upcoming Battles" })
     ).toBeVisible();
-    await expect(page.getByText("Upcoming Artist Duel")).toBeVisible();
+    await expect(
+      page.getByText("Artist Battle - Hip-Hop - BO3").first()
+    ).toBeVisible();
 
     await gotoWithViteRetry(
       page,
       "/live/battles?regionType=north-america&region=us-arkansas"
     );
-    const battlesContentBox = await page
-        .getByRole("heading", { exact: true, name: "Live Battles" })
-        .nth(1)
-        .boundingBox(),
-      battlesContentX = battlesContentBox?.x;
+    const battlesHeading = page
+      .getByRole("heading", { exact: true, name: "Live Battles" })
+      .nth(1);
+    await expect(battlesHeading).toBeVisible();
+    const battlesContentX = await battlesHeading.evaluate(
+      (element) => element.getBoundingClientRect().x
+    );
 
     await gotoWithViteRetry(
       page,
@@ -282,15 +436,20 @@ test.describe("main application surfaces", () => {
     if ((page.viewportSize()?.width ?? 0) >= 1024) {
       await expect(page.getByRole("combobox")).toHaveCount(4);
     }
-    const partiesContentBox = await page
-        .getByRole("heading", { exact: true, name: "Listening Parties" })
-        .boundingBox(),
-      partiesContentX = partiesContentBox?.x;
-    expect(battlesContentX).toBeDefined();
-    expect(partiesContentX).toBeDefined();
-    expect(
-      Math.abs((battlesContentX ?? 0) - (partiesContentX ?? 0))
-    ).toBeLessThan(2);
+    await expect(
+      page.getByRole("heading", {
+        exact: true,
+        name: "Listening Parties",
+      })
+    ).toBeVisible();
+    const partiesHeading = page.getByRole("heading", {
+      exact: true,
+      name: "Listening Parties",
+    });
+    const partiesContentX = await partiesHeading.evaluate(
+      (element) => element.getBoundingClientRect().x
+    );
+    expect(Math.abs(battlesContentX - partiesContentX)).toBeLessThan(2);
 
     await gotoWithViteRetry(page, "/live/parties");
     await expect(
@@ -311,6 +470,210 @@ test.describe("main application surfaces", () => {
     }
   });
 
+  test("notification actions reconcile the bell, list, and unread count", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/live/battles");
+    const notificationsButton = page.getByRole("button", {
+      name: "Notifications",
+    });
+    await expect(notificationsButton).toBeVisible({ timeout: 60_000 });
+    await notificationsButton.click();
+    await expect(page.getByText("New battle invitation")).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(
+      page.getByRole("button", { name: "Mark all read" })
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Mark all read" }).click();
+    await expect(
+      page.getByRole("button", { name: "Mark all read" })
+    ).toHaveCount(0);
+    await expect(page.getByText("New battle invitation")).toBeVisible();
+
+    await page.getByRole("button", { name: "Clear all" }).click();
+    await expect(page.getByText("No notifications yet.")).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page.getByRole("button", { name: "Clear all" })).toHaveCount(
+      0
+    );
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await notificationsButton.click();
+    await expect(page.getByText("No notifications yet.")).toBeVisible({
+      timeout: 60_000,
+    });
+  });
+
+  test("failed notification actions restore authoritative state", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.setExtraHTTPHeaders({
+      "x-soundkit-fail-notification-action": "read-all",
+    });
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/live/battles");
+    await page.getByRole("button", { name: "Notifications" }).click();
+    await expect(page.getByText("New battle invitation")).toBeVisible({
+      timeout: 60_000,
+    });
+    await page.getByRole("button", { name: "Mark all read" }).click();
+
+    // The fixture rejects the write. The collection must re-read the server
+    // state instead of leaving the optimistic all-read state on screen.
+    await expect(
+      page.getByRole("button", { name: "Mark all read" })
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("New battle invitation")).toBeVisible();
+  });
+
+  test("battle chat uses the shared presence source", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/live/battles/battle-waiting-artist");
+    await expect(page.getByText("Waiting Room Chat")).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page.getByLabel("MC Rhythm is online")).toBeVisible({
+      timeout: 60_000,
+    });
+  });
+
+  test("communities ask before joining and support member chat", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/communities/community_luna");
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("Join Luna Eclipse Circle?")).toBeVisible({
+      timeout: 60_000,
+    });
+    await page.getByRole("button", { name: "Join for free" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden({ timeout: 60_000 });
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Luna Eclipse Circle" })
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(
+      page.getByRole("switch", { name: "Receive creator post notifications" })
+    ).toBeVisible();
+
+    const message = page.getByLabel("Message Luna Eclipse Circle");
+    await message.fill("Hello from the community.");
+    await page.getByRole("button", { name: "Send message" }).click();
+    await expect(page.getByText("Hello from the community.")).toBeVisible();
+
+    await page.getByRole("button", { name: "updates" }).click();
+    await page.getByLabel("Write a community update").fill("New release notes");
+    await page.getByRole("button", { name: "Post update" }).click();
+    await expect(page.getByText("New release notes")).toBeVisible();
+  });
+
+  test("track management stays in the three-dot actions", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/tracks");
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Tracks" })
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("Edit Track", { exact: true })).toHaveCount(0);
+    await expect(
+      page.locator('a[href*="/dashboard/tracks/"][href$="/edit"]')
+    ).toHaveCount(0);
+
+    await page
+      .getByRole("button", { name: "Actions for Summer Nights" })
+      .click();
+    await expect(
+      page.getByRole("menuitem", { name: "Edit track details" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("menuitem", { name: "Manage audio files" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("menuitem", { name: "Retry media processing" })
+    ).toBeVisible();
+    await page.getByRole("menuitem", { name: "Edit track details" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Edit track details" })
+    ).toBeVisible();
+    await expect(page.getByLabel("Track name")).toHaveValue("Summer Nights");
+    await expect(page.getByLabel("Visibility")).toBeVisible();
+    await expect(page.getByLabel("Allow downloads")).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await page
+      .getByRole("button", { name: "Actions for Summer Nights" })
+      .click();
+    await page.getByRole("menuitem", { name: "Manage audio files" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Manage audio files" })
+    ).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await gotoWithViteRetry(page, "/dashboard/tracks/track_summer_nights/edit");
+    await expect(page).toHaveURL(/\/dashboard\/tracks\/track_summer_nights$/);
+  });
+
   test("videos route renders URL-backed filters without crashing", async ({
     page,
   }) => {
@@ -323,8 +686,10 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: "Music Videos" })
     ).toBeVisible();
     await expect(page.getByText("Featured Videos")).toBeVisible();
-    await expect(page.getByText("Hip-Hop/Rap").first()).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Country" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Genre" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Country" })
+    ).toHaveCount(0);
   });
 
   test("creator video titles open first-party analytics", async ({
@@ -357,6 +722,104 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("Arkansas, USA")).toBeVisible();
   });
 
+  test("external video analytics explains unavailable playback milestones", async ({
+    context,
+    page,
+  }) => {
+    const analyticsRequests = [];
+    page.on("request", (request) => {
+      if (
+        request.url().includes("/v1/videos/video_all_votes_matter/analytics")
+      ) {
+        analyticsRequests.push(request.url());
+      }
+    });
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/videos");
+    await page
+      .getByRole("link", { exact: true, name: "All Votes Matter" })
+      .click();
+
+    await expect(page).toHaveURL(
+      /\/dashboard\/videos\/video_all_votes_matter$/
+    );
+    await expect(
+      page.getByRole("heading", { exact: true, name: "All Votes Matter" })
+    ).toBeVisible();
+    await expect(page.getByText("External source analytics")).toBeVisible();
+    await expect(
+      page.getByText(
+        /external players do not send reliable playback milestones/i
+      )
+    ).toBeVisible();
+    await expect
+      .poll(() => analyticsRequests.length, {
+        message: "external videos should not request first-party analytics",
+      })
+      .toBe(0);
+  });
+
+  test("hosted video analytics exposes a retryable failure", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    let shouldFail = true;
+    await page.route(
+      "**/v1/videos/video_midnight_vibes_mv/analytics*",
+      async (route) => {
+        if (!shouldFail) {
+          await route.continue();
+          return;
+        }
+
+        await route.fulfill({
+          body: JSON.stringify({
+            code: "service_unavailable",
+            message: "Analytics backend is warming up.",
+          }),
+          contentType: "application/json",
+          status: 503,
+        });
+      }
+    );
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/videos");
+    await page
+      .getByRole("link", { exact: true, name: "Midnight Vibes" })
+      .click();
+
+    await expect(
+      page.getByText("Analytics are temporarily unavailable.")
+    ).toBeVisible();
+    await expect(
+      page.getByText("Analytics backend is warming up.")
+    ).toBeVisible();
+
+    shouldFail = false;
+    await page.getByRole("button", { name: "Retry analytics" }).click();
+    await expect(page.getByText("Arkansas, USA")).toBeVisible();
+  });
+
   test("explore collection routes support shared all-results views", async ({
     page,
   }) => {
@@ -374,6 +837,115 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { name: "All Projects" })
     ).toBeVisible();
+  });
+
+  test("public projects load cards and project details", async ({ page }) => {
+    test.setTimeout(90_000);
+
+    await gotoWithViteRetry(
+      page,
+      "/projects?region=all&regionType=north-america&view=all"
+    );
+    await expect(
+      page.getByRole("heading", { name: "All Projects" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { exact: true, name: "After Dark" })
+    ).toBeVisible({ timeout: 60_000 });
+
+    await page.getByRole("link", { exact: true, name: "After Dark" }).click();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "After Dark" })
+    ).toBeVisible();
+    await expect(page.getByText("Tracklist (2 Songs)")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Stream Summer Nights" })
+    ).toBeVisible();
+  });
+
+  test("project workspaces can add existing uploads by collection", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/projects/project_after_dark");
+    await expect(page.getByText("Project Files", { exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page.getByText("From your uploads")).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(
+      page.getByRole("button", { name: /Battle Ready/ })
+    ).toBeVisible();
+
+    await page.getByRole("tab", { name: "Add Concept" }).click();
+    await page.getByRole("button", { name: /Battle Ready/ }).click();
+    await page.getByRole("button", { name: "Add selected concept" }).click();
+    await expect(page.getByText("Project updated").last()).toBeVisible();
+
+    await page.getByRole("tab", { name: "Add Beat" }).click();
+    await expect(
+      page.getByRole("button", { name: /After Hours/ })
+    ).toBeVisible();
+    await page.getByRole("button", { name: /After Hours/ }).click();
+    await page.getByRole("button", { name: "Add selected beat" }).click();
+    await expect(page.getByText("Project updated").last()).toBeVisible();
+
+    await page.getByRole("tab", { name: "Add Master" }).click();
+    await expect(
+      page.getByRole("button", { name: /City Lights/ })
+    ).toBeVisible();
+    await page.getByRole("button", { name: /City Lights/ }).click();
+    await page.getByRole("button", { name: /Battle Ready/ }).click();
+    await page.getByRole("button", { name: "Add selected master" }).click();
+    await expect(page.getByText("Project updated").last()).toBeVisible();
+    await expect(
+      page.getByText("City Lights", { exact: true }).first()
+    ).toBeVisible();
+    await expect(
+      page.getByText("Battle Ready", { exact: true }).first()
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Choose File" })
+    ).toBeVisible();
+  });
+
+  test("incoming battle invitations create upcoming battles", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(120_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/live/battles");
+    await expect(page.getByRole("button", { name: "Confirm" })).toBeVisible({
+      timeout: 60_000,
+    });
+    await page.getByRole("button", { name: "Confirm" }).click();
+    await expect(
+      page.getByText("Challenge Accepted", { exact: true })
+    ).toBeVisible();
+    await expect(page.getByText("Request update failed")).toHaveCount(0);
+    await expect(page.getByText("scheduled", { exact: true })).toHaveCount(2);
   });
 
   test("creator live dashboards expose separate battle party and stream setup", async ({
@@ -402,9 +974,9 @@ test.describe("main application surfaces", () => {
       page.getByText(/Review incoming challenge requests/i)
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Enter Artist Room" })
+      page.getByRole("link", { name: "Enter Artist Room" }).first()
     ).toBeVisible();
-    await page.getByRole("link", { name: "Enter Artist Room" }).click();
+    await page.getByRole("link", { name: "Enter Artist Room" }).first().click();
     await expect(page).toHaveURL(
       /\/dashboard\/live\/battles\/join\/battle-waiting-artist\/artistview$/
     );
@@ -420,13 +992,19 @@ test.describe("main application surfaces", () => {
     await page.getByRole("button", { name: "Clear" }).click();
     await expect(page.getByText("To: @stale-artist")).toHaveCount(0);
 
-    await page.getByLabel("Opponent").fill("new-opponent");
+    await page.getByLabel("Opponent").fill("@new-opponent");
+    await expect(
+      page.getByText("@new-opponent", { exact: false })
+    ).toBeVisible();
     await page.getByLabel("Date").fill("2026-09-30");
     await page.getByLabel("Time").fill("20:00");
     await page.getByRole("button", { name: "Send Battle Request" }).click();
     await expect(page.getByText("To: @new-opponent")).toBeVisible();
     await page
-      .getByRole("button", { name: "More actions for Upcoming Artist Duel" })
+      .getByRole("button", {
+        name: "More actions for Artist Battle - Hip-Hop",
+      })
+      .first()
       .click();
     await expect(
       page.getByRole("menuitem", { name: "Share upcoming battle" })
@@ -465,10 +1043,12 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: "Live Streams" })
     ).toBeVisible();
     await expect(page.getByText("Create Stream")).toBeVisible();
-    await expect(page.getByText("RealtimeKit Layer").first()).toBeVisible();
+    await expect(
+      page.getByText("SoundKit keeps your room, chat, and viewers in sync.")
+    ).toBeVisible();
   });
 
-  test("artist setup guide keeps optional actions in a compact accordion", async ({
+  test("artist setup guide stays inside the floating navigation", async ({
     context,
     page,
   }) => {
@@ -479,7 +1059,7 @@ test.describe("main application surfaces", () => {
         domain: cookieDomain,
         name: "soundkit_test_session",
         path: "/",
-        value: "complete",
+        value: "setup-incomplete",
       },
     ]);
 
@@ -487,6 +1067,14 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("Artist setup")).toBeVisible({
       timeout: 60_000,
     });
+    await expect(
+      page.getByRole("button", { name: /Open setup guide/ })
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("button", { name: "Open artist chat" })
+        .getByLabel("3 unread messages")
+    ).toBeVisible();
     await expect(page.getByText("Publish an Open Verse")).toHaveCount(0);
 
     await page
@@ -497,13 +1085,75 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("Publish an Open Verse")).toBeVisible();
 
     await page.getByRole("button", { name: "Minimize setup guide" }).click();
-    await expect(
-      page.getByRole("button", { name: /Next: Explore/ })
-    ).toBeVisible();
+    await expect(page.getByText("Artist setup")).toHaveCount(0);
     await expect(page.getByText("Publish an Open Verse")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /Open setup guide/ })
+    ).toBeVisible();
 
-    await page.getByRole("button", { name: /Next: Explore/ }).click();
-    await expect(page.getByText("Publish an Open Verse")).toBeVisible();
+    await page.getByRole("button", { name: /Open setup guide/ }).click();
+    await expect(page.getByText("Artist setup")).toBeVisible();
+
+    await page.getByRole("button", { name: "Hide setup guide" }).click();
+    await expect(page.getByText("Artist setup")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /Open setup guide/ })
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: /Open setup guide/ }).click();
+    await expect(page.getByText("Artist setup")).toBeVisible();
+
+    await gotoWithViteRetry(page, "/dashboard/career/payments");
+    await expect(
+      page.getByRole("button", { name: /Open setup guide/ })
+    ).toBeVisible();
+    await page.getByRole("button", { name: /Open setup guide/ }).click();
+    await expect(page.getByText("Artist setup")).toBeVisible();
+  });
+
+  test("completed artist setup does not render a floating guide", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard");
+    await expect(page.getByText("Artist setup")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /Open setup guide/ })
+    ).toHaveCount(0);
+  });
+
+  test("artist setup guide reflects completed payout onboarding", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "setup-monetization-complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard");
+    await expect(page.getByText("Monetization is ready")).toBeVisible({
+      timeout: 60_000,
+    });
+    await gotoWithViteRetry(page, "/dashboard/career/payments");
+    await expect(page.getByText(/Bank Account Connected/)).toBeVisible({
+      timeout: 60_000,
+    });
   });
 
   test("live room detail pages expose chat, lyrics, and battle voting", async ({
@@ -520,7 +1170,7 @@ test.describe("main application surfaces", () => {
 
     await gotoWithViteRetry(page, "/live/battles/battle-1");
     await expect(
-      page.getByRole("heading", { name: /west coast showdown/i })
+      page.getByRole("heading", { name: /artist battle - hip-hop/i })
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /vote dj nova/i })
@@ -555,6 +1205,190 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { name: /the pulse of soundkit/i })
     ).toBeVisible();
+  });
+
+  test("video comments support mentions and nested replies", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/videos/video-1");
+    await expect(page.getByText("Comments & Chat").first()).toBeVisible({
+      timeout: 60_000,
+    });
+    const commentInput = page.getByRole("textbox", {
+      name: "Write a comment",
+    });
+    await commentInput.fill("Great work @mu");
+    await expect(
+      page.getByRole("button", { name: /Music Fan\s*@musicfan99/i })
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: /Music Fan\s*@musicfan99/i })
+      .click();
+    await expect(commentInput).toHaveValue("Great work @musicfan99 ");
+    await commentInput.fill("Great work @musicfan99");
+    await commentInput.press("Enter");
+    await expect(page.getByText("Great work @musicfan99")).toBeVisible();
+
+    await page.getByRole("button", { name: "Reply" }).first().click();
+    const replyInput = page.getByRole("textbox", { name: "Write a reply" });
+    await expect(page.getByText(/Replying to/)).toBeVisible();
+    await replyInput.fill("Thanks for listening!");
+    await replyInput.press("Enter");
+    await expect(page.getByText("Thanks for listening!")).toBeVisible();
+  });
+
+  test("completed battles stay visible but cannot be re-entered", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/live/battles/battle-completed-result");
+    await expect(
+      page.getByText("Battle ended before the first turn", { exact: true })
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(
+      page.getByText(
+        "No result was recorded because the first turn never opened."
+      )
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /choose next/i })
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Join Queue" })).toHaveCount(
+      0
+    );
+    await expect(page.getByText("LIVE", { exact: true })).toHaveCount(0);
+
+    await gotoWithViteRetry(page, "/dashboard/live/battles");
+    await expect(page.getByText("Battle Feed & History")).toBeVisible({
+      timeout: 60_000,
+    });
+    const completedBattleRow = page
+      .getByText("Completed Artist Battle", { exact: true })
+      .locator("xpath=../../..");
+    await expect(
+      completedBattleRow.getByRole("link", { name: "View Result" })
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(
+      completedBattleRow.getByRole("link", { name: "Enter Artist Room" })
+    ).toHaveCount(0);
+    await expect(
+      completedBattleRow.getByRole("button", { name: /forfeit|cancel/i })
+    ).toHaveCount(0);
+
+    await gotoWithViteRetry(page, "/live/battles");
+    await expect(page.getByText("Recent Replays")).toBeVisible();
+    await expect(
+      page.getByText("Completed Artist Battle", { exact: true })
+    ).toHaveCount(0);
+    await expect(page.getByText("DJ Nova vs MC Rhythm")).toBeVisible();
+
+    await gotoWithViteRetry(
+      page,
+      "/dashboard/live/battles/join/battle-completed-result/artistview"
+    );
+    await expect(page).toHaveURL(/\/live\/battles\/battle-completed-result$/);
+  });
+
+  test("assigned artists are notified and routed to their live battle room", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "participant",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/tracks");
+    await expect(
+      page.getByRole("heading", { name: "Your live battle is ready" })
+    ).toBeVisible({ timeout: 60_000 });
+    await page.getByRole("button", { name: /West Coast Showdown/ }).click();
+    await expect(page).toHaveURL(
+      /\/dashboard\/live\/battles\/join\/battle-west-coast-showdown\/artistview$/
+    );
+    await expect(
+      page.getByText("Artist room", { exact: true }).first()
+    ).toBeVisible();
+  });
+
+  test("non-participants fall back from direct artist-room URLs", async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "nonparticipant",
+      },
+    ]);
+
+    await gotoWithViteRetry(
+      page,
+      "/dashboard/live/battles/join/battle-waiting-artist/artistview"
+    );
+    await expect(page).toHaveURL(/\/live\/battles\/battle-waiting-artist$/, {
+      timeout: 60_000,
+    });
+  });
+
+  test("artist listening parties use a private artist room", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/live/parties/single-album-party");
+    if ((await page.getByText("Artist room", { exact: true }).count()) === 0) {
+      await page.reload({ waitUntil: "domcontentloaded" });
+    }
+    await expect(page).toHaveURL(
+      /\/dashboard\/live\/parties\/join\/single-album-party\/artistview$/
+    );
+    await expect(page.getByText("Artist room", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Repeat current track" })
+    ).toBeVisible();
+    await expect(page.getByText("Party Chat", { exact: true })).toBeVisible();
   });
 
   test("fans can join a battle queue without navigating away", async ({
@@ -593,6 +1427,35 @@ test.describe("main application surfaces", () => {
       },
     ]);
 
+    await page.addInitScript(() => {
+      const { mediaDevices } = navigator;
+      if (!mediaDevices) {
+        return;
+      }
+
+      Object.defineProperty(mediaDevices, "getUserMedia", {
+        configurable: true,
+        value: async () => new MediaStream(),
+      });
+      Object.defineProperty(mediaDevices, "enumerateDevices", {
+        configurable: true,
+        value: async () => [
+          {
+            deviceId: "camera-1",
+            groupId: "group-1",
+            kind: "videoinput",
+            label: "Built-in camera",
+          },
+          {
+            deviceId: "microphone-1",
+            groupId: "group-1",
+            kind: "audioinput",
+            label: "Built-in microphone",
+          },
+        ],
+      });
+    });
+
     await gotoWithViteRetry(page, "/live/battles/battle-waiting-artist");
     await expect(page).toHaveURL(
       /\/dashboard\/live\/battles\/join\/battle-waiting-artist\/artistview$/,
@@ -603,6 +1466,32 @@ test.describe("main application surfaces", () => {
     });
     await expect(page.getByText("Prepare your battle lineup")).toBeVisible();
     await expect(page.getByText("0/2 ready")).toBeVisible();
+    await expect(
+      page.getByText("#1 Complete Artist vs #7 MC Rhythm", { exact: true })
+    ).toBeVisible();
+    await expect(page.getByText("BattleBot", { exact: true })).toBeVisible();
+    await expect(page.getByText("BOT", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("BOT", { exact: true }).locator("svg")
+    ).toHaveCount(0);
+    const botMessage = page.getByText(
+      "The lobby is open. Waiting for both artists to check in and lock their Battle Kits.",
+      { exact: true }
+    );
+    await expect(botMessage).toHaveClass(/text-white/);
+    await expect(botMessage.locator("xpath=../..")).toHaveClass(
+      /bg-purple-600/
+    );
+    await expect(botMessage.locator("xpath=../..")).not.toHaveClass(
+      /border-l-2/
+    );
+    await expect(
+      page.locator('img[alt="SoundKit branded battle backdrop"]')
+    ).toHaveAttribute("src", /soundkit-default-banner/);
+    await expect(
+      page.locator('[data-slot="message-scroller-viewport"]')
+    ).toHaveCSS("overflow-y", "auto");
+    await expect(page.getByRole("button", { name: "Help" })).toBeVisible();
     await expect(
       page.getByText("Best of 3 · 3 rounds + tiebreaker")
     ).toBeVisible();
@@ -620,6 +1509,27 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("button", { name: "Locked for battle" })
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Enable camera & mic" })
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Enable camera & mic" }).click();
+    await expect(
+      page.getByRole("combobox", { name: "Battle camera" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "Battle microphone" })
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Save device setup" }).click();
+    await expect(
+      page.getByRole("button", { name: "Device setup saved" })
+    ).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          window.localStorage.getItem("soundkit.battleMediaDevices.v1")
+        )
+      )
+      .toContain('"videoDeviceId":"camera-1"');
     await expect(page.getByRole("button", { name: "I’m ready" })).toBeVisible();
     await page.getByRole("button", { name: "I’m ready" }).click();
     await expect(page.getByRole("button", { name: "Not ready" })).toBeVisible();
@@ -706,6 +1616,187 @@ test.describe("signup onboarding guards", () => {
     await expect(page).toHaveURL(/\/dashboard$/);
   });
 
+  test("artist onboarding keeps choice cards easy to select", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "incomplete",
+      },
+    ]);
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        "soundkit.artistOnboardingDraft.v1",
+        JSON.stringify({
+          city: "",
+          country: "",
+          locationQuery: "",
+          primaryGenre: "",
+          roles: ["musician"],
+          selectedPlanCode: "soundkit_premium_artist",
+          stateValue: "",
+          step: 2,
+          username: "",
+        })
+      );
+    });
+
+    await gotoWithViteRetry(page, "/signup/artist/onboarding");
+    await expect(page.locator("main")).toHaveAttribute(
+      "data-onboarding-ready",
+      "true",
+      { timeout: 60_000 }
+    );
+    const independent = page.getByRole("radio", {
+      name: /Independent \/ Indie-Controlled/u,
+    });
+    await expect(independent).toBeVisible();
+    await expect(
+      page.getByRole("radio", { name: /Major-Label Controlled/u })
+    ).toBeVisible();
+    await independent.click();
+    await expect(independent).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
+  });
+
+  test("artist onboarding final step clearly compares plans", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "incomplete",
+      },
+    ]);
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        "soundkit.artistOnboardingDraft.v1",
+        JSON.stringify({
+          city: "Little Rock",
+          country: "United States",
+          locationQuery: "Little Rock, AR, United States",
+          primaryGenre: "hip-hop",
+          roles: ["musician"],
+          selectedPlanCode: "soundkit_premium_artist",
+          stateValue: "AR",
+          step: 8,
+          username: "artist_test",
+        })
+      );
+    });
+
+    await gotoWithViteRetry(page, "/signup/artist/onboarding");
+    await expect(page.locator("main")).toHaveAttribute(
+      "data-onboarding-ready",
+      "true",
+      { timeout: 60_000 }
+    );
+    await expect(
+      page.getByRole("heading", { name: "Finish Your Artist Profile" })
+    ).toBeVisible();
+    await expect(page.getByText("1 artist account included")).toBeVisible();
+    await expect(
+      page.getByText("Everything in Free", { exact: true })
+    ).toBeVisible();
+    await expect(page.getByText("Creator Rewards eligibility")).toBeVisible();
+    await expect(page.getByText("$22.99")).toBeVisible();
+    await expect(page.getByText("Recommended", { exact: true })).toHaveCount(0);
+    await expect(page.getByText(/Rights confirmation/u)).toBeVisible();
+
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page.getByLabel("Spotify Artist URL")).toBeVisible();
+    await page
+      .getByRole("button", { name: /Optional profile details/u })
+      .click();
+    await expect(page.getByLabel("Instagram")).toBeVisible();
+  });
+
+  test("artist onboarding can finish later without losing progress", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "incomplete",
+      },
+    ]);
+    await gotoWithViteRetry(page, "/signup/artist/onboarding");
+    await expect(page.locator("main")).toHaveAttribute(
+      "data-onboarding-ready",
+      "true",
+      { timeout: 60_000 }
+    );
+    await page.getByRole("button", { name: "Exit setup" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Leave setup?" })
+    ).toBeVisible();
+    await page.getByRole("button", { name: /Finish later/u }).click();
+    await expect(page).toHaveURL(/\/(?:\?.*)?$/u);
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          window.localStorage.getItem("soundkit.artistOnboardingDraft.v1")
+        )
+      )
+      .not.toBeNull();
+  });
+
+  test("artist onboarding can discard progress and log out", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "incomplete",
+      },
+    ]);
+    await gotoWithViteRetry(page, "/signup/artist/onboarding");
+    await expect(page.locator("main")).toHaveAttribute(
+      "data-onboarding-ready",
+      "true",
+      { timeout: 60_000 }
+    );
+    await page.evaluate(() => {
+      window.localStorage.setItem(
+        "soundkit.artistOnboardingDraft.v1",
+        JSON.stringify({
+          city: "",
+          country: "",
+          locationQuery: "",
+          primaryGenre: "",
+          roles: ["musician"],
+          selectedPlanCode: "soundkit_premium_artist",
+          stateValue: "",
+          step: 2,
+          username: "",
+        })
+      );
+    });
+    await page.getByRole("button", { name: "Exit setup" }).click();
+    await page.getByRole("button", { name: /^Log out/u }).click();
+    await expect(page).toHaveURL(/\/(?:\?.*)?$/u);
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          window.localStorage.getItem("soundkit.artistOnboardingDraft.v1")
+        )
+      )
+      .toBeNull();
+  });
+
   test("artist onboarding restores the local draft after refresh", async ({
     context,
     page,
@@ -737,6 +1828,47 @@ test.describe("signup onboarding guards", () => {
     await page.goto("/signup/artist/onboarding");
     await expect(page.getByLabel("Username")).toHaveValue("codex_resume");
     await expect(page.getByText("Username is available.")).toBeVisible();
+  });
+
+  test("artist onboarding accepts a manual location when Google is unavailable", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: cookieDomain,
+        name: "soundkit_test_session",
+        path: "/",
+        value: "incomplete",
+      },
+    ]);
+    await page.goto("/signup/artist/onboarding");
+    await page.evaluate(() => {
+      window.localStorage.setItem(
+        "soundkit.artistOnboardingDraft.v1",
+        JSON.stringify({
+          city: "",
+          country: "",
+          locationQuery: "",
+          primaryGenre: "",
+          roles: ["musician"],
+          selectedPlanCode: "soundkit_premium_artist",
+          stateValue: "",
+          step: 5,
+          username: "codex_location",
+        })
+      );
+    });
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Where Do You Make Music?" })
+    ).toBeVisible();
+
+    await page.getByLabel("Location").fill("Little Rock, AR");
+    await expect(
+      page.getByText("Using the entered city and region.")
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
   });
 });
 

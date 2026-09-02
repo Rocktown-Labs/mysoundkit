@@ -2,18 +2,36 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   battleKitTracks,
   battleKits,
+  artistProfiles,
   battleLineupSnapshots,
   battleQueueEntries,
   battleRounds,
   battles,
+  genres,
   listeningParties,
   liveExperiences,
   projectTracks,
+  purchases,
   trackAssets,
+  trackCollaborators,
   tracks,
   userProfiles,
+  videos,
 } from "@soundkit/db/schema/app";
-import { and, asc, desc, eq, gte, inArray, isNull, ne, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import { Hono } from "hono";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import type { z } from "zod";
@@ -24,9 +42,21 @@ import type {
   LiveRoomIdentity,
   LiveRoomVoteBody,
 } from "@/durable-objects/live-room";
-import { publicAssetUrlFromParts } from "@/lib/asset-urls";
+import {
+  guardedTrackPlaybackUrl,
+  publicAssetUrlFromParts,
+} from "@/lib/asset-urls";
+import {
+  battleHasPlayedTurn,
+  isDurableReplayPlaybackUrl,
+  resolveArtistBattleTitle,
+  resolveBattleReplayStatus,
+} from "@/lib/battle-display";
 import { evaluateBattleKitReadiness } from "@/lib/battle-kits";
 import { buildBattleRoundSeeds } from "@/lib/battle-rounds";
+import { loadBattleSchemaCapabilities } from "@/lib/battle-schema-capabilities";
+import { resolveListeningAccess } from "@/lib/content-access";
+import { buildTrackSummary } from "@/lib/dashboard-mappers";
 import { retryDurableObjectCall } from "@/lib/durable-object-retry";
 import {
   forbiddenMessage,
@@ -36,8 +66,14 @@ import {
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreSlug } from "@/lib/genre-catalog";
-import { createBattleCoordination } from "@/lib/live-battle-state";
-import type { BattleCancellationReason } from "@/lib/live-battle-state";
+import {
+  createBattleCoordination,
+  isBattleTerminalState,
+} from "@/lib/live-battle-state";
+import type {
+  BattleCancellationReason,
+  BattleOutcomeKind,
+} from "@/lib/live-battle-state";
 import {
   allowsMockRealtime,
   battleMediaPhase,
@@ -79,6 +115,14 @@ import type {
   LiveRoomState,
   LiveRoomTrack,
 } from "@/lib/live-room-data";
+import {
+  cloudflareStreamCustomerBaseUrl,
+  fetchCloudflareStreamResponse,
+  normalizeCloudflareStreamStatus,
+  parseCloudflareStreamResponse,
+  resolveCloudflareStreamConnection,
+  resolveCloudflareStreamInputStatus,
+} from "@/lib/live-stream";
 import { notify } from "@/lib/notifications";
 import { profileRegionCondition } from "@/lib/public-explore";
 import {
@@ -88,6 +132,8 @@ import {
   createLiveExperienceBodySchema,
   joinLiveExperienceBodySchema,
   liveSessionLockCheckBodySchema,
+  streamBotBodySchema,
+  streamNowPlayingBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
@@ -115,7 +161,13 @@ app.get("/experiences/public", async (c) => {
         eq(liveExperiences.status, "live"),
         and(
           eq(liveExperiences.status, "scheduled"),
-          gte(liveExperiences.startsAt, cutoff)
+          or(
+            gte(liveExperiences.startsAt, cutoff),
+            and(
+              eq(liveExperiences.kind, "stream"),
+              eq(liveExperiences.source, "obs")
+            )
+          )
         )
       ),
       kind
@@ -132,6 +184,7 @@ app.get("/experiences/public", async (c) => {
         endsAt: liveExperiences.endsAt,
         genre: liveExperiences.genre,
         id: liveExperiences.id,
+        ingestStatus: liveExperiences.ingestStatus,
         kind: liveExperiences.kind,
         source: liveExperiences.source,
         startsAt: liveExperiences.startsAt,
@@ -145,9 +198,44 @@ app.get("/experiences/public", async (c) => {
         eq(userProfiles.userId, liveExperiences.createdByUserId)
       )
       .where(and(...conditions))
-      .orderBy(asc(liveExperiences.startsAt));
+      .orderBy(asc(liveExperiences.startsAt)),
+    synchronizedExperiences = await Promise.all(
+      experiences.map(async (experience) => {
+        if (!(experience.kind === "stream" && experience.source === "obs")) {
+          return experience;
+        }
 
-  return c.json(experiences, HttpStatusCodes.OK);
+        const storedExperience = await loadLiveExperienceById(experience.id);
+        if (!storedExperience) {
+          return experience;
+        }
+
+        const synchronizedExperience = await syncCloudflareStreamStatus({
+          env: c.env,
+          experience: storedExperience,
+        });
+
+        return {
+          ...experience,
+          endsAt: synchronizedExperience.endsAt,
+          ingestStatus: synchronizedExperience.ingestStatus,
+          status: synchronizedExperience.status,
+        };
+      })
+    );
+
+  return c.json(
+    synchronizedExperiences.filter(
+      (experience) =>
+        (experience.status === "live" &&
+          (experience.kind !== "stream" ||
+            experience.source !== "obs" ||
+            experience.ingestStatus === "connected")) ||
+        (experience.status === "scheduled" &&
+          experience.startsAt.getTime() >= cutoff.getTime())
+    ),
+    HttpStatusCodes.OK
+  );
 });
 
 app.get("/experiences/me", async (c) => {
@@ -165,9 +253,16 @@ app.get("/experiences/me", async (c) => {
       .select()
       .from(liveExperiences)
       .where(eq(liveExperiences.createdByUserId, user.id))
-      .orderBy(desc(liveExperiences.createdAt));
+      .orderBy(desc(liveExperiences.createdAt)),
+    synchronizedExperiences = await Promise.all(
+      experiences.map((experience) =>
+        experience.kind === "stream" && experience.source === "obs"
+          ? syncCloudflareStreamStatus({ env: c.env, experience })
+          : experience
+      )
+    );
 
-  return c.json(experiences, HttpStatusCodes.OK);
+  return c.json(synchronizedExperiences, HttpStatusCodes.OK);
 });
 
 app.delete("/experiences/:experienceId", async (c) => {
@@ -197,10 +292,29 @@ app.delete("/experiences/:experienceId", async (c) => {
       .limit(1);
 
   if (!existing) {
-    return c.json(
-      { message: "Experience not found." },
-      HttpStatusCodes.NOT_FOUND
-    );
+    const [party] = await db
+      .select({ hostUserId: listeningParties.hostUserId })
+      .from(listeningParties)
+      .where(
+        and(
+          eq(listeningParties.liveRoomId, experienceId),
+          eq(listeningParties.hostUserId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (!party) {
+      return c.json(
+        { message: "Experience not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    await db
+      .delete(listeningParties)
+      .where(eq(listeningParties.liveRoomId, experienceId));
+
+    return c.json({ message: "Experience deleted." }, HttpStatusCodes.OK);
   }
 
   if (existing.streamInputId && c.env.CLOUDFLARE_ACCOUNT_ID) {
@@ -218,6 +332,11 @@ app.delete("/experiences/:experienceId", async (c) => {
   }
 
   await db.delete(liveExperiences).where(eq(liveExperiences.id, experienceId));
+  if (existing.kind === "party") {
+    await db
+      .delete(listeningParties)
+      .where(eq(listeningParties.liveRoomId, experienceId));
+  }
 
   return c.json({ message: "Experience deleted." }, HttpStatusCodes.OK);
 });
@@ -269,10 +388,19 @@ interface CloudflareStreamResponse {
       streamKey?: string;
       url?: string;
     };
-    status?: string;
+    status?:
+      | string
+      | {
+          state?: null | string;
+        };
     uid?: string;
   };
   success?: boolean;
+}
+
+interface CloudflareStreamLifecycleResponse {
+  live?: boolean;
+  videoUID?: string | null;
 }
 
 const badRequest = (message: string) => ({
@@ -295,7 +423,7 @@ const badRequest = (message: string) => ({
       rtmpsUrl: result.rtmps.url,
       srtKey: result.srt?.streamKey ?? "",
       srtUrl: result.srt?.url ?? "",
-      status: result.status ?? "idle",
+      status: normalizeCloudflareStreamStatus(result.status),
       ...(title ? { title } : {}),
     };
   },
@@ -382,28 +510,55 @@ const badRequest = (message: string) => ({
     experience: typeof liveExperiences.$inferSelect;
   }) => {
     const accountId = env.CLOUDFLARE_ACCOUNT_ID,
-      apiToken = env.CLOUDFLARE_STREAM_API_TOKEN ?? env.CLOUDFLARE_API_TOKEN;
-    if (!(accountId && apiToken && experience.streamInputId)) {
+      apiToken = env.CLOUDFLARE_STREAM_API_TOKEN ?? env.CLOUDFLARE_API_TOKEN,
+      streamBaseUrl = cloudflareStreamCustomerBaseUrl(
+        env.CLOUDFLARE_STREAM_CUSTOMER_CODE
+      );
+    if (!experience.streamInputId || experience.status === "ended") {
       return experience;
     }
 
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/live_inputs/${experience.streamInputId}`,
-      { headers: { Authorization: `Bearer ${apiToken}` } }
-    ).catch(() => null);
-    if (!response?.ok) {
+    const inputResponsePromise =
+        accountId && apiToken
+          ? fetchCloudflareStreamResponse(
+              `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/live_inputs/${encodeURIComponent(experience.streamInputId)}`,
+              { headers: { Authorization: `Bearer ${apiToken}` } }
+            )
+          : Promise.resolve(null),
+      lifecycleResponsePromise = streamBaseUrl
+        ? fetchCloudflareStreamResponse(
+            `${streamBaseUrl}/${encodeURIComponent(experience.streamInputId)}/lifecycle`
+          )
+        : Promise.resolve(null),
+      [inputResponse, lifecycleResponse] = await Promise.all([
+        inputResponsePromise,
+        lifecycleResponsePromise,
+      ]),
+      payload =
+        await parseCloudflareStreamResponse<CloudflareStreamResponse>(
+          inputResponse
+        ),
+      lifecyclePayload =
+        await parseCloudflareStreamResponse<CloudflareStreamLifecycleResponse>(
+          lifecycleResponse
+        ),
+      inputStatus = normalizeCloudflareStreamStatus(payload?.result?.status),
+      lifecycleLive =
+        typeof lifecyclePayload?.live === "boolean"
+          ? lifecyclePayload.live
+          : null,
+      connection = resolveCloudflareStreamConnection({
+        experienceStatus: experience.status,
+        inputStatus,
+        lifecycleLive,
+      }),
+      connected = connection === "connected",
+      disconnected = connection === "disconnected";
+
+    if (!(payload || lifecyclePayload)) {
       return experience;
     }
-
-    const payload = (await response.json()) as CloudflareStreamResponse,
-      inputStatus = payload.result?.status,
-      connected = inputStatus === "connected" || inputStatus === "reconnected",
-      disconnected =
-        inputStatus === "client_disconnect" ||
-        inputStatus === "ttl_exceeded" ||
-        inputStatus === "failed_to_connect" ||
-        inputStatus === "failed_to_reconnect";
-    let { status } = experience,
+    let status: typeof liveExperiences.$inferSelect.status = experience.status,
       { endsAt } = experience,
       { ingestStatus } = experience,
       { reconnectUntil } = experience,
@@ -427,7 +582,7 @@ const badRequest = (message: string) => ({
           title: experience.title,
         });
       }
-    } else if (disconnected && experience.status !== "ended") {
+    } else if (disconnected) {
       const graceExpired =
         experience.reconnectUntil !== null &&
         experience.reconnectUntil !== undefined &&
@@ -803,9 +958,9 @@ const badRequest = (message: string) => ({
       status =
         battle.status === "live"
           ? "live"
-          : battle.status === "completed"
+          : (battle.status === "completed" || battle.status === "archived"
             ? "ended"
-            : "scheduled",
+            : "scheduled"),
       startsAt = (battle.startsAt ?? battle.createdAt).toISOString(),
       [createdExperience] = await db
         .insert(liveExperiences)
@@ -915,6 +1070,85 @@ const badRequest = (message: string) => ({
 
     return result;
   },
+  ensureListeningPartyLiveExperience = async ({
+    env,
+    roomId,
+  }: {
+    env: AppEnv["Bindings"];
+    roomId: string;
+  }) => {
+    if (!isDatabaseConfigured()) {
+      return null;
+    }
+
+    const db = createDb(),
+      [party] = await db
+        .select()
+        .from(listeningParties)
+        .where(
+          or(
+            eq(listeningParties.id, roomId),
+            eq(listeningParties.liveRoomId, roomId)
+          )
+        )
+        .limit(1);
+    if (!party?.liveRoomId) {
+      return null;
+    }
+
+    const [existing] = await db
+      .select()
+      .from(liveExperiences)
+      .where(eq(liveExperiences.id, party.liveRoomId))
+      .limit(1);
+    if (existing) {
+      return existing;
+    }
+
+    const meeting = await createRealtimeMeeting({
+        env,
+        kind: "party",
+        title: party.title,
+      }),
+      [created] = await db
+        .insert(liveExperiences)
+        .values({
+          ...buildLiveExperienceInsert({
+            battleId: null,
+            battleKitId: null,
+            createdByUserId: party.hostUserId,
+            genre: null,
+            id: party.liveRoomId,
+            kind: "party",
+            meetingId: meeting.id,
+            playlistId: party.playlistId,
+            projectId: party.projectId,
+            source: "playlist",
+            startsAt: party.scheduledStartAt.toISOString(),
+            title: party.title,
+            visibility: "public",
+          }),
+          status:
+            party.status === "live"
+              ? "live"
+              : (party.status === "ended" || party.status === "canceled"
+                ? "ended"
+                : "scheduled"),
+        })
+        .onConflictDoNothing()
+        .returning();
+
+    if (created) {
+      return created;
+    }
+
+    const [raced] = await db
+      .select()
+      .from(liveExperiences)
+      .where(eq(liveExperiences.id, party.liveRoomId))
+      .limit(1);
+    return raced ?? null;
+  },
   resolveLiveRoomIdentity = async (
     c: {
       get?: (key: "user") => AuthenticatedUser | null;
@@ -923,36 +1157,60 @@ const badRequest = (message: string) => ({
   ): Promise<LiveRoomIdentity> => {
     const user = c.get?.("user"),
       isAdmin = user?.role === "admin";
-    let role: LiveRoomIdentity["role"] = isAdmin ? "admin" : "fan";
-
+    let role: LiveRoomIdentity["role"] = isAdmin ? "admin" : "fan",
+      avatarUrl: string | null = null;
     if (user && isDatabaseConfigured()) {
       const db = createDb(),
-        [experience] = await db
-          .select({
-            battleId: liveExperiences.battleId,
-            createdByUserId: liveExperiences.createdByUserId,
-            kind: liveExperiences.kind,
-          })
-          .from(liveExperiences)
-          .where(
-            or(
-              eq(liveExperiences.id, roomId),
-              eq(liveExperiences.streamInputId, roomId),
-              eq(liveExperiences.battleId, roomId)
+        [experiences, profiles] = await Promise.all([
+          db
+            .select({
+              battleId: liveExperiences.battleId,
+              createdByUserId: liveExperiences.createdByUserId,
+              kind: liveExperiences.kind,
+            })
+            .from(liveExperiences)
+            .where(
+              or(
+                eq(liveExperiences.id, roomId),
+                eq(liveExperiences.streamInputId, roomId),
+                eq(liveExperiences.battleId, roomId)
+              )
             )
-          )
-          .limit(1);
+            .limit(1),
+          db
+            .select({ avatarUrl: userProfiles.avatarUrl })
+            .from(userProfiles)
+            .where(eq(userProfiles.userId, user.id))
+            .limit(1),
+        ]),
+        experience = experiences[0],
+        profile = profiles[0];
+      avatarUrl = profile?.avatarUrl ?? null;
+
+      const [party] = experience
+        ? []
+        : await db
+            .select({ hostUserId: listeningParties.hostUserId })
+            .from(listeningParties)
+            .where(
+              or(
+                eq(listeningParties.id, roomId),
+                eq(listeningParties.liveRoomId, roomId)
+              )
+            )
+            .limit(1);
 
       if (
-        experience?.kind === "party" &&
-        experience.createdByUserId === user.id &&
+        ((experience &&
+          (experience.kind === "party" || experience.kind === "stream") &&
+          experience.createdByUserId === user.id) ||
+          (party && party.hostUserId === user.id)) &&
         !isAdmin
       ) {
         role = "host";
       } else if (
-        !experience ||
-        experience.battleId ||
-        experience.kind === "battle"
+        !party &&
+        (!experience || experience.battleId || experience.kind === "battle")
       ) {
         const battleId = experience?.battleId ?? roomId,
           [battle] = await db
@@ -962,12 +1220,10 @@ const badRequest = (message: string) => ({
             })
             .from(battles)
             .where(
-              experience?.battleId
-                ? eq(battles.id, battleId)
-                : or(
-                    eq(battles.id, battleId),
-                    eq(battles.externalBattleId, battleId)
-                  )
+              or(
+                eq(battles.id, battleId),
+                eq(battles.externalBattleId, battleId)
+              )
             )
             .limit(1);
         role = resolveBattleRoomRole({
@@ -980,6 +1236,7 @@ const badRequest = (message: string) => ({
     }
 
     return {
+      avatarUrl,
       displayName: user?.name?.trim() || "Listener",
       role,
       userId: user?.id ?? "anonymous",
@@ -991,18 +1248,30 @@ const badRequest = (message: string) => ({
       get?: (key: "user") => AuthenticatedUser | null;
     },
     roomId: string,
-    request: Request
+    request: Request,
+    overlayToken?: string
   ) => {
     if (!c.env.LIVE_ROOMS) {
       return null;
     }
 
-    const headers = new Headers(request.headers),
-      identity = await resolveLiveRoomIdentity(c, roomId);
+    const headers = new Headers(request.headers);
     headers.set("x-soundkit-live-room-id", roomId);
-    headers.set("x-soundkit-live-user-id", identity.userId);
-    headers.set("x-soundkit-live-display-name", identity.displayName);
-    headers.set("x-soundkit-live-role", identity.role ?? "fan");
+    if (overlayToken) {
+      headers.set("x-soundkit-live-display-name", "Stream Overlay");
+      headers.set("x-soundkit-live-overlay", "true");
+      headers.set("x-soundkit-live-role", "host");
+      headers.set("x-soundkit-live-user-id", `stream-overlay:${roomId}`);
+    } else {
+      const identity = await resolveLiveRoomIdentity(c, roomId);
+      headers.set("x-soundkit-live-user-id", identity.userId);
+      headers.set("x-soundkit-live-display-name", identity.displayName);
+      headers.set(
+        "x-soundkit-live-avatar-url",
+        identity.avatarUrl ?? "/soundkit-default-avatar.svg"
+      );
+      headers.set("x-soundkit-live-role", identity.role ?? "fan");
+    }
     return c.env.LIVE_ROOMS.getByName(roomId).fetch(
       new Request(`https://live-room.soundkit.internal/ws`, {
         headers,
@@ -1026,11 +1295,119 @@ const badRequest = (message: string) => ({
     artistName,
     coverArtUrl: coverArtUrl ?? "",
     durationMs: 0,
+    href: `/tracks/${encodeURIComponent(trackId)}`,
     id: trackId,
     lyrics: [],
     status,
     title,
   }),
+  buildLiveReviewCatalog = async ({
+    db,
+    query,
+    session,
+    user,
+  }: {
+    db: ReturnType<typeof createDb>;
+    query?: string;
+    session: AppEnv["Variables"]["session"];
+    user: AuthenticatedUser;
+  }) => {
+    const [collaboratorRows, directPurchaseRows, projectPurchaseRows] =
+        await Promise.all([
+          db
+            .select({ trackId: trackCollaborators.trackId })
+            .from(trackCollaborators)
+            .where(
+              and(
+                eq(trackCollaborators.collaboratorUserId, user.id),
+                eq(trackCollaborators.invitationStatus, "accepted")
+              )
+            ),
+          db
+            .select({ trackId: purchases.trackId })
+            .from(purchases)
+            .where(eq(purchases.buyerUserId, user.id)),
+          db
+            .select({ trackId: projectTracks.trackId })
+            .from(purchases)
+            .innerJoin(
+              projectTracks,
+              eq(projectTracks.projectId, purchases.projectId)
+            )
+            .where(eq(purchases.buyerUserId, user.id)),
+        ]),
+      collaboratorTrackIds = collaboratorRows.map((row) => row.trackId),
+      purchasedTrackIds = new Set([
+        ...directPurchaseRows.flatMap((row) =>
+          row.trackId ? [row.trackId] : []
+        ),
+        ...projectPurchaseRows.map((row) => row.trackId),
+      ]),
+      visibilityConditions = [
+        eq(tracks.isPublic, true),
+        eq(tracks.ownerUserId, user.id),
+        purchasedTrackIds.size > 0
+          ? inArray(tracks.id, [...purchasedTrackIds])
+          : undefined,
+        collaboratorTrackIds.length > 0
+          ? inArray(tracks.id, collaboratorTrackIds)
+          : undefined,
+      ],
+      candidateConditions = [
+        isNull(tracks.deletedAt),
+        or(...visibilityConditions.filter(Boolean)),
+        query ? ilike(tracks.title, `%${query}%`) : undefined,
+      ].filter((condition): condition is NonNullable<typeof condition> =>
+        Boolean(condition)
+      ),
+      candidates = await db
+        .select()
+        .from(tracks)
+        .where(and(...candidateConditions))
+        .orderBy(desc(tracks.updatedAt))
+        .limit(100),
+      entitlements = await resolveEntitlements({
+        session,
+        user,
+      }),
+      summaries = await Promise.all(
+        candidates.map(async (track) => {
+          const isOwner = track.ownerUserId === user.id,
+            isCollaborator = collaboratorTrackIds.includes(track.id),
+            access = resolveListeningAccess({
+              hasPurchase: purchasedTrackIds.has(track.id),
+              isPremium: entitlements.isPremium,
+              policy: track,
+            });
+
+          if (
+            !(
+              isOwner ||
+              isCollaborator ||
+              ((track.isPublic || purchasedTrackIds.has(track.id)) &&
+                access.canListen)
+            )
+          ) {
+            return null;
+          }
+
+          const summary = await buildTrackSummary(track);
+          return summary.mediaReady
+            ? {
+                artistName: summary.artistName,
+                coverArtUrl: summary.coverArtUrl,
+                id: summary.id,
+                isPublic: track.isPublic,
+                mediaReady: true,
+                playbackUrl: guardedTrackPlaybackUrl(track.id),
+                title: summary.title,
+              }
+            : null;
+        })
+      );
+
+    return summaries.filter((summary) => summary !== null);
+  },
   liveRoundStatusFromDb = (
     status: "active" | "completed" | "upcoming"
   ): LiveBattleRound["status"] => {
@@ -1075,7 +1452,6 @@ const badRequest = (message: string) => ({
       ),
       battleId: battle.id,
       format: battle.format,
-      status: battle.status,
     });
     if (!seeds) {
       return;
@@ -1131,25 +1507,37 @@ const badRequest = (message: string) => ({
     }
 
     const db = createDb(),
+      schemaCapabilities = await loadBattleSchemaCapabilities(),
       [battle] = await db
         .select({
           challengerArtistUserId: battles.challengerArtistUserId,
           createdAt: battles.createdAt,
           endedAt: battles.endedAt,
           format: battles.format,
+          genre: genres.name,
           id: battles.id,
           opponentArtistUserId: battles.opponentArtistUserId,
-          outcome: battles.outcome,
-          outcomeReason: battles.outcomeReason,
-          outcomeUserId: battles.outcomeUserId,
+          outcome: schemaCapabilities.battleOutcome
+            ? battles.outcome
+            : sql<BattleOutcomeKind | null>`null`,
+          outcomeReason: schemaCapabilities.battleOutcomeReason
+            ? battles.outcomeReason
+            : sql<string | null>`null`,
+          outcomeUserId: schemaCapabilities.battleOutcomeUser
+            ? battles.outcomeUserId
+            : sql<string | null>`null`,
+          replayVideoId: battles.replayVideoId,
           startsAt: battles.startsAt,
           status: battles.status,
           title: battles.title,
           updatedAt: battles.updatedAt,
           viewerCount: battles.viewerCount,
-          winnerUserId: battles.winnerUserId,
+          winnerUserId: schemaCapabilities.battleWinner
+            ? battles.winnerUserId
+            : sql<string | null>`null`,
         })
         .from(battles)
+        .leftJoin(genres, eq(genres.id, battles.genreId))
         .where(or(eq(battles.id, roomId), eq(battles.externalBattleId, roomId)))
         .limit(1);
 
@@ -1174,7 +1562,7 @@ const badRequest = (message: string) => ({
         .where(eq(battleRounds.battleId, battle.id))
         .orderBy(asc(battleRounds.roundNumber));
 
-    let [roundRows, lineupSnapshots] = await Promise.all([
+    let [roundRows, lineupSnapshots, experienceRows] = await Promise.all([
       loadBattleRoundRows(),
       db
         .select({
@@ -1184,6 +1572,14 @@ const badRequest = (message: string) => ({
         })
         .from(battleLineupSnapshots)
         .where(eq(battleLineupSnapshots.battleId, battle.id)),
+      db
+        .select({
+          recordingStatus: liveExperiences.recordingStatus,
+          replayPublishedAt: liveExperiences.replayPublishedAt,
+          startedAt: liveExperiences.startedAt,
+        })
+        .from(liveExperiences)
+        .where(eq(liveExperiences.battleId, battle.id)),
     ]);
 
     if (roundRows.length === 0) {
@@ -1202,6 +1598,7 @@ const badRequest = (message: string) => ({
             .filter((trackId): trackId is string => Boolean(trackId))
         ),
       ],
+      replayVideoIds = battle.replayVideoId ? [battle.replayVideoId] : [],
       profileIds = [
         ...new Set(
           [battle.challengerArtistUserId, battle.opponentArtistUserId].filter(
@@ -1209,61 +1606,98 @@ const badRequest = (message: string) => ({
           )
         ),
       ],
-      [trackRows, coverRows, profileRows, snapshotRows, queueRows] =
-        await Promise.all([
-          trackIds.length > 0
-            ? db
-                .select({
-                  artistName: userProfiles.displayName,
-                  id: tracks.id,
-                  ownerUserId: tracks.ownerUserId,
-                  title: tracks.title,
-                })
-                .from(tracks)
-                .leftJoin(
-                  userProfiles,
-                  eq(userProfiles.userId, tracks.ownerUserId)
+      [
+        trackRows,
+        coverRows,
+        profileRows,
+        rankRows,
+        snapshotRows,
+        queueRows,
+        replayVideoRows,
+      ] = await Promise.all([
+        trackIds.length > 0
+          ? db
+              .select({
+                artistName: userProfiles.displayName,
+                id: tracks.id,
+                ownerUserId: tracks.ownerUserId,
+                title: tracks.title,
+              })
+              .from(tracks)
+              .leftJoin(
+                userProfiles,
+                eq(userProfiles.userId, tracks.ownerUserId)
+              )
+              .where(inArray(tracks.id, trackIds))
+          : [],
+        trackIds.length > 0
+          ? db
+              .select({
+                metadata: trackAssets.metadata,
+                objectKey: trackAssets.objectKey,
+                trackId: trackAssets.trackId,
+              })
+              .from(trackAssets)
+              .where(
+                and(
+                  inArray(trackAssets.trackId, trackIds),
+                  eq(trackAssets.assetKind, "cover_art")
                 )
-                .where(inArray(tracks.id, trackIds))
-            : [],
-          trackIds.length > 0
-            ? db
-                .select({
-                  metadata: trackAssets.metadata,
-                  objectKey: trackAssets.objectKey,
-                  trackId: trackAssets.trackId,
-                })
-                .from(trackAssets)
-                .where(
-                  and(
-                    inArray(trackAssets.trackId, trackIds),
-                    eq(trackAssets.assetKind, "cover_art")
+              )
+          : [],
+        profileIds.length > 0
+          ? db
+              .select({
+                avatarUrl: userProfiles.avatarUrl,
+                displayName: userProfiles.displayName,
+                userId: userProfiles.userId,
+              })
+              .from(userProfiles)
+              .where(inArray(userProfiles.userId, profileIds))
+          : [],
+        profileIds.length > 0
+          ? db
+              .select({
+                rank: sql<number>`row_number() over (order by ${artistProfiles.battleCount} desc, ${artistProfiles.followerCount} desc, ${artistProfiles.userId})`,
+                userId: artistProfiles.userId,
+              })
+              .from(artistProfiles)
+              .where(
+                and(
+                  eq(artistProfiles.publicProfileEnabled, true),
+                  or(
+                    gt(artistProfiles.battleCount, 0),
+                    gt(artistProfiles.followerCount, 0)
                   )
                 )
-            : [],
-          profileIds.length > 0
-            ? db
-                .select({
-                  avatarUrl: userProfiles.avatarUrl,
-                  displayName: userProfiles.displayName,
-                  userId: userProfiles.userId,
-                })
-                .from(userProfiles)
-                .where(inArray(userProfiles.userId, profileIds))
-            : [],
-          lineupSnapshots,
-          db
-            .select({
-              userId: battleQueueEntries.userId,
-            })
-            .from(battleQueueEntries)
-            .where(
-              and(
-                eq(battleQueueEntries.battleId, battle.id),
-                eq(battleQueueEntries.status, "queued")
               )
-            ),
-        ]),
+          : [],
+        lineupSnapshots,
+        db
+          .select({
+            userId: battleQueueEntries.userId,
+          })
+          .from(battleQueueEntries)
+          .where(
+            and(
+              eq(battleQueueEntries.battleId, battle.id),
+              eq(battleQueueEntries.status, "queued")
+            )
+          ),
+        replayVideoIds.length > 0
+          ? db
+              .select({
+                externalPlaybackUrl: videos.externalPlaybackUrl,
+                id: videos.id,
+                isPublic: videos.isPublic,
+                publishedAt: videos.publishedAt,
+                status: videos.status,
+                videoKind: videos.videoKind,
+              })
+              .from(videos)
+              .where(inArray(videos.id, replayVideoIds))
+          : [],
+      ]),
       coverByTrackId = new Map(
         coverRows.map((asset) => [
           asset.trackId,
@@ -1284,6 +1718,27 @@ const badRequest = (message: string) => ({
       profileByUserId = new Map(
         profileRows.map((profile) => [profile.userId, profile])
       ),
+      rankByUserId = new Map(
+        rankRows.map((profile) => [profile.userId, profile.rank])
+      ),
+      experience = experienceRows[0],
+      replayVideo = replayVideoRows[0],
+      hasPlayedTurn = battleHasPlayedTurn({
+        experienceStartedAt: experience?.startedAt,
+        outcome: battle.outcome,
+        roundStatuses: roundRows.map((round) => round.status),
+      }),
+      replayStatus = resolveBattleReplayStatus({
+        recordingStatus: experience?.recordingStatus,
+        replayPublishedAt: experience?.replayPublishedAt,
+        replayVideoAvailable: Boolean(
+          replayVideo?.isPublic &&
+          replayVideo.publishedAt &&
+          replayVideo.status === "ready" &&
+          replayVideo.videoKind === "battle_replay" &&
+          isDurableReplayPlaybackUrl(replayVideo.externalPlaybackUrl)
+        ),
+      }),
       artistControlsByUserId: Record<string, LiveBattleArtistControls> =
         Object.fromEntries(
           snapshotRows.map((snapshot) => {
@@ -1336,6 +1791,7 @@ const badRequest = (message: string) => ({
           name:
             profileByUserId.get(fallbackArtistIds[0])?.displayName ??
             "Artist One",
+          rank: rankByUserId.get(fallbackArtistIds[0]) ?? null,
           roundsWon: roundRows.filter(
             (round) =>
               round.status === "completed" &&
@@ -1353,6 +1809,7 @@ const badRequest = (message: string) => ({
           name:
             profileByUserId.get(fallbackArtistIds[1])?.displayName ??
             "Artist Two",
+          rank: rankByUserId.get(fallbackArtistIds[1]) ?? null,
           roundsWon: roundRows.filter(
             (round) =>
               round.status === "completed" &&
@@ -1437,8 +1894,11 @@ const badRequest = (message: string) => ({
         artists: liveArtists,
         coordination,
         currentRoundId: currentLiveRound?.id ?? "",
+        hasPlayedTurn,
         outcome: battleOutcome,
         queueSize: queueRows.length,
+        replayStatus,
+        replayVideoId: battle.replayVideoId,
         rounds: liveRounds,
         tiePolicy:
           "If the scheduled rounds end tied, SoundKit unlocks one tiebreaker song from each battle kit and runs sudden-death voting.",
@@ -1453,12 +1913,12 @@ const badRequest = (message: string) => ({
       status:
         battle.status === "completed" || battle.status === "archived"
           ? "ended"
-          : battle.status === "live"
+          : (battle.status === "live"
             ? "live"
-            : "upcoming",
+            : "upcoming"),
       summary:
         "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
-      title: battle.title,
+      title: resolveArtistBattleTitle(battle.title, battle.genre ?? "Hip-Hop"),
       tracklist,
       viewerCount: battle.viewerCount,
     };
@@ -1580,16 +2040,16 @@ const badRequest = (message: string) => ({
     const roomStatus: LiveRoomState["status"] =
       experience.status === "ended"
         ? "ended"
-        : experience.status === "live"
+        : (experience.status === "live"
           ? "live"
-          : "upcoming";
+          : "upcoming");
 
     const summary =
       experience.kind === "stream"
         ? `Live creator broadcast by ${hostName} on SoundKit.`
-        : experience.kind === "party"
+        : (experience.kind === "party"
           ? `Live listening party hosted by ${hostName}.`
-          : `Live event on SoundKit.`;
+          : `Live event on SoundKit.`);
 
     return {
       chat: [],
@@ -1604,6 +2064,7 @@ const badRequest = (message: string) => ({
               playback: {
                 hostMode: "off_camera",
                 hostUserId: experience.createdByUserId,
+                mediaAvailable: true,
                 playbackState: roomStatus === "live" ? "playing" : "paused",
                 positionMs: 0,
                 stateChangedAt: experience.startedAt?.getTime() ?? Date.now(),
@@ -1616,6 +2077,7 @@ const badRequest = (message: string) => ({
       stream:
         experience.kind === "stream"
           ? {
+              botEnabled: false,
               errorCode: experience.ingestErrorCode,
               errorMessage: experience.ingestErrorMessage,
               ingestStatus:
@@ -1628,12 +2090,13 @@ const badRequest = (message: string) => ({
                       : experience.ingestStatus === "disconnected"
                         ? "disconnected"
                         : "idle",
+              nowPlaying: null,
               reconnectUntil: experience.reconnectUntil?.getTime() ?? null,
               replayStatus: experience.replayPublishedAt
                 ? "available"
-                : experience.recordingStatus
+                : (experience.recordingStatus
                   ? "processing"
-                  : "none",
+                  : "none"),
             }
           : undefined,
       summary,
@@ -1654,6 +2117,10 @@ const badRequest = (message: string) => ({
         .select({
           createdAt: listeningParties.createdAt,
           description: listeningParties.description,
+          experienceMediaAvailable: liveExperiences.meetingId,
+          experienceStartedAt: liveExperiences.startedAt,
+          experienceStatus: liveExperiences.status,
+          experienceViewerCount: liveExperiences.viewerCount,
           hostUserId: listeningParties.hostUserId,
           id: listeningParties.id,
           liveRoomId: listeningParties.liveRoomId,
@@ -1664,6 +2131,10 @@ const badRequest = (message: string) => ({
           title: listeningParties.title,
         })
         .from(listeningParties)
+        .leftJoin(
+          liveExperiences,
+          eq(liveExperiences.id, listeningParties.liveRoomId)
+        )
         .where(
           or(
             eq(listeningParties.id, roomId),
@@ -1738,11 +2209,13 @@ const badRequest = (message: string) => ({
     }
 
     const roomStatus: LiveRoomState["status"] =
-      party.status === "ended" || party.status === "canceled"
+      party.status === "ended" ||
+      party.status === "canceled" ||
+      party.experienceStatus === "ended"
         ? "ended"
-        : party.status === "live"
+        : (party.status === "live" || party.experienceStatus === "live"
           ? "live"
-          : "upcoming";
+          : "upcoming");
 
     return {
       chat: [],
@@ -1755,9 +2228,13 @@ const badRequest = (message: string) => ({
         playback: {
           hostMode: "off_camera",
           hostUserId: party.hostUserId,
+          mediaAvailable: Boolean(party.experienceMediaAvailable),
           playbackState: roomStatus === "live" ? "playing" : "paused",
           positionMs: 0,
-          stateChangedAt: party.startedAt?.getTime() ?? Date.now(),
+          stateChangedAt:
+            party.experienceStartedAt?.getTime() ??
+            party.startedAt?.getTime() ??
+            Date.now(),
           trackId: tracklist[0]?.id ?? null,
           trackIndex: 0,
         },
@@ -1768,7 +2245,7 @@ const badRequest = (message: string) => ({
         `Live listening party hosted by ${hostName} on SoundKit.`,
       title: party.title,
       tracklist,
-      viewerCount: 0,
+      viewerCount: party.experienceViewerCount ?? 0,
     };
   },
   seedDurableRoom = async ({
@@ -1849,7 +2326,11 @@ const badRequest = (message: string) => ({
         },
         roomId
       );
-      if (identity.role === "artist_a" || identity.role === "artist_b") {
+      if (
+        identity.role === "artist_a" ||
+        identity.role === "artist_b" ||
+        identity.role === "host"
+      ) {
         return true;
       }
     }
@@ -2103,9 +2584,9 @@ const buildCreateExperienceResponse = ({
       body.source === "obs" &&
       body.scheduleMode === "asap"
         ? "waiting_for_ingest"
-        : body.scheduleMode === "asap"
+        : (body.scheduleMode === "asap"
           ? "ready"
-          : "scheduled",
+          : "scheduled"),
     title: body.title.trim(),
     visibility: body.visibility,
   },
@@ -2118,9 +2599,9 @@ const buildCreateExperienceResponse = ({
       body.source === "obs" &&
       body.scheduleMode === "asap"
         ? "scheduled"
-        : body.scheduleMode === "asap"
+        : (body.scheduleMode === "asap"
           ? "live"
-          : "scheduled",
+          : "scheduled"),
   },
   notifications: buildNotificationFanout({
     experienceId,
@@ -2172,13 +2653,21 @@ app.get("/experiences/:experienceId", async (c) => {
     );
   }
 
-  const customerCode = c.env.CLOUDFLARE_STREAM_CUSTOMER_CODE,
+  const canPlayStream =
+      experience.status === "live" && experience.ingestStatus === "connected",
+    streamCustomerBaseUrl = cloudflareStreamCustomerBaseUrl(
+      c.env.CLOUDFLARE_STREAM_CUSTOMER_CODE
+    ),
     streamBaseUrl =
-      experience.streamInputId && customerCode
-        ? `https://customer-${customerCode}.cloudflarestream.com/${experience.streamInputId}`
+      experience.streamInputId && streamCustomerBaseUrl
+        ? `${streamCustomerBaseUrl}/${encodeURIComponent(experience.streamInputId)}`
         : null,
-    playbackUrl = streamBaseUrl ? `${streamBaseUrl}/manifest/video.m3u8` : null,
-    playerUrl = streamBaseUrl ? `${streamBaseUrl}/iframe` : null;
+    playbackUrl =
+      streamBaseUrl && canPlayStream
+        ? `${streamBaseUrl}/manifest/video.m3u8`
+        : null,
+    playerUrl =
+      streamBaseUrl && canPlayStream ? `${streamBaseUrl}/iframe` : null;
 
   let creatorAvatar: string | null = null,
     creatorName: string | null = null;
@@ -2206,6 +2695,7 @@ app.get("/experiences/:experienceId", async (c) => {
     {
       creatorAvatar,
       creatorName,
+      creatorUserId: experience.createdByUserId,
       genre: experience.genre ?? null,
       id: experience.id,
       ingestErrorCode: experience.ingestErrorCode,
@@ -2229,6 +2719,245 @@ app.get("/experiences/:experienceId", async (c) => {
   );
 });
 
+app.get("/experiences/:experienceId/review-catalog", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+
+  const experience = await loadLiveExperienceById(c.req.param("experienceId"));
+  if (!experience) {
+    return c.json(
+      { message: "Live experience not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
+  }
+  if (experience.kind !== "stream") {
+    return c.json(
+      { message: "Review catalog is only available for stream rooms." },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+  if (experience.createdByUserId !== user.id && user.role !== "admin") {
+    return c.json(
+      forbiddenMessage("Only the stream host can access the review catalog."),
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+  if (experience.status === "ended") {
+    return c.json(
+      { message: "The ended stream review catalog is read-only." },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+  if (!isDatabaseConfigured()) {
+    return c.json([], HttpStatusCodes.OK);
+  }
+
+  const query = c.req.query("q")?.trim().slice(0, 120);
+  return c.json(
+    await buildLiveReviewCatalog({
+      db: createDb(),
+      query: query || undefined,
+      session: c.get("session"),
+      user,
+    }),
+    HttpStatusCodes.OK
+  );
+});
+
+app.post("/experiences/:experienceId/overlay-token", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+  if (!c.env.LIVE_ROOMS) {
+    return c.json(
+      { message: "Live room overlays are not configured." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+
+  const experience = await loadLiveExperienceById(c.req.param("experienceId"));
+  if (!experience) {
+    return c.json(
+      { message: "Live experience not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
+  }
+  if (experience.kind !== "stream") {
+    return c.json(
+      { message: "OBS overlays are only available for stream rooms." },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+
+  const roomSnapshot = await buildExperienceRoomSnapshot(experience.id);
+  if (roomSnapshot) {
+    await seedDurableRoom({ c, room: roomSnapshot, roomId: experience.id });
+  }
+
+  try {
+    const token = await c.env.LIVE_ROOMS.getByName(
+      experience.id
+    ).createStreamOverlayToken(
+      experience.id,
+      await resolveLiveRoomIdentity(c, experience.id)
+    );
+    return c.json(token, HttpStatusCodes.CREATED);
+  } catch (error) {
+    return c.json(
+      {
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to create the OBS overlay token.",
+      },
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+});
+
+app.post("/rooms/:roomId/stream/bot", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user) || !c.env.LIVE_ROOMS) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+
+  const parsed = streamBotBodySchema.safeParse(
+    await c.req.json().catch(() => ({}))
+  );
+  if (!parsed.success) {
+    return c.json(
+      badRequest("StreamBot settings are invalid."),
+      HttpStatusCodes.BAD_REQUEST
+    );
+  }
+
+  const roomId = c.req.param("roomId"),
+    experience = await loadLiveExperienceById(roomId);
+  if (!experience || experience.kind !== "stream") {
+    return c.json(
+      { message: "Stream room not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
+  }
+
+  const roomSnapshot = await buildExperienceRoomSnapshot(roomId);
+  if (roomSnapshot) {
+    await seedDurableRoom({ c, room: roomSnapshot, roomId });
+  }
+
+  try {
+    const room = await c.env.LIVE_ROOMS.getByName(roomId).setStreamBotEnabled(
+      roomId,
+      await resolveLiveRoomIdentity(c, roomId),
+      parsed.data.enabled
+    );
+    return c.json(room, HttpStatusCodes.OK);
+  } catch (error) {
+    return c.json(
+      {
+        message:
+          error instanceof Error ? error.message : "StreamBot update failed.",
+      },
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+});
+
+app.post("/rooms/:roomId/stream/now-playing", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user) || !c.env.LIVE_ROOMS) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+
+  const parsed = streamNowPlayingBodySchema.safeParse(
+    await c.req.json().catch(() => ({}))
+  );
+  if (!parsed.success) {
+    return c.json(
+      badRequest("Now Playing details are invalid."),
+      HttpStatusCodes.BAD_REQUEST
+    );
+  }
+
+  const roomId = c.req.param("roomId"),
+    experience = await loadLiveExperienceById(roomId);
+  if (!experience || experience.kind !== "stream") {
+    return c.json(
+      { message: "Stream room not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
+  }
+  if (experience.status === "ended") {
+    return c.json(
+      { message: "The ended stream is read-only." },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+
+  const roomSnapshot = await buildExperienceRoomSnapshot(roomId);
+  if (roomSnapshot) {
+    await seedDurableRoom({ c, room: roomSnapshot, roomId });
+  }
+
+  try {
+    const identity = await resolveLiveRoomIdentity(c, roomId);
+    let selectedTrack: LiveRoomTrack | null = null;
+    if (parsed.data.trackId) {
+      if (!isDatabaseConfigured()) {
+        return c.json(
+          databaseUnavailableMessage,
+          HttpStatusCodes.SERVICE_UNAVAILABLE
+        );
+      }
+
+      const catalog = await buildLiveReviewCatalog({
+          db: createDb(),
+          session: c.get("session"),
+          user,
+        }),
+        catalogTrack = catalog.find(
+          (track) => track.id === parsed.data.trackId
+        );
+      if (!catalogTrack) {
+        return c.json(
+          forbiddenMessage("This track is not available for live review."),
+          HttpStatusCodes.FORBIDDEN
+        );
+      }
+      selectedTrack = {
+        artistName: catalogTrack.artistName,
+        coverArtUrl: catalogTrack.coverArtUrl ?? "",
+        durationMs: 0,
+        href: catalogTrack.isPublic
+          ? `/tracks/${encodeURIComponent(catalogTrack.id)}`
+          : null,
+        id: catalogTrack.id,
+        lyrics: [],
+        status: "playing",
+        title: catalogTrack.title,
+      };
+    }
+
+    const room = await c.env.LIVE_ROOMS.getByName(roomId).setStreamNowPlaying(
+      roomId,
+      identity,
+      selectedTrack
+    );
+    return c.json(room, HttpStatusCodes.OK);
+  } catch (error) {
+    return c.json(
+      {
+        message:
+          error instanceof Error ? error.message : "Now Playing update failed.",
+      },
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+});
+
 app.post("/experiences/:experienceId/join", async (c) => {
   const user = c.get("user");
   if (!isAuthenticatedUser(user)) {
@@ -2246,17 +2975,63 @@ app.post("/experiences/:experienceId/join", async (c) => {
     );
   }
 
-  const experienceId = c.req.param("experienceId"),
-    kind = liveKindFromExperienceId(experienceId);
+  const experienceId = c.req.param("experienceId");
   let experience = isDatabaseConfigured()
     ? await loadLiveExperienceById(experienceId)
     : null;
 
-  if (!experience && kind === "battle") {
-    experience = await ensureBattleLiveExperience({
-      env: c.env,
-      experienceId,
-    });
+  if (!experience && isDatabaseConfigured()) {
+    const db = createDb(),
+      [party] = await db
+        .select({
+          id: listeningParties.id,
+          liveRoomId: listeningParties.liveRoomId,
+        })
+        .from(listeningParties)
+        .where(
+          or(
+            eq(listeningParties.id, experienceId),
+            eq(listeningParties.liveRoomId, experienceId)
+          )
+        )
+        .limit(1);
+
+    if (party) {
+      try {
+        experience = await ensureListeningPartyLiveExperience({
+          env: c.env,
+          roomId: experienceId,
+        });
+      } catch {
+        return c.json(
+          realtimeSetupRequired,
+          HttpStatusCodes.SERVICE_UNAVAILABLE
+        );
+      }
+    }
+  }
+
+  const kind = experience?.kind ?? liveKindFromExperienceId(experienceId);
+  if (!experience && kind === "battle" && isDatabaseConfigured()) {
+    const [battle] = await createDb()
+      .select({ id: battles.id })
+      .from(battles)
+      .where(
+        or(
+          eq(battles.id, experienceId),
+          eq(battles.externalBattleId, experienceId)
+        )
+      )
+      .limit(1);
+    return battle
+      ? c.json(
+          {
+            message:
+              "Battle media is not open yet. Join when the first turn starts.",
+          },
+          HttpStatusCodes.CONFLICT
+        )
+      : c.json({ message: "Battle not found." }, HttpStatusCodes.NOT_FOUND);
   }
 
   const meetingId = experience?.meetingId ?? experienceId;
@@ -2282,7 +3057,9 @@ app.post("/experiences/:experienceId/join", async (c) => {
       const [battle] = await createDb()
           .select({
             challengerArtistUserId: battles.challengerArtistUserId,
+            format: battles.format,
             opponentArtistUserId: battles.opponentArtistUserId,
+            status: battles.status,
           })
           .from(battles)
           .where(eq(battles.id, experience.battleId))
@@ -2296,12 +3073,47 @@ app.post("/experiences/:experienceId/join", async (c) => {
       participantRole =
         battleRole === "artist_a" || battleRole === "artist_b"
           ? "artist"
-          : battleRole === "admin"
+          : (battleRole === "admin"
             ? "host"
-            : "listener";
+            : "listener");
+      if (participantRole === "artist") {
+        const [lineup] = await createDb()
+          .select({ format: battleLineupSnapshots.format })
+          .from(battleLineupSnapshots)
+          .where(
+            and(
+              eq(battleLineupSnapshots.artistUserId, user.id),
+              eq(battleLineupSnapshots.battleId, experience.battleId)
+            )
+          )
+          .limit(1);
+        if (!lineup || lineup.format !== battle?.format) {
+          return c.json(
+            {
+              message:
+                "Lock a Battle Kit made for this battle format before entering the artist stage.",
+            },
+            HttpStatusCodes.CONFLICT
+          );
+        }
+      }
       const battleRoom = await getDurableRoomState(c, experienceId).catch(
         () => null
       );
+      if (
+        battle?.status === "completed" ||
+        battle?.status === "archived" ||
+        battleRoom?.status === "ended" ||
+        battleRoom?.battle?.coordination?.phase === "ended"
+      ) {
+        return c.json(
+          {
+            message:
+              "This battle has ended. The result is available to view, but the room cannot be re-entered.",
+          },
+          HttpStatusCodes.CONFLICT
+        );
+      }
       activeArtistUserId =
         battleRoom?.battle?.coordination?.activeArtistUserId ?? null;
       const battlePhase = battleMediaPhase(
@@ -2412,7 +3224,37 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
     experience = await loadLiveExperienceById(experienceId),
     battleId = experience?.battleId ?? experienceId,
     botAction = parseResult.data.action as LiveRoomBattleBotAction,
-    liveRooms = c.env.LIVE_ROOMS,
+    liveRooms = c.env.LIVE_ROOMS;
+
+  if (isDatabaseConfigured()) {
+    const db = createDb(),
+      [battle] = await db
+        .select({ status: battles.status })
+        .from(battles)
+        .where(
+          or(
+            eq(battles.id, battleId),
+            eq(battles.externalBattleId, battleId),
+            eq(battles.externalBattleId, experienceId)
+          )
+        )
+        .limit(1);
+    if (isBattleTerminalState({ status: battle?.status })) {
+      return c.json(
+        {
+          message:
+            "This battle has ended. BattleBot cannot reopen or change the room.",
+        },
+        HttpStatusCodes.CONFLICT
+      );
+    }
+  }
+
+  const roomState = liveRooms
+      ? await retryDurableObjectCall(() =>
+          liveRooms.getByName(experienceId).getState(experienceId)
+        )
+      : null,
     preflightRoom =
       liveRooms &&
       (botAction === "start_battle" || botAction === "move_lobby_to_round")
@@ -2422,6 +3264,20 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
               .announceBattleBotAction(experienceId, botAction)
           )
         : null;
+  if (
+    roomState?.status === "ended" ||
+    roomState?.battle?.coordination?.phase === "ended" ||
+    preflightRoom?.status === "ended" ||
+    preflightRoom?.battle?.coordination?.phase === "ended"
+  ) {
+    return c.json(
+      {
+        message:
+          "This battle has ended. BattleBot cannot reopen or change the room.",
+      },
+      HttpStatusCodes.CONFLICT
+    );
+  }
   if (preflightRoom?.battle?.coordination?.phase === "waiting_room") {
     return c.json(
       {
@@ -2431,11 +3287,63 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
     );
   }
 
+  const opensFirstTurn =
+    (botAction === "move_lobby_to_round" || botAction === "start_battle") &&
+    !experience &&
+    preflightRoom?.battle?.coordination?.roundNumber === 1;
+  if (opensFirstTurn) {
+    try {
+      if (
+        !(await ensureBattleLiveExperience({
+          env: c.env,
+          experienceId,
+        }))
+      ) {
+        return c.json(
+          { message: "Battle not found." },
+          HttpStatusCodes.NOT_FOUND
+        );
+      }
+    } catch {
+      return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
+    }
+  }
+
   const result = await applyBattleBotAction({
     action: botAction,
     battleId,
     participants: parseResult.data.participants,
   });
+  if (
+    (botAction === "move_lobby_to_round" || botAction === "start_battle") &&
+    !experience &&
+    result.nextPhase === "round_active"
+  ) {
+    try {
+      if (
+        !(await ensureBattleLiveExperience({
+          env: c.env,
+          experienceId,
+        }))
+      ) {
+        return c.json(
+          { message: "Battle not found." },
+          HttpStatusCodes.NOT_FOUND
+        );
+      }
+    } catch {
+      return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
+    }
+  }
+  if (result.battleEnded) {
+    return c.json(
+      {
+        message:
+          "This battle has ended. BattleBot cannot reopen or change the room.",
+      },
+      HttpStatusCodes.CONFLICT
+    );
+  }
   if (liveRooms && !preflightRoom) {
     await retryDurableObjectCall(() =>
       liveRooms
@@ -2484,16 +3392,47 @@ app.post("/rooms/:roomId/battle/ready", async (c) => {
   try {
     const roomId = c.req.param("roomId"),
       identity = await resolveLiveRoomIdentity(c, roomId),
-      room = await c.env.LIVE_ROOMS.getByName(roomId).setArtistReady(
-        roomId,
-        identity,
-        parsed.data.ready
-      );
+      initialExperience = await loadLiveExperienceById(roomId),
+      battleId = initialExperience?.battleId ?? roomId;
+
+    if (isDatabaseConfigured()) {
+      const db = createDb(),
+        [battle] = await db
+          .select({ status: battles.status })
+          .from(battles)
+          .where(
+            or(
+              eq(battles.id, battleId),
+              eq(battles.externalBattleId, battleId),
+              eq(battles.externalBattleId, roomId)
+            )
+          )
+          .limit(1);
+      if (isBattleTerminalState({ status: battle?.status })) {
+        return c.json(
+          {
+            message: "This battle has ended. The artist room is now read-only.",
+          },
+          HttpStatusCodes.CONFLICT
+        );
+      }
+    }
+
+    const room = await c.env.LIVE_ROOMS.getByName(roomId).setArtistReady(
+      roomId,
+      identity,
+      parsed.data.ready
+    );
     if (
       isDatabaseConfigured() &&
       room.battle?.coordination?.phase === "round_intro"
     ) {
-      const experience = await loadLiveExperienceById(roomId),
+      const experience =
+          (await loadLiveExperienceById(roomId)) ??
+          (await ensureBattleLiveExperience({
+            env: c.env,
+            experienceId: roomId,
+          })),
         battleId = experience?.battleId ?? roomId,
         db = createDb(),
         [battle] = await db
@@ -2507,11 +3446,12 @@ app.post("/rooms/:roomId/battle/ready", async (c) => {
             )
           )
           .limit(1);
-      if (battle) {
+      if (battle && experience) {
+        const startedAt = new Date();
         await Promise.all([
           db
             .update(battles)
-            .set({ status: "live", updatedAt: new Date() })
+            .set({ status: "live", updatedAt: startedAt })
             .where(eq(battles.id, battle.id)),
           db
             .update(battleRounds)
@@ -2524,12 +3464,8 @@ app.post("/rooms/:roomId/battle/ready", async (c) => {
             ),
           db
             .update(liveExperiences)
-            .set({
-              startedAt: new Date(),
-              status: "live",
-              updatedAt: new Date(),
-            })
-            .where(eq(liveExperiences.battleId, battle.id)),
+            .set({ status: "live", updatedAt: startedAt })
+            .where(eq(liveExperiences.id, experience.id)),
         ]);
         if (c.env.BATTLE_DIRECTORY) {
           await c.env.BATTLE_DIRECTORY.getByName("public")
@@ -2572,6 +3508,30 @@ app.post("/rooms/:roomId/battle/disposition", async (c) => {
     disposition = parsed.data as LiveRoomBattleDisposition,
     experience = await loadLiveExperienceById(roomId),
     battleId = experience?.battleId ?? roomId;
+
+  if (isDatabaseConfigured()) {
+    const db = createDb(),
+      [battle] = await db
+        .select({ status: battles.status })
+        .from(battles)
+        .where(
+          or(
+            eq(battles.id, battleId),
+            eq(battles.externalBattleId, battleId),
+            eq(battles.externalBattleId, roomId)
+          )
+        )
+        .limit(1);
+    if (isBattleTerminalState({ status: battle?.status })) {
+      return c.json(
+        {
+          message: "This battle has ended and its result is already locked.",
+        },
+        HttpStatusCodes.CONFLICT
+      );
+    }
+  }
+
   try {
     const audienceUserIds = await retryDurableObjectCall(() =>
         liveRooms.getByName(roomId).getBattleAudienceUserIds(roomId)
@@ -2749,6 +3709,21 @@ app.post("/rooms/:roomId/battle/kit", async (c) => {
     );
   }
 
+  const roomState = await c.env.LIVE_ROOMS?.getByName(roomId)
+    .getState(roomId)
+    .catch(() => null);
+  if (
+    roomState?.status === "ended" ||
+    roomState?.battle?.coordination?.phase === "ended"
+  ) {
+    return c.json(
+      {
+        message: "This battle has ended. The artist room is now read-only.",
+      },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+
   const role = resolveBattleArtistRole({
     challengerArtistUserId: battle.challengerArtistUserId,
     opponentArtistUserId: battle.opponentArtistUserId,
@@ -2861,17 +3836,16 @@ const persistBattleTrackSelection = async ({
   trackId: string;
 }) => {
   const rounds = await db
-    .select({
-      id: battleRounds.id,
-      status: battleRounds.status,
-      trackOneId: battleRounds.trackOneId,
-      trackTwoId: battleRounds.trackTwoId,
-    })
-    .from(battleRounds)
-    .where(eq(battleRounds.battleId, battleId))
-    .orderBy(asc(battleRounds.roundNumber));
-
-  const targetRound =
+      .select({
+        id: battleRounds.id,
+        status: battleRounds.status,
+        trackOneId: battleRounds.trackOneId,
+        trackTwoId: battleRounds.trackTwoId,
+      })
+      .from(battleRounds)
+      .where(eq(battleRounds.battleId, battleId))
+      .orderBy(asc(battleRounds.roundNumber)),
+    targetRound =
       rounds.find((round) => round.status === "upcoming") ??
       rounds.find((round) => round.status === "active"),
     trackKey = role === "artist_a" ? "trackOneId" : "trackTwoId",
@@ -2911,6 +3885,32 @@ app.post("/rooms/:roomId/battle/track", async (c) => {
   const roomId = c.req.param("roomId"),
     body = (await c.req.json().catch(() => ({}))) as { trackId?: string },
     identity = await resolveLiveRoomIdentity(c, roomId);
+
+  if (isDatabaseConfigured()) {
+    const experience = await loadLiveExperienceById(roomId),
+      battleId = experience?.battleId ?? roomId,
+      db = createDb(),
+      [battle] = await db
+        .select({ status: battles.status })
+        .from(battles)
+        .where(
+          or(
+            eq(battles.id, battleId),
+            eq(battles.externalBattleId, battleId),
+            eq(battles.externalBattleId, roomId)
+          )
+        )
+        .limit(1);
+    if (isBattleTerminalState({ status: battle?.status })) {
+      return c.json(
+        {
+          message: "This battle has ended. The artist room is now read-only.",
+        },
+        HttpStatusCodes.CONFLICT
+      );
+    }
+  }
+
   if (
     !body.trackId ||
     !(identity.role === "artist_a" || identity.role === "artist_b")
@@ -2923,11 +3923,11 @@ app.post("/rooms/:roomId/battle/track", async (c) => {
 
   try {
     const room = await c.env.LIVE_ROOMS.getByName(roomId).chooseBattleTrack(
-      roomId,
-      body.trackId,
-      identity
-    );
-    const experience = await loadLiveExperienceById(roomId),
+        roomId,
+        body.trackId,
+        identity
+      ),
+      experience = await loadLiveExperienceById(roomId),
       battleId = experience?.battleId ?? roomId;
     await persistBattleTrackSelection({
       battleId,
@@ -2972,9 +3972,9 @@ app.post("/rooms/:roomId/party/playback", async (c) => {
       roomId,
       body.type === "track_changed"
         ? { trackId: body.trackId ?? "", type: body.type }
-        : body.type === "replay"
+        : (body.type === "replay"
           ? { trackId: body.trackId, type: body.type }
-          : { type: body.type },
+          : { type: body.type }),
       identity
     );
     return c.json(room, HttpStatusCodes.OK);
@@ -3004,25 +4004,47 @@ app.get("/rooms/queue", async (c) => {
   }
 
   const db = createDb(),
-    rows = await db
-      .select({
-        battleId: battleQueueEntries.battleId,
-        startsAt: battles.startsAt,
-        status: battles.status,
-        title: battles.title,
-      })
-      .from(battleQueueEntries)
-      .innerJoin(battles, eq(battles.id, battleQueueEntries.battleId))
-      .where(
-        and(
-          eq(battleQueueEntries.userId, user.id),
-          or(
-            eq(battleQueueEntries.status, "queued"),
-            eq(battleQueueEntries.status, "conflict")
+    [rows, participatingRows] = await Promise.all([
+      db
+        .select({
+          battleId: battleQueueEntries.battleId,
+          startsAt: battles.startsAt,
+          status: battles.status,
+          title: battles.title,
+        })
+        .from(battleQueueEntries)
+        .innerJoin(battles, eq(battles.id, battleQueueEntries.battleId))
+        .where(
+          and(
+            eq(battleQueueEntries.userId, user.id),
+            or(
+              eq(battleQueueEntries.status, "queued"),
+              eq(battleQueueEntries.status, "conflict")
+            )
           )
         )
-      )
-      .orderBy(asc(battles.startsAt));
+        .orderBy(asc(battles.startsAt)),
+      db
+        .select({
+          battleId: battles.id,
+          challengerArtistUserId: battles.challengerArtistUserId,
+          opponentArtistUserId: battles.opponentArtistUserId,
+          startsAt: battles.startsAt,
+          status: battles.status,
+          title: battles.title,
+        })
+        .from(battles)
+        .where(
+          and(
+            eq(battles.status, "live"),
+            or(
+              eq(battles.challengerArtistUserId, user.id),
+              eq(battles.opponentArtistUserId, user.id)
+            )
+          )
+        )
+        .orderBy(asc(battles.startsAt)),
+    ]);
 
   return c.json(
     {
@@ -3032,9 +4054,60 @@ app.get("/rooms/queue", async (c) => {
         status: row.status,
         title: row.title,
       })),
+      participatingBattles: participatingRows.map((row) => ({
+        battleId: row.battleId,
+        role:
+          row.challengerArtistUserId === user.id
+            ? ("artist_a" as const)
+            : ("artist_b" as const),
+        startsAt: row.startsAt ? row.startsAt.toISOString() : null,
+        status: row.status,
+        title: row.title,
+      })),
     },
     HttpStatusCodes.OK
   );
+});
+
+app.get("/rooms/:roomId/overlay", async (c) => {
+  if (!c.env.LIVE_ROOMS) {
+    return c.json(
+      { message: "Live room overlays are not configured." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+
+  const token = c.req.query("token")?.trim(),
+    experience = await loadLiveExperienceById(c.req.param("roomId"));
+  if (!token) {
+    return c.json(
+      forbiddenMessage("A valid stream overlay token is required."),
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+  if (
+    !experience ||
+    experience.kind !== "stream" ||
+    experience.status === "ended"
+  ) {
+    return c.json(
+      { message: "Stream overlay is unavailable for this room." },
+      HttpStatusCodes.NOT_FOUND
+    );
+  }
+
+  const room = await c.env.LIVE_ROOMS.getByName(
+    c.req.param("roomId")
+  ).getStreamOverlayState(c.req.param("roomId"), token);
+  if (!room) {
+    return c.json(
+      forbiddenMessage("The stream overlay token is invalid or expired."),
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+
+  c.header("Cache-Control", "private, no-store");
+  return c.json(room, HttpStatusCodes.OK);
 });
 
 app.get("/rooms/:roomId", async (c) => {
@@ -3074,6 +4147,13 @@ app.get("/rooms/:roomId", async (c) => {
     );
   }
 
+  if (isDatabaseConfigured()) {
+    return c.json(
+      { message: "Live room not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
+  }
+
   const room = await getDurableRoomStateForUser(c, roomId);
 
   if (!room) {
@@ -3095,17 +4175,43 @@ app.get("/rooms/:roomId/ws", async (c) => {
   }
 
   const roomId = c.req.param("roomId"),
-    room = await getDurableRoomState(c, roomId);
-  if (!(await hasLiveRoomAccess(c, room?.status === "live", roomId))) {
-    return c.json(
-      forbiddenMessage(
-        "A Premium subscription is required to join live rooms."
-      ),
-      HttpStatusCodes.FORBIDDEN
-    );
+    overlayToken = c.req.query("token")?.trim();
+  if (overlayToken) {
+    const experience = await loadLiveExperienceById(roomId),
+      overlayRoom =
+        experience &&
+        experience.kind === "stream" &&
+        experience.status !== "ended" &&
+        c.env.LIVE_ROOMS
+          ? await c.env.LIVE_ROOMS.getByName(roomId).getStreamOverlayState(
+              roomId,
+              overlayToken
+            )
+          : null;
+    if (!overlayRoom) {
+      return c.json(
+        forbiddenMessage("The stream overlay token is invalid or expired."),
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+  } else {
+    const room = await getDurableRoomState(c, roomId);
+    if (!(await hasLiveRoomAccess(c, room?.status === "live", roomId))) {
+      return c.json(
+        forbiddenMessage(
+          "A Premium subscription is required to join live rooms."
+        ),
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
   }
 
-  const response = await durableWebSocketRequest(c, roomId, c.req.raw);
+  const response = await durableWebSocketRequest(
+    c,
+    roomId,
+    c.req.raw,
+    overlayToken
+  );
 
   if (!response) {
     return c.json(
@@ -3269,6 +4375,12 @@ app.post("/rooms/:roomId/queue", async (c) => {
       target: [battleQueueEntries.battleId, battleQueueEntries.userId],
     });
 
+  if (c.env.BATTLE_DIRECTORY) {
+    await c.env.BATTLE_DIRECTORY.getByName("public")
+      .publish(battle.id)
+      .catch(() => 0);
+  }
+
   const room = conflictBattleId
     ? await getDurableRoomState(c, roomId)
     : await c.env.LIVE_ROOMS.getByName(roomId).queueViewer(roomId, identity);
@@ -3314,6 +4426,11 @@ app.post("/rooms/:roomId/leave", async (c) => {
             eq(battleQueueEntries.userId, user.id)
           )
         );
+      if (c.env.BATTLE_DIRECTORY) {
+        await c.env.BATTLE_DIRECTORY.getByName("public")
+          .publish(battle.id)
+          .catch(() => 0);
+      }
     }
   }
 
@@ -3427,6 +4544,18 @@ app.delete("/cloudflare-stream/:streamId", async (c) => {
     );
   }
 
+  const endedAt = new Date();
+  await createDb()
+    .update(liveExperiences)
+    .set({
+      endsAt: endedAt,
+      ingestStatus: "disconnected",
+      reconnectUntil: null,
+      status: "ended",
+      updatedAt: endedAt,
+    })
+    .where(eq(liveExperiences.id, experience.id));
+
   return c.json(
     { message: "Cloudflare Stream input stopped." },
     HttpStatusCodes.OK
@@ -3474,8 +4603,17 @@ app.get("/cloudflare-stream/:streamId", async (c) => {
           streamInput = streamInputFromCloudflareResponse(data);
 
         if (streamInput) {
-          await syncCloudflareStreamStatus({ env: c.env, experience });
-          return c.json(streamInput, HttpStatusCodes.OK);
+          const synchronizedExperience = await syncCloudflareStreamStatus({
+              env: c.env,
+              experience,
+            }),
+            status = resolveCloudflareStreamInputStatus({
+              experienceStatus: synchronizedExperience.status,
+              fallbackStatus: streamInput.status,
+              ingestStatus: synchronizedExperience.ingestStatus,
+            });
+
+          return c.json({ ...streamInput, status }, HttpStatusCodes.OK);
         }
       }
     } catch (error) {

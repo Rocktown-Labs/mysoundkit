@@ -189,7 +189,13 @@ export const projectAssetKindEnum = pgEnum("project_asset_kind", [
   "photo",
   "video",
   "attachment",
+  "beat",
+  "concept",
   "release_export",
+]);
+export const collaborationKindEnum = pgEnum("collaboration_kind", [
+  "project",
+  "track",
 ]);
 export const videoKindEnum = pgEnum("video_kind", [
   "music_video",
@@ -853,6 +859,8 @@ export const userGenrePreferences = pgTable(
 );
 
 export const notificationSettings = pgTable("notification_settings", {
+  communityMentions: boolean("community_mentions").default(true).notNull(),
+  communityPosts: boolean("community_posts").default(true).notNull(),
   emailCollaborations: boolean("email_collaborations").default(true).notNull(),
   emailComments: boolean("email_comments").default(true).notNull(),
   emailFollowers: boolean("email_followers").default(true).notNull(),
@@ -1279,6 +1287,8 @@ export const projectAssets = pgTable(
     uploaderUserId: text("uploader_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
+    version: integer("version").default(1).notNull(),
+    isCurrent: boolean("is_current").default(true).notNull(),
   },
   (table) => [
     index("project_assets_project_id_idx").on(table.projectId),
@@ -1626,6 +1636,7 @@ export const videoComments = pgTable(
     body: text("body").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     id: text("id").primaryKey(),
+    parentCommentId: text("parent_comment_id"),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -1633,7 +1644,13 @@ export const videoComments = pgTable(
       .notNull()
       .references(() => videos.id, { onDelete: "cascade" }),
   },
-  (table) => [index("video_comments_video_id_idx").on(table.videoId)]
+  (table) => [
+    index("video_comments_video_id_idx").on(table.videoId),
+    index("video_comments_video_parent_idx").on(
+      table.videoId,
+      table.parentCommentId
+    ),
+  ]
 );
 
 export const muxAssets = pgTable(
@@ -2124,6 +2141,51 @@ export const messageAttachments = pgTable(
     url: text("url").notNull(),
   },
   (table) => [index("message_attachments_message_id_idx").on(table.messageId)]
+);
+
+export const collaborationProposals = pgTable(
+  "collaboration_proposals",
+  {
+    clientRequestId: text("client_request_id"),
+    collaborationId: text("collaboration_id").notNull(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    id: text("id").primaryKey(),
+    inviteeUserId: text("invitee_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    inviterUserId: text("inviter_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kind: collaborationKindEnum("kind").notNull(),
+    messageId: text("message_id").references(() => messages.id, {
+      onDelete: "cascade",
+    }),
+    respondedAt: timestamp("responded_at"),
+    status: invitationStatusEnum("status").default("pending").notNull(),
+  },
+  (table) => [
+    index("collaboration_proposals_conversation_status_idx").on(
+      table.conversationId,
+      table.status
+    ),
+    index("collaboration_proposals_expires_status_idx").on(
+      table.expiresAt,
+      table.status
+    ),
+    index("collaboration_proposals_target_idx").on(
+      table.collaborationId,
+      table.kind
+    ),
+    uniqueIndex("collaboration_proposals_request_idx").on(
+      table.inviterUserId,
+      table.inviteeUserId,
+      table.clientRequestId
+    ),
+  ]
 );
 
 export const battleProfiles = pgTable("battle_profiles", {

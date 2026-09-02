@@ -41,7 +41,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
-import { useAdminAccessQuery } from "@/lib/soundkit-api-hooks";
+import { useAdminAccessQuery, useMeQuery } from "@/lib/soundkit-api-hooks";
 
 const myMusicNavigation: SidebarNavItem[] = [
     { href: "/dashboard", icon: Home, name: "Dashboard" },
@@ -73,6 +73,7 @@ const myMusicNavigation: SidebarNavItem[] = [
 
 export function AppSidebar() {
   const { data: session } = authClient.useSession(),
+    meQuery = useMeQuery(),
     adminAccess = useAdminAccessQuery(Boolean(session?.user)),
     pathname = useRouterState({ select: (s) => s.location.pathname }),
     isAdmin =
@@ -171,8 +172,16 @@ export function AppSidebar() {
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton size="lg">
                   <Avatar className="size-8">
-                    <AvatarImage src="/soundkit-default-avatar.svg" />
-                    <AvatarFallback>JD</AvatarFallback>
+                    <AvatarImage
+                      alt={`${session?.user.name ?? "SoundKit user"} profile photo`}
+                      src={
+                        meQuery.data?.user.avatarUrl ??
+                        "/soundkit-default-avatar.svg"
+                      }
+                    />
+                    <AvatarFallback>
+                      {(session?.user.name ?? "SK").slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col gap-0.5 leading-none">
                     <span className="font-semibold">

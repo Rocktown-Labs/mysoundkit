@@ -14,6 +14,7 @@ import {
   Video,
   Youtube,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
+import { genreLabelFromValue } from "@/lib/music-genres";
 import {
   useArtistQuery,
   useTracksQuery,
@@ -79,8 +81,10 @@ export interface LiveCreatorPanelProps {
   genre?: string | null;
   isLive?: boolean;
   onFollowToggle?: () => void;
+  nowPlaying?: ReactNode;
   onPlayTrack?: (track: CreatorMusicTrack) => void;
   statusLabel?: string;
+  tipButton?: ReactNode;
   title: string;
   topTracks?: CreatorMusicTrack[];
   videos?: CreatorVideoItem[];
@@ -92,9 +96,11 @@ export function LiveCreatorPanel({
   creator,
   genre,
   isLive = true,
+  nowPlaying,
   onFollowToggle,
   onPlayTrack,
   statusLabel,
+  tipButton,
   title,
   topTracks: explicitTracks,
   videoScope = "dashboard",
@@ -255,7 +261,7 @@ export function LiveCreatorPanel({
               <span className="text-muted-foreground">@{creator.username}</span>
               {genre && (
                 <Badge className="font-medium text-[10px]" variant="secondary">
-                  {genre}
+                  {genreLabelFromValue(genre)}
                 </Badge>
               )}
               {statusLabel && (
@@ -264,6 +270,7 @@ export function LiveCreatorPanel({
                 </Badge>
               )}
             </div>
+            {nowPlaying ? <div className="min-w-0">{nowPlaying}</div> : null}
           </div>
         </div>
 
@@ -275,6 +282,8 @@ export function LiveCreatorPanel({
               <span>{viewerCount.toLocaleString()} Viewers</span>
             </div>
           )}
+
+          {tipButton}
 
           <Button
             className={
@@ -454,7 +463,9 @@ export function LiveCreatorPanel({
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {track.artistName}{" "}
-                            {track.genre ? `• ${track.genre}` : ""}
+                            {track.genre
+                              ? `• ${genreLabelFromValue(track.genre)}`
+                              : ""}
                           </p>
                         </div>
                       </div>

@@ -5,14 +5,17 @@ import type { ReactNode } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
 import { ExploreCollectionGrid } from "@/components/explore/explore-collection";
+import { ProjectCard } from "@/components/explore/project-card";
 import { TrackCard } from "@/components/explore/track-card";
 import { Button } from "@/components/ui/button";
 import { InfiniteScrollSentinel } from "@/components/ui/infinite-scroll-sentinel";
-import { musicGenres } from "@/lib/music-genres";
 import {
+  useGenresQuery,
+  usePublicProjectsQuery,
   useTracksInfiniteQuery,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
+import type { GenreSummary } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
   { label: "Most Played", value: "plays-desc" },
@@ -52,6 +55,8 @@ function TracksPage() {
     q = search.q ?? "",
     sort = search.sort ?? "plays-desc",
     view = search.view ?? "sections",
+    genresQuery = useGenresQuery(),
+    genres = genresQuery.data ?? [],
     updateFilters = (next: Partial<TracksSearch>) => {
       const nextRegionType = next.regionType ?? regionType,
         nextRegion =
@@ -79,6 +84,13 @@ function TracksPage() {
         }),
       });
     },
+    { data: releaseProjects = [], isLoading: isLoadingProjects } =
+      usePublicProjectsQuery({
+        limit: 12,
+        region,
+        regionType,
+        sort: "date-desc",
+      }),
     {
       data: infiniteData,
       fetchNextPage,
@@ -132,33 +144,55 @@ function TracksPage() {
       />
 
       {view === "all" || genre !== "all" ? (
-        <ExploreCollectionGrid
-          empty="No songs found for the selected filters."
-          footer={
-            <InfiniteScrollSentinel
-              fetchNextPage={fetchNextPage}
-              hasNextPage={hasNextPage}
-              isFetchingNextPage={isFetchingNextPage}
-            />
-          }
-          isLoading={isLoadingInfinite}
-          items={allTracks}
-          title={genre === "all" ? "All Songs" : "Matching Songs"}
-        >
-          {(track) => (
-            <TrackCard
-              id={track.id}
-              title={track.title}
-              artist={track.artistName}
-              artistSlug={track.artistUsername ?? "artist"}
-              cover={track.coverArtUrl ?? "/placeholder.svg"}
-              plays={track.plays.toLocaleString()}
-              duration={track.duration}
-              regionSlug={track.regionSlug}
-              slug={track.slug}
-            />
-          )}
-        </ExploreCollectionGrid>
+        <>
+          {sort === "date-desc" && genre === "all" ? (
+            <section className="mb-8 space-y-3">
+              <div>
+                <h2 className="font-semibold text-xl">New Projects</h2>
+                <p className="text-muted-foreground text-sm">
+                  Albums, EPs, mixtapes, and singles released by SoundKit
+                  artists.
+                </p>
+              </div>
+              {isLoadingProjects || releaseProjects.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {releaseProjects.map((project) => (
+                    <ProjectCard key={project.id} project={project} />
+                  ))}
+                </div>
+              ) : (
+                <TrackEmptyState>No new projects found.</TrackEmptyState>
+              )}
+            </section>
+          ) : null}
+          <ExploreCollectionGrid
+            empty="No songs found for the selected filters."
+            footer={
+              <InfiniteScrollSentinel
+                fetchNextPage={fetchNextPage}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+              />
+            }
+            isLoading={isLoadingInfinite}
+            items={allTracks}
+            title={genre === "all" ? "All Songs" : "Matching Songs"}
+          >
+            {(track) => (
+              <TrackCard
+                id={track.id}
+                title={track.title}
+                artist={track.artistName}
+                artistSlug={track.artistUsername ?? "artist"}
+                cover={track.coverArtUrl ?? "/placeholder.svg"}
+                plays={track.plays.toLocaleString()}
+                duration={track.duration}
+                regionSlug={track.regionSlug}
+                slug={track.slug}
+              />
+            )}
+          </ExploreCollectionGrid>
+        </>
       ) : (
         <>
           <div className="mb-10">
@@ -208,9 +242,9 @@ function TracksPage() {
             )}
           </div>
           <div className="flex flex-col gap-10">
-            {musicGenres.map((sectionGenre) => (
+            {genres.map((sectionGenre) => (
               <TrackGenreRail
-                key={sectionGenre.value}
+                key={sectionGenre.slug}
                 genre={sectionGenre}
                 region={region}
                 regionType={regionType}
@@ -230,13 +264,13 @@ function TrackGenreRail({
   regionType,
   sort,
 }: {
-  genre: (typeof musicGenres)[number];
+  genre: GenreSummary;
   region: string;
   regionType: "north-america" | "global";
   sort: string;
 }) {
   const { data: tracks = [], isLoading } = useTracksQuery(undefined, {
-    genre: genre.value,
+    genre: genre.slug,
     limit: 12,
     region,
     regionType,
@@ -244,11 +278,15 @@ function TrackGenreRail({
     sort,
   });
 
+  if (!isLoading && tracks.length === 0) {
+    return null;
+  }
+
   return (
     <section>
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-xl">{genre.label}</h2>
+          <h2 className="font-semibold text-xl">{genre.name}</h2>
           <p className="text-muted-foreground text-sm">
             Top songs from this genre.
           </p>
@@ -256,7 +294,7 @@ function TrackGenreRail({
         <Button asChild size="sm" variant="ghost">
           <Link
             search={{
-              genre: genre.value,
+              genre: genre.slug,
               region,
               regionType,
               sort,
@@ -268,26 +306,22 @@ function TrackGenreRail({
           </Link>
         </Button>
       </div>
-      {isLoading || tracks.length > 0 ? (
-        <div className="flex gap-4 overflow-x-auto pb-2">
-          {tracks.map((track) => (
-            <TrackCard
-              key={track.id}
-              id={track.id}
-              title={track.title}
-              artist={track.artistName}
-              artistSlug={track.artistUsername ?? "artist"}
-              cover={track.coverArtUrl ?? "/placeholder.svg"}
-              plays={track.plays.toLocaleString()}
-              duration={track.duration}
-              regionSlug={track.regionSlug}
-              slug={track.slug}
-            />
-          ))}
-        </div>
-      ) : (
-        <TrackEmptyState>No {genre.label} songs are live yet.</TrackEmptyState>
-      )}
+      <div className="flex gap-4 overflow-x-auto pb-2">
+        {tracks.map((track) => (
+          <TrackCard
+            key={track.id}
+            id={track.id}
+            title={track.title}
+            artist={track.artistName}
+            artistSlug={track.artistUsername ?? "artist"}
+            cover={track.coverArtUrl ?? "/placeholder.svg"}
+            plays={track.plays.toLocaleString()}
+            duration={track.duration}
+            regionSlug={track.regionSlug}
+            slug={track.slug}
+          />
+        ))}
+      </div>
     </section>
   );
 }

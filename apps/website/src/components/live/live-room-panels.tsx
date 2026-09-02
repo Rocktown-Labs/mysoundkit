@@ -15,11 +15,11 @@ import {
   PanelRightClose,
   Send,
   Shield,
-  Sparkles,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { LiveRoomState, LiveRoomTrack } from "@/lib/live-room";
+import { usePresence } from "@/lib/presence-context";
 import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
 import { AppImage } from "../ui/app-image";
@@ -31,7 +31,10 @@ import { Input } from "../ui/input";
 import { UserProfilePreviewModal } from "./user-profile-preview-modal";
 import type { UserPreviewData } from "./user-profile-preview-modal";
 
+const EMPTY_ARTIST_USER_IDS: string[] = [];
+
 interface LiveChatPanelProps {
+  artistAvatarUrls?: Record<string, string | null>;
   artistUserIds?: string[];
   className?: string;
   disabled?: boolean;
@@ -44,7 +47,8 @@ interface LiveChatPanelProps {
 }
 
 export function LiveChatPanel({
-  artistUserIds = [],
+  artistAvatarUrls = {},
+  artistUserIds = EMPTY_ARTIST_USER_IDS,
   className = "",
   disabled,
   extraHeaderAction,
@@ -59,6 +63,7 @@ export function LiveChatPanel({
     meQuery = useMeQuery(),
     meUser = meQuery.data?.user,
     meProfile = meUser,
+    { isUserOnline, registerPresenceUsers } = usePresence(),
     send = () => {
       const trimmedMessage = message.trim();
       if (!trimmedMessage) {
@@ -68,6 +73,36 @@ export function LiveChatPanel({
       onSend(trimmedMessage);
       setMessage("");
     };
+
+  const presenceUserIdsKey = [
+      ...artistUserIds,
+      ...messages.flatMap((chatMessage) =>
+        chatMessage.userId ? [chatMessage.userId] : []
+      ),
+    ].join("|"),
+    presenceUserIdsRef = useRef<{ ids: string[]; key: string }>({
+      ids: [],
+      key: "",
+    });
+
+  if (presenceUserIdsRef.current.key !== presenceUserIdsKey) {
+    presenceUserIdsRef.current = {
+      ids: [
+        ...new Set([
+          ...artistUserIds,
+          ...messages.flatMap((chatMessage) =>
+            chatMessage.userId ? [chatMessage.userId] : []
+          ),
+        ]),
+      ],
+      key: presenceUserIdsKey,
+    };
+  }
+
+  useEffect(
+    () => registerPresenceUsers(presenceUserIdsRef.current.ids),
+    [presenceUserIdsKey, registerPresenceUsers]
+  );
 
   return (
     <>
@@ -105,7 +140,7 @@ export function LiveChatPanel({
         <CardContent
           className={`p-0 ${
             fillHeight
-              ? "flex min-h-0 flex-1 flex-col justify-between"
+              ? "flex min-h-0 flex-1 flex-col justify-between overflow-hidden"
               : "space-y-4 p-4"
           }`}
         >
@@ -124,6 +159,7 @@ export function LiveChatPanel({
                     )}
                     {messages.map((chatMessage) => {
                       const isMe =
+                          chatMessage.userId === meUser?.id ||
                           chatMessage.userName.toLowerCase() === "you" ||
                           chatMessage.userName === meUser?.displayName ||
                           chatMessage.userName === meProfile?.displayName,
@@ -135,15 +171,24 @@ export function LiveChatPanel({
                           (chatMessage.userId !== undefined &&
                             artistUserIds.includes(chatMessage.userId)) ||
                           chatMessage.userRole === "artist_a" ||
-                          chatMessage.userRole === "artist_b",
+                          chatMessage.userRole === "artist_b" ||
+                          chatMessage.userRole === "host",
                         isHost =
+                          chatMessage.userRole === "host" ||
                           chatMessage.userName.toLowerCase().includes("host") ||
                           chatMessage.userName.toLowerCase().includes("artist"),
+                        isChatUserOnline = chatMessage.userId
+                          ? isUserOnline(chatMessage.userId)
+                          : false,
                         userAvatar = isMe
                           ? (meProfile?.avatarUrl ??
                             meUser?.avatarUrl ??
                             "/soundkit-default-avatar.svg")
-                          : "/soundkit-default-avatar.svg",
+                          : (chatMessage.avatarUrl ??
+                            (chatMessage.userId
+                              ? artistAvatarUrls[chatMessage.userId]
+                              : null) ??
+                            "/soundkit-default-avatar.svg"),
                         handleOpenProfile = () => {
                           if (isMe && meUser) {
                             setPreviewUser({
@@ -170,7 +215,7 @@ export function LiveChatPanel({
                             });
                           } else {
                             setPreviewUser({
-                              avatarUrl: "/soundkit-default-avatar.svg",
+                              avatarUrl: userAvatar,
                               displayName: chatMessage.userName,
                               role: isHost
                                 ? "Host & Creator"
@@ -191,11 +236,11 @@ export function LiveChatPanel({
                           scrollAnchor={isMe}
                         >
                           <div
-                            className={`group flex items-start gap-2.5 rounded-md p-1.5 transition-colors hover:bg-muted/40 ${
+                            className={`group flex items-start gap-2.5 rounded-lg p-1.5 transition-colors hover:bg-muted/40 ${
                               isBot
-                                ? "border-l-2 border-purple-400/80 bg-purple-500/10"
+                                ? "bg-purple-600 text-white hover:bg-purple-600"
                                 : isArtistMessage
-                                  ? "border-l-2 border-amber-400/80 bg-amber-400/10"
+                                  ? "bg-amber-400/15"
                                   : ""
                             }`}
                           >
@@ -222,17 +267,16 @@ export function LiveChatPanel({
                                   </span>
                                 )}
                                 {isBot && (
-                                  <span className="flex items-center gap-0.5 rounded bg-secondary px-1 py-0.2 font-bold text-[9px]">
-                                    <Sparkles className="size-2.5 text-primary" />
+                                  <span className="rounded bg-white/15 px-1 py-0.2 font-bold text-[9px] text-white">
                                     BOT
                                   </span>
                                 )}
                                 <button
                                   className={`font-semibold text-left truncate cursor-pointer transition-colors ${
                                     isBot
-                                      ? "text-purple-300 hover:text-purple-200"
+                                      ? "text-white hover:text-white"
                                       : isArtistMessage
-                                        ? "text-amber-300 hover:text-amber-200"
+                                        ? "text-white hover:text-white"
                                         : "text-foreground hover:text-primary"
                                   }`}
                                   onClick={handleOpenProfile}
@@ -240,6 +284,15 @@ export function LiveChatPanel({
                                 >
                                   {chatMessage.userName}
                                 </button>
+                                {chatMessage.userId && !isBot && (
+                                  <span
+                                    aria-label={`${chatMessage.userName} is ${isChatUserOnline ? "online" : "offline"}`}
+                                    className={`size-1.5 rounded-full ${isChatUserOnline ? "bg-emerald-400" : "bg-muted-foreground/50"}`}
+                                    title={
+                                      isChatUserOnline ? "Online" : "Offline"
+                                    }
+                                  />
+                                )}
                                 <span className="text-[10px] text-muted-foreground">
                                   {new Date(
                                     chatMessage.sentAt
@@ -249,8 +302,24 @@ export function LiveChatPanel({
                                   })}
                                 </span>
                               </div>
-                              <p className="mt-0.5 break-words text-muted-foreground/90 leading-relaxed">
-                                {chatMessage.message}
+                              <p
+                                className={`mt-0.5 break-words leading-relaxed ${isBot || isArtistMessage ? "font-semibold text-white" : "text-muted-foreground/90"}`}
+                              >
+                                {chatMessage.entity?.type === "track" &&
+                                chatMessage.entity.href ? (
+                                  <a
+                                    className={
+                                      isBot || isArtistMessage
+                                        ? "underline decoration-white/50 underline-offset-2 hover:decoration-white"
+                                        : "underline decoration-primary/50 underline-offset-2 hover:text-primary"
+                                    }
+                                    href={chatMessage.entity.href}
+                                  >
+                                    {chatMessage.message}
+                                  </a>
+                                ) : (
+                                  chatMessage.message
+                                )}
                               </p>
                             </div>
                           </div>
@@ -299,6 +368,61 @@ export function LiveChatPanel({
         user={previewUser}
       />
     </>
+  );
+}
+
+export function LiveNowPlayingCard({
+  className = "",
+  compact = false,
+  track,
+}: {
+  className?: string;
+  compact?: boolean;
+  track?: LiveRoomTrack | null;
+}) {
+  return (
+    <Card className={className}>
+      <CardHeader className={compact ? "p-0 pb-2" : "pb-3"}>
+        <CardTitle
+          className={`flex items-center gap-2 ${compact ? "text-xs" : "text-base"}`}
+        >
+          <Music2 className="size-4 text-primary" />
+          Now Playing
+        </CardTitle>
+      </CardHeader>
+      <CardContent className={compact ? "p-0" : undefined}>
+        {track ? (
+          <div className="flex items-center gap-3">
+            <AppImage
+              alt={track.title}
+              className={`${compact ? "size-10" : "size-14"} rounded-md object-cover`}
+              height={compact ? 40 : 56}
+              src={track.coverArtUrl}
+              width={compact ? 40 : 56}
+            />
+            <div className="min-w-0">
+              {track.href ? (
+                <a
+                  className="truncate font-semibold hover:text-primary"
+                  href={track.href}
+                >
+                  {track.title}
+                </a>
+              ) : (
+                <p className="truncate font-semibold">{track.title}</p>
+              )}
+              <p className="truncate text-sm text-muted-foreground">
+                {track.artistName}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            The host has not selected a track yet.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

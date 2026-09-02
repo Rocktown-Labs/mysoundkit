@@ -5,7 +5,9 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   genres,
   muxUploads,
+  notificationSettings,
   playbackSessions,
+  privacySettings,
   projectTracks,
   videoPreSaves,
   purchases,
@@ -17,7 +19,7 @@ import {
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
-import { and, asc, desc, eq, gte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, ne, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -70,7 +72,13 @@ import { loadVideoSchemaCapabilities } from "@/lib/video-schema-capabilities";
 import { resolveVideoThumbnailUrl } from "@/lib/video-thumbnails";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 
-const app = new OpenAPIHono<AppEnv>(),
+const MENTION_PATTERN =
+    /(?:^|\s)@(?<username>[a-z0-9][a-z0-9_-]{0,39})(?![a-z0-9_-])/giu,
+  app = new OpenAPIHono<AppEnv>(),
+  extractMentionUsernames = (body: string) =>
+    [...body.matchAll(MENTION_PATTERN)].flatMap((match) =>
+      match.groups?.username ? [match.groups.username.toLowerCase()] : []
+    ),
   sha256Hex = async (value: string) => {
     const digest = await crypto.subtle.digest(
       "SHA-256",
@@ -1346,6 +1354,7 @@ app.openapi(
           createdAt: videoComments.createdAt,
           displayName: userProfiles.displayName,
           id: videoComments.id,
+          parentCommentId: videoComments.parentCommentId,
           userId: videoComments.userId,
           username: userProfiles.username,
         })
@@ -1358,9 +1367,11 @@ app.openapi(
       rows.map((row) => ({
         authorAvatarUrl: row.avatarUrl,
         authorName: row.displayName ?? row.username ?? "SoundKit User",
+        authorUsername: row.username,
         body: row.body,
         createdAt: row.createdAt.toISOString(),
         id: row.id,
+        parentCommentId: row.parentCommentId,
         userId: row.userId,
       })),
       HttpStatusCodes.OK
@@ -1416,9 +1427,11 @@ app.openapi(
         {
           authorAvatarUrl: null,
           authorName: null,
+          authorUsername: null,
           body: commentInput.body,
           createdAt: new Date().toISOString(),
           id: `comment_${Date.now()}`,
+          parentCommentId: commentInput.parentCommentId ?? null,
           userId: currentUser.id,
         },
         HttpStatusCodes.CREATED
@@ -1426,12 +1439,35 @@ app.openapi(
     }
 
     const db = createDb(),
-      commentId = commentInput.clientCommentId ?? crypto.randomUUID(),
+      parentCommentId = commentInput.parentCommentId ?? null;
+
+    if (parentCommentId) {
+      const [parentComment] = await db
+        .select({ id: videoComments.id })
+        .from(videoComments)
+        .where(
+          and(
+            eq(videoComments.id, parentCommentId),
+            eq(videoComments.videoId, videoId)
+          )
+        )
+        .limit(1);
+
+      if (!parentComment) {
+        return c.json(
+          { message: "The comment you are replying to does not exist." },
+          HttpStatusCodes.BAD_REQUEST
+        );
+      }
+    }
+
+    const commentId = commentInput.clientCommentId ?? crypto.randomUUID(),
       [createdComment] = await db
         .insert(videoComments)
         .values({
           body: commentInput.body,
           id: commentId,
+          parentCommentId,
           userId: currentUser.id,
           videoId,
         })
@@ -1477,37 +1513,103 @@ app.openapi(
     ]);
 
     if (video && createdComment) {
-      await notify(
-        {
-          actorUserId: currentUser.id,
-          aggregationKey: `video_comments:${videoId}`,
-          data: {
-            actorName:
-              author?.displayName ??
-              author?.username ??
-              currentUser.name ??
-              "Someone",
-            commentId,
-            commentPreview: storedComment.body,
-            videoId,
-            videoTitle: video.title,
+      const actorName =
+          author?.displayName ??
+          author?.username ??
+          currentUser.name ??
+          "Someone",
+        mentionedUsernames = [
+          ...new Set(extractMentionUsernames(storedComment.body)),
+        ].slice(0, 10),
+        mentionedUsers =
+          mentionedUsernames.length > 0
+            ? await db
+                .select({
+                  displayName: userProfiles.displayName,
+                  isPublic: privacySettings.publicProfile,
+                  pushMentions: notificationSettings.pushMentions,
+                  userId: userProfiles.userId,
+                  username: userProfiles.username,
+                })
+                .from(userProfiles)
+                .leftJoin(
+                  privacySettings,
+                  eq(privacySettings.userId, userProfiles.userId)
+                )
+                .leftJoin(
+                  notificationSettings,
+                  eq(notificationSettings.userId, userProfiles.userId)
+                )
+                .where(
+                  and(
+                    inArray(
+                      sql`lower(${userProfiles.username})`,
+                      mentionedUsernames
+                    ),
+                    ne(userProfiles.userId, currentUser.id)
+                  )
+                )
+            : [];
+
+      await Promise.all([
+        notify(
+          {
+            actorUserId: currentUser.id,
+            aggregationKey: `video_comments:${videoId}`,
+            data: {
+              actorName,
+              commentId,
+              commentPreview: storedComment.body,
+              videoId,
+              videoTitle: video.title,
+            },
+            entity: { id: videoId, type: "video" },
+            eventId: commentId,
+            recipientUserId: video.ownerUserId,
+            type: "video.comment.created",
           },
-          entity: { id: videoId, type: "video" },
-          eventId: commentId,
-          recipientUserId: video.ownerUserId,
-          type: "video.comment.created",
-        },
-        { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
-      );
+          { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+        ),
+        ...mentionedUsers
+          .filter(
+            (mentionedUser) =>
+              mentionedUser.userId !== video.ownerUserId &&
+              mentionedUser.isPublic !== false &&
+              mentionedUser.pushMentions !== false &&
+              Boolean(mentionedUser.username)
+          )
+          .map((mentionedUser) =>
+            notify(
+              {
+                actorUserId: currentUser.id,
+                aggregationKey: `video_mentions:${commentId}`,
+                data: {
+                  actorName,
+                  commentId,
+                  commentPreview: storedComment.body,
+                  videoId,
+                  videoTitle: video.title,
+                },
+                entity: { id: videoId, type: "video" },
+                eventId: commentId,
+                recipientUserId: mentionedUser.userId,
+                type: "video.comment.mentioned",
+              },
+              { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+            )
+          ),
+      ]);
     }
 
     return c.json(
       {
         authorAvatarUrl: author?.avatarUrl ?? null,
         authorName: author?.displayName ?? author?.username ?? null,
+        authorUsername: author?.username ?? null,
         body: storedComment.body,
         createdAt: storedComment.createdAt.toISOString(),
         id: storedComment.id,
+        parentCommentId: storedComment.parentCommentId,
         userId: storedComment.userId,
       },
       HttpStatusCodes.CREATED

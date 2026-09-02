@@ -116,6 +116,11 @@ Base path for domain APIs:
 
 ### Onboarding
 
+- `GET /v1/onboarding/state`
+- `POST /v1/onboarding/state`
+- `DELETE /v1/onboarding/state` (remove unfinished progress before logging out)
+- `POST /v1/onboarding/eligibility`
+- `POST /v1/onboarding/exit` (save progress when choosing Finish later)
 - `POST /v1/onboarding/artist`
 - `POST /v1/onboarding/fan` (supports safe battle-share return paths and referring-artist attribution)
 
@@ -139,6 +144,7 @@ Base path for domain APIs:
 - `GET /v1/projects`
 - `POST /v1/projects`
 - `GET /v1/projects/{projectId}`
+- `POST /v1/projects/{projectId}/library-assets` — attach existing uploaded concept, beat, or master sources.
 
 ### Videos
 

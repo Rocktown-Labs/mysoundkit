@@ -16,7 +16,7 @@ import {
   Check,
   Clock,
   Download,
-  ExternalLink,
+  Home,
   FileText,
   FolderKanban,
   Headphones,
@@ -25,11 +25,13 @@ import {
   Maximize2,
   MessageCircle,
   MessageSquare,
+  Menu,
   Music,
   Paperclip,
   Pause,
   Play,
   Plus,
+  Radio,
   Search,
   Send,
   Sparkles,
@@ -44,6 +46,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { PlayerTrack } from "@/components/audio-player-provider";
 import { useAudioPlayer } from "@/components/audio-player-provider";
+import { ArtistSetupGuide } from "@/components/dashboard/artist-setup-guide";
+import { CollaborationMessageCard } from "@/components/dashboard/message-collaboration-card";
+import type { CollaborationResponseAction } from "@/components/dashboard/message-collaboration-card";
 import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -56,24 +61,41 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
-import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
+import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import { isImmersiveExploreRoute } from "@/lib/immersive-route";
 import {
+  artistSetupProgress,
+  buildArtistSetupGuideTasks,
+} from "@/lib/artist-setup-guide";
+import { reconcileCollaborationMessages } from "@/lib/message-reconciliation";
+import {
   useCreateMessageCollectionMutation,
+  useMarkConversationReadMutation,
   useMessagingConversations,
   useMessagingMessages,
+  useMessagingWorkspace,
+  useRespondCollaborationMutation,
+  useStartCollaborationMutation,
+  useStartConversationMutation,
 } from "@/lib/message-db";
 import { usePresence } from "@/lib/presence-context";
 import {
+  useArtistSetupGuideQuery,
   useFriendsQuery,
   useLibrarySavedQuery,
-  useMarkConversationReadMutation,
   useMeQuery,
-  useStartConversationMutation,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 import type { FriendSummary } from "@/lib/soundkit-api-hooks";
@@ -100,6 +122,7 @@ const FALLBACK_AVATAR = "/soundkit-default-avatar.svg",
       label: "Chat Help",
     },
   ],
+  SETUP_GUIDE_DISMISSED_KEY_PREFIX = "soundkit:artist-setup-guide:dismissed:",
   formatMessageTime = (createdAt: string) => {
     const date = new Date(createdAt);
     if (Number.isNaN(date.getTime())) {
@@ -121,21 +144,54 @@ interface ChatAttachment {
   url: string;
 }
 
+interface VisualViewportMetrics {
+  height: number;
+  offsetLeft: number;
+  offsetTop: number;
+  width: number;
+}
+
 export function FloatingChatBar() {
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false),
+    pathname = useRouterState({
+      select: (state) => state.location.pathname,
+    }),
+    meQuery = useMeQuery(),
+    isArtist =
+      meQuery.data?.user.accountType === "artist" ||
+      meQuery.data?.user.role === "admin";
 
   useEffect(() => {
     setIsHydrated(true);
   }, []);
 
-  return isHydrated ? <FloatingChatBarClient /> : null;
+  if (
+    !isHydrated ||
+    meQuery.isPending ||
+    !isArtist ||
+    pathname.startsWith("/dashboard/messages") ||
+    isImmersiveExploreRoute(pathname) ||
+    pathname.startsWith("/live/")
+  ) {
+    return null;
+  }
+
+  return <FloatingChatBarClient />;
 }
 
 function FloatingChatBarClient() {
   const [view, setView] = useState<"list" | "chat">("list"),
     [isNewChatOpen, setIsNewChatOpen] = useState(false),
+    [isSetupGuideOpen, setIsSetupGuideOpen] = useState(false),
+    [isSetupGuideMinimized, setIsSetupGuideMinimized] = useState(false),
+    [isSetupGuideDismissed, setIsSetupGuideDismissed] = useState(false),
+    [isSetupGuidePreferenceLoaded, setIsSetupGuidePreferenceLoaded] =
+      useState(false),
+    [visualViewportMetrics, setVisualViewportMetrics] =
+      useState<VisualViewportMetrics | null>(null),
+    setupGuideAutoOpenedRef = useRef(false),
     [searchQuery, setSearchQuery] = useState(""),
-    [activeConversationId, setActiveConversationId] = useState(""),
+    { activeConversationId, setActiveConversationId } = useMessagingWorkspace(),
     [isOpen, setIsOpen] = useState(false),
     [messageInput, setMessageInput] = useState(""),
     [attachments, setAttachments] = useState<ChatAttachment[]>([]),
@@ -152,7 +208,6 @@ function FloatingChatBarClient() {
       "album" | "ep" | "single"
     >("single"),
     [collabKind, setCollabKind] = useState<"project" | "track">("project"),
-    [isSubmittingCollab, setIsSubmittingCollab] = useState(false),
     fileInputRef = useRef<HTMLInputElement | null>(null),
     {
       currentTrack,
@@ -165,11 +220,27 @@ function FloatingChatBarClient() {
     pathname = useRouterState({
       select: (state) => state.location.pathname,
     }),
+    isDashboardRoute =
+      pathname === "/dashboard" || pathname.startsWith("/dashboard/"),
     meQuery = useMeQuery(),
     { mutate: markConversationRead } = useMarkConversationReadMutation(),
     isArtist =
       meQuery.data?.user.accountType === "artist" ||
       meQuery.data?.user.role === "admin",
+    setupGuideQuery = useArtistSetupGuideQuery(isDashboardRoute),
+    setupGuideProgress = useMemo(() => {
+      if (!setupGuideQuery.data) {
+        return null;
+      }
+      return artistSetupProgress(
+        buildArtistSetupGuideTasks(setupGuideQuery.data)
+      );
+    }, [setupGuideQuery.data]),
+    hasIncompleteSetup = Boolean(
+      isDashboardRoute &&
+        setupGuideProgress &&
+        setupGuideProgress.completed < setupGuideProgress.total
+    ),
     conversationsQuery = useMessagingConversations(),
     friendsQuery = useFriendsQuery(),
     uploadedTracksQuery = useTracksQuery(),
@@ -190,11 +261,17 @@ function FloatingChatBarClient() {
       conversations[0] ??
       null,
     conversationId = activeConversation?.id ?? "",
-    messagesQuery = useMessagingMessages(conversationId),
+    subscribedConversationId = isOpen && view === "chat" ? conversationId : "",
+    messagesQuery = useMessagingMessages(subscribedConversationId),
     createMessage = useCreateMessageCollectionMutation(
       conversationId,
       meQuery.data?.user.id
     ),
+    startCollaboration = useStartCollaborationMutation(
+      conversationId,
+      meQuery.data?.user.id
+    ),
+    respondCollaboration = useRespondCollaborationMutation(conversationId),
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
@@ -212,7 +289,10 @@ function FloatingChatBarClient() {
       },
       route: "media",
     }),
-    messages = messagesQuery.data ?? [],
+    messages = useMemo(
+      () => reconcileCollaborationMessages(messagesQuery.data ?? []),
+      [messagesQuery.data]
+    ),
     totalUnread = conversations.reduce(
       (total, conversation) => total + conversation.unreadCount,
       0
@@ -292,6 +372,84 @@ function FloatingChatBarClient() {
       );
     };
 
+  const setupGuideDismissedKey = meQuery.data?.user.id
+    ? `${SETUP_GUIDE_DISMISSED_KEY_PREFIX}${meQuery.data.user.id}`
+    : null;
+  const openSetupGuide = () => {
+    if (setupGuideDismissedKey) {
+      window.localStorage.removeItem(setupGuideDismissedKey);
+    }
+    setIsSetupGuideDismissed(false);
+    setIsSetupGuideMinimized(false);
+    setIsSetupGuideOpen(true);
+    setIsOpen(false);
+    setView("list");
+  };
+  const dismissSetupGuide = () => {
+    if (setupGuideDismissedKey) {
+      window.localStorage.setItem(setupGuideDismissedKey, "true");
+    }
+    setIsSetupGuideDismissed(true);
+    setIsSetupGuideOpen(false);
+  };
+
+  useEffect(() => {
+    if (!setupGuideDismissedKey) {
+      return;
+    }
+    setIsSetupGuideDismissed(
+      window.localStorage.getItem(setupGuideDismissedKey) === "true"
+    );
+    setIsSetupGuidePreferenceLoaded(true);
+  }, [setupGuideDismissedKey]);
+
+  useEffect(() => {
+    if (!hasIncompleteSetup) {
+      setIsSetupGuideOpen(false);
+      setIsSetupGuideMinimized(false);
+      return;
+    }
+
+    if (
+      isSetupGuidePreferenceLoaded &&
+      pathname === "/dashboard" &&
+      !isSetupGuideDismissed &&
+      !setupGuideAutoOpenedRef.current
+    ) {
+      setupGuideAutoOpenedRef.current = true;
+      setIsSetupGuideOpen(true);
+    }
+  }, [
+    hasIncompleteSetup,
+    isSetupGuideDismissed,
+    isSetupGuidePreferenceLoaded,
+    pathname,
+  ]);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      return;
+    }
+
+    const updateViewportMetrics = () => {
+      setVisualViewportMetrics({
+        height: viewport.height,
+        offsetLeft: viewport.offsetLeft,
+        offsetTop: viewport.offsetTop,
+        width: viewport.width,
+      });
+    };
+
+    updateViewportMetrics();
+    viewport.addEventListener("resize", updateViewportMetrics);
+    viewport.addEventListener("scroll", updateViewportMetrics);
+    return () => {
+      viewport.removeEventListener("resize", updateViewportMetrics);
+      viewport.removeEventListener("scroll", updateViewportMetrics);
+    };
+  }, []);
+
   useEffect(
     () =>
       registerPresenceUsers([
@@ -309,13 +467,13 @@ function FloatingChatBarClient() {
       setView("list");
       setActiveConversationId("");
     }
-  }, [pathname]);
+  }, [pathname, setActiveConversationId]);
 
   useEffect(() => {
     if (isOpen && view === "chat" && conversationId) {
       markConversationRead(conversationId);
     }
-  }, [conversationId, isOpen, markConversationRead, messages.length, view]);
+  }, [conversationId, isOpen, markConversationRead, view]);
 
   if (
     !isArtist ||
@@ -326,57 +484,44 @@ function FloatingChatBarClient() {
     return null;
   }
 
-  const handleSendProposal = async () => {
+  const handleSendProposal = () => {
       const projectTitle = collabTitle.trim() || "Untitled Collaboration";
-      setIsSubmittingCollab(true);
-      try {
-        const response = await fetch(
-          `${API_V1_URL}/messages/conversations/${encodeURIComponent(conversationId)}/collaborations`,
-          {
-            body: JSON.stringify({ kind: collabKind, title: projectTitle }),
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          }
-        );
-        if (!response.ok) {
-          throw new Error("Could not start collaboration.");
+      startCollaboration.mutate(
+        {
+          genre: collabKind === "project" ? "Hip-Hop/Rap" : undefined,
+          kind: collabKind,
+          projectType: collabKind === "project" ? "ep" : undefined,
+          title: projectTitle,
+        },
+        {
+          onError: (error) => {
+            toast({
+              description:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to send collaboration proposal.",
+              title: "Error",
+              variant: "destructive",
+            });
+          },
+          onSuccess: () => {
+            toast({
+              description: `Proposal for "${projectTitle}" sent! Collaborator has 24h to accept.`,
+              title: "Collaboration proposal sent",
+            });
+          },
         }
-        setIsCollabDialogOpen(false);
-        setCollabTitle("");
-        setMessageInput("");
-        toast({
-          description: `Proposal for "${projectTitle}" sent! Collaborator has 24h to accept.`,
-          title: "Collaboration Proposal Sent",
-        });
-        messagesQuery.refetch();
-      } catch {
-        toast({
-          description: "Failed to send collaboration proposal.",
-          title: "Error",
-          variant: "destructive",
-        });
-      } finally {
-        setIsSubmittingCollab(false);
-      }
+      );
+      setIsCollabDialogOpen(false);
+      setCollabTitle("");
+      setMessageInput("");
     },
     handleRespondCollaboration = async (
-      projectId: string,
+      collaborationId: string,
       action: "accept" | "decline" | "cancel"
     ) => {
       try {
-        const response = await fetch(
-          `${API_V1_URL}/messages/conversations/${encodeURIComponent(conversationId)}/collaborations/${encodeURIComponent(projectId)}/respond`,
-          {
-            body: JSON.stringify({ action }),
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          }
-        );
-        if (!response.ok) {
-          throw new Error("Could not update status.");
-        }
+        await respondCollaboration.mutateAsync({ action, collaborationId });
         toast({
           description:
             action === "accept"
@@ -384,12 +529,14 @@ function FloatingChatBarClient() {
               : action === "decline"
                 ? "Collaboration declined."
                 : "Collaboration cancelled.",
-          title: "Status Updated",
+          title: "Status updated",
         });
-        messagesQuery.refetch();
-      } catch {
+      } catch (error) {
         toast({
-          description: "Failed to respond to collaboration.",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Failed to respond to collaboration.",
           title: "Error",
           variant: "destructive",
         });
@@ -444,8 +591,39 @@ function FloatingChatBarClient() {
       );
     },
     bottomPositionClass = currentTrack
-      ? "bottom-36 sm:bottom-28 right-4 sm:right-6"
-      : "bottom-20 sm:bottom-6 right-4 sm:right-6";
+      ? "bottom-36 sm:bottom-28 sm:right-6"
+      : "bottom-20 sm:bottom-6 sm:right-6";
+  const floatingPositionStyle = useMemo(() => {
+    if (!visualViewportMetrics) {
+      return undefined;
+    }
+
+    const rightCorrection = Math.max(
+        0,
+        window.innerWidth -
+          visualViewportMetrics.offsetLeft -
+          visualViewportMetrics.width
+      ),
+      bottomCorrection = Math.max(
+        0,
+        window.innerHeight -
+          visualViewportMetrics.offsetTop -
+          visualViewportMetrics.height
+      );
+
+    if (rightCorrection === 0 && bottomCorrection === 0) {
+      return undefined;
+    }
+
+    const isDesktop = window.matchMedia("(min-width: 640px)").matches,
+      baseRight = isDesktop ? 24 : 16,
+      baseBottom = isDesktop ? (currentTrack ? 112 : 24) : currentTrack ? 144 : 80;
+
+    return {
+      bottom: `${baseBottom + bottomCorrection}px`,
+      right: `${baseRight + rightCorrection}px`,
+    };
+  }, [currentTrack, visualViewportMetrics]);
 
   const isOtherUserOnline = activeConversation?.participantId
     ? isUserOnline(activeConversation.participantId)
@@ -454,10 +632,27 @@ function FloatingChatBarClient() {
   return (
     <div
       className={cn(
-        "fixed z-40 transition-all duration-300",
+        "fixed z-50 flex flex-col items-end gap-2 transition-all duration-300",
         bottomPositionClass
       )}
+      style={floatingPositionStyle}
     >
+      {hasIncompleteSetup &&
+      isSetupGuideOpen &&
+      !isOpen &&
+      setupGuideQuery.data ? (
+        <ArtistSetupGuide
+          isMinimized={isSetupGuideMinimized}
+          onDismiss={dismissSetupGuide}
+          onMinimizedChange={(isMinimized) => {
+            setIsSetupGuideMinimized(isMinimized);
+            if (isMinimized) {
+              setIsSetupGuideOpen(false);
+            }
+          }}
+          state={setupGuideQuery.data}
+        />
+      ) : null}
       {isOpen ? (
         <Card className="w-[340px] sm:w-[420px] shadow-2xl border-primary/30 bg-card/95 backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-200 overflow-hidden flex flex-col h-[520px]">
           {/* Instagram-Style View Switcher: LIST VIEW */}
@@ -668,7 +863,10 @@ function FloatingChatBarClient() {
                               {formatMessageTime(convo.updatedAt)}
                             </span>
                             {convo.unreadCount > 0 && (
-                              <Badge className="size-4 p-0 text-[9px] flex items-center justify-center rounded-full bg-primary text-primary-foreground">
+                              <Badge
+                                aria-label={`${convo.unreadCount} unread messages`}
+                                className="flex size-4 items-center justify-center rounded-full bg-primary p-0 text-[9px] text-primary-foreground"
+                              >
                                 {convo.unreadCount}
                               </Badge>
                             )}
@@ -782,22 +980,50 @@ function FloatingChatBarClient() {
               </CardHeader>
 
               {/* Messages Feed */}
-              <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+              <MessageScrollerProvider
+                autoScroll
+                defaultScrollPosition="end"
+                scrollPreviousItemPeek={64}
+              >
                 <MessageScroller>
                   <MessageScrollerViewport>
                     <MessageScrollerContent className="gap-3 p-3">
-                      {messages.length > 0 ? (
+                      {messagesQuery.isError ? (
+                        <MessageScrollerItem messageId="floating-messages-error">
+                          <div className="space-y-2 py-12 text-center">
+                            <p className="text-xs text-destructive">
+                              Messages could not be loaded.
+                            </p>
+                            <Button
+                              className="h-7 text-[11px]"
+                              onClick={() => void messagesQuery.refetch()}
+                              size="sm"
+                              variant="outline"
+                            >
+                              Try again
+                            </Button>
+                          </div>
+                        </MessageScrollerItem>
+                      ) : messagesQuery.isLoading ? (
+                        <MessageScrollerItem messageId="floating-loading-messages">
+                          <p className="py-12 text-center text-xs text-muted-foreground">
+                            Loading messages…
+                          </p>
+                        </MessageScrollerItem>
+                      ) : messages.length > 0 ? (
                         messages.map((message) => {
                           const isMine =
                             message.senderId === meQuery.data?.user.id;
                           const hasCollabProposal = message.attachments?.some(
                             (att) =>
+                              Boolean(att.collaboration) ||
                               att.mimeType ===
                                 "soundkit/collaboration-proposal" ||
                               Boolean(att.sourceProjectId)
                           );
                           const collabAtt = message.attachments?.find(
                             (att) =>
+                              Boolean(att.collaboration) ||
                               att.mimeType ===
                                 "soundkit/collaboration-proposal" ||
                               Boolean(att.sourceProjectId)
@@ -817,94 +1043,23 @@ function FloatingChatBarClient() {
                                     : "mr-auto items-start"
                                 )}
                               >
-                                {/* Collaboration Proposal Rich Card */}
                                 {hasCollabProposal && collabAtt ? (
-                                  <div className="rounded-2xl border-2 border-primary/40 bg-card/95 p-3 shadow-md space-y-2.5 text-xs w-full max-w-[280px]">
-                                    <div className="flex items-center justify-between border-b pb-1.5">
-                                      <div className="flex items-center gap-1.5 font-bold text-primary">
-                                        <FolderKanban className="size-4" />
-                                        <span>Shared Collaboration</span>
-                                      </div>
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[9px] px-1 py-0"
-                                      >
-                                        Draft
-                                      </Badge>
-                                    </div>
-                                    <div>
-                                      <p className="font-bold text-sm text-foreground">
-                                        {collabAtt.displayName}
-                                      </p>
-                                      <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                                        <Clock className="size-3 text-amber-400" />
-                                        24h Acceptance Window
-                                      </p>
-                                    </div>
-                                    <div className="flex flex-col gap-1.5 pt-1">
-                                      {isMine ? (
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          className="h-6 text-[10px] text-muted-foreground hover:text-destructive w-full"
-                                          onClick={() =>
-                                            handleRespondCollaboration(
-                                              collabAtt.sourceProjectId ?? "",
-                                              "cancel"
-                                            )
-                                          }
-                                        >
-                                          Cancel Invite
-                                        </Button>
-                                      ) : (
-                                        <div className="grid grid-cols-2 gap-1.5">
-                                          <Button
-                                            size="sm"
-                                            className="h-7 text-[11px] gap-1 bg-primary"
-                                            onClick={() =>
-                                              handleRespondCollaboration(
-                                                collabAtt.sourceProjectId ?? "",
-                                                "accept"
-                                              )
-                                            }
-                                          >
-                                            <Check className="size-3" />
-                                            Accept
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-7 text-[11px]"
-                                            onClick={() =>
-                                              handleRespondCollaboration(
-                                                collabAtt.sourceProjectId ?? "",
-                                                "decline"
-                                              )
-                                            }
-                                          >
-                                            Decline
-                                          </Button>
-                                        </div>
-                                      )}
-                                      {collabAtt.url && (
-                                        <Button
-                                          asChild
-                                          size="sm"
-                                          variant="secondary"
-                                          className="h-7 text-[11px] w-full gap-1"
-                                        >
-                                          <a
-                                            href={collabAtt.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                          >
-                                            <ExternalLink className="size-3" />
-                                            Open Project Workspace
-                                          </a>
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </div>
+                                  <CollaborationMessageCard
+                                    attachment={collabAtt}
+                                    isMine={isMine}
+                                    isResponding={
+                                      respondCollaboration.isPending
+                                    }
+                                    onRespond={(
+                                      collaborationId,
+                                      action: CollaborationResponseAction
+                                    ) =>
+                                      void handleRespondCollaboration(
+                                        collaborationId,
+                                        action
+                                      )
+                                    }
+                                  />
                                 ) : (
                                   <div
                                     className={cn(
@@ -1056,7 +1211,7 @@ function FloatingChatBarClient() {
                       )}
                     </MessageScrollerContent>
                   </MessageScrollerViewport>
-                  <MessageScrollerButton />
+                  <MessageScrollerButton size="icon-sm" />
                 </MessageScroller>
               </MessageScrollerProvider>
 
@@ -1162,9 +1317,11 @@ function FloatingChatBarClient() {
                     </div>
                     <Button
                       size="sm"
-                      disabled={isSubmittingCollab || !collabTitle.trim()}
-                      onClick={async () => {
-                        await handleSendProposal();
+                      disabled={
+                        startCollaboration.isPending || !collabTitle.trim()
+                      }
+                      onClick={() => {
+                        handleSendProposal();
                         setShowInlineCollab(false);
                       }}
                       className="w-full h-7 text-xs bg-primary gap-1"
@@ -1439,21 +1596,98 @@ function FloatingChatBarClient() {
           )}
         </Card>
       ) : (
-        <Button
-          onClick={() => {
-            setIsOpen(true);
-            setView("list");
-          }}
-          aria-label="Open Artist Chat"
-          className="relative size-12 rounded-full shadow-2xl bg-primary text-primary-foreground hover:scale-105 transition-transform flex items-center justify-center p-0"
-        >
-          <MessageCircle className="size-5" />
-          {totalUnread > 0 && (
-            <span className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground animate-pulse shadow-md">
-              {totalUnread > 9 ? "9+" : totalUnread}
-            </span>
-          )}
-        </Button>
+        <div className="flex overflow-hidden rounded-xl border border-primary/30 bg-card/95 shadow-2xl backdrop-blur-xl">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label="Open navigation menu"
+                className="h-11 rounded-none border-0 border-r border-border/40 px-3 text-xs hover:bg-primary/10"
+                size="sm"
+                variant="ghost"
+              >
+                <Menu aria-hidden="true" className="size-4" />
+                <span className="hidden sm:inline">Nav</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52" side="top">
+              <DropdownMenuLabel>Navigate</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/">
+                  <Home aria-hidden="true" className="size-4" />
+                  Home
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/dashboard">
+                  <FolderKanban aria-hidden="true" className="size-4" />
+                  Dashboard
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/dashboard/messages">
+                  <MessageSquare aria-hidden="true" className="size-4" />
+                  Messages
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/dashboard/music">
+                  <Music aria-hidden="true" className="size-4" />
+                  Music
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/dashboard/live">
+                  <Radio aria-hidden="true" className="size-4" />
+                  Live
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {hasIncompleteSetup && setupGuideProgress ? (
+            <Button
+              aria-expanded={isSetupGuideOpen}
+              aria-label={`Open setup guide (${setupGuideProgress.percent}% complete)`}
+              className="relative h-11 rounded-none border-0 border-r border-border/40 px-3 text-xs hover:bg-primary/10"
+              onClick={openSetupGuide}
+              size="sm"
+              variant="ghost"
+            >
+              <Sparkles aria-hidden="true" className="size-4 text-primary" />
+              <span className="hidden sm:inline">Setup guide</span>
+              <Badge
+                className="ml-1 px-1.5 py-0 text-[10px]"
+                variant="secondary"
+              >
+                {setupGuideProgress.percent}%
+              </Badge>
+            </Button>
+          ) : null}
+          <Button
+            aria-expanded={isOpen}
+            aria-label={isOpen ? "Close artist chat" : "Open artist chat"}
+            className="relative h-11 rounded-none border-0 px-3 text-xs hover:bg-primary/10"
+            onClick={() => {
+              setIsSetupGuideOpen(false);
+              setIsOpen(true);
+              setView("list");
+            }}
+            size="sm"
+            variant="ghost"
+          >
+            <MessageCircle aria-hidden="true" className="size-4" />
+            <span className="hidden sm:inline">Chat</span>
+            {totalUnread > 0 && (
+              <Badge
+                aria-label={`${totalUnread} unread messages`}
+                className="ml-1 min-w-4 px-1 text-[10px] font-bold"
+                variant="destructive"
+              >
+                {totalUnread > 9 ? "9+" : totalUnread}
+              </Badge>
+            )}
+          </Button>
+        </div>
       )}
 
       {/* Collaboration Dialog */}
@@ -1526,10 +1760,10 @@ function FloatingChatBarClient() {
             <Button
               type="button"
               onClick={handleSendProposal}
-              disabled={isSubmittingCollab || !collabTitle.trim()}
+              disabled={startCollaboration.isPending || !collabTitle.trim()}
               className="text-xs gap-1.5"
             >
-              {isSubmittingCollab ? (
+              {startCollaboration.isPending ? (
                 <LoaderCircle className="size-3.5 animate-spin" />
               ) : (
                 <Send className="size-3.5" />

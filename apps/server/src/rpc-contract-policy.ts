@@ -1,3 +1,5 @@
+/* eslint-disable one-var */
+
 export type RpcOperation =
   `${"DELETE" | "GET" | "PATCH" | "POST" | "PUT"} ${string}`;
 
@@ -7,6 +9,7 @@ export type RpcOperation =
  * from becoming accidental contract gaps.
  */
 export const rpcTransportExclusions = {
+  "GET /v1/live/rooms/:roomId/overlay": "Read-only OBS overlay state.",
   "GET /v1/projects/:projectId/assets/:assetId/download":
     "Signed binary project download.",
   "GET /v1/tracks/:trackId/assets/:assetId/download":
@@ -33,8 +36,10 @@ export const additionalClientRpcOperations = [
   "GET /v1/admin/embeddings/status",
   "GET /v1/admin/finance/payments/coupons",
   "GET /v1/admin/finance/payments/users",
+  "POST /v1/auth/handoff-token",
   "GET /v1/live/cloudflare-stream/:streamId",
   "GET /v1/live/experiences/:experienceId",
+  "GET /v1/live/experiences/:experienceId/review-catalog",
   "GET /v1/live/experiences/me",
   "GET /v1/live/experiences/public",
   "GET /v1/live/rooms/:roomId",
@@ -47,6 +52,7 @@ export const additionalClientRpcOperations = [
   "POST /v1/live/experiences",
   "POST /v1/live/experiences/:experienceId/battlebot",
   "POST /v1/live/experiences/:experienceId/join",
+  "POST /v1/live/experiences/:experienceId/overlay-token",
   "POST /v1/live/experiences/:experienceId/session-locks/check",
   "POST /v1/live/rooms/:roomId/battle/kit",
   "POST /v1/live/rooms/:roomId/battle/track",
@@ -54,6 +60,8 @@ export const additionalClientRpcOperations = [
   "POST /v1/live/rooms/:roomId/leave",
   "POST /v1/live/rooms/:roomId/party/playback",
   "POST /v1/live/rooms/:roomId/queue",
+  "POST /v1/live/rooms/:roomId/stream/bot",
+  "POST /v1/live/rooms/:roomId/stream/now-playing",
   "POST /v1/live/rooms/:roomId/vote",
   "POST /v1/projects/:projectId/pre-save",
   "POST /v1/seller/account-session",
@@ -64,6 +72,7 @@ export const additionalClientRpcOperations = [
  * use the JSON RPC client. */
 export const nonOpenApiTransportRoutes = {
   "GET /media/*": "Guarded binary media delivery.",
+  "GET /v1/live/rooms/:roomId/overlay": "Read-only OBS overlay state.",
   "GET /v1/live/rooms/:roomId/ws": "Live-room WebSocket upgrade.",
   "GET /v1/presence/ws": "Presence WebSocket upgrade.",
   "GET /v1/uploads/media": "Better Upload multipart protocol.",

@@ -5,15 +5,41 @@
 ### Added
 
 - Added the native mobile navigation shell with themed Explore, Library, Live, and Dashboard tabs, menu destinations, nested stacks, and branded placeholder screens for the planned mobile routes.
+- Added dedicated SoundKit.bio (`soundkit.bio`) artist link-in-bio platform with live artist autocomplete search, full multi-region interactive map supporting global, national, and US-state views, condensed `/tracks/$id` detail pages with Spotify, Apple Music, and YouTube outbound streaming links, artist claim onboarding, dialed-in artist dashboard sub-routes (`/dashboard`, `/dashboard/analytics`, `/dashboard/payments`), fan signup and session library (`/library`), and persistent docked audio player with MediaSession playback controls.
+- Added standalone SoundKit artist pages with cross-domain auth handoff, guarded track previews, Stripe Embedded Checkout tipping, metadata, and safe external links.
+
+### Fixed
+
+- Fixed public web artist profile card alignment on `apps/website` so track, project, and video grids align cleanly to the start (`justify-start`) directly beneath section headings without blank desktop indentation.
+- Added authenticated live music review controls with manual Now Playing, linked StreamBot chat entities, replaceable hashed OBS overlay tokens, transparent read-only overlays, and SQLite-enabled Durable Object integration coverage.
+- Added authenticated, live-only on-page tipping for public streams, listening parties, and battles with Embedded Checkout and equal battle allocations.
+- Added an integrated dashboard floating navigation with setup-guide views, responsive placement, and accessible unread-message badges.
+- Added centered public artist profile media grids, three-column mobile track previews with up to nine items, and section-level View all tab navigation.
+- Added a responsive onboarding exit dialog with Finish later and Log out actions, including deletion of unfinished onboarding progress before sign-out.
+- Added artist and fan onboarding plan comparisons with explicit included features, limits, and side-by-side layouts.
+- Added project-detail library pickers for selecting uploaded concepts, beats, and masters from existing releases, with multi-select attach actions and direct-upload fallbacks.
+- Added artist-first collaborator credit selectors for new tracks and projects, with explicit writer-only, artist-plus-writer, and producer choices.
+- Added project collaboration workspaces with accepted-only access, 24-hour proposals, optimistic `/collab` commands, typed attachments, beats/concepts, versioned assets, master-to-track processing, release readiness checks, publication propagation, project slugs, shared artwork, credits, and public project discovery.
+- Added project cover naming as `{project-name}-cover.{ext}` and a project-assets upload path that stores beats and concepts directly until a master is selected.
+- Added activity-aware battle replay status, published-only Recent Replays discovery, replay video links, read-only ended-battle states, and durable RealtimeKit recording publication with retry-safe association to battles.
+- Added concise BattleBot round, vote, readiness, result, and no-show status messages without per-vote chat spam.
+- Added a shared route-aware floating `[Nav | Chat]` utility with synchronized dashboard messaging, mobile-safe mini-player defaults, and global presence indicators in battle chat.
+- Added presence and messaging regression coverage for Durable Object heartbeats, reconnect state, cross-surface conversations, and responsive player behavior.
+- Added accessible video comment mentions with username autocomplete, server-validated public targets, mention notifications that respect recipient preferences, and nested replies with parent context.
+- Added a separated artist listening-party room at `/dashboard/live/parties/join/:roomId/artistview` with RealtimeKit camera/microphone controls, artist chat, synchronized playback/repeat controls, and a public viewer room that stays media-free until the party is live.
+- Added live-room notifications for hosted listening parties so artists can jump from the global live-room popup into their authenticated artist room when the party starts.
+- Added RealtimeKit meeting provisioning and live-experience records for scheduled listening parties, keeping party status, audience counts, discovery, and room state synchronized.
 - Added per-round artist readiness with timer fallback, private Battle Kit track status and next-song selection, tie-aware battle results, and ranked-versus-practice participation records in the artist dashboard.
 - Added an authenticated artist battle room at `/dashboard/live/battles/join/:roomId/artistview`, with artist-scoped waiting-room chat, Battle Kit/readiness controls, reconnect-safe media, and admin-only outcome controls.
 - Added a branded “You Ducked the Smoke” transactional email template and idempotent notification flow for ducked, forfeited, platform-canceled, and viewer battle outcomes.
+- Added a shared frameless public card system for media, creators, projects, communities, and live discovery, with demand-ranked battle Featured rails and data-driven genre rail visibility.
 - Added a push-first public battle directory over a Cloudflare Durable Object WebSocket, with a 30-second query refresh as a recovery path for missed updates.
 - Added battle readiness, explicit BattleBot starts, cancellation reason flows, ducked/no-show outcomes, in-progress forfeits, and battle lifecycle stats without rating changes for canceled or ducked battles.
 - Added in-app and transactional email notifications for artists who are marked ducked, plus live-route exit guidance and bottom-sheet profile previews.
 - Added artist and BattleBot chat identity metadata with gold artist highlights and accessible purple BattleBot messages.
 - Added artist battle waiting-room preparation controls with battle-format-scoped Battle Kit selection, lineup previews, and server-persisted kit locking before a scheduled battle opens.
 - Added RealtimeKit battle media stages with browser camera/microphone publishing, responsive two-artist video tiles, BattleBot-managed stage and microphone permissions, reconnect handling, and lazy meeting creation for existing battles.
+- Added persisted battle camera/microphone device setup, ranked artist matchup labels, branded battle backdrops, and a global pre-start return monitor for artists who leave before the match opens.
 - Added owner-scoped video detail analytics at `/dashboard/videos/:id`, first-party Mux playback view sessions, watch-depth charts, and privacy-safe country/Premium regional audience breakdowns.
 - Added canonical dashboard and Explore navigation with compatibility redirects, plus public community discovery and a TanStack DB-powered artist community experience with free/paid membership, chat, posts, member roles, bans, and creator moderation.
 - Added mechanical OpenAPI-to-Hono RPC parity checks, typed website/native API consumers, semantic-search and embedding operations, track recovery, and a validated Expo route manifest with explicit Explore, Library, Live, and Dashboard tab ownership.
@@ -35,7 +61,7 @@
 - Added creator rewards settlement engine: active premium subscriptions are allocated into `subscription_reward_allocations`, the pool is distributed across artists by qualified reward units into `creatorEarnings`, with first-earning and halfway-to-payout milestone emails (including a Stripe Connect reminder when payouts aren't ready).
 - Added `PayoutRunWorkflow`: reserved earnings age past the 30-day window into payable, sellers above the $25 minimum receive Stripe transfers, failures email the artist and retry on the next run.
 - Added artist weekly digest emails: plays, unique listeners, battles fought, and sales.
-- Added track editing UX overhaul: released-track edits save without touching locked fields via a persistent "Save changes" button, an inline credits editor lives in the Collaborators tab (also used by the upload form), quick actions (cover art swap, main file swap, credits editing, monetize toggle) run from cards and detail page without opening the full editor, and new tracks default to self-credited artist + songwriter rows.
+- Added complete in-place track management from the three-dot actions: metadata, release visibility and scheduling, access/download rules, sales settings, external links, cover art, master and optional audio files, credits, media retries, and lyrics/stem enrichment.
 - Added orphaned-upload cleanup to the cron scheduler: uploaded R2 objects never registered as assets are deleted after a 7-day grace period, plus stale abandoned checkouts reconcile after 24 hours.
 
 - Added fast-fail handling for media processing when the source master is missing from R2: master verification now uses a tight retry/timeout budget, terminal failures record a distinct `MASTER_OBJECT_MISSING` error code on the processing job instead of retrying a permanently missing object through Cloudflare's default exponential backoff.
@@ -48,8 +74,54 @@
 - Moved the project form rights confirmation ("I own or control the rights…") from the distribution step into the Credits & Collaboration step, matching the track flow.
 - Coupled purchase-gated downloads to monetization in the new track form: enabling "Require purchase" now turns on Monetize Track, and disabling Monetize clears the purchase requirement.
 
+### Changed
+
+- Changed the initial bio rollout to use `bio.mysoundkit.com` in production and `bio-pr-<number>.mysoundkit.com` for pull requests; `soundkit.bio` remains a later custom-domain cutover.
+
 ### Fixed
 
+- Fixed live stream shutdown so dashboard stops persist an ended experience without deleting reusable Cloudflare inputs, encoder disconnects take lifecycle precedence over stale input status, disconnected broadcasts leave public playback and discovery, and live genre labels render as `Hip-Hop` with Now Playing in the creator header.
+- Fixed public OBS stream discovery by syncing Cloudflare Stream lifecycle state, recognizing reconnecting inputs, normalizing Stream playback hostnames and status payloads, and replacing technical setup copy with creator-facing guidance.
+- Fixed live tips by creating Stripe destination charges on the platform account before transferring funds to the artist, and by returning a retryable provider error instead of an unhandled `500`.
+- Fixed transactional email greetings to prefer platform usernames, fall back to first names, and avoid email local-parts.
+- Fixed minimized and closed setup guides so they collapse back into the floating navigation and can be reopened from the setup-guide trigger.
+- Fixed accepted collaboration messages that could remain stuck on a local “Sending proposal…” spinner, including legacy attachments whose proposal metadata is linked by workspace ID.
+- Fixed Stripe v1 Connect account refresh so completed payout onboarding synchronizes to the payments page and artist setup guide, while preferring an already enabled seller account when duplicates exist.
+- Fixed artist onboarding plan presentation so the Premium Artist price remains unobscured, optional profile and social links appear alongside streaming links in step 7, and required fields have clear red markers.
+- Fixed project detail workspaces so existing uploaded masters can populate the ordered tracklist and existing concept/beat uploads can be added without re-uploading files.
+- Fixed onboarding location lookup failures by preserving Google Places autocomplete when available and falling back to a normalized manual city, region, and country entry when Google rejects the configured key or is unavailable.
+- Fixed chat collaborations so optimistic proposal cards reconcile after the server creates the workspace, dashboard project and track caches refresh after collaboration changes, and chat-created workspaces stay visible in the active organization while preserving legacy owner visibility.
+- Fixed chat-created shared projects to default to EP metadata with a project genre, expose the genre and workspace track actions, and remove deleted project cards after a confirmed delete.
+- Fixed sparse project PATCH requests so draft quick actions such as changing cover art do not default to public release mode or trigger release-readiness checks.
+- Fixed PR previews against the shared pre-migration database: project and track reads no longer require versioning columns, project media reads use compatible projections, metadata detection fails closed to the legacy schema, and message polling remains healthy when collaboration tables are not installed yet.
+- Fixed the battle waiting-room smoke fixture to match the production BattleBot lifecycle message after the replay status update.
+- Fixed shared project uploads so only selected masters create ordered tracks and enter media processing/stem splitting; workspace assets remain unprocessed and private until used.
+- Fixed parallel project and Battle Kit browser fixtures so project attachments stay isolated per client and live kit creation has the required released-track coverage.
+- Fixed dashboard messaging to poll authoritative conversations and messages, preserve the active conversation across floating/full-page navigation, show actionable retry states, and reconcile optimistic sends and read state through one TanStack DB surface.
+- Fixed TanStack DB auth-scope cleanup by waiting for live-query subscribers to detach before cleaning collections, preventing live queries from referencing manually cleaned notification sources.
+- Fixed presence and live-room WebSocket clients to reconnect with bounded backoff, ignore stale socket callbacks, detect heartbeat timeouts, and avoid noisy premature closes during failed handshakes.
+- Fixed public media and live detail routes to keep TanStack DB client-only while retaining server-loaded SEO metadata.
+- Fixed notification mark-read, mark-all-read, and clear actions to update TanStack DB collections and unread counts immediately, revalidate authoritative server state on success or failure, and keep the notification menu synchronized during concurrent updates.
+- Fixed battle chat presence to use the same Presence provider and freshness window as floating chat and Dashboard Messages, including periodic refreshes and local expiration of stale users.
+- Fixed TanStack DB collection cleanup during auth-scope remounts so live queries stay attached to their active collection and optimistic comment writes remain visible after authentication resolves.
+- Fixed concurrent community and video-comment browser smoke fixtures so Strict Mode remounts do not invalidate active live queries.
+- Fixed community entry so opening a community confirms membership before granting access, free joins reconcile immediately, the member view uses the available page height, creator updates notify opted-in members, and community chat/posts stay fresh through TanStack DB polling and direct writes.
+- Fixed browser smoke isolation for concurrent battle state, kept artist readiness toggles available after marking ready, and ensured interactive dashboard routes avoid pre-hydration actions.
+- Fixed website mutation reconciliation so optimistic notifications, challenge requests, saved tracks, follows, playlists, communities, community messages, and conversation read state are read back from the server before completion; overlapping TanStack Query caches now invalidate together and failed settings/read mutations roll back cleanly.
+- Fixed accepted battle invitations so the new scheduled battle is reconciled into Upcoming without a failed optimistic refetch, and normalized battle challenge usernames with or without `@`.
+- Fixed project discovery cards and detail pages to match the frameless track presentation, restored project visibility for continent filters, and added published-project detail coverage.
+- Fixed project and community discovery cards to use the shared frameless treatment while retaining useful community descriptions.
+- Fixed public Live Creators and Live Parties filters so region, genre, and sort controls share the same four-column desktop row as Live Battles.
+- Fixed battle waiting rooms to close and cancel automatically when both artists are not present and ready by the deadline, with read-only terminal results, persisted cancellation, and participant notifications.
+- Fixed battle chat artist and BattleBot messages to use clean frameless bubbles, readable white semibold text, and resolved sender avatars.
+- Fixed ended battle rooms to become read-only, stop stale BattleBot and lineup actions, close the associated live experience and queue, preserve completed/archived results in public discovery and dashboards, and redirect artists away from re-entering the artist room.
+- Fixed battle camera and microphone setup to recover from stale device IDs, fall back to available browser devices, keep device selectors usable during recovery, and provide actionable permission errors.
+- Fixed listening-party discovery to retain live rooms after their scheduled start, prevent public viewers from receiving host playback controls, validate party track changes server-side, and push playback updates to connected listeners over the room WebSocket.
+- Fixed the video analytics dashboard to skip unsupported first-party requests for external videos, explain the limitation without an error state, and offer a retry action with the API error for hosted-video failures.
+- Fixed track management by removing the broken full-page edit flow, preserving legacy edit URLs as redirects, allowing release dates and external links to be cleared or updated, and correctly clearing stale prices when monetization is disabled.
+- Fixed live battle room reads against older preview databases by probing optional outcome and winner columns and selecting safe null fallbacks until the production schema rollout completes.
+- Fixed live battle entry to distinguish assigned battlers from viewers, route artists to their control room, fall back safely from unauthorized artist URLs, and notify participants when their battle goes live.
+- Fixed battle-room navigation and layout so pre-start artists can leave safely, active battles guard navigation for every participant, and chat stays independently scrollable within the viewport beside the scrolling battle content.
 - Fixed Dashboard Join Battle routing to keep assigned artists in the authenticated room, public artist links to redirect into that room, fan queue mutations to update room state immediately, and round waiting-room chat to be discarded without losing the initial battle chat.
 - Fixed live battle reconnects by resolving generated live experiences through their canonical battle IDs, restoring artist roles and RealtimeKit permissions after disconnects, allowing participating artists to bypass viewer gates, and keeping kit-based recovery available for empty legacy rooms.
 - Fixed public battle entry for legacy live battles: missing rounds are rebuilt from both locked Battle Kits, stale Durable Object snapshots are repaired without discarding live phase state, and artist lineup selection remains available while an empty live room is repaired.

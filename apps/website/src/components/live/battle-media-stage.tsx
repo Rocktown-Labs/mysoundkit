@@ -203,18 +203,22 @@ function BattleMediaTile({
 export function BattleMediaStage({
   activeArtistUserId,
   artists,
+  audioDeviceId,
   className,
   experienceId,
   phase,
   showHeader = true,
+  videoDeviceId,
   viewerOnly = false,
 }: {
   activeArtistUserId?: string | null;
   artists: [LiveRoomArtist, LiveRoomArtist];
+  audioDeviceId?: string;
   className?: string;
   experienceId: string;
   phase?: string;
   showHeader?: boolean;
+  videoDeviceId?: string;
   viewerOnly?: boolean;
 }) {
   const [participants, setParticipants] = useState<RTKParticipant[]>([]),
@@ -263,6 +267,26 @@ export function BattleMediaStage({
           });
 
         await client.join();
+        if (!viewerOnly) {
+          try {
+            if (audioDeviceId) {
+              const audioDevice = await client.self.getDeviceById(
+                audioDeviceId,
+                "audio"
+              );
+              await client.self.setDevice(audioDevice);
+            }
+            if (videoDeviceId) {
+              const videoDevice = await client.self.getDeviceById(
+                videoDeviceId,
+                "video"
+              );
+              await client.self.setDevice(videoDevice);
+            }
+          } catch {
+            // Fall back to the browser's default device if a saved device is unavailable.
+          }
+        }
         const canProduceMedia =
           String(client.self.permissions.canProduceAudio) === "ALLOWED" ||
           String(client.self.permissions.canProduceVideo) === "ALLOWED";
@@ -315,7 +339,7 @@ export function BattleMediaStage({
       setSelf(null);
       setParticipants([]);
     };
-  }, [experienceId, phase, retry, viewerOnly]);
+  }, [audioDeviceId, experienceId, phase, retry, videoDeviceId, viewerOnly]);
 
   const participantByUserId = useMemo(
     () =>

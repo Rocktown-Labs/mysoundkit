@@ -13,6 +13,7 @@ import type { TrackSeoData } from "@/lib/seo-data";
 
 export const Route = createFileRoute("/_explore/tracks/$regionSlug/$slug")({
   component: RegionSlugTrackPage,
+  ssr: "data-only",
   head: ({ loaderData, params }) => {
     const track = loaderData as unknown as TrackSeoData | null,
       canonicalPath =
