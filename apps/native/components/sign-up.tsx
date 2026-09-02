@@ -2,13 +2,13 @@ import { useForm } from "@tanstack/react-form";
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
-import z from "zod";
+import { z } from "zod";
 
 import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
@@ -78,8 +78,8 @@ function SignUp() {
             password: value.password,
           },
           {
-            onError(error) {
-              setError(error.error?.message || "Failed to sign up");
+            onError(authError) {
+              setError(authError.error?.message || "Failed to sign up");
             },
             onSuccess() {
               setError(null);
@@ -207,14 +207,14 @@ function SignUp() {
                 )}
               </form.Field>
 
-              <TouchableOpacity
+              <Pressable
                 onPress={form.handleSubmit}
                 disabled={isSubmitting}
-                style={[
+                style={({ pressed }) => [
                   styles.button,
                   {
                     backgroundColor: theme.primary,
-                    opacity: isSubmitting ? 0.5 : 1,
+                    opacity: isSubmitting ? 0.5 : pressed ? 0.85 : 1,
                   },
                 ]}
               >
@@ -223,7 +223,7 @@ function SignUp() {
                 ) : (
                   <Text style={styles.buttonText}>Sign Up</Text>
                 )}
-              </TouchableOpacity>
+              </Pressable>
             </>
           );
         }}
