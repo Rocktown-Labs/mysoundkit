@@ -74,6 +74,7 @@
 
 ### Fixed
 
+- Fixed live stream shutdown so dashboard stops persist an ended experience without deleting reusable Cloudflare inputs, encoder disconnects take lifecycle precedence over stale input status, disconnected broadcasts leave public playback and discovery, and live genre labels render as `Hip-Hop` with Now Playing in the creator header.
 - Fixed public OBS stream discovery by syncing Cloudflare Stream lifecycle state, recognizing reconnecting inputs, normalizing Stream playback hostnames and status payloads, and replacing technical setup copy with creator-facing guidance.
 - Fixed live tips by creating Stripe destination charges on the platform account before transferring funds to the artist, and by returning a retryable provider error instead of an unhandled `500`.
 - Fixed transactional email greetings to prefer platform usernames, fall back to first names, and avoid email local-parts.

@@ -4,6 +4,7 @@ import {
   cloudflareStreamCustomerBaseUrl,
   normalizeCloudflareStreamStatus,
   resolveCloudflareStreamConnection,
+  resolveCloudflareStreamInputStatus,
 } from "./live-stream";
 
 describe("Cloudflare Stream live input helpers", () => {
@@ -56,6 +57,46 @@ describe("Cloudflare Stream live input helpers", () => {
       resolveCloudflareStreamConnection({
         experienceStatus: "live",
         inputStatus: "reconnecting",
+      })
+    ).toBe("disconnected");
+  });
+
+  it("treats a stopped lifecycle as authoritative over a stale connected input", () => {
+    expect(
+      resolveCloudflareStreamConnection({
+        experienceStatus: "live",
+        inputStatus: "connected",
+        lifecycleLive: false,
+      })
+    ).toBe("disconnected");
+  });
+
+  it("does not start a scheduled experience when its lifecycle is offline", () => {
+    expect(
+      resolveCloudflareStreamConnection({
+        experienceStatus: "scheduled",
+        inputStatus: "connected",
+        lifecycleLive: false,
+      })
+    ).toBe("unknown");
+  });
+
+  it("does not resurrect an ended experience from a stale live lifecycle", () => {
+    expect(
+      resolveCloudflareStreamConnection({
+        experienceStatus: "ended",
+        inputStatus: "connected",
+        lifecycleLive: true,
+      })
+    ).toBe("unknown");
+  });
+
+  it("reports ended experiences as disconnected even when Cloudflare is stale", () => {
+    expect(
+      resolveCloudflareStreamInputStatus({
+        experienceStatus: "ended",
+        fallbackStatus: "connected",
+        ingestStatus: "connected",
       })
     ).toBe("disconnected");
   });

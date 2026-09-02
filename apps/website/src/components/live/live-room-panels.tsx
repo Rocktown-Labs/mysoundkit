@@ -373,28 +373,32 @@ export function LiveChatPanel({
 
 export function LiveNowPlayingCard({
   className = "",
+  compact = false,
   track,
 }: {
   className?: string;
+  compact?: boolean;
   track?: LiveRoomTrack | null;
 }) {
   return (
     <Card className={className}>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
+      <CardHeader className={compact ? "p-0 pb-2" : "pb-3"}>
+        <CardTitle
+          className={`flex items-center gap-2 ${compact ? "text-xs" : "text-base"}`}
+        >
           <Music2 className="size-4 text-primary" />
           Now Playing
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className={compact ? "p-0" : undefined}>
         {track ? (
           <div className="flex items-center gap-3">
             <AppImage
               alt={track.title}
-              className="size-14 rounded-md object-cover"
-              height={56}
+              className={`${compact ? "size-10" : "size-14"} rounded-md object-cover`}
+              height={compact ? 40 : 56}
               src={track.coverArtUrl}
-              width={56}
+              width={compact ? 40 : 56}
             />
             <div className="min-w-0">
               {track.href ? (

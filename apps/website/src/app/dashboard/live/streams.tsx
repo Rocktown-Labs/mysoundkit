@@ -64,7 +64,7 @@ import { SoundKitApiError, apiClient } from "@/lib/api";
 import { liveExperienceConfigs } from "@/lib/live-experience";
 import type { LiveScheduleMode } from "@/lib/live-experience";
 import { useLiveRoom } from "@/lib/live-room";
-import { musicGenres } from "@/lib/music-genres";
+import { genreLabelFromValue, musicGenres } from "@/lib/music-genres";
 import {
   useCreateLiveExperienceMutation,
   useCreateLiveOverlayTokenMutation,
@@ -165,9 +165,9 @@ function DashboardLiveStreamsPage() {
     [description, setDescription] = useState(""),
     genreOptions =
       genresQuery.data && genresQuery.data.length > 0
-        ? genresQuery.data.map((genre) => genre.name)
+        ? genresQuery.data.map((genre) => genreLabelFromValue(genre.name))
         : musicGenres.map((genre) => genre.label),
-    [genre, setGenre] = useState(genreOptions[0] ?? "Hip-Hop/Rap"),
+    [genre, setGenre] = useState(genreOptions[0] ?? "Hip-Hop"),
     [visibility, setVisibility] = useState("Public"),
     [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap"),
     [source, setSource] = useState<StreamSource>("obs"),
@@ -420,10 +420,11 @@ function DashboardLiveStreamsPage() {
         } catch {
           toast({
             description:
-              "The local stream was cleared, but Cloudflare could not be stopped. Refresh the status and try again.",
+              "Cloudflare could not be stopped. The stream remains open so you can retry without losing the encoder details.",
             title: "Stream stop incomplete",
             variant: "destructive",
           });
+          return;
         }
       }
 
@@ -1536,7 +1537,7 @@ function ActiveScheduledStreamsSection({
                     </div>
                     {exp.genre ? (
                       <Badge className="w-fit text-[10px]" variant="secondary">
-                        {exp.genre}
+                        {genreLabelFromValue(exp.genre)}
                       </Badge>
                     ) : null}
                     <p className="text-muted-foreground text-xs">

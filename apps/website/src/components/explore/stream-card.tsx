@@ -9,6 +9,7 @@ import {
 } from "@/components/explore/public-card";
 import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { genreLabelFromValue } from "@/lib/music-genres";
 
 export interface StreamCardProps {
   category?: string;
@@ -53,7 +54,7 @@ export function StreamCard({
   const isCurrentlyLive = isLive ?? status === "live",
     isScheduled =
       !isCurrentlyLive && (status === "scheduled" || Boolean(startsAt)),
-    resolvedCategory = genre || category || "Music",
+    resolvedCategory = genre ? genreLabelFromValue(genre) : category || "Music",
     displayName = creatorName || "SoundKit Creator",
     posterImage =
       thumbnailUrl ||
