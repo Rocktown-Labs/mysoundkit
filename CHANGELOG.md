@@ -4,7 +4,12 @@
 
 ### Added
 
+- Added dedicated SoundKit.bio (`soundkit.bio`) artist link-in-bio platform with live artist autocomplete search, full multi-region interactive map supporting global, national, and US-state views, condensed `/tracks/$id` detail pages with Spotify, Apple Music, and YouTube outbound streaming links, artist claim onboarding, dialed-in artist dashboard sub-routes (`/dashboard`, `/dashboard/analytics`, `/dashboard/payments`), fan signup and session library (`/library`), and persistent docked audio player with MediaSession playback controls.
 - Added standalone SoundKit artist pages with cross-domain auth handoff, guarded track previews, Stripe Embedded Checkout tipping, metadata, and safe external links.
+
+### Fixed
+
+- Fixed public web artist profile card alignment on `apps/website` so track, project, and video grids align cleanly to the start (`justify-start`) directly beneath section headings without blank desktop indentation.
 - Added authenticated live music review controls with manual Now Playing, linked StreamBot chat entities, replaceable hashed OBS overlay tokens, transparent read-only overlays, and SQLite-enabled Durable Object integration coverage.
 - Added authenticated, live-only on-page tipping for public streams, listening parties, and battles with Embedded Checkout and equal battle allocations.
 - Added an integrated dashboard floating navigation with setup-guide views, responsive placement, and accessible unread-message badges.

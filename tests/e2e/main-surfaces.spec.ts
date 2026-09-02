@@ -265,7 +265,7 @@ test.describe("main application surfaces", () => {
     await expect(trackGrid).toBeVisible();
     const isMobileViewport = (page.viewportSize()?.width ?? 0) < 768;
     await expect(trackGrid).toHaveClass(
-      isMobileViewport ? /flex-wrap/ : /justify-center/
+      isMobileViewport ? /flex-wrap/ : /justify-start/
     );
     await expect(trackGrid.locator("article:visible")).toHaveCount(
       isMobileViewport ? 5 : 4

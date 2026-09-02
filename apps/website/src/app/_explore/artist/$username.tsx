@@ -278,7 +278,7 @@ function TrackGrid({
 }) {
   return (
     <div
-      className="flex flex-wrap justify-center gap-3 md:gap-4"
+      className="flex flex-wrap justify-start gap-3 md:gap-4"
       data-testid="artist-track-grid"
     >
       {tracks.map((track, index) => (
@@ -314,7 +314,7 @@ function ProjectGrid({
 }) {
   return (
     <div
-      className="flex flex-wrap justify-center gap-3"
+      className="flex flex-wrap justify-start gap-3"
       data-testid="artist-project-grid"
     >
       {projects.map((project, index) => (
@@ -345,7 +345,7 @@ function VideoGrid({
 }) {
   return (
     <div
-      className="flex flex-wrap justify-center gap-6"
+      className="flex flex-wrap justify-start gap-6"
       data-testid="artist-video-grid"
     >
       {videos.map((video, index) => (
