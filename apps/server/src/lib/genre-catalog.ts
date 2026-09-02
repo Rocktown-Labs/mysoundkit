@@ -10,7 +10,7 @@ export interface PersistedGenreCatalogEntry extends GenreCatalogEntry {
 }
 
 export const genreCatalog: GenreCatalogEntry[] = [
-  { id: "g_hip_hop", name: "Hip Hop", slug: "hip-hop" },
+  { id: "g_hip_hop", name: "Hip-Hop", slug: "hip-hop" },
   { id: "g_rb_soul", name: "R&B/Soul", slug: "rb-soul" },
   { id: "g_electronic", name: "Electronic", slug: "electronic" },
   { id: "g_pop", name: "Pop", slug: "pop" },

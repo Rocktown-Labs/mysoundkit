@@ -121,6 +121,7 @@ import {
   normalizeCloudflareStreamStatus,
   parseCloudflareStreamResponse,
   resolveCloudflareStreamConnection,
+  resolveCloudflareStreamInputStatus,
 } from "@/lib/live-stream";
 import { notify } from "@/lib/notifications";
 import { profileRegionCondition } from "@/lib/public-explore";
@@ -183,6 +184,7 @@ app.get("/experiences/public", async (c) => {
         endsAt: liveExperiences.endsAt,
         genre: liveExperiences.genre,
         id: liveExperiences.id,
+        ingestStatus: liveExperiences.ingestStatus,
         kind: liveExperiences.kind,
         source: liveExperiences.source,
         startsAt: liveExperiences.startsAt,
@@ -216,6 +218,7 @@ app.get("/experiences/public", async (c) => {
         return {
           ...experience,
           endsAt: synchronizedExperience.endsAt,
+          ingestStatus: synchronizedExperience.ingestStatus,
           status: synchronizedExperience.status,
         };
       })
@@ -224,7 +227,10 @@ app.get("/experiences/public", async (c) => {
   return c.json(
     synchronizedExperiences.filter(
       (experience) =>
-        experience.status === "live" ||
+        (experience.status === "live" &&
+          (experience.kind !== "stream" ||
+            experience.source !== "obs" ||
+            experience.ingestStatus === "connected")) ||
         (experience.status === "scheduled" &&
           experience.startsAt.getTime() >= cutoff.getTime())
     ),
@@ -508,7 +514,7 @@ const badRequest = (message: string) => ({
       streamBaseUrl = cloudflareStreamCustomerBaseUrl(
         env.CLOUDFLARE_STREAM_CUSTOMER_CODE
       );
-    if (!experience.streamInputId) {
+    if (!experience.streamInputId || experience.status === "ended") {
       return experience;
     }
 
@@ -528,9 +534,10 @@ const badRequest = (message: string) => ({
         inputResponsePromise,
         lifecycleResponsePromise,
       ]),
-      payload = await parseCloudflareStreamResponse<CloudflareStreamResponse>(
-        inputResponse
-      ),
+      payload =
+        await parseCloudflareStreamResponse<CloudflareStreamResponse>(
+          inputResponse
+        ),
       lifecyclePayload =
         await parseCloudflareStreamResponse<CloudflareStreamLifecycleResponse>(
           lifecycleResponse
@@ -551,7 +558,7 @@ const badRequest = (message: string) => ({
     if (!(payload || lifecyclePayload)) {
       return experience;
     }
-    let { status } = experience,
+    let status: typeof liveExperiences.$inferSelect.status = experience.status,
       { endsAt } = experience,
       { ingestStatus } = experience,
       { reconnectUntil } = experience,
@@ -575,7 +582,7 @@ const badRequest = (message: string) => ({
           title: experience.title,
         });
       }
-    } else if (disconnected && experience.status !== "ended") {
+    } else if (disconnected) {
       const graceExpired =
         experience.reconnectUntil !== null &&
         experience.reconnectUntil !== undefined &&
@@ -1911,7 +1918,7 @@ const badRequest = (message: string) => ({
             : "upcoming"),
       summary:
         "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
-      title: resolveArtistBattleTitle(battle.title, battle.genre ?? "Hip Hop"),
+      title: resolveArtistBattleTitle(battle.title, battle.genre ?? "Hip-Hop"),
       tracklist,
       viewerCount: battle.viewerCount,
     };
@@ -2646,15 +2653,21 @@ app.get("/experiences/:experienceId", async (c) => {
     );
   }
 
-  const streamCustomerBaseUrl = cloudflareStreamCustomerBaseUrl(
+  const canPlayStream =
+      experience.status === "live" && experience.ingestStatus === "connected",
+    streamCustomerBaseUrl = cloudflareStreamCustomerBaseUrl(
       c.env.CLOUDFLARE_STREAM_CUSTOMER_CODE
     ),
     streamBaseUrl =
       experience.streamInputId && streamCustomerBaseUrl
         ? `${streamCustomerBaseUrl}/${encodeURIComponent(experience.streamInputId)}`
         : null,
-    playbackUrl = streamBaseUrl ? `${streamBaseUrl}/manifest/video.m3u8` : null,
-    playerUrl = streamBaseUrl ? `${streamBaseUrl}/iframe` : null;
+    playbackUrl =
+      streamBaseUrl && canPlayStream
+        ? `${streamBaseUrl}/manifest/video.m3u8`
+        : null,
+    playerUrl =
+      streamBaseUrl && canPlayStream ? `${streamBaseUrl}/iframe` : null;
 
   let creatorAvatar: string | null = null,
     creatorName: string | null = null;
@@ -4531,6 +4544,18 @@ app.delete("/cloudflare-stream/:streamId", async (c) => {
     );
   }
 
+  const endedAt = new Date();
+  await createDb()
+    .update(liveExperiences)
+    .set({
+      endsAt: endedAt,
+      ingestStatus: "disconnected",
+      reconnectUntil: null,
+      status: "ended",
+      updatedAt: endedAt,
+    })
+    .where(eq(liveExperiences.id, experience.id));
+
   return c.json(
     { message: "Cloudflare Stream input stopped." },
     HttpStatusCodes.OK
@@ -4582,12 +4607,11 @@ app.get("/cloudflare-stream/:streamId", async (c) => {
               env: c.env,
               experience,
             }),
-            status =
-              synchronizedExperience.ingestStatus === "connected"
-                ? "connected"
-                : synchronizedExperience.ingestStatus === "reconnecting"
-                  ? "reconnecting"
-                  : streamInput.status;
+            status = resolveCloudflareStreamInputStatus({
+              experienceStatus: synchronizedExperience.status,
+              fallbackStatus: streamInput.status,
+              ingestStatus: synchronizedExperience.ingestStatus,
+            });
 
           return c.json({ ...streamInput, status }, HttpStatusCodes.OK);
         }
