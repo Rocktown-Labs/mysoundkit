@@ -27,6 +27,7 @@ Unlike legacy streaming silos and fragmented beat stores, SoundKit provides an i
                                   │           SoundKit Clients              │
                                   │  • Web (React 19 + TanStack Router)     │
                                   │  • Mobile (Expo SDK 52 + React Native)  │
+                                  │  • Desktop (Electron + Vite + TypeScript)│
                                   └────────────────────┬────────────────────┘
                                                        │
                                      HTTPS / REST / WSS / WebSockets
@@ -66,6 +67,7 @@ Unlike legacy streaming silos and fragmented beat stores, SoundKit provides an i
 | **Web Frontend**       | [React 19](https://react.dev/), [Vite](https://vitejs.dev/), [TanStack Router](https://tanstack.com/router), [TanStack Query v5](https://tanstack.com/query), [Tailwind CSS v4](https://tailwindcss.com/), [Radix UI](https://www.radix-ui.com/) |
 | **Audio Processing**   | [MediaBunny](https://github.com/mediabunny) (Client-Side WASM/WebCodecs Audio Slicer & Waveform Generator), HTML5 Web Audio API                                                                                                                  |
 | **Mobile App**         | [Expo SDK 52](https://expo.dev/), [React Native 0.83](https://reactnative.dev/), [Expo Router v4](https://docs.expo.dev/router/introduction/), React Native Reanimated v4                                                                        |
+| **Desktop App**        | [Electron](https://www.electronjs.org/) 44 + [Electron Forge](https://www.electronforge.io/) 7 + [Vite](https://vitejs.dev/) 5 + TypeScript                                                                                                      |
 | **API Backend**        | [Cloudflare Workers](https://workers.cloudflare.com/) (`nodejs_compat`), [Hono OpenAPI](https://hono.dev/), [Stoker](https://github.com/), [Sentry Observability](https://sentry.io/)                                                            |
 | **Stateful Edge**      | Cloudflare [Durable Objects](https://developers.cloudflare.com/durable-objects/) (Live Room state machines & Presence tracking), [Workflows](https://developers.cloudflare.com/workflows/), [Queues](https://developers.cloudflare.com/queues/)  |
 | **Database & ORM**     | [PostgreSQL](https://www.postgresql.org/) with `pgvector`, [Drizzle ORM](https://orm.drizzle.team/), [Cloudflare Hyperdrive](https://developers.cloudflare.com/hyperdrive/) connection pooling                                                   |
@@ -82,6 +84,7 @@ Unlike legacy streaming silos and fragmented beat stores, SoundKit provides an i
 mysoundkit/
 ├── apps/
 │   ├── docs/                 # Astro 6 + Starlight documentation portal
+│   ├── desktop/              # Electron Forge / Vite TypeScript desktop application
 │   ├── native/               # Expo SDK 52 / React Native mobile companion app
 │   ├── server/               # Cloudflare Workers OpenAPI REST API & Durable Objects
 │   └── website/              # TanStack Router React 19 web application & Media Studio
@@ -142,6 +145,16 @@ A React 19 application powered by Vite and TanStack Router with client-side audi
   - 3-part take uploader: Mixed Audition Take, Raw Dry Vocal Take, and Stems/Project Archive.
   - Anti-Leech Guard (0-Uploads Rule): Prevents blank accounts from submitting takes until they have published a track or project.
   - Live Arena: Scheduled-phase waiting rooms, audio-visual stage countdowns, batch fan admission between rounds, and live voting.
+
+### `apps/desktop` (Electron / Vite TypeScript Desktop App)
+
+The desktop client currently provides a local Electron renderer shell with a secure main/preload boundary. Native capabilities should be added through narrowly scoped, sender-validated IPC APIs rather than exposing Node.js or Electron APIs to renderer code.
+
+- `pnpm --filter desktop start` launches the development app.
+- `pnpm --filter desktop build` creates the packaged application bundle.
+- `pnpm --filter desktop make` creates a platform-specific distributable on the host platform.
+- Forge requires the workspace's hoisted pnpm layout for packaging; this is configured in `pnpm-workspace.yaml` and should be validated when adding native modules.
+- Product parity with the web client, desktop authentication flow, offline storage, and native audio workflows remain follow-up work.
 
 ### `apps/native` (Expo / React Native Companion App)
 

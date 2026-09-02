@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added the initial SoundKit Desktop Electron Forge app with a secure local renderer/preload boundary and Turbo/pnpm workspace integration.
 - Added standalone SoundKit artist pages with cross-domain auth handoff, guarded track previews, Stripe Embedded Checkout tipping, metadata, and safe external links.
 - Added authenticated live music review controls with manual Now Playing, linked StreamBot chat entities, replaceable hashed OBS overlay tokens, transparent read-only overlays, and SQLite-enabled Durable Object integration coverage.
 - Added authenticated, live-only on-page tipping for public streams, listening parties, and battles with Embedded Checkout and equal battle allocations.
