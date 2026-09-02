@@ -51,7 +51,14 @@ import type {
   BioVideo,
 } from "@/lib/api";
 
-const SOUNDKIT_WEB_ORIGIN = new URL(SOUNDKIT_WEB_URL).origin;
+const getSoundKitWebOrigin = () => {
+  try {
+    return new URL(SOUNDKIT_WEB_URL).origin;
+  } catch {
+    return "https://mysoundkit.com";
+  }
+};
+const SOUNDKIT_WEB_ORIGIN = getSoundKitWebOrigin();
 const stripePromise = STRIPE_PUBLISHABLE_KEY
   ? loadStripe(STRIPE_PUBLISHABLE_KEY)
   : null;
