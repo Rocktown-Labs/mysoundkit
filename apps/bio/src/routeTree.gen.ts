@@ -11,6 +11,14 @@
 import { Route as rootRouteImport } from './app/__root'
 import { Route as UsernameRouteImport } from './app/$username'
 import { Route as IndexRouteImport } from './app/index'
+import { Route as SignupIndexRouteImport } from './app/signup/index'
+import { Route as LibraryIndexRouteImport } from './app/library/index'
+import { Route as DashboardIndexRouteImport } from './app/dashboard/index'
+import { Route as TracksIdRouteImport } from './app/tracks/$id'
+import { Route as SignupFanRouteImport } from './app/signup/fan'
+import { Route as SignupArtistRouteImport } from './app/signup/artist'
+import { Route as DashboardPaymentsRouteImport } from './app/dashboard/payments'
+import { Route as DashboardAnalyticsRouteImport } from './app/dashboard/analytics'
 
 const UsernameRoute = UsernameRouteImport.update({
   id: '/$username',
@@ -22,31 +30,134 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignupIndexRoute = SignupIndexRouteImport.update({
+  id: '/signup/',
+  path: '/signup/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryIndexRoute = LibraryIndexRouteImport.update({
+  id: '/library/',
+  path: '/library/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardIndexRoute = DashboardIndexRouteImport.update({
+  id: '/dashboard/',
+  path: '/dashboard/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TracksIdRoute = TracksIdRouteImport.update({
+  id: '/tracks/$id',
+  path: '/tracks/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupFanRoute = SignupFanRouteImport.update({
+  id: '/signup/fan',
+  path: '/signup/fan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupArtistRoute = SignupArtistRouteImport.update({
+  id: '/signup/artist',
+  path: '/signup/artist',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardPaymentsRoute = DashboardPaymentsRouteImport.update({
+  id: '/dashboard/payments',
+  path: '/dashboard/payments',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
+  id: '/dashboard/analytics',
+  path: '/dashboard/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$username': typeof UsernameRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/payments': typeof DashboardPaymentsRoute
+  '/signup/artist': typeof SignupArtistRoute
+  '/signup/fan': typeof SignupFanRoute
+  '/tracks/$id': typeof TracksIdRoute
+  '/dashboard/': typeof DashboardIndexRoute
+  '/library/': typeof LibraryIndexRoute
+  '/signup/': typeof SignupIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$username': typeof UsernameRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/payments': typeof DashboardPaymentsRoute
+  '/signup/artist': typeof SignupArtistRoute
+  '/signup/fan': typeof SignupFanRoute
+  '/tracks/$id': typeof TracksIdRoute
+  '/dashboard': typeof DashboardIndexRoute
+  '/library': typeof LibraryIndexRoute
+  '/signup': typeof SignupIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$username': typeof UsernameRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/payments': typeof DashboardPaymentsRoute
+  '/signup/artist': typeof SignupArtistRoute
+  '/signup/fan': typeof SignupFanRoute
+  '/tracks/$id': typeof TracksIdRoute
+  '/dashboard/': typeof DashboardIndexRoute
+  '/library/': typeof LibraryIndexRoute
+  '/signup/': typeof SignupIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$username'
+  fullPaths:
+    | '/'
+    | '/$username'
+    | '/dashboard/analytics'
+    | '/dashboard/payments'
+    | '/signup/artist'
+    | '/signup/fan'
+    | '/tracks/$id'
+    | '/dashboard/'
+    | '/library/'
+    | '/signup/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$username'
-  id: '__root__' | '/' | '/$username'
+  to:
+    | '/'
+    | '/$username'
+    | '/dashboard/analytics'
+    | '/dashboard/payments'
+    | '/signup/artist'
+    | '/signup/fan'
+    | '/tracks/$id'
+    | '/dashboard'
+    | '/library'
+    | '/signup'
+  id:
+    | '__root__'
+    | '/'
+    | '/$username'
+    | '/dashboard/analytics'
+    | '/dashboard/payments'
+    | '/signup/artist'
+    | '/signup/fan'
+    | '/tracks/$id'
+    | '/dashboard/'
+    | '/library/'
+    | '/signup/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   UsernameRoute: typeof UsernameRoute
+  DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
+  DashboardPaymentsRoute: typeof DashboardPaymentsRoute
+  SignupArtistRoute: typeof SignupArtistRoute
+  SignupFanRoute: typeof SignupFanRoute
+  TracksIdRoute: typeof TracksIdRoute
+  DashboardIndexRoute: typeof DashboardIndexRoute
+  LibraryIndexRoute: typeof LibraryIndexRoute
+  SignupIndexRoute: typeof SignupIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +176,76 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/signup/': {
+      id: '/signup/'
+      path: '/signup'
+      fullPath: '/signup/'
+      preLoaderRoute: typeof SignupIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/': {
+      id: '/library/'
+      path: '/library'
+      fullPath: '/library/'
+      preLoaderRoute: typeof LibraryIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/': {
+      id: '/dashboard/'
+      path: '/dashboard'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tracks/$id': {
+      id: '/tracks/$id'
+      path: '/tracks/$id'
+      fullPath: '/tracks/$id'
+      preLoaderRoute: typeof TracksIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup/fan': {
+      id: '/signup/fan'
+      path: '/signup/fan'
+      fullPath: '/signup/fan'
+      preLoaderRoute: typeof SignupFanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup/artist': {
+      id: '/signup/artist'
+      path: '/signup/artist'
+      fullPath: '/signup/artist'
+      preLoaderRoute: typeof SignupArtistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/payments': {
+      id: '/dashboard/payments'
+      path: '/dashboard/payments'
+      fullPath: '/dashboard/payments'
+      preLoaderRoute: typeof DashboardPaymentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/analytics': {
+      id: '/dashboard/analytics'
+      path: '/dashboard/analytics'
+      fullPath: '/dashboard/analytics'
+      preLoaderRoute: typeof DashboardAnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   UsernameRoute: UsernameRoute,
+  DashboardAnalyticsRoute: DashboardAnalyticsRoute,
+  DashboardPaymentsRoute: DashboardPaymentsRoute,
+  SignupArtistRoute: SignupArtistRoute,
+  SignupFanRoute: SignupFanRoute,
+  TracksIdRoute: TracksIdRoute,
+  DashboardIndexRoute: DashboardIndexRoute,
+  LibraryIndexRoute: LibraryIndexRoute,
+  SignupIndexRoute: SignupIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

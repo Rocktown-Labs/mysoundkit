@@ -1,5 +1,5 @@
 export const musicGenres = [
-  { label: "Hip-Hop/Rap", value: "hip-hop-rap" },
+  { label: "Hip-Hop", value: "hip-hop-rap" },
   { label: "R&B/Soul", value: "rb-soul" },
   { label: "Electronic", value: "electronic" },
   { label: "Pop", value: "pop" },
@@ -21,8 +21,44 @@ export const allGenreOptions = [
   ...musicGenres,
 ] as const;
 
-export const genreLabelFromValue = (value: string) =>
-  musicGenres.find((genre) => genre.value === value)?.label ?? value;
+const normalizeGenreForDisplay = (value: string) =>
+    value
+      .trim()
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/gu, "-")
+      .replaceAll(/^-+|-+$/gu, ""),
+  genreDisplayAliases: Record<string, string> = {
+    "hip-hop": "Hip-Hop",
+    "hip-hop-rap": "Hip-Hop",
+    hiphop: "Hip-Hop",
+  };
+
+export const genreLabelFromValue = (value: string) => {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return "";
+  }
+
+  const normalizedValue = normalizeGenreForDisplay(trimmedValue),
+    aliasedValue = genreDisplayAliases[normalizedValue],
+    matchingGenre = musicGenres.find(
+      (genre) =>
+        genre.value === normalizedValue ||
+        normalizeGenreForDisplay(genre.label) === normalizedValue
+    );
+
+  if (aliasedValue) {
+    return aliasedValue;
+  }
+  if (matchingGenre) {
+    return matchingGenre.label;
+  }
+
+  return trimmedValue
+    .split(/[-_\s]+/u)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+};
 
 export const genreValueFromLabel = (label: string) => {
   const normalized = label
@@ -37,21 +73,5 @@ export const genreValueFromLabel = (label: string) => {
   return normalized === "hip-hop-rap" ? "hip-hop-rap" : normalized;
 };
 
-export const canonicalGenreName = (value?: string | null) => {
-  if (!value || value.trim().length === 0) {
-    return "Hip-Hop/Rap";
-  }
-  const normalized = value.toLowerCase().trim(),
-    found = musicGenres.find(
-      (genre) =>
-        genre.value.toLowerCase() === normalized ||
-        genre.label.toLowerCase() === normalized
-    );
-  if (found) {
-    return found.label;
-  }
-  return value
-    .split(/[-_\s]+/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-};
+export const canonicalGenreName = (value?: string | null) =>
+  value && value.trim().length > 0 ? genreLabelFromValue(value) : "Hip-Hop";

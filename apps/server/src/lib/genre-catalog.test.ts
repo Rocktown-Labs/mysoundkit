@@ -16,7 +16,7 @@ describe("genre catalog persistence", () => {
     expect(merged.find((genre) => genre.slug === "hip-hop")).toEqual({
       description: "Rap and related styles",
       id: "persisted-hip-hop-id",
-      name: "Hip Hop",
+      name: "Hip-Hop",
       slug: "hip-hop",
     });
   });

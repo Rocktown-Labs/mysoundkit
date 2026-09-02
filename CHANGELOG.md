@@ -5,7 +5,12 @@
 ### Added
 
 - Added the initial SoundKit Desktop Electron Forge app with a secure local renderer/preload boundary and Turbo/pnpm workspace integration.
+- Added dedicated SoundKit.bio (`soundkit.bio`) artist link-in-bio platform with live artist autocomplete search, full multi-region interactive map supporting global, national, and US-state views, condensed `/tracks/$id` detail pages with Spotify, Apple Music, and YouTube outbound streaming links, artist claim onboarding, dialed-in artist dashboard sub-routes (`/dashboard`, `/dashboard/analytics`, `/dashboard/payments`), fan signup and session library (`/library`), and persistent docked audio player with MediaSession playback controls.
 - Added standalone SoundKit artist pages with cross-domain auth handoff, guarded track previews, Stripe Embedded Checkout tipping, metadata, and safe external links.
+
+### Fixed
+
+- Fixed public web artist profile card alignment on `apps/website` so track, project, and video grids align cleanly to the start (`justify-start`) directly beneath section headings without blank desktop indentation.
 - Added authenticated live music review controls with manual Now Playing, linked StreamBot chat entities, replaceable hashed OBS overlay tokens, transparent read-only overlays, and SQLite-enabled Durable Object integration coverage.
 - Added authenticated, live-only on-page tipping for public streams, listening parties, and battles with Embedded Checkout and equal battle allocations.
 - Added an integrated dashboard floating navigation with setup-guide views, responsive placement, and accessible unread-message badges.
@@ -75,6 +80,7 @@
 
 ### Fixed
 
+- Fixed live stream shutdown so dashboard stops persist an ended experience without deleting reusable Cloudflare inputs, encoder disconnects take lifecycle precedence over stale input status, disconnected broadcasts leave public playback and discovery, and live genre labels render as `Hip-Hop` with Now Playing in the creator header.
 - Fixed public OBS stream discovery by syncing Cloudflare Stream lifecycle state, recognizing reconnecting inputs, normalizing Stream playback hostnames and status payloads, and replacing technical setup copy with creator-facing guidance.
 - Fixed live tips by creating Stripe destination charges on the platform account before transferring funds to the artist, and by returning a retryable provider error instead of an unhandled `500`.
 - Fixed transactional email greetings to prefer platform usernames, fall back to first names, and avoid email local-parts.

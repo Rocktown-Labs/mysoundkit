@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { API_V1_URL } from "@/lib/api";
 import { useLiveRoom } from "@/lib/live-room";
+import { genreLabelFromValue } from "@/lib/music-genres";
 import { useArtistQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/live/streams/$id")({
@@ -222,7 +223,7 @@ function StreamDetailPage() {
           </Badge>
           {experience?.genre ? (
             <Badge className="bg-black/60 backdrop-blur-md" variant="outline">
-              {experience.genre}
+              {genreLabelFromValue(experience.genre)}
             </Badge>
           ) : null}
         </div>
@@ -265,6 +266,7 @@ function StreamDetailPage() {
           }}
           genre={experience?.genre}
           isLive={isLive}
+          nowPlaying={<LiveNowPlayingCard compact track={nowPlaying} />}
           tipButton={
             experience?.creatorUserId ? (
               <LiveTipButton
@@ -280,10 +282,6 @@ function StreamDetailPage() {
           title={room.title}
           viewerCount={experience?.viewerCount ?? room.viewerCount}
         />
-
-        <div className="mt-6">
-          <LiveNowPlayingCard track={nowPlaying} />
-        </div>
 
         {currentTrack &&
         currentTrack.lyrics &&

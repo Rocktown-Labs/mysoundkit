@@ -13,7 +13,7 @@ import {
 describe("battle display helpers", () => {
   it("formats canonical artist battle titles", () => {
     expect(formatArtistBattleTitle("hip-hop-rap")).toBe(
-      "Artist Battle - Hip Hop"
+      "Artist Battle - Hip-Hop"
     );
     expect(
       resolveArtistBattleTitle("SoundKit Artist Battle", "Electronic")

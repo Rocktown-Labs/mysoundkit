@@ -78,6 +78,15 @@ describe("SoundKit Worker API", () => {
     expect(response.status).toBe(401);
   });
 
+  it("requires authentication to stop a Cloudflare Stream input", async () => {
+    const response = await SELF.fetch(
+      "http://soundkit.test/v1/live/cloudflare-stream/input-test",
+      { method: "DELETE" }
+    );
+
+    expect(response.status).toBe(401);
+  });
+
   it("verifies Stripe commerce webhooks without requiring storage", async () => {
     const payload = JSON.stringify({
         data: { object: {} },
