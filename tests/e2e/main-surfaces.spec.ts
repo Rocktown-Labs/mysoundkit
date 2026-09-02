@@ -1043,7 +1043,9 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: "Live Streams" })
     ).toBeVisible();
     await expect(page.getByText("Create Stream")).toBeVisible();
-    await expect(page.getByText("RealtimeKit Layer").first()).toBeVisible();
+    await expect(
+      page.getByText("SoundKit keeps your room, chat, and viewers in sync.")
+    ).toBeVisible();
   });
 
   test("artist setup guide stays inside the floating navigation", async ({
