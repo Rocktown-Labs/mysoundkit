@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
 import { API_BASE_URL, API_V1_URL } from "./api";
 
@@ -11,9 +11,18 @@ export type LiveRoomViewerRole =
   | "fan"
   | "host";
 
+export interface LiveRoomChatEntity {
+  artistName: string;
+  href: string | null;
+  id: string;
+  title: string;
+  type: "track";
+}
+
 export interface LiveRoomChatMessage {
   avatarUrl?: string | null;
   chatScope?: "battle" | "waiting_room";
+  entity?: LiveRoomChatEntity;
   id: string;
   message: string;
   sentAt: string;
@@ -32,6 +41,7 @@ export interface LiveRoomTrack {
   artistName: string;
   coverArtUrl: string;
   durationMs: number;
+  href?: string | null;
   id: string;
   lyrics: LiveRoomLyricsLine[];
   status: "played" | "playing" | "queued";
@@ -123,6 +133,7 @@ export interface LiveRoomState {
   serverNow?: number;
   status: "ended" | "live" | "upcoming";
   stream?: {
+    botEnabled?: boolean;
     errorCode?: string | null;
     errorMessage?: string | null;
     ingestStatus:
@@ -132,6 +143,7 @@ export interface LiveRoomState {
       | "idle"
       | "reconnecting";
     reconnectUntil?: number | null;
+    nowPlaying?: LiveRoomTrack | null;
     replayStatus: "available" | "none" | "processing";
   };
   summary: string;
@@ -140,8 +152,12 @@ export interface LiveRoomState {
   viewerCount: number;
 }
 
-const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
-  sortChatMessages = (messages: LiveRoomChatMessage[]) =>
+export const liveRoomKey = (roomId: string, overlayToken?: string) =>
+  overlayToken
+    ? (["live", "rooms", roomId, "overlay"] as const)
+    : (["live", "rooms", roomId] as const);
+
+const sortChatMessages = (messages: LiveRoomChatMessage[]) =>
     [...messages].sort((left, right) => {
       const leftTime = Date.parse(left.sentAt),
         rightTime = Date.parse(right.sentAt);
@@ -165,9 +181,17 @@ const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
       : room,
   fetchLiveRoom = async (
     roomId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    overlayToken?: string
   ): Promise<LiveRoomState> => {
-    const response = await fetch(`${API_V1_URL}/live/rooms/${roomId}`, {
+    const url = new URL(
+      `${API_V1_URL}/live/rooms/${encodeURIComponent(roomId)}${overlayToken ? "/overlay" : ""}`
+    );
+    if (overlayToken) {
+      url.searchParams.set("token", overlayToken);
+    }
+
+    const response = await fetch(url, {
       credentials: "include",
       signal,
     });
@@ -210,10 +234,13 @@ const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
 
     return response.json() as Promise<LiveRoomChatResult | LiveRoomState>;
   },
-  wsUrlForRoom = (roomId: string) => {
+  wsUrlForRoom = (roomId: string, overlayToken?: string) => {
     const url = new URL(
       `${API_BASE_URL}/v1/live/rooms/${encodeURIComponent(roomId)}/ws`
     );
+    if (overlayToken) {
+      url.searchParams.set("token", overlayToken);
+    }
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     return url.toString();
   };
@@ -226,16 +253,27 @@ interface LiveRoomChatResult {
   room: LiveRoomState;
 }
 
-export const useLiveRoom = (roomId: string) => {
-  const queryClient = useQueryClient(),
+export interface LiveRoomOptions {
+  overlayToken?: string;
+}
+
+export const useLiveRoom = (
+  roomId: string,
+  { overlayToken }: LiveRoomOptions = {}
+) => {
+  const roomQueryKey = useMemo(
+      () => liveRoomKey(roomId, overlayToken),
+      [overlayToken, roomId]
+    ),
+    queryClient = useQueryClient(),
     invalidateBattleQueries = () => {
       void queryClient.invalidateQueries({ queryKey: ["battles"] });
       void queryClient.invalidateQueries({ queryKey: ["soundkit-db"] });
     },
     query = useQuery({
       enabled: Boolean(roomId),
-      queryFn: ({ signal }) => fetchLiveRoom(roomId, signal),
-      queryKey: liveRoomKey(roomId),
+      queryFn: ({ signal }) => fetchLiveRoom(roomId, signal, overlayToken),
+      queryKey: roomQueryKey,
       refetchInterval: 30_000,
       retry: false,
     });
@@ -255,7 +293,7 @@ export const useLiveRoom = (roomId: string) => {
       }
 
       try {
-        const currentSocket = new WebSocket(wsUrlForRoom(roomId));
+        const currentSocket = new WebSocket(wsUrlForRoom(roomId, overlayToken));
         socket = currentSocket;
         currentSocket.addEventListener("open", () => {
           if (socket !== currentSocket) {
@@ -263,7 +301,7 @@ export const useLiveRoom = (roomId: string) => {
           }
           reconnectAttempt = 0;
           void queryClient.invalidateQueries({
-            queryKey: liveRoomKey(roomId),
+            queryKey: roomQueryKey,
           });
         });
         currentSocket.addEventListener("message", (event) => {
@@ -276,10 +314,10 @@ export const useLiveRoom = (roomId: string) => {
             };
 
             if (payload.type === "state" && payload.room) {
-              queryClient.setQueryData(liveRoomKey(roomId), payload.room);
+              queryClient.setQueryData(roomQueryKey, payload.room);
             } else if (payload.type === "chat" && payload.message) {
               queryClient.setQueryData<LiveRoomState | undefined>(
-                liveRoomKey(roomId),
+                roomQueryKey,
                 (room) =>
                   appendChatMessage(
                     room,
@@ -292,7 +330,7 @@ export const useLiveRoom = (roomId: string) => {
             ) {
               const { playback } = payload;
               queryClient.setQueryData<LiveRoomState | undefined>(
-                liveRoomKey(roomId),
+                roomQueryKey,
                 (room) =>
                   room && room.party
                     ? {
@@ -359,7 +397,7 @@ export const useLiveRoom = (roomId: string) => {
         currentSocket.close(1000, "Live room client is leaving");
       }
     };
-  }, [queryClient, roomId]);
+  }, [overlayToken, queryClient, roomId, roomQueryKey]);
 
   const chatMutation = useMutation({
       mutationFn: (body: { message: string; userName?: string }) =>

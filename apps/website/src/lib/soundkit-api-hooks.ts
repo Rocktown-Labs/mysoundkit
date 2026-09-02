@@ -9,6 +9,7 @@ import type { InferRequestType, InferResponseType } from "hono/client";
 import { useEffect } from "react";
 
 import { API_V1_URL, SoundKitApiError, apiClient, rpcJson } from "./api";
+import { liveRoomKey } from "./live-room";
 
 const meGet = apiClient.v1.me.index.$get,
   meProfilePatch = apiClient.v1.me.profile.$patch,
@@ -79,8 +80,15 @@ const meGet = apiClient.v1.me.index.$get,
   liveMyExperiencesGet = apiClient.v1.live.experiences.me.$get,
   liveExperienceDelete = apiClient.v1.live.experiences[":experienceId"].$delete,
   liveExperiencePost = apiClient.v1.live.experiences.index.$post,
+  liveExperienceReviewCatalogGet =
+    apiClient.v1.live.experiences[":experienceId"]["review-catalog"].$get,
+  liveExperienceOverlayTokenPost =
+    apiClient.v1.live.experiences[":experienceId"]["overlay-token"].$post,
   liveExperienceJoinPost =
     apiClient.v1.live.experiences[":experienceId"].join.$post,
+  liveRoomStreamBotPost = apiClient.v1.live.rooms[":roomId"].stream.bot.$post,
+  liveRoomNowPlayingPost =
+    apiClient.v1.live.rooms[":roomId"].stream["now-playing"].$post,
   liveExperienceBattleBotPost =
     apiClient.v1.live.experiences[":experienceId"].battlebot.$post,
   liveExperienceSessionLockCheckPost =
@@ -327,6 +335,10 @@ type JoinLiveExperienceBody = InferRequestType<
 type BattleBotActionBody = InferRequestType<
   typeof liveExperienceBattleBotPost
 >["json"];
+type StreamBotBody = InferRequestType<typeof liveRoomStreamBotPost>["json"];
+type StreamNowPlayingBody = InferRequestType<
+  typeof liveRoomNowPlayingPost
+>["json"];
 type LiveSessionLockCheckBody = InferRequestType<
   typeof liveExperienceSessionLockCheckPost
 >["json"];
@@ -336,6 +348,14 @@ export type LiveExperienceCreateResponse = InferResponseType<
 >;
 export type LiveExperienceJoinResponse = InferResponseType<
   typeof liveExperienceJoinPost,
+  201
+>;
+export type LiveReviewCatalogTrack = InferResponseType<
+  typeof liveExperienceReviewCatalogGet,
+  200
+>[number];
+export type LiveOverlayTokenResponse = InferResponseType<
+  typeof liveExperienceOverlayTokenPost,
   201
 >;
 export type ListeningPartySummary = InferResponseType<
@@ -464,6 +484,9 @@ export const soundkitQueryKeys = {
   libraryWatched: ["library", "watched"] as const,
   listeningParties: ["listening-parties"] as const,
   liveExperience: (id: string) => ["live", "experiences", id] as const,
+  liveReviewCatalog: (id: string, query?: string) =>
+    ["live", "experiences", id, "review-catalog", query ?? ""] as const,
+  liveRoom: (id: string) => ["live", "rooms", id] as const,
   me: ["me"] as const,
   meEntitlements: ["me", "entitlements"] as const,
   meNotificationSettings: ["me", "notification-settings"] as const,
@@ -1169,7 +1192,9 @@ export const useFollowArtistMutation = (username: string) => {
         queryClient.invalidateQueries({
           queryKey: soundkitQueryKeys.artist(username),
         }),
-        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.artists() }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.artists(),
+        }),
         queryClient.invalidateQueries({
           queryKey: soundkitQueryKeys.notifications,
         }),
@@ -1188,7 +1213,9 @@ export const useUnfollowArtistMutation = (username: string) => {
         queryClient.invalidateQueries({
           queryKey: soundkitQueryKeys.artist(username),
         }),
-        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.artists() }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.artists(),
+        }),
         queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network }),
       ]),
   });
@@ -1720,30 +1747,30 @@ const battleDirectorySubscriptions = new WeakMap<
     }
 
     const connect = () => {
-      if (subscription.stopped) {
-        return;
-      }
-
-      const url = new URL(`${API_V1_URL}/battles/directory/ws`);
-      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-      const socket = new WebSocket(url.toString());
-      subscription.socket = socket;
-      socket.addEventListener("message", () => {
-        void queryClient.invalidateQueries({
-          queryKey: soundkitQueryKeys.battles,
-        });
-      });
-      socket.addEventListener("close", () => {
-        if (subscription.stopped || subscription.reconnectTimer !== null) {
+        if (subscription.stopped) {
           return;
         }
-        subscription.reconnectTimer = window.setTimeout(() => {
-          subscription.reconnectTimer = null;
-          connect();
-        }, 1000);
-      });
-      socket.addEventListener("error", () => socket.close(), { once: true });
-    },
+
+        const url = new URL(`${API_V1_URL}/battles/directory/ws`);
+        url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+        const socket = new WebSocket(url.toString());
+        subscription.socket = socket;
+        socket.addEventListener("message", () => {
+          void queryClient.invalidateQueries({
+            queryKey: soundkitQueryKeys.battles,
+          });
+        });
+        socket.addEventListener("close", () => {
+          if (subscription.stopped || subscription.reconnectTimer !== null) {
+            return;
+          }
+          subscription.reconnectTimer = window.setTimeout(() => {
+            subscription.reconnectTimer = null;
+            connect();
+          }, 1000);
+        });
+        socket.addEventListener("error", () => socket.close(), { once: true });
+      },
       subscription: BattleDirectorySubscription = {
         count: 1,
         reconnectTimer: null,
@@ -1816,6 +1843,53 @@ export const useMyLiveExperiencesQuery = (enabled = true) =>
     queryKey: ["live", "experiences", "me"],
     refetchInterval: 5000,
   });
+
+export const useLiveReviewCatalogQuery = (
+  experienceId: string,
+  query = "",
+  enabled = true
+) =>
+  useQuery({
+    enabled: enabled && experienceId.length > 0,
+    queryFn: async () =>
+      rpcJson(
+        await liveExperienceReviewCatalogGet({
+          param: { experienceId },
+          query: query.trim() ? { q: query.trim() } : {},
+        })
+      ),
+    queryKey: soundkitQueryKeys.liveReviewCatalog(experienceId, query),
+  });
+
+export const useCreateLiveOverlayTokenMutation = () =>
+  useMutation({
+    mutationFn: async (experienceId: string) =>
+      rpcJson(
+        await liveExperienceOverlayTokenPost({ param: { experienceId } })
+      ),
+  });
+
+export const useSetLiveNowPlayingMutation = (roomId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: StreamNowPlayingBody) =>
+      rpcJson(await liveRoomNowPlayingPost({ json: body, param: { roomId } })),
+    onSuccess: (room) => {
+      queryClient.setQueryData(liveRoomKey(roomId), room);
+    },
+  });
+};
+
+export const useSetStreamBotMutation = (roomId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: StreamBotBody) =>
+      rpcJson(await liveRoomStreamBotPost({ json: body, param: { roomId } })),
+    onSuccess: (room) => {
+      queryClient.setQueryData(liveRoomKey(roomId), room);
+    },
+  });
+};
 
 export const useDeleteLiveExperienceMutation = () => {
   const queryClient = useQueryClient();
@@ -2093,7 +2167,9 @@ export const useUpdateWorkspaceMutation = () => {
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me }),
-        queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.workspace }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.workspace,
+        }),
       ]),
   });
 };
@@ -2632,7 +2708,7 @@ export const useArtistSetupGuideQuery = (enabled = true) =>
     queryKey: soundkitQueryKeys.artistSetupGuide,
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
-    staleTime: 5_000,
+    staleTime: 5000,
   });
 
 export const usePlatformInviteMutation = () => {

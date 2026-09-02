@@ -9,7 +9,7 @@ import { getPreferredRecipientName } from "@soundkit/transactional/recipient-nam
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { admin, organization } from "better-auth/plugins";
+import { admin, bearer, organization } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import { Stripe } from "stripe";
 
@@ -35,6 +35,8 @@ const getEnvValue = (key: string) =>
     getEnvValue("SOUNDKIT_PUBLIC_URL") ||
     getEnvValue("CORS_ORIGIN") ||
     "https://mysoundkit.com",
+  getBioSiteUrl = () =>
+    getEnvValue("SOUNDKIT_BIO_URL") || "https://soundkit.bio",
   getEmailFrom = () =>
     getEnvValue("SOUNDKIT_EMAIL_FROM") ||
     "SoundKit <noreply@news.mysoundkit.com>",
@@ -379,7 +381,8 @@ const getRecipientUsername = async (email: string) => {
   };
 
 export const createAuth = () => {
-  const db = createDb(),
+  const bioSiteUrl = getBioSiteUrl(),
+    db = createDb(),
     authHost = hostFromUrl(env.BETTER_AUTH_URL),
     siteHost = hostFromUrl(env.CORS_ORIGIN),
     isLocalAuthUrl =
@@ -388,14 +391,13 @@ export const createAuth = () => {
     isDevelopment =
       globalThis.process?.env.NODE_ENV === "development" || isLocalAuthUrl,
     stripeClient = createStripeClient(),
-    stripeWebhookSecret = getEnvValue(
-      "STRIPE_BETTER_AUTH_WEBHOOK_SECRET"
-    ),
+    stripeWebhookSecret = getEnvValue("STRIPE_BETTER_AUTH_WEBHOOK_SECRET"),
     allowedAuthHosts = uniqueValues([
       authHost,
       siteHost,
       "mysoundkit.com",
       "www.mysoundkit.com",
+      hostFromUrl(bioSiteUrl),
       "*.mysoundkit.pages.dev",
       "*.pages.dev",
       "*.workers.dev",
@@ -504,6 +506,7 @@ export const createAuth = () => {
       admin({
         defaultRole: "user",
       }),
+      bearer(),
       organization({
         allowUserToCreateOrganization: true,
         requireEmailVerificationOnInvitation: false,
@@ -619,6 +622,7 @@ export const createAuth = () => {
     trustedOrigins: [
       env.CORS_ORIGIN,
       env.BETTER_AUTH_URL,
+      bioSiteUrl,
       "https://mysoundkit.com",
       "https://www.mysoundkit.com",
       "https://*.mysoundkit.pages.dev",

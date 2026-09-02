@@ -44,6 +44,7 @@ lerna-debug.log*
 apps/website/.nitro
 apps/website/.output
 apps/website/.wrangler
+apps/bio/.wrangler
 
 # Testing
 coverage

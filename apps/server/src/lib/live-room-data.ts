@@ -12,9 +12,18 @@ export type LiveRoomViewerRole =
   | "fan"
   | "host";
 
+export interface LiveRoomChatEntity {
+  artistName: string;
+  href: string | null;
+  id: string;
+  title: string;
+  type: "track";
+}
+
 export interface LiveRoomChatMessage {
   avatarUrl?: string | null;
   chatScope?: "battle" | "waiting_room";
+  entity?: LiveRoomChatEntity;
   id: string;
   message: string;
   sentAt: string;
@@ -33,6 +42,7 @@ export interface LiveRoomTrack {
   artistName: string;
   coverArtUrl: string;
   durationMs: number;
+  href?: string | null;
   id: string;
   lyrics: LiveRoomLyricsLine[];
   status: "played" | "playing" | "queued";
@@ -81,6 +91,7 @@ export interface LivePartyPlayback {
 }
 
 export interface LiveStreamLifecycle {
+  botEnabled?: boolean;
   errorCode?: string | null;
   errorMessage?: string | null;
   ingestStatus:
@@ -89,6 +100,7 @@ export interface LiveStreamLifecycle {
     | "error"
     | "idle"
     | "reconnecting";
+  nowPlaying?: LiveRoomTrack | null;
   reconnectUntil?: number | null;
   replayStatus: "available" | "none" | "processing";
 }

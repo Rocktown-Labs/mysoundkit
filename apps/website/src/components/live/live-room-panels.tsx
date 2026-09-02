@@ -99,9 +99,10 @@ export function LiveChatPanel({
     };
   }
 
-  useEffect(() => {
-    return registerPresenceUsers(presenceUserIdsRef.current.ids);
-  }, [presenceUserIdsKey, registerPresenceUsers]);
+  useEffect(
+    () => registerPresenceUsers(presenceUserIdsRef.current.ids),
+    [presenceUserIdsKey, registerPresenceUsers]
+  );
 
   return (
     <>
@@ -304,7 +305,21 @@ export function LiveChatPanel({
                               <p
                                 className={`mt-0.5 break-words leading-relaxed ${isBot || isArtistMessage ? "font-semibold text-white" : "text-muted-foreground/90"}`}
                               >
-                                {chatMessage.message}
+                                {chatMessage.entity?.type === "track" &&
+                                chatMessage.entity.href ? (
+                                  <a
+                                    className={
+                                      isBot || isArtistMessage
+                                        ? "underline decoration-white/50 underline-offset-2 hover:decoration-white"
+                                        : "underline decoration-primary/50 underline-offset-2 hover:text-primary"
+                                    }
+                                    href={chatMessage.entity.href}
+                                  >
+                                    {chatMessage.message}
+                                  </a>
+                                ) : (
+                                  chatMessage.message
+                                )}
                               </p>
                             </div>
                           </div>
@@ -353,6 +368,57 @@ export function LiveChatPanel({
         user={previewUser}
       />
     </>
+  );
+}
+
+export function LiveNowPlayingCard({
+  className = "",
+  track,
+}: {
+  className?: string;
+  track?: LiveRoomTrack | null;
+}) {
+  return (
+    <Card className={className}>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Music2 className="size-4 text-primary" />
+          Now Playing
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {track ? (
+          <div className="flex items-center gap-3">
+            <AppImage
+              alt={track.title}
+              className="size-14 rounded-md object-cover"
+              height={56}
+              src={track.coverArtUrl}
+              width={56}
+            />
+            <div className="min-w-0">
+              {track.href ? (
+                <a
+                  className="truncate font-semibold hover:text-primary"
+                  href={track.href}
+                >
+                  {track.title}
+                </a>
+              ) : (
+                <p className="truncate font-semibold">{track.title}</p>
+              )}
+              <p className="truncate text-sm text-muted-foreground">
+                {track.artistName}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            The host has not selected a track yet.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

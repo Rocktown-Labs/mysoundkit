@@ -14,8 +14,10 @@ import {
 } from "@/lib/live-battle-state";
 import type { BattleCoordination, BattlePhase } from "@/lib/live-battle-state";
 import type {
+  LiveRoomChatEntity,
   LiveRoomChatMessage,
   LiveRoomState,
+  LiveRoomTrack,
   LiveRoomViewerRole,
 } from "@/lib/live-room-data";
 import { createSampleLiveRoom } from "@/lib/live-room-data";
@@ -59,6 +61,7 @@ export interface LiveRoomBattleDisposition {
 export interface LiveRoomIdentity {
   avatarUrl?: string | null;
   displayName: string;
+  isOverlay?: boolean;
   role?: LiveRoomViewerRole;
   userId: string;
 }
@@ -74,6 +77,8 @@ export interface LiveRoomChatResult {
 }
 
 const BATTLE_BOT_USER_ID = "soundkit-battlebot",
+  STREAM_BOT_USER_ID = "soundkit-streambot",
+  STREAM_OVERLAY_TOKEN_STORAGE_KEY = "stream-overlay-token",
   CHAT_RATE_LIMIT = 5,
   CHAT_RATE_WINDOW_MS = 5000,
   CHAT_STORAGE_KEY = "live-room-chat",
@@ -100,7 +105,29 @@ const BATTLE_BOT_USER_ID = "soundkit-battlebot",
     isBattleTerminalState({
       phase: room.battle?.coordination?.phase,
       status: room.status,
-    });
+    }),
+  streamOverlayTokenHash = async (token: string) => {
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(token)
+    );
+    return [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+  },
+  constantTimeStringEqual = (left: string, right: string) => {
+    if (left.length !== right.length) {
+      return false;
+    }
+
+    let difference = 0;
+    for (let index = 0; index < left.length; index += 1) {
+      difference += Math.abs(
+        (left.codePointAt(index) ?? 0) - (right.codePointAt(index) ?? 0)
+      );
+    }
+    return difference === 0;
+  };
 
 export const battleOutcomeMessage = (room: LiveRoomState) => {
   const outcome = room.battle?.coordination?.outcome;
@@ -116,9 +143,9 @@ export const battleOutcomeMessage = (room: LiveRoomState) => {
       (round) => round.number === coordination?.roundNumber
     ),
     affectedTrack = affectedArtist
-      ? affectedArtist.id === room.battle?.artists[0]?.id
+      ? (affectedArtist.id === room.battle?.artists[0]?.id
         ? currentRound?.artistATrack
-        : currentRound?.artistBTrack
+        : currentRound?.artistBTrack)
       : undefined,
     roundNumber = coordination?.roundNumber ?? 1;
 
@@ -133,7 +160,9 @@ export const battleOutcomeMessage = (room: LiveRoomState) => {
   }
 
   const verb = outcome.kind === "forfeited" ? "forfeited" : "quit",
-    trackContext = affectedTrack ? ` while “${affectedTrack.title}” was on stage` : "";
+    trackContext = affectedTrack
+      ? ` while “${affectedTrack.title}” was on stage`
+      : "";
   return `${affectedArtist?.name ?? "An artist"} ${verb} during Round ${roundNumber}${trackContext}. The battle ended with no rated result. The room is now closed.`;
 };
 
@@ -200,9 +229,10 @@ export const battleBotMessageForPhase = (
       }
 
       const winner = votesA > votesB ? artistA : artistB,
-        winningTrack = votesA > votesB
-          ? currentRound?.artistATrack
-          : currentRound?.artistBTrack;
+        winningTrack =
+          votesA > votesB
+            ? currentRound?.artistATrack
+            : currentRound?.artistBTrack;
       return `${roundLabel} goes to ${winner?.name ?? "the winning artist"}${winningTrack ? ` with “${winningTrack.title}”` : ""}, ${votesA}–${votesB}.`;
     }
     case "between_rounds": {
@@ -361,7 +391,7 @@ export class LiveRoomDurableObject extends DurableObject {
 
     const attachment =
       socket.deserializeAttachment() as LiveRoomSocketAttachment | null;
-    if (!attachment) {
+    if (!attachment || attachment.isOverlay) {
       return;
     }
 
@@ -634,6 +664,135 @@ export class LiveRoomDurableObject extends DurableObject {
     return { replaced: true, room: this.publicState(roomToPersist) };
   }
 
+  async createStreamOverlayToken(
+    roomId: string,
+    identity: LiveRoomIdentity
+  ): Promise<{ createdAt: number; token: string }> {
+    this.requestedRoomId = roomId;
+    const room = await this.loadState();
+    if (!this.canControlStream(room, identity)) {
+      throw new Error("Only the stream host can create an overlay token.");
+    }
+
+    const createdAt = Date.now(),
+      token = `${crypto.randomUUID()}-${crypto.randomUUID()}`;
+    await this.ctx.storage.put(STREAM_OVERLAY_TOKEN_STORAGE_KEY, {
+      createdAt,
+      hash: await streamOverlayTokenHash(token),
+    });
+    return { createdAt, token };
+  }
+
+  async getStreamOverlayState(
+    roomId: string,
+    token: string
+  ): Promise<LiveRoomState | null> {
+    this.requestedRoomId = roomId;
+    if (!(await this.isValidStreamOverlayToken(token))) {
+      return null;
+    }
+
+    const room = await this.loadState();
+    return this.canUseStreamOverlay(room)
+      ? this.publicState(room, {
+          displayName: "Stream Overlay",
+          isOverlay: true,
+          role: "host",
+          userId: `stream-overlay:${room.id}`,
+        })
+      : null;
+  }
+
+  async isValidStreamOverlayToken(token: string): Promise<boolean> {
+    const record = await this.ctx.storage.get<{ hash: string }>(
+      STREAM_OVERLAY_TOKEN_STORAGE_KEY
+    );
+    if (!record || token.length === 0) {
+      return false;
+    }
+
+    return constantTimeStringEqual(
+      record.hash,
+      await streamOverlayTokenHash(token)
+    );
+  }
+
+  async setStreamBotEnabled(
+    roomId: string,
+    identity: LiveRoomIdentity,
+    enabled: boolean
+  ): Promise<LiveRoomState> {
+    this.requestedRoomId = roomId;
+    const room = await this.loadState();
+    if (!this.canControlStream(room, identity)) {
+      throw new Error("Only the stream host can configure StreamBot.");
+    }
+
+    const nextRoom: LiveRoomState = {
+      ...room,
+      stream: {
+        ...(room.stream ?? {
+          ingestStatus: "idle" as const,
+          replayStatus: "none" as const,
+        }),
+        botEnabled: enabled,
+      },
+    };
+    await this.persist(nextRoom);
+    this.broadcast({ room: this.publicState(nextRoom), type: "state" });
+    return this.publicState(nextRoom, identity);
+  }
+
+  async setStreamNowPlaying(
+    roomId: string,
+    identity: LiveRoomIdentity,
+    track: LiveRoomTrack | null
+  ): Promise<LiveRoomState> {
+    this.requestedRoomId = roomId;
+    const room = await this.loadState();
+    if (!this.canControlStream(room, identity)) {
+      throw new Error("Only the stream host can update Now Playing.");
+    }
+
+    const currentTrackId = room.stream?.nowPlaying?.id ?? null;
+    if (currentTrackId === (track?.id ?? null)) {
+      return this.publicState(room, identity);
+    }
+
+    const nextRoom: LiveRoomState = {
+      ...room,
+      currentTrackId: track?.id ?? "",
+      stream: {
+        ...(room.stream ?? {
+          ingestStatus: "idle" as const,
+          replayStatus: "none" as const,
+        }),
+        nowPlaying: track ? { ...track, status: "playing" as const } : null,
+      },
+      tracklist: track ? [{ ...track, status: "playing" }] : [],
+    };
+    await this.persist(nextRoom);
+
+    let announcedRoom = nextRoom;
+    if (track && nextRoom.stream?.botEnabled) {
+      const entity: LiveRoomChatEntity = {
+        artistName: track.artistName,
+        href: track.href ?? null,
+        id: track.id,
+        title: track.title,
+        type: "track",
+      };
+      announcedRoom = await this.appendBotChatMessage(
+        nextRoom,
+        `Now playing: “${track.title}” by ${track.artistName}`,
+        { entity, userId: STREAM_BOT_USER_ID, userName: "StreamBot" }
+      );
+    }
+
+    this.broadcast({ room: this.publicState(announcedRoom), type: "state" });
+    return this.publicState(announcedRoom, identity);
+  }
+
   async chat(
     roomId: string,
     body: LiveRoomChatBody,
@@ -849,7 +1008,9 @@ export class LiveRoomDurableObject extends DurableObject {
         (action === "move_lobby_to_round" &&
           ((phase === "waiting_room" && artistsCanStart) ||
             phase === "between_rounds")) ||
-        (action === "start_battle" && phase === "waiting_room" && artistsCanStart) ||
+        (action === "start_battle" &&
+          phase === "waiting_room" &&
+          artistsCanStart) ||
         ((action === "close_voting" || action === "complete_round") &&
           isVotingPhase(phase));
 
@@ -1277,6 +1438,21 @@ export class LiveRoomDurableObject extends DurableObject {
     return room;
   }
 
+  private canControlStream(
+    room: LiveRoomState,
+    identity: LiveRoomIdentity
+  ): boolean {
+    return (
+      room.kind === "stream" &&
+      room.status !== "ended" &&
+      (identity.role === "admin" || identity.role === "host")
+    );
+  }
+
+  private canUseStreamOverlay(room: LiveRoomState): boolean {
+    return room.kind === "stream" && room.status !== "ended";
+  }
+
   private chatScopeForRoom(room: LiveRoomState): "battle" | "waiting_room" {
     if (
       room.kind === "battle" &&
@@ -1520,16 +1696,23 @@ export class LiveRoomDurableObject extends DurableObject {
 
   private async appendBotChatMessage(
     room: LiveRoomState,
-    message: string
+    message: string,
+    options: {
+      entity?: LiveRoomChatEntity;
+      userId?: string;
+      userName?: string;
+    } = {}
   ): Promise<LiveRoomState> {
-    const chatMessage: LiveRoomChatMessage = {
+    const userId = options.userId ?? BATTLE_BOT_USER_ID,
+      chatMessage: LiveRoomChatMessage = {
         avatarUrl: "/soundkit-default-avatar.svg",
         chatScope: this.chatScopeForRoom(room),
-        id: `${BATTLE_BOT_USER_ID}:${crypto.randomUUID()}`,
+        ...(options.entity ? { entity: options.entity } : {}),
+        id: `${userId}:${crypto.randomUUID()}`,
         message,
         sentAt: new Date().toISOString(),
-        userId: BATTLE_BOT_USER_ID,
-        userName: "BattleBot",
+        userId,
+        userName: options.userName ?? "BattleBot",
         userRole: "host",
       },
       nextChat = [...room.chat, chatMessage].slice(-MAX_CHAT_MESSAGES),
@@ -1764,8 +1947,9 @@ export class LiveRoomDurableObject extends DurableObject {
       return true;
     }
 
-    const reconciledAt =
-      await this.ctx.storage.get<number>(NO_SHOW_RECONCILED_STORAGE_KEY);
+    const reconciledAt = await this.ctx.storage.get<number>(
+      NO_SHOW_RECONCILED_STORAGE_KEY
+    );
     if (reconciledAt === outcome.recordedAt) {
       return true;
     }
@@ -1807,9 +1991,14 @@ export class LiveRoomDurableObject extends DurableObject {
   }
 
   private async broadcastPresence() {
-    const room = await this.loadState();
+    const room = await this.loadState(),
+      viewerCount = this.ctx.getWebSockets().filter((socket) => {
+        const attachment =
+          socket.deserializeAttachment() as LiveRoomSocketAttachment | null;
+        return !attachment?.isOverlay;
+      }).length;
     this.broadcast({
-      count: this.ctx.getWebSockets().length,
+      count: viewerCount,
       roomId: room.id,
       type: "presence",
     });
@@ -1889,6 +2078,7 @@ export class LiveRoomDurableObject extends DurableObject {
       avatarUrl: request.headers.get("x-soundkit-live-avatar-url"),
       displayName:
         request.headers.get("x-soundkit-live-display-name") ?? "Listener",
+      isOverlay: request.headers.get("x-soundkit-live-overlay") === "true",
       role:
         role === "admin" ||
         role === "artist_a" ||

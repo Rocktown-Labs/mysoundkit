@@ -1,0 +1,47 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/playfair-display";
+@import "@fontsource/notable/400.css";
+
+:root {
+  color-scheme: dark;
+  font-family: "Geist Variable", sans-serif;
+  background: #101010;
+  color: #f7f3ec;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 10% 0%, rgb(255 94 58 / 18%), transparent 32rem),
+    radial-gradient(
+      circle at 90% 20%,
+      rgb(129 92 246 / 18%),
+      transparent 30rem
+    ),
+    #101010;
+}
+
+button,
+a,
+input,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: rgb(255 94 58 / 40%);
+}
