@@ -4,6 +4,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-04-12",
   "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "SOUNDKIT_BIO_URL": "http://localhost:3002",
+  },
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,

@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
+/* oxlint-disable one-var, sort-vars, unicorn/max-nested-calls */
 
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
@@ -63,19 +64,16 @@ describe("SoundKit Worker API", () => {
   });
 
   it("requires authentication to create a tip", async () => {
-    const response = await SELF.fetch(
-      "http://soundkit.test/v1/payments/tips",
-      {
-        body: JSON.stringify({
-          amountCents: 500,
-          artistUserId: "artist-test",
-          cancelUrl: "http://soundkit.test/live/streams/test",
-          successUrl: "http://soundkit.test/live/streams/test",
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      }
-    );
+    const response = await SELF.fetch("http://soundkit.test/v1/payments/tips", {
+      body: JSON.stringify({
+        amountCents: 500,
+        artistUserId: "artist-test",
+        cancelUrl: "http://soundkit.test/live/streams/test",
+        successUrl: "http://soundkit.test/live/streams/test",
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
 
     expect(response.status).toBe(401);
   });
@@ -147,6 +145,23 @@ describe("SoundKit Worker API", () => {
 
     expect(response.headers.get("access-control-allow-origin")).toBe(
       "http://127.0.0.1:3001"
+    );
+    expect(response.headers.get("access-control-allow-credentials")).toBe(
+      "true"
+    );
+  });
+
+  it("allows the standalone bio origin for credentialed auth requests", async () => {
+    const response = await SELF.fetch("http://soundkit.test/auth/session", {
+      headers: {
+        "access-control-request-method": "GET",
+        origin: "https://bio.mysoundkit.com",
+      },
+      method: "OPTIONS",
+    });
+
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "https://bio.mysoundkit.com"
     );
     expect(response.headers.get("access-control-allow-credentials")).toBe(
       "true"

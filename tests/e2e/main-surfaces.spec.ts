@@ -412,11 +412,13 @@ test.describe("main application surfaces", () => {
       page,
       "/live/battles?regionType=north-america&region=us-arkansas"
     );
-    const battlesContentBox = await page
-        .getByRole("heading", { exact: true, name: "Live Battles" })
-        .nth(1)
-        .boundingBox(),
-      battlesContentX = battlesContentBox?.x;
+    const battlesHeading = page
+      .getByRole("heading", { exact: true, name: "Live Battles" })
+      .nth(1);
+    await expect(battlesHeading).toBeVisible();
+    const battlesContentX = await battlesHeading.evaluate(
+      (element) => element.getBoundingClientRect().x
+    );
 
     await gotoWithViteRetry(
       page,
@@ -434,15 +436,20 @@ test.describe("main application surfaces", () => {
     if ((page.viewportSize()?.width ?? 0) >= 1024) {
       await expect(page.getByRole("combobox")).toHaveCount(4);
     }
-    const partiesContentBox = await page
-        .getByRole("heading", { exact: true, name: "Listening Parties" })
-        .boundingBox(),
-      partiesContentX = partiesContentBox?.x;
-    expect(battlesContentX).toBeDefined();
-    expect(partiesContentX).toBeDefined();
-    expect(
-      Math.abs((battlesContentX ?? 0) - (partiesContentX ?? 0))
-    ).toBeLessThan(2);
+    await expect(
+      page.getByRole("heading", {
+        exact: true,
+        name: "Listening Parties",
+      })
+    ).toBeVisible();
+    const partiesHeading = page.getByRole("heading", {
+      exact: true,
+      name: "Listening Parties",
+    });
+    const partiesContentX = await partiesHeading.evaluate(
+      (element) => element.getBoundingClientRect().x
+    );
+    expect(Math.abs(battlesContentX - partiesContentX)).toBeLessThan(2);
 
     await gotoWithViteRetry(page, "/live/parties");
     await expect(

@@ -178,6 +178,7 @@ export function LiveTipButton({
             const tipError = getTipError(error);
             setAuthRequired(tipError.requiresAuth);
             setFormError(tipError.message);
+            setIdempotencyKey(null);
           },
           onSuccess: (response) => {
             if (response.clientSecret) {
@@ -185,6 +186,7 @@ export function LiveTipButton({
               return;
             }
 
+            setIdempotencyKey(null);
             setFormError(
               response.setupRequired
                 ? "Tips are temporarily unavailable."

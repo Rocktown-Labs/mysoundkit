@@ -29,7 +29,7 @@
     "test:e2e": "playwright test",
     "test:e2e:real": "SOUNDKIT_REAL_E2E=true playwright test tests/e2e/real-backend.spec.ts --project=chromium",
     "test:unit": "vitest run --config vitest.config.ts",
-    "test:worker": "vitest run --config vitest.worker.config.ts"
+    "test:worker": "vitest run --config vitest.worker.config.ts && vitest run --config vitest.live-review.worker.config.ts"
   },
   "dependencies": {
     "@soundkit/env": "workspace:*",

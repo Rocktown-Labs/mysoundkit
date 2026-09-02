@@ -153,6 +153,14 @@ export const battleReadyBodySchema = z.object({
   ready: z.boolean(),
 });
 
+export const streamBotBodySchema = z.object({
+  enabled: z.boolean(),
+});
+
+export const streamNowPlayingBodySchema = z.object({
+  trackId: z.string().nullable(),
+});
+
 export const battleParticipationResultSchema = z.enum([
   "canceled",
   "ducked",

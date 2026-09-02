@@ -11,7 +11,9 @@ import {
   listeningParties,
   liveExperiences,
   projectTracks,
+  purchases,
   trackAssets,
+  trackCollaborators,
   tracks,
   userProfiles,
   videos,
@@ -23,6 +25,7 @@ import {
   eq,
   gt,
   gte,
+  ilike,
   inArray,
   isNull,
   ne,
@@ -39,7 +42,10 @@ import type {
   LiveRoomIdentity,
   LiveRoomVoteBody,
 } from "@/durable-objects/live-room";
-import { publicAssetUrlFromParts } from "@/lib/asset-urls";
+import {
+  guardedTrackPlaybackUrl,
+  publicAssetUrlFromParts,
+} from "@/lib/asset-urls";
 import {
   battleHasPlayedTurn,
   isDurableReplayPlaybackUrl,
@@ -49,6 +55,8 @@ import {
 import { evaluateBattleKitReadiness } from "@/lib/battle-kits";
 import { buildBattleRoundSeeds } from "@/lib/battle-rounds";
 import { loadBattleSchemaCapabilities } from "@/lib/battle-schema-capabilities";
+import { resolveListeningAccess } from "@/lib/content-access";
+import { buildTrackSummary } from "@/lib/dashboard-mappers";
 import { retryDurableObjectCall } from "@/lib/durable-object-retry";
 import {
   forbiddenMessage,
@@ -107,6 +115,13 @@ import type {
   LiveRoomState,
   LiveRoomTrack,
 } from "@/lib/live-room-data";
+import {
+  cloudflareStreamCustomerBaseUrl,
+  fetchCloudflareStreamResponse,
+  normalizeCloudflareStreamStatus,
+  parseCloudflareStreamResponse,
+  resolveCloudflareStreamConnection,
+} from "@/lib/live-stream";
 import { notify } from "@/lib/notifications";
 import { profileRegionCondition } from "@/lib/public-explore";
 import {
@@ -116,6 +131,8 @@ import {
   createLiveExperienceBodySchema,
   joinLiveExperienceBodySchema,
   liveSessionLockCheckBodySchema,
+  streamBotBodySchema,
+  streamNowPlayingBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
@@ -143,7 +160,13 @@ app.get("/experiences/public", async (c) => {
         eq(liveExperiences.status, "live"),
         and(
           eq(liveExperiences.status, "scheduled"),
-          gte(liveExperiences.startsAt, cutoff)
+          or(
+            gte(liveExperiences.startsAt, cutoff),
+            and(
+              eq(liveExperiences.kind, "stream"),
+              eq(liveExperiences.source, "obs")
+            )
+          )
         )
       ),
       kind
@@ -173,9 +196,40 @@ app.get("/experiences/public", async (c) => {
         eq(userProfiles.userId, liveExperiences.createdByUserId)
       )
       .where(and(...conditions))
-      .orderBy(asc(liveExperiences.startsAt));
+      .orderBy(asc(liveExperiences.startsAt)),
+    synchronizedExperiences = await Promise.all(
+      experiences.map(async (experience) => {
+        if (!(experience.kind === "stream" && experience.source === "obs")) {
+          return experience;
+        }
 
-  return c.json(experiences, HttpStatusCodes.OK);
+        const storedExperience = await loadLiveExperienceById(experience.id);
+        if (!storedExperience) {
+          return experience;
+        }
+
+        const synchronizedExperience = await syncCloudflareStreamStatus({
+          env: c.env,
+          experience: storedExperience,
+        });
+
+        return {
+          ...experience,
+          endsAt: synchronizedExperience.endsAt,
+          status: synchronizedExperience.status,
+        };
+      })
+    );
+
+  return c.json(
+    synchronizedExperiences.filter(
+      (experience) =>
+        experience.status === "live" ||
+        (experience.status === "scheduled" &&
+          experience.startsAt.getTime() >= cutoff.getTime())
+    ),
+    HttpStatusCodes.OK
+  );
 });
 
 app.get("/experiences/me", async (c) => {
@@ -193,9 +247,16 @@ app.get("/experiences/me", async (c) => {
       .select()
       .from(liveExperiences)
       .where(eq(liveExperiences.createdByUserId, user.id))
-      .orderBy(desc(liveExperiences.createdAt));
+      .orderBy(desc(liveExperiences.createdAt)),
+    synchronizedExperiences = await Promise.all(
+      experiences.map((experience) =>
+        experience.kind === "stream" && experience.source === "obs"
+          ? syncCloudflareStreamStatus({ env: c.env, experience })
+          : experience
+      )
+    );
 
-  return c.json(experiences, HttpStatusCodes.OK);
+  return c.json(synchronizedExperiences, HttpStatusCodes.OK);
 });
 
 app.delete("/experiences/:experienceId", async (c) => {
@@ -321,10 +382,19 @@ interface CloudflareStreamResponse {
       streamKey?: string;
       url?: string;
     };
-    status?: string;
+    status?:
+      | string
+      | {
+          state?: null | string;
+        };
     uid?: string;
   };
   success?: boolean;
+}
+
+interface CloudflareStreamLifecycleResponse {
+  live?: boolean;
+  videoUID?: string | null;
 }
 
 const badRequest = (message: string) => ({
@@ -347,7 +417,7 @@ const badRequest = (message: string) => ({
       rtmpsUrl: result.rtmps.url,
       srtKey: result.srt?.streamKey ?? "",
       srtUrl: result.srt?.url ?? "",
-      status: result.status ?? "idle",
+      status: normalizeCloudflareStreamStatus(result.status),
       ...(title ? { title } : {}),
     };
   },
@@ -434,27 +504,53 @@ const badRequest = (message: string) => ({
     experience: typeof liveExperiences.$inferSelect;
   }) => {
     const accountId = env.CLOUDFLARE_ACCOUNT_ID,
-      apiToken = env.CLOUDFLARE_STREAM_API_TOKEN ?? env.CLOUDFLARE_API_TOKEN;
-    if (!(accountId && apiToken && experience.streamInputId)) {
+      apiToken = env.CLOUDFLARE_STREAM_API_TOKEN ?? env.CLOUDFLARE_API_TOKEN,
+      streamBaseUrl = cloudflareStreamCustomerBaseUrl(
+        env.CLOUDFLARE_STREAM_CUSTOMER_CODE
+      );
+    if (!experience.streamInputId) {
       return experience;
     }
 
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/live_inputs/${experience.streamInputId}`,
-      { headers: { Authorization: `Bearer ${apiToken}` } }
-    ).catch(() => null);
-    if (!response?.ok) {
+    const inputResponsePromise =
+        accountId && apiToken
+          ? fetchCloudflareStreamResponse(
+              `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/live_inputs/${encodeURIComponent(experience.streamInputId)}`,
+              { headers: { Authorization: `Bearer ${apiToken}` } }
+            )
+          : Promise.resolve(null),
+      lifecycleResponsePromise = streamBaseUrl
+        ? fetchCloudflareStreamResponse(
+            `${streamBaseUrl}/${encodeURIComponent(experience.streamInputId)}/lifecycle`
+          )
+        : Promise.resolve(null),
+      [inputResponse, lifecycleResponse] = await Promise.all([
+        inputResponsePromise,
+        lifecycleResponsePromise,
+      ]),
+      payload = await parseCloudflareStreamResponse<CloudflareStreamResponse>(
+        inputResponse
+      ),
+      lifecyclePayload =
+        await parseCloudflareStreamResponse<CloudflareStreamLifecycleResponse>(
+          lifecycleResponse
+        ),
+      inputStatus = normalizeCloudflareStreamStatus(payload?.result?.status),
+      lifecycleLive =
+        typeof lifecyclePayload?.live === "boolean"
+          ? lifecyclePayload.live
+          : null,
+      connection = resolveCloudflareStreamConnection({
+        experienceStatus: experience.status,
+        inputStatus,
+        lifecycleLive,
+      }),
+      connected = connection === "connected",
+      disconnected = connection === "disconnected";
+
+    if (!(payload || lifecyclePayload)) {
       return experience;
     }
-
-    const payload = (await response.json()) as CloudflareStreamResponse,
-      inputStatus = payload.result?.status,
-      connected = inputStatus === "connected" || inputStatus === "reconnected",
-      disconnected =
-        inputStatus === "client_disconnect" ||
-        inputStatus === "ttl_exceeded" ||
-        inputStatus === "failed_to_connect" ||
-        inputStatus === "failed_to_reconnect";
     let { status } = experience,
       { endsAt } = experience,
       { ingestStatus } = experience,
@@ -855,9 +951,9 @@ const badRequest = (message: string) => ({
       status =
         battle.status === "live"
           ? "live"
-          : battle.status === "completed" || battle.status === "archived"
+          : (battle.status === "completed" || battle.status === "archived"
             ? "ended"
-            : "scheduled",
+            : "scheduled"),
       startsAt = (battle.startsAt ?? battle.createdAt).toISOString(),
       [createdExperience] = await db
         .insert(liveExperiences)
@@ -1055,8 +1151,7 @@ const badRequest = (message: string) => ({
     const user = c.get?.("user"),
       isAdmin = user?.role === "admin";
     let role: LiveRoomIdentity["role"] = isAdmin ? "admin" : "fan",
-
-     avatarUrl: string | null = null;
+      avatarUrl: string | null = null;
     if (user && isDatabaseConfigured()) {
       const db = createDb(),
         [experiences, profiles] = await Promise.all([
@@ -1099,7 +1194,8 @@ const badRequest = (message: string) => ({
             .limit(1);
 
       if (
-        ((experience?.kind === "party" &&
+        ((experience &&
+          (experience.kind === "party" || experience.kind === "stream") &&
           experience.createdByUserId === user.id) ||
           (party && party.hostUserId === user.id)) &&
         !isAdmin
@@ -1145,22 +1241,30 @@ const badRequest = (message: string) => ({
       get?: (key: "user") => AuthenticatedUser | null;
     },
     roomId: string,
-    request: Request
+    request: Request,
+    overlayToken?: string
   ) => {
     if (!c.env.LIVE_ROOMS) {
       return null;
     }
 
-    const headers = new Headers(request.headers),
-      identity = await resolveLiveRoomIdentity(c, roomId);
+    const headers = new Headers(request.headers);
     headers.set("x-soundkit-live-room-id", roomId);
-    headers.set("x-soundkit-live-user-id", identity.userId);
-    headers.set("x-soundkit-live-display-name", identity.displayName);
-    headers.set(
-      "x-soundkit-live-avatar-url",
-      identity.avatarUrl ?? "/soundkit-default-avatar.svg"
-    );
-    headers.set("x-soundkit-live-role", identity.role ?? "fan");
+    if (overlayToken) {
+      headers.set("x-soundkit-live-display-name", "Stream Overlay");
+      headers.set("x-soundkit-live-overlay", "true");
+      headers.set("x-soundkit-live-role", "host");
+      headers.set("x-soundkit-live-user-id", `stream-overlay:${roomId}`);
+    } else {
+      const identity = await resolveLiveRoomIdentity(c, roomId);
+      headers.set("x-soundkit-live-user-id", identity.userId);
+      headers.set("x-soundkit-live-display-name", identity.displayName);
+      headers.set(
+        "x-soundkit-live-avatar-url",
+        identity.avatarUrl ?? "/soundkit-default-avatar.svg"
+      );
+      headers.set("x-soundkit-live-role", identity.role ?? "fan");
+    }
     return c.env.LIVE_ROOMS.getByName(roomId).fetch(
       new Request(`https://live-room.soundkit.internal/ws`, {
         headers,
@@ -1184,11 +1288,119 @@ const badRequest = (message: string) => ({
     artistName,
     coverArtUrl: coverArtUrl ?? "",
     durationMs: 0,
+    href: `/tracks/${encodeURIComponent(trackId)}`,
     id: trackId,
     lyrics: [],
     status,
     title,
   }),
+  buildLiveReviewCatalog = async ({
+    db,
+    query,
+    session,
+    user,
+  }: {
+    db: ReturnType<typeof createDb>;
+    query?: string;
+    session: AppEnv["Variables"]["session"];
+    user: AuthenticatedUser;
+  }) => {
+    const [collaboratorRows, directPurchaseRows, projectPurchaseRows] =
+        await Promise.all([
+          db
+            .select({ trackId: trackCollaborators.trackId })
+            .from(trackCollaborators)
+            .where(
+              and(
+                eq(trackCollaborators.collaboratorUserId, user.id),
+                eq(trackCollaborators.invitationStatus, "accepted")
+              )
+            ),
+          db
+            .select({ trackId: purchases.trackId })
+            .from(purchases)
+            .where(eq(purchases.buyerUserId, user.id)),
+          db
+            .select({ trackId: projectTracks.trackId })
+            .from(purchases)
+            .innerJoin(
+              projectTracks,
+              eq(projectTracks.projectId, purchases.projectId)
+            )
+            .where(eq(purchases.buyerUserId, user.id)),
+        ]),
+      collaboratorTrackIds = collaboratorRows.map((row) => row.trackId),
+      purchasedTrackIds = new Set([
+        ...directPurchaseRows.flatMap((row) =>
+          row.trackId ? [row.trackId] : []
+        ),
+        ...projectPurchaseRows.map((row) => row.trackId),
+      ]),
+      visibilityConditions = [
+        eq(tracks.isPublic, true),
+        eq(tracks.ownerUserId, user.id),
+        purchasedTrackIds.size > 0
+          ? inArray(tracks.id, [...purchasedTrackIds])
+          : undefined,
+        collaboratorTrackIds.length > 0
+          ? inArray(tracks.id, collaboratorTrackIds)
+          : undefined,
+      ],
+      candidateConditions = [
+        isNull(tracks.deletedAt),
+        or(...visibilityConditions.filter(Boolean)),
+        query ? ilike(tracks.title, `%${query}%`) : undefined,
+      ].filter((condition): condition is NonNullable<typeof condition> =>
+        Boolean(condition)
+      ),
+      candidates = await db
+        .select()
+        .from(tracks)
+        .where(and(...candidateConditions))
+        .orderBy(desc(tracks.updatedAt))
+        .limit(100),
+      entitlements = await resolveEntitlements({
+        session,
+        user,
+      }),
+      summaries = await Promise.all(
+        candidates.map(async (track) => {
+          const isOwner = track.ownerUserId === user.id,
+            isCollaborator = collaboratorTrackIds.includes(track.id),
+            access = resolveListeningAccess({
+              hasPurchase: purchasedTrackIds.has(track.id),
+              isPremium: entitlements.isPremium,
+              policy: track,
+            });
+
+          if (
+            !(
+              isOwner ||
+              isCollaborator ||
+              ((track.isPublic || purchasedTrackIds.has(track.id)) &&
+                access.canListen)
+            )
+          ) {
+            return null;
+          }
+
+          const summary = await buildTrackSummary(track);
+          return summary.mediaReady
+            ? {
+                artistName: summary.artistName,
+                coverArtUrl: summary.coverArtUrl,
+                id: summary.id,
+                isPublic: track.isPublic,
+                mediaReady: true,
+                playbackUrl: guardedTrackPlaybackUrl(track.id),
+                title: summary.title,
+              }
+            : null;
+        })
+      );
+
+    return summaries.filter((summary) => summary !== null);
+  },
   liveRoundStatusFromDb = (
     status: "active" | "completed" | "upcoming"
   ): LiveBattleRound["status"] => {
@@ -1307,10 +1519,10 @@ const badRequest = (message: string) => ({
           outcomeUserId: schemaCapabilities.battleOutcomeUser
             ? battles.outcomeUserId
             : sql<string | null>`null`,
+          replayVideoId: battles.replayVideoId,
           startsAt: battles.startsAt,
           status: battles.status,
           title: battles.title,
-          replayVideoId: battles.replayVideoId,
           updatedAt: battles.updatedAt,
           viewerCount: battles.viewerCount,
           winnerUserId: schemaCapabilities.battleWinner
@@ -1396,89 +1608,89 @@ const badRequest = (message: string) => ({
         queueRows,
         replayVideoRows,
       ] = await Promise.all([
-          trackIds.length > 0
-            ? db
-                .select({
-                  artistName: userProfiles.displayName,
-                  id: tracks.id,
-                  ownerUserId: tracks.ownerUserId,
-                  title: tracks.title,
-                })
-                .from(tracks)
-                .leftJoin(
-                  userProfiles,
-                  eq(userProfiles.userId, tracks.ownerUserId)
-                )
-                .where(inArray(tracks.id, trackIds))
-            : [],
-          trackIds.length > 0
-            ? db
-                .select({
-                  metadata: trackAssets.metadata,
-                  objectKey: trackAssets.objectKey,
-                  trackId: trackAssets.trackId,
-                })
-                .from(trackAssets)
-                .where(
-                  and(
-                    inArray(trackAssets.trackId, trackIds),
-                    eq(trackAssets.assetKind, "cover_art")
-                  )
-                )
-            : [],
-          profileIds.length > 0
-            ? db
-                .select({
-                  avatarUrl: userProfiles.avatarUrl,
-                  displayName: userProfiles.displayName,
-                  userId: userProfiles.userId,
-                })
-                .from(userProfiles)
-                .where(inArray(userProfiles.userId, profileIds))
-            : [],
-          profileIds.length > 0
-            ? db
-                .select({
-                  rank: sql<number>`row_number() over (order by ${artistProfiles.battleCount} desc, ${artistProfiles.followerCount} desc, ${artistProfiles.userId})`,
-                  userId: artistProfiles.userId,
-                })
-                .from(artistProfiles)
-                .where(
-                  and(
-                    eq(artistProfiles.publicProfileEnabled, true),
-                    or(
-                      gt(artistProfiles.battleCount, 0),
-                      gt(artistProfiles.followerCount, 0)
-                    )
-                  )
-                )
-            : [],
-          lineupSnapshots,
-          db
-            .select({
-              userId: battleQueueEntries.userId,
-            })
-            .from(battleQueueEntries)
-            .where(
-              and(
-                eq(battleQueueEntries.battleId, battle.id),
-                eq(battleQueueEntries.status, "queued")
+        trackIds.length > 0
+          ? db
+              .select({
+                artistName: userProfiles.displayName,
+                id: tracks.id,
+                ownerUserId: tracks.ownerUserId,
+                title: tracks.title,
+              })
+              .from(tracks)
+              .leftJoin(
+                userProfiles,
+                eq(userProfiles.userId, tracks.ownerUserId)
               )
-            ),
-          replayVideoIds.length > 0
-            ? db
-                .select({
-                  externalPlaybackUrl: videos.externalPlaybackUrl,
-                  id: videos.id,
-                  isPublic: videos.isPublic,
-                  publishedAt: videos.publishedAt,
-                  status: videos.status,
-                  videoKind: videos.videoKind,
-                })
-                .from(videos)
-                .where(inArray(videos.id, replayVideoIds))
-            : [],
-        ]),
+              .where(inArray(tracks.id, trackIds))
+          : [],
+        trackIds.length > 0
+          ? db
+              .select({
+                metadata: trackAssets.metadata,
+                objectKey: trackAssets.objectKey,
+                trackId: trackAssets.trackId,
+              })
+              .from(trackAssets)
+              .where(
+                and(
+                  inArray(trackAssets.trackId, trackIds),
+                  eq(trackAssets.assetKind, "cover_art")
+                )
+              )
+          : [],
+        profileIds.length > 0
+          ? db
+              .select({
+                avatarUrl: userProfiles.avatarUrl,
+                displayName: userProfiles.displayName,
+                userId: userProfiles.userId,
+              })
+              .from(userProfiles)
+              .where(inArray(userProfiles.userId, profileIds))
+          : [],
+        profileIds.length > 0
+          ? db
+              .select({
+                rank: sql<number>`row_number() over (order by ${artistProfiles.battleCount} desc, ${artistProfiles.followerCount} desc, ${artistProfiles.userId})`,
+                userId: artistProfiles.userId,
+              })
+              .from(artistProfiles)
+              .where(
+                and(
+                  eq(artistProfiles.publicProfileEnabled, true),
+                  or(
+                    gt(artistProfiles.battleCount, 0),
+                    gt(artistProfiles.followerCount, 0)
+                  )
+                )
+              )
+          : [],
+        lineupSnapshots,
+        db
+          .select({
+            userId: battleQueueEntries.userId,
+          })
+          .from(battleQueueEntries)
+          .where(
+            and(
+              eq(battleQueueEntries.battleId, battle.id),
+              eq(battleQueueEntries.status, "queued")
+            )
+          ),
+        replayVideoIds.length > 0
+          ? db
+              .select({
+                externalPlaybackUrl: videos.externalPlaybackUrl,
+                id: videos.id,
+                isPublic: videos.isPublic,
+                publishedAt: videos.publishedAt,
+                status: videos.status,
+                videoKind: videos.videoKind,
+              })
+              .from(videos)
+              .where(inArray(videos.id, replayVideoIds))
+          : [],
+      ]),
       coverByTrackId = new Map(
         coverRows.map((asset) => [
           asset.trackId,
@@ -1514,10 +1726,10 @@ const badRequest = (message: string) => ({
         replayPublishedAt: experience?.replayPublishedAt,
         replayVideoAvailable: Boolean(
           replayVideo?.isPublic &&
-            replayVideo.publishedAt &&
-            replayVideo.status === "ready" &&
-            replayVideo.videoKind === "battle_replay" &&
-            isDurableReplayPlaybackUrl(replayVideo.externalPlaybackUrl)
+          replayVideo.publishedAt &&
+          replayVideo.status === "ready" &&
+          replayVideo.videoKind === "battle_replay" &&
+          isDurableReplayPlaybackUrl(replayVideo.externalPlaybackUrl)
         ),
       }),
       artistControlsByUserId: Record<string, LiveBattleArtistControls> =
@@ -1694,9 +1906,9 @@ const badRequest = (message: string) => ({
       status:
         battle.status === "completed" || battle.status === "archived"
           ? "ended"
-          : battle.status === "live"
+          : (battle.status === "live"
             ? "live"
-            : "upcoming",
+            : "upcoming"),
       summary:
         "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
       title: resolveArtistBattleTitle(battle.title, battle.genre ?? "Hip Hop"),
@@ -1821,16 +2033,16 @@ const badRequest = (message: string) => ({
     const roomStatus: LiveRoomState["status"] =
       experience.status === "ended"
         ? "ended"
-        : experience.status === "live"
+        : (experience.status === "live"
           ? "live"
-          : "upcoming";
+          : "upcoming");
 
     const summary =
       experience.kind === "stream"
         ? `Live creator broadcast by ${hostName} on SoundKit.`
-        : experience.kind === "party"
+        : (experience.kind === "party"
           ? `Live listening party hosted by ${hostName}.`
-          : `Live event on SoundKit.`;
+          : `Live event on SoundKit.`);
 
     return {
       chat: [],
@@ -1858,6 +2070,7 @@ const badRequest = (message: string) => ({
       stream:
         experience.kind === "stream"
           ? {
+              botEnabled: false,
               errorCode: experience.ingestErrorCode,
               errorMessage: experience.ingestErrorMessage,
               ingestStatus:
@@ -1870,12 +2083,13 @@ const badRequest = (message: string) => ({
                       : experience.ingestStatus === "disconnected"
                         ? "disconnected"
                         : "idle",
+              nowPlaying: null,
               reconnectUntil: experience.reconnectUntil?.getTime() ?? null,
               replayStatus: experience.replayPublishedAt
                 ? "available"
-                : experience.recordingStatus
+                : (experience.recordingStatus
                   ? "processing"
-                  : "none",
+                  : "none"),
             }
           : undefined,
       summary,
@@ -1992,9 +2206,9 @@ const badRequest = (message: string) => ({
       party.status === "canceled" ||
       party.experienceStatus === "ended"
         ? "ended"
-        : party.status === "live" || party.experienceStatus === "live"
+        : (party.status === "live" || party.experienceStatus === "live"
           ? "live"
-          : "upcoming";
+          : "upcoming");
 
     return {
       chat: [],
@@ -2363,9 +2577,9 @@ const buildCreateExperienceResponse = ({
       body.source === "obs" &&
       body.scheduleMode === "asap"
         ? "waiting_for_ingest"
-        : body.scheduleMode === "asap"
+        : (body.scheduleMode === "asap"
           ? "ready"
-          : "scheduled",
+          : "scheduled"),
     title: body.title.trim(),
     visibility: body.visibility,
   },
@@ -2378,9 +2592,9 @@ const buildCreateExperienceResponse = ({
       body.source === "obs" &&
       body.scheduleMode === "asap"
         ? "scheduled"
-        : body.scheduleMode === "asap"
+        : (body.scheduleMode === "asap"
           ? "live"
-          : "scheduled",
+          : "scheduled"),
   },
   notifications: buildNotificationFanout({
     experienceId,
@@ -2432,10 +2646,12 @@ app.get("/experiences/:experienceId", async (c) => {
     );
   }
 
-  const customerCode = c.env.CLOUDFLARE_STREAM_CUSTOMER_CODE,
+  const streamCustomerBaseUrl = cloudflareStreamCustomerBaseUrl(
+      c.env.CLOUDFLARE_STREAM_CUSTOMER_CODE
+    ),
     streamBaseUrl =
-      experience.streamInputId && customerCode
-        ? `https://customer-${customerCode}.cloudflarestream.com/${experience.streamInputId}`
+      experience.streamInputId && streamCustomerBaseUrl
+        ? `${streamCustomerBaseUrl}/${encodeURIComponent(experience.streamInputId)}`
         : null,
     playbackUrl = streamBaseUrl ? `${streamBaseUrl}/manifest/video.m3u8` : null,
     playerUrl = streamBaseUrl ? `${streamBaseUrl}/iframe` : null;
@@ -2488,6 +2704,245 @@ app.get("/experiences/:experienceId", async (c) => {
     },
     HttpStatusCodes.OK
   );
+});
+
+app.get("/experiences/:experienceId/review-catalog", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+
+  const experience = await loadLiveExperienceById(c.req.param("experienceId"));
+  if (!experience) {
+    return c.json(
+      { message: "Live experience not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
+  }
+  if (experience.kind !== "stream") {
+    return c.json(
+      { message: "Review catalog is only available for stream rooms." },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+  if (experience.createdByUserId !== user.id && user.role !== "admin") {
+    return c.json(
+      forbiddenMessage("Only the stream host can access the review catalog."),
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+  if (experience.status === "ended") {
+    return c.json(
+      { message: "The ended stream review catalog is read-only." },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+  if (!isDatabaseConfigured()) {
+    return c.json([], HttpStatusCodes.OK);
+  }
+
+  const query = c.req.query("q")?.trim().slice(0, 120);
+  return c.json(
+    await buildLiveReviewCatalog({
+      db: createDb(),
+      query: query || undefined,
+      session: c.get("session"),
+      user,
+    }),
+    HttpStatusCodes.OK
+  );
+});
+
+app.post("/experiences/:experienceId/overlay-token", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+  if (!c.env.LIVE_ROOMS) {
+    return c.json(
+      { message: "Live room overlays are not configured." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+
+  const experience = await loadLiveExperienceById(c.req.param("experienceId"));
+  if (!experience) {
+    return c.json(
+      { message: "Live experience not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
+  }
+  if (experience.kind !== "stream") {
+    return c.json(
+      { message: "OBS overlays are only available for stream rooms." },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+
+  const roomSnapshot = await buildExperienceRoomSnapshot(experience.id);
+  if (roomSnapshot) {
+    await seedDurableRoom({ c, room: roomSnapshot, roomId: experience.id });
+  }
+
+  try {
+    const token = await c.env.LIVE_ROOMS.getByName(
+      experience.id
+    ).createStreamOverlayToken(
+      experience.id,
+      await resolveLiveRoomIdentity(c, experience.id)
+    );
+    return c.json(token, HttpStatusCodes.CREATED);
+  } catch (error) {
+    return c.json(
+      {
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to create the OBS overlay token.",
+      },
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+});
+
+app.post("/rooms/:roomId/stream/bot", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user) || !c.env.LIVE_ROOMS) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+
+  const parsed = streamBotBodySchema.safeParse(
+    await c.req.json().catch(() => ({}))
+  );
+  if (!parsed.success) {
+    return c.json(
+      badRequest("StreamBot settings are invalid."),
+      HttpStatusCodes.BAD_REQUEST
+    );
+  }
+
+  const roomId = c.req.param("roomId"),
+    experience = await loadLiveExperienceById(roomId);
+  if (!experience || experience.kind !== "stream") {
+    return c.json(
+      { message: "Stream room not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
+  }
+
+  const roomSnapshot = await buildExperienceRoomSnapshot(roomId);
+  if (roomSnapshot) {
+    await seedDurableRoom({ c, room: roomSnapshot, roomId });
+  }
+
+  try {
+    const room = await c.env.LIVE_ROOMS.getByName(roomId).setStreamBotEnabled(
+      roomId,
+      await resolveLiveRoomIdentity(c, roomId),
+      parsed.data.enabled
+    );
+    return c.json(room, HttpStatusCodes.OK);
+  } catch (error) {
+    return c.json(
+      {
+        message:
+          error instanceof Error ? error.message : "StreamBot update failed.",
+      },
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+});
+
+app.post("/rooms/:roomId/stream/now-playing", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user) || !c.env.LIVE_ROOMS) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+
+  const parsed = streamNowPlayingBodySchema.safeParse(
+    await c.req.json().catch(() => ({}))
+  );
+  if (!parsed.success) {
+    return c.json(
+      badRequest("Now Playing details are invalid."),
+      HttpStatusCodes.BAD_REQUEST
+    );
+  }
+
+  const roomId = c.req.param("roomId"),
+    experience = await loadLiveExperienceById(roomId);
+  if (!experience || experience.kind !== "stream") {
+    return c.json(
+      { message: "Stream room not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
+  }
+  if (experience.status === "ended") {
+    return c.json(
+      { message: "The ended stream is read-only." },
+      HttpStatusCodes.CONFLICT
+    );
+  }
+
+  const roomSnapshot = await buildExperienceRoomSnapshot(roomId);
+  if (roomSnapshot) {
+    await seedDurableRoom({ c, room: roomSnapshot, roomId });
+  }
+
+  try {
+    const identity = await resolveLiveRoomIdentity(c, roomId);
+    let selectedTrack: LiveRoomTrack | null = null;
+    if (parsed.data.trackId) {
+      if (!isDatabaseConfigured()) {
+        return c.json(
+          databaseUnavailableMessage,
+          HttpStatusCodes.SERVICE_UNAVAILABLE
+        );
+      }
+
+      const catalog = await buildLiveReviewCatalog({
+          db: createDb(),
+          session: c.get("session"),
+          user,
+        }),
+        catalogTrack = catalog.find(
+          (track) => track.id === parsed.data.trackId
+        );
+      if (!catalogTrack) {
+        return c.json(
+          forbiddenMessage("This track is not available for live review."),
+          HttpStatusCodes.FORBIDDEN
+        );
+      }
+      selectedTrack = {
+        artistName: catalogTrack.artistName,
+        coverArtUrl: catalogTrack.coverArtUrl ?? "",
+        durationMs: 0,
+        href: catalogTrack.isPublic
+          ? `/tracks/${encodeURIComponent(catalogTrack.id)}`
+          : null,
+        id: catalogTrack.id,
+        lyrics: [],
+        status: "playing",
+        title: catalogTrack.title,
+      };
+    }
+
+    const room = await c.env.LIVE_ROOMS.getByName(roomId).setStreamNowPlaying(
+      roomId,
+      identity,
+      selectedTrack
+    );
+    return c.json(room, HttpStatusCodes.OK);
+  } catch (error) {
+    return c.json(
+      {
+        message:
+          error instanceof Error ? error.message : "Now Playing update failed.",
+      },
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
 });
 
 app.post("/experiences/:experienceId/join", async (c) => {
@@ -2605,9 +3060,9 @@ app.post("/experiences/:experienceId/join", async (c) => {
       participantRole =
         battleRole === "artist_a" || battleRole === "artist_b"
           ? "artist"
-          : battleRole === "admin"
+          : (battleRole === "admin"
             ? "host"
-            : "listener";
+            : "listener");
       if (participantRole === "artist") {
         const [lineup] = await createDb()
           .select({ format: battleLineupSnapshots.format })
@@ -3504,9 +3959,9 @@ app.post("/rooms/:roomId/party/playback", async (c) => {
       roomId,
       body.type === "track_changed"
         ? { trackId: body.trackId ?? "", type: body.type }
-        : body.type === "replay"
+        : (body.type === "replay"
           ? { trackId: body.trackId, type: body.type }
-          : { type: body.type },
+          : { type: body.type }),
       identity
     );
     return c.json(room, HttpStatusCodes.OK);
@@ -3601,6 +4056,47 @@ app.get("/rooms/queue", async (c) => {
   );
 });
 
+app.get("/rooms/:roomId/overlay", async (c) => {
+  if (!c.env.LIVE_ROOMS) {
+    return c.json(
+      { message: "Live room overlays are not configured." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+
+  const token = c.req.query("token")?.trim(),
+    experience = await loadLiveExperienceById(c.req.param("roomId"));
+  if (!token) {
+    return c.json(
+      forbiddenMessage("A valid stream overlay token is required."),
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+  if (
+    !experience ||
+    experience.kind !== "stream" ||
+    experience.status === "ended"
+  ) {
+    return c.json(
+      { message: "Stream overlay is unavailable for this room." },
+      HttpStatusCodes.NOT_FOUND
+    );
+  }
+
+  const room = await c.env.LIVE_ROOMS.getByName(
+    c.req.param("roomId")
+  ).getStreamOverlayState(c.req.param("roomId"), token);
+  if (!room) {
+    return c.json(
+      forbiddenMessage("The stream overlay token is invalid or expired."),
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+
+  c.header("Cache-Control", "private, no-store");
+  return c.json(room, HttpStatusCodes.OK);
+});
+
 app.get("/rooms/:roomId", async (c) => {
   const roomId = c.req.param("roomId"),
     battleRoom = await buildBattleRoomSnapshot(roomId),
@@ -3666,17 +4162,43 @@ app.get("/rooms/:roomId/ws", async (c) => {
   }
 
   const roomId = c.req.param("roomId"),
-    room = await getDurableRoomState(c, roomId);
-  if (!(await hasLiveRoomAccess(c, room?.status === "live", roomId))) {
-    return c.json(
-      forbiddenMessage(
-        "A Premium subscription is required to join live rooms."
-      ),
-      HttpStatusCodes.FORBIDDEN
-    );
+    overlayToken = c.req.query("token")?.trim();
+  if (overlayToken) {
+    const experience = await loadLiveExperienceById(roomId),
+      overlayRoom =
+        experience &&
+        experience.kind === "stream" &&
+        experience.status !== "ended" &&
+        c.env.LIVE_ROOMS
+          ? await c.env.LIVE_ROOMS.getByName(roomId).getStreamOverlayState(
+              roomId,
+              overlayToken
+            )
+          : null;
+    if (!overlayRoom) {
+      return c.json(
+        forbiddenMessage("The stream overlay token is invalid or expired."),
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+  } else {
+    const room = await getDurableRoomState(c, roomId);
+    if (!(await hasLiveRoomAccess(c, room?.status === "live", roomId))) {
+      return c.json(
+        forbiddenMessage(
+          "A Premium subscription is required to join live rooms."
+        ),
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
   }
 
-  const response = await durableWebSocketRequest(c, roomId, c.req.raw);
+  const response = await durableWebSocketRequest(
+    c,
+    roomId,
+    c.req.raw,
+    overlayToken
+  );
 
   if (!response) {
     return c.json(
@@ -4056,8 +4578,18 @@ app.get("/cloudflare-stream/:streamId", async (c) => {
           streamInput = streamInputFromCloudflareResponse(data);
 
         if (streamInput) {
-          await syncCloudflareStreamStatus({ env: c.env, experience });
-          return c.json(streamInput, HttpStatusCodes.OK);
+          const synchronizedExperience = await syncCloudflareStreamStatus({
+              env: c.env,
+              experience,
+            }),
+            status =
+              synchronizedExperience.ingestStatus === "connected"
+                ? "connected"
+                : synchronizedExperience.ingestStatus === "reconnecting"
+                  ? "reconnecting"
+                  : streamInput.status;
+
+          return c.json({ ...streamInput, status }, HttpStatusCodes.OK);
         }
       }
     } catch (error) {

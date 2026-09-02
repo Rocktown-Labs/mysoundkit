@@ -53,6 +53,12 @@ const SITE_HOST = isProduction
     ? "media.mysoundkit.com"
     : `media-${app.stage}.mysoundkit.com`,
   SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`,
+  BIO_HOST = isProduction
+    ? "bio.mysoundkit.com"
+    : `bio-${app.stage}.mysoundkit.com`,
+  BIO_URL = app.local
+    ? "http://localhost:3002"
+    : process.env.SOUNDKIT_BIO_URL || `https://${BIO_HOST}`,
   API_URL = app.local ? "http://localhost:3000" : `https://${API_HOST}`,
   MEDIA_URL = isProduction ? `https://${MEDIA_HOST}/media` : `${API_URL}/media`,
   SENTRY_WEB_DSN =
@@ -367,6 +373,21 @@ export const web = await TanStackStart("web", {
   },
 });
 
+export const bio = await TanStackStart("bio", {
+  adopt: isProduction,
+  bindings: {
+    VITE_SERVER_URL: API_URL,
+    VITE_SOUNDKIT_BIO_URL: BIO_URL,
+    VITE_SOUNDKIT_WEB_URL: SITE_URL,
+    ...optionalEnvBinding("VITE_STRIPE_PUBLISHABLE_KEY"),
+  },
+  cwd: "../../apps/bio",
+  domains: app.local
+    ? undefined
+    : [{ adopt: isProduction, domainName: BIO_HOST }],
+  name: resourceName("soundkit-bio"),
+});
+
 export const server = await Worker("server", {
   adopt: isProduction,
   bindings: {
@@ -433,6 +454,7 @@ export const server = await Worker("server", {
       "OPENAI_API_KEY"
     ),
     SOUNDKIT_PUBLIC_URL: SITE_URL,
+    SOUNDKIT_BIO_URL: BIO_URL,
     ...optionalEnvBinding("RESEND_API_KEY"),
     ...optionalEnvBinding("RESEND_WEBHOOK_SECRET"),
     ...optionalEnvBinding("TURNSTILE_HOSTNAMES"),

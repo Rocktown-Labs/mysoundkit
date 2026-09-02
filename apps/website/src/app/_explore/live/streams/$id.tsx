@@ -8,11 +8,12 @@ import { useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import { LiveCreatorPanel } from "@/components/live/live-creator-panel";
-import { LiveTipButton } from "@/components/live/live-tip-button";
 import {
   LiveChatPanel,
   LiveLyricsPanel,
+  LiveNowPlayingCard,
 } from "@/components/live/live-room-panels";
+import { LiveTipButton } from "@/components/live/live-tip-button";
 import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
 import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { AppImage } from "@/components/ui/app-image";
@@ -82,6 +83,7 @@ function StreamDetailPage() {
     currentTrack = room?.tracklist.find(
       (track) => track.id === room.currentTrackId
     ),
+    nowPlaying = room?.stream?.nowPlaying ?? null,
     rawCreatorUsername =
       experience?.creatorUsername ??
       (experience?.creatorName ?? room?.hostName ?? "")
@@ -269,13 +271,19 @@ function StreamDetailPage() {
                 isLive={isLive}
                 kind="stream"
                 liveExperienceId={id}
-                recipients={[{ id: experience.creatorUserId, name: creatorName }]}
+                recipients={[
+                  { id: experience.creatorUserId, name: creatorName },
+                ]}
               />
             ) : null
           }
           title={room.title}
           viewerCount={experience?.viewerCount ?? room.viewerCount}
         />
+
+        <div className="mt-6">
+          <LiveNowPlayingCard track={nowPlaying} />
+        </div>
 
         {currentTrack &&
         currentTrack.lyrics &&

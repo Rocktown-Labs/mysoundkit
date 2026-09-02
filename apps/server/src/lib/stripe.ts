@@ -404,6 +404,7 @@ interface CreateCheckoutSessionInput {
   cancelUrl?: string;
   connectedAccountId?: string;
   customerEmail?: string | null;
+  destinationAccountId?: string;
   embedded?: boolean;
   lineItems: CheckoutLineItem[];
   metadata: Record<string, string>;
@@ -412,11 +413,11 @@ interface CreateCheckoutSessionInput {
   transferGroup?: string;
 }
 
-const createCheckoutSession = ({
+export const buildCheckoutSessionParams = ({
   applicationFeeCents,
   cancelUrl,
-  connectedAccountId,
   customerEmail,
+  destinationAccountId,
   embedded = false,
   lineItems,
   metadata,
@@ -442,7 +443,7 @@ const createCheckoutSession = ({
     appendValue(params, "cancel_url", cancelUrl);
   }
 
-  if (connectedAccountId) {
+  if (destinationAccountId) {
     appendValue(
       params,
       "payment_intent_data[application_fee_amount]",
@@ -451,7 +452,7 @@ const createCheckoutSession = ({
     appendValue(
       params,
       "payment_intent_data[transfer_data][destination]",
-      connectedAccountId
+      destinationAccountId
     );
   }
 
@@ -481,23 +482,27 @@ const createCheckoutSession = ({
     );
   }
 
-  return stripeRequest<{
+  return params;
+};
+
+const createCheckoutSession = (input: CreateCheckoutSessionInput) =>
+  stripeRequest<{
     client_secret?: string | null;
     id: string;
     url: string | null;
   }>({
-    idempotencyKey: metadata.transactionId
-      ? `checkout:${metadata.transactionId}`
+    connectedAccountId: input.connectedAccountId,
+    idempotencyKey: input.metadata.transactionId
+      ? `checkout:${input.metadata.transactionId}`
       : undefined,
-    params,
+    params: buildCheckoutSessionParams(input),
     path: "/checkout/sessions",
   });
-};
 
 export const createDestinationCheckout = ({
   applicationFeeCents,
   cancelUrl,
-  connectedAccountId,
+  destinationAccountId,
   customerEmail,
   lineItems,
   metadata,
@@ -505,8 +510,8 @@ export const createDestinationCheckout = ({
 }: {
   applicationFeeCents: number;
   cancelUrl: string;
-  connectedAccountId: string;
   customerEmail?: string | null;
+  destinationAccountId: string;
   lineItems: CheckoutLineItem[];
   metadata: Record<string, string>;
   successUrl: string;
@@ -514,8 +519,8 @@ export const createDestinationCheckout = ({
   createCheckoutSession({
     applicationFeeCents,
     cancelUrl,
-    connectedAccountId,
     customerEmail,
+    destinationAccountId,
     lineItems,
     metadata,
     successUrl,
@@ -524,16 +529,16 @@ export const createDestinationCheckout = ({
 export const createEmbeddedTipCheckout = ({
   applicationFeeCents,
   cancelUrl,
-  connectedAccountId,
   customerEmail,
+  destinationAccountId,
   lineItems,
   metadata,
   returnUrl,
 }: {
   applicationFeeCents?: number;
   cancelUrl: string;
-  connectedAccountId?: string;
   customerEmail?: string | null;
+  destinationAccountId?: string;
   lineItems: CheckoutLineItem[];
   metadata: Record<string, string>;
   returnUrl: string;
@@ -541,8 +546,8 @@ export const createEmbeddedTipCheckout = ({
   createCheckoutSession({
     applicationFeeCents,
     cancelUrl,
-    connectedAccountId,
     customerEmail,
+    destinationAccountId,
     embedded: true,
     lineItems,
     metadata,
@@ -695,8 +700,7 @@ export const verifyStripeSignature = async ({
   secret?: string;
   signature: string | null;
 }) => {
-  const webhookSecret =
-    secret || getEnvValue("STRIPE_COMMERCE_WEBHOOK_SECRET");
+  const webhookSecret = secret || getEnvValue("STRIPE_COMMERCE_WEBHOOK_SECRET");
 
   if (!(webhookSecret && signature)) {
     return false;

@@ -1,0 +1,46 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "soundkit-server-test",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "BETTER_AUTH_SECRET": "soundkit-test-secret-at-least-thirty-two-characters",
+    "BETTER_AUTH_URL": "http://127.0.0.1:3000",
+    "CORS_ORIGIN": "http://127.0.0.1:3001",
+    "GOOGLE_EMBEDDING_MODEL": "gemini-embedding-2",
+    "MEDIA_PUBLIC_URL": "http://127.0.0.1:3000",
+    "SOUNDKIT_BIO_URL": "https://bio.mysoundkit.com",
+    "STRIPE_BETTER_AUTH_WEBHOOK_SECRET": "whsec_soundkit_better_auth_test",
+    "STRIPE_COMMERCE_WEBHOOK_SECRET": "whsec_soundkit_commerce_test",
+    "STRIPE_CONNECT_WEBHOOK_SECRET": "whsec_soundkit_connect_test",
+    "VITE_MEDIA_URL": "http://127.0.0.1:3000",
+    "VITE_SERVER_URL": "http://127.0.0.1:3000",
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "BATTLE_DIRECTORY",
+        "class_name": "BattleDirectoryDurableObject",
+      },
+      {
+        "name": "LIVE_ROOMS",
+        "class_name": "LiveRoomDurableObject",
+      },
+      {
+        "name": "PRESENCE",
+        "class_name": "PresenceDurableObject",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "new_sqlite_classes": [
+        "BattleDirectoryDurableObject",
+        "LiveRoomDurableObject",
+        "PresenceDurableObject",
+      ],
+      "tag": "test-v1",
+    },
+  ],
+}

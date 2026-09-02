@@ -33,6 +33,7 @@ import { Route as DashboardBillingRouteImport } from './app/dashboard/billing'
 import { Route as DashboardAiStudioRouteImport } from './app/dashboard/ai-studio'
 import { Route as DashboardAdsRouteImport } from './app/dashboard/ads'
 import { Route as DashboardAdminRouteImport } from './app/dashboard/admin'
+import { Route as AuthHandoffRouteImport } from './app/auth/handoff'
 import { Route as ExploreShopRouteImport } from './app/_explore/shop'
 import { Route as ExploreNewReleasesRouteImport } from './app/_explore/new-releases'
 import { Route as ExploreLiveRouteImport } from './app/_explore/live'
@@ -101,6 +102,7 @@ import { Route as ExploreLibrarySavedIndexRouteImport } from './app/_explore/lib
 import { Route as ExploreLibraryRecentIndexRouteImport } from './app/_explore/library/recent/index'
 import { Route as ExploreLibraryPurchasedIndexRouteImport } from './app/_explore/library/purchased/index'
 import { Route as ExploreLibraryPlaylistsIndexRouteImport } from './app/_explore/library/playlists/index'
+import { Route as LiveStreamsOverlayIdRouteImport } from './app/live/streams/overlay/$id'
 import { Route as DashboardTracksIdEditRouteImport } from './app/dashboard/tracks/$id/edit'
 import { Route as DashboardProjectsIdEditRouteImport } from './app/dashboard/projects/$id/edit'
 import { Route as DashboardOpenVersesGenreIdRouteImport } from './app/dashboard/open-verses/$genre/$id'
@@ -236,6 +238,11 @@ const DashboardAdminRoute = DashboardAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
   getParentRoute: () => DashboardRoute,
+} as any)
+const AuthHandoffRoute = AuthHandoffRouteImport.update({
+  id: '/auth/handoff',
+  path: '/auth/handoff',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ExploreShopRoute = ExploreShopRouteImport.update({
   id: '/shop',
@@ -591,6 +598,11 @@ const ExploreLibraryPlaylistsIndexRoute =
     path: '/library/playlists/',
     getParentRoute: () => ExploreRoute,
   } as any)
+const LiveStreamsOverlayIdRoute = LiveStreamsOverlayIdRouteImport.update({
+  id: '/live/streams/overlay/$id',
+  path: '/live/streams/overlay/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardTracksIdEditRoute = DashboardTracksIdEditRouteImport.update({
   id: '/tracks/$id/edit',
   path: '/tracks/$id/edit',
@@ -696,6 +708,7 @@ export interface FileRoutesByFullPath {
   '/live': typeof ExploreLiveRouteWithChildren
   '/new-releases': typeof ExploreNewReleasesRoute
   '/shop': typeof ExploreShopRoute
+  '/auth/handoff': typeof AuthHandoffRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/ads': typeof DashboardAdsRoute
   '/dashboard/ai-studio': typeof DashboardAiStudioRoute
@@ -776,6 +789,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/open-verses/$genre/$id': typeof DashboardOpenVersesGenreIdRoute
   '/dashboard/projects/$id/edit': typeof DashboardProjectsIdEditRoute
   '/dashboard/tracks/$id/edit': typeof DashboardTracksIdEditRoute
+  '/live/streams/overlay/$id': typeof LiveStreamsOverlayIdRoute
   '/library/playlists/': typeof ExploreLibraryPlaylistsIndexRoute
   '/library/purchased/': typeof ExploreLibraryPurchasedIndexRoute
   '/library/recent/': typeof ExploreLibraryRecentIndexRoute
@@ -802,6 +816,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/new-releases': typeof ExploreNewReleasesRoute
   '/shop': typeof ExploreShopRoute
+  '/auth/handoff': typeof AuthHandoffRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/ads': typeof DashboardAdsRoute
   '/dashboard/ai-studio': typeof DashboardAiStudioRoute
@@ -881,6 +896,7 @@ export interface FileRoutesByTo {
   '/dashboard/open-verses/$genre/$id': typeof DashboardOpenVersesGenreIdRoute
   '/dashboard/projects/$id/edit': typeof DashboardProjectsIdEditRoute
   '/dashboard/tracks/$id/edit': typeof DashboardTracksIdEditRoute
+  '/live/streams/overlay/$id': typeof LiveStreamsOverlayIdRoute
   '/library/playlists': typeof ExploreLibraryPlaylistsIndexRoute
   '/library/purchased': typeof ExploreLibraryPurchasedIndexRoute
   '/library/recent': typeof ExploreLibraryRecentIndexRoute
@@ -911,6 +927,7 @@ export interface FileRoutesById {
   '/_explore/live': typeof ExploreLiveRouteWithChildren
   '/_explore/new-releases': typeof ExploreNewReleasesRoute
   '/_explore/shop': typeof ExploreShopRoute
+  '/auth/handoff': typeof AuthHandoffRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/ads': typeof DashboardAdsRoute
   '/dashboard/ai-studio': typeof DashboardAiStudioRoute
@@ -992,6 +1009,7 @@ export interface FileRoutesById {
   '/dashboard/open-verses/$genre/$id': typeof DashboardOpenVersesGenreIdRoute
   '/dashboard/projects/$id/edit': typeof DashboardProjectsIdEditRoute
   '/dashboard/tracks/$id/edit': typeof DashboardTracksIdEditRoute
+  '/live/streams/overlay/$id': typeof LiveStreamsOverlayIdRoute
   '/_explore/library/playlists/': typeof ExploreLibraryPlaylistsIndexRoute
   '/_explore/library/purchased/': typeof ExploreLibraryPurchasedIndexRoute
   '/_explore/library/recent/': typeof ExploreLibraryRecentIndexRoute
@@ -1023,6 +1041,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/new-releases'
     | '/shop'
+    | '/auth/handoff'
     | '/dashboard/admin'
     | '/dashboard/ads'
     | '/dashboard/ai-studio'
@@ -1103,6 +1122,7 @@ export interface FileRouteTypes {
     | '/dashboard/open-verses/$genre/$id'
     | '/dashboard/projects/$id/edit'
     | '/dashboard/tracks/$id/edit'
+    | '/live/streams/overlay/$id'
     | '/library/playlists/'
     | '/library/purchased/'
     | '/library/recent/'
@@ -1129,6 +1149,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/new-releases'
     | '/shop'
+    | '/auth/handoff'
     | '/dashboard/admin'
     | '/dashboard/ads'
     | '/dashboard/ai-studio'
@@ -1208,6 +1229,7 @@ export interface FileRouteTypes {
     | '/dashboard/open-verses/$genre/$id'
     | '/dashboard/projects/$id/edit'
     | '/dashboard/tracks/$id/edit'
+    | '/live/streams/overlay/$id'
     | '/library/playlists'
     | '/library/purchased'
     | '/library/recent'
@@ -1237,6 +1259,7 @@ export interface FileRouteTypes {
     | '/_explore/live'
     | '/_explore/new-releases'
     | '/_explore/shop'
+    | '/auth/handoff'
     | '/dashboard/admin'
     | '/dashboard/ads'
     | '/dashboard/ai-studio'
@@ -1318,6 +1341,7 @@ export interface FileRouteTypes {
     | '/dashboard/open-verses/$genre/$id'
     | '/dashboard/projects/$id/edit'
     | '/dashboard/tracks/$id/edit'
+    | '/live/streams/overlay/$id'
     | '/_explore/library/playlists/'
     | '/_explore/library/purchased/'
     | '/_explore/library/recent/'
@@ -1345,6 +1369,8 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRouteWithChildren
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  AuthHandoffRoute: typeof AuthHandoffRoute
+  LiveStreamsOverlayIdRoute: typeof LiveStreamsOverlayIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1516,6 +1542,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/admin'
       preLoaderRoute: typeof DashboardAdminRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/auth/handoff': {
+      id: '/auth/handoff'
+      path: '/auth/handoff'
+      fullPath: '/auth/handoff'
+      preLoaderRoute: typeof AuthHandoffRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_explore/shop': {
       id: '/_explore/shop'
@@ -1993,6 +2026,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExploreLibraryPlaylistsIndexRouteImport
       parentRoute: typeof ExploreRoute
     }
+    '/live/streams/overlay/$id': {
+      id: '/live/streams/overlay/$id'
+      path: '/live/streams/overlay/$id'
+      fullPath: '/live/streams/overlay/$id'
+      preLoaderRoute: typeof LiveStreamsOverlayIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard/tracks/$id/edit': {
       id: '/dashboard/tracks/$id/edit'
       path: '/tracks/$id/edit'
@@ -2405,6 +2445,8 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRouteWithChildren,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  AuthHandoffRoute: AuthHandoffRoute,
+  LiveStreamsOverlayIdRoute: LiveStreamsOverlayIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
