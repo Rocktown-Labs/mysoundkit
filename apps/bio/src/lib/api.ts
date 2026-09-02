@@ -12,7 +12,9 @@ export const SOUNDKIT_WEB_URL = trimTrailingSlash(
 );
 export const SOUNDKIT_BIO_URL = trimTrailingSlash(
   import.meta.env.VITE_SOUNDKIT_BIO_URL ||
-    (import.meta.env.DEV ? "http://localhost:3002" : "https://soundkit.bio")
+    (import.meta.env.DEV
+      ? "http://localhost:3002"
+      : "https://bio.mysoundkit.com")
 );
 export const STRIPE_PUBLISHABLE_KEY =
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "";

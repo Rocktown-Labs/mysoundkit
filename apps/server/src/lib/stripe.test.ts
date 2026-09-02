@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { verifyStripeSignatureWithSecrets } from "./stripe";
+import {
+  buildCheckoutSessionParams,
+  verifyStripeSignatureWithSecrets,
+} from "./stripe";
 
 const signatureFor = async (
   payload: string,
@@ -21,6 +24,61 @@ const signatureFor = async (
     );
   return `t=${timestamp},v1=${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 };
+
+describe("Stripe Checkout parameters", () => {
+  it("uses the platform account for destination charges", () => {
+    const params = buildCheckoutSessionParams({
+      applicationFeeCents: 100,
+      cancelUrl: "https://soundkit.test/cancel",
+      customerEmail: "fan@example.com",
+      destinationAccountId: "acct_artist",
+      lineItems: [
+        {
+          currency: "USD",
+          name: "Artist tip",
+          priceCents: 1000,
+          quantity: 1,
+        },
+      ],
+      metadata: { transactionId: "transaction_123" },
+      successUrl: "https://soundkit.test/success",
+    });
+
+    expect(params.get("payment_intent_data[transfer_data][destination]")).toBe(
+      "acct_artist"
+    );
+    expect(params.get("payment_intent_data[application_fee_amount]")).toBe(
+      "100"
+    );
+    expect(params.get("success_url")).toBe("https://soundkit.test/success");
+    expect(params.get("ui_mode")).toBeNull();
+  });
+
+  it("uses return_url for embedded destination charges", () => {
+    const params = buildCheckoutSessionParams({
+      applicationFeeCents: 100,
+      destinationAccountId: "acct_artist",
+      embedded: true,
+      lineItems: [
+        {
+          currency: "USD",
+          name: "Artist tip",
+          priceCents: 1000,
+          quantity: 1,
+        },
+      ],
+      metadata: { transactionId: "transaction_123" },
+      returnUrl: "https://soundkit.test/live",
+    });
+
+    expect(params.get("ui_mode")).toBe("embedded");
+    expect(params.get("return_url")).toBe("https://soundkit.test/live");
+    expect(params.get("success_url")).toBeNull();
+    expect(params.get("payment_intent_data[transfer_data][destination]")).toBe(
+      "acct_artist"
+    );
+  });
+});
 
 describe("Stripe webhook signing secrets", () => {
   it("accepts a signature from any configured endpoint secret", async () => {

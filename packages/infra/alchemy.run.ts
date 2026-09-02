@@ -53,7 +53,9 @@ const SITE_HOST = isProduction
     ? "media.mysoundkit.com"
     : `media-${app.stage}.mysoundkit.com`,
   SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`,
-  BIO_HOST = isProduction ? "soundkit.bio" : `bio-${app.stage}.mysoundkit.com`,
+  BIO_HOST = isProduction
+    ? "bio.mysoundkit.com"
+    : `bio-${app.stage}.mysoundkit.com`,
   BIO_URL = app.local
     ? "http://localhost:3002"
     : process.env.SOUNDKIT_BIO_URL || `https://${BIO_HOST}`,

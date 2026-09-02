@@ -13,7 +13,7 @@ const getEnvValue = (key: string) =>
     (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
   getBioOrigin = () => {
     try {
-      return new URL(getEnvValue("SOUNDKIT_BIO_URL") || "https://soundkit.bio")
+      return new URL(getEnvValue("SOUNDKIT_BIO_URL") || "https://bio.mysoundkit.com")
         .origin;
     } catch {
       return null;

@@ -117,7 +117,7 @@ const app = new OpenAPIHono<AppEnv>({
   bioOrigin =
     (env as unknown as Record<string, string | undefined>)[
       "SOUNDKIT_BIO_URL"
-    ]?.trim() || "https://soundkit.bio",
+    ]?.trim() || "https://bio.mysoundkit.com",
   isAllowedCorsOrigin = (origin: string) =>
     origin === env.CORS_ORIGIN ||
     origin === env.BETTER_AUTH_URL ||

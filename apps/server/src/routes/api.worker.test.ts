@@ -155,13 +155,13 @@ describe("SoundKit Worker API", () => {
     const response = await SELF.fetch("http://soundkit.test/auth/session", {
       headers: {
         "access-control-request-method": "GET",
-        origin: "https://soundkit.bio",
+        origin: "https://bio.mysoundkit.com",
       },
       method: "OPTIONS",
     });
 
     expect(response.headers.get("access-control-allow-origin")).toBe(
-      "https://soundkit.bio"
+      "https://bio.mysoundkit.com"
     );
     expect(response.headers.get("access-control-allow-credentials")).toBe(
       "true"

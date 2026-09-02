@@ -4,7 +4,7 @@
 
 ### Added
 
-- Added standalone `soundkit.bio/{username}` artist pages with cross-domain auth handoff, guarded track previews, Stripe Embedded Checkout tipping, metadata, and safe external links.
+- Added standalone SoundKit artist pages with cross-domain auth handoff, guarded track previews, Stripe Embedded Checkout tipping, metadata, and safe external links.
 - Added authenticated live music review controls with manual Now Playing, linked StreamBot chat entities, replaceable hashed OBS overlay tokens, transparent read-only overlays, and SQLite-enabled Durable Object integration coverage.
 - Added authenticated, live-only on-page tipping for public streams, listening parties, and battles with Embedded Checkout and equal battle allocations.
 - Added an integrated dashboard floating navigation with setup-guide views, responsive placement, and accessible unread-message badges.
@@ -68,9 +68,14 @@
 - Moved the project form rights confirmation ("I own or control the rights…") from the distribution step into the Credits & Collaboration step, matching the track flow.
 - Coupled purchase-gated downloads to monetization in the new track form: enabling "Require purchase" now turns on Monetize Track, and disabling Monetize clears the purchase requirement.
 
+### Changed
+
+- Changed the initial bio rollout to use `bio.mysoundkit.com` in production and `bio-pr-<number>.mysoundkit.com` for pull requests; `soundkit.bio` remains a later custom-domain cutover.
+
 ### Fixed
 
 - Fixed public OBS stream discovery by syncing Cloudflare Stream lifecycle state, recognizing reconnecting inputs, normalizing Stream playback hostnames and status payloads, and replacing technical setup copy with creator-facing guidance.
+- Fixed live tips by creating Stripe destination charges on the platform account before transferring funds to the artist, and by returning a retryable provider error instead of an unhandled `500`.
 - Fixed transactional email greetings to prefer platform usernames, fall back to first names, and avoid email local-parts.
 - Fixed minimized and closed setup guides so they collapse back into the floating navigation and can be reopened from the setup-guide trigger.
 - Fixed accepted collaboration messages that could remain stuck on a local “Sending proposal…” spinner, including legacy attachments whose proposal metadata is linked by workspace ID.

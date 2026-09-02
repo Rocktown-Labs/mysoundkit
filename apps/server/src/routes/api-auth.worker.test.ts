@@ -345,7 +345,7 @@ const API_ORIGIN = "http://soundkit.test",
       path: "/v1/live/experiences/live_battle_123/battlebot",
     },
     {
-      init: jsonRequest({ targetOrigin: "https://soundkit.bio" }),
+      init: jsonRequest({ targetOrigin: "https://bio.mysoundkit.com" }),
       label: "cross-domain auth handoff",
       path: "/v1/auth/handoff-token",
     },

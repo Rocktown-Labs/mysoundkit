@@ -31,6 +31,7 @@ import {
 } from "@/lib/stripe";
 import { buildTipAllocations } from "@/lib/tips";
 import type { AppEnv } from "@/lib/types";
+import { logError } from "@/middleware/structured-logging";
 
 interface TipEvent {
   kind: "battle" | "party" | "stream";
@@ -361,19 +362,19 @@ app.openapi(
     );
 
     const checkout = await createDestinationCheckout({
-        applicationFeeCents: platformFeeCents,
-        cancelUrl: body.cancelUrl,
-        connectedAccountId: seller.stripeAccountId,
-        customerEmail: user.email,
-        lineItems: items.map((item) => ({
-          currency: item.currency,
-          name: item.titleSnapshot,
-          priceCents: item.priceCentsSnapshot,
-          quantity: item.quantity,
-        })),
-        metadata: { transactionId, transactionType: "product_purchase" },
-        successUrl: body.successUrl,
-      });
+      applicationFeeCents: platformFeeCents,
+      cancelUrl: body.cancelUrl,
+      customerEmail: user.email,
+      destinationAccountId: seller.stripeAccountId,
+      lineItems: items.map((item) => ({
+        currency: item.currency,
+        name: item.titleSnapshot,
+        priceCents: item.priceCentsSnapshot,
+        quantity: item.quantity,
+      })),
+      metadata: { transactionId, transactionType: "product_purchase" },
+      successUrl: body.successUrl,
+    });
 
     if (checkout) {
       await db
@@ -412,6 +413,10 @@ app.openapi(
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         z.object({ message: z.string() }),
         "Authentication required"
+      ),
+      [HttpStatusCodes.BAD_GATEWAY]: jsonContent(
+        z.object({ message: z.string() }),
+        "Tip checkout provider unavailable"
       ),
     },
     tags: ["Payments"],
@@ -576,22 +581,41 @@ app.openapi(
       );
     });
 
-    const checkout = await createEmbeddedTipCheckout({
-      applicationFeeCents: isSplitTip ? undefined : platformFeeCents,
-      cancelUrl: body.cancelUrl,
-      connectedAccountId: isSplitTip ? undefined : sellers[0]?.stripeAccountId,
-      customerEmail: user.email,
-      lineItems: [
-        {
-          currency: "USD",
-          name: isSplitTip ? "Battle tip" : "Artist tip",
-          priceCents: body.amountCents,
-          quantity: 1,
-        },
-      ],
-      metadata,
-      returnUrl: body.successUrl,
-    });
+    let checkout: Awaited<ReturnType<typeof createEmbeddedTipCheckout>>;
+    try {
+      checkout = await createEmbeddedTipCheckout({
+        applicationFeeCents: isSplitTip ? undefined : platformFeeCents,
+        cancelUrl: body.cancelUrl,
+        customerEmail: user.email,
+        destinationAccountId: isSplitTip
+          ? undefined
+          : sellers[0]?.stripeAccountId,
+        lineItems: [
+          {
+            currency: "USD",
+            name: isSplitTip ? "Battle tip" : "Artist tip",
+            priceCents: body.amountCents,
+            quantity: 1,
+          },
+        ],
+        metadata,
+        returnUrl: body.successUrl,
+      });
+    } catch (error) {
+      logError({
+        error: error instanceof Error ? error.message : String(error),
+        operation: "create_tip_checkout",
+        requestId: c.get("requestId"),
+      });
+      await db
+        .update(transactions)
+        .set({ status: "failed" })
+        .where(eq(transactions.id, transactionId));
+      return c.json(
+        { message: "Tip checkout is temporarily unavailable." },
+        HttpStatusCodes.BAD_GATEWAY
+      );
+    }
 
     if (checkout) {
       await db

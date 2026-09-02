@@ -1,6 +1,6 @@
-# SoundKit.bio
+# SoundKit artist profiles
 
-Standalone TanStack Start artist-profile app for `soundkit.bio/{username}`.
+Standalone TanStack Start artist-profile app for `bio.mysoundkit.com/{username}`.
 
 ## Local development
 
@@ -15,11 +15,16 @@ The app uses `VITE_SERVER_URL` for the public artist/media API and
 `VITE_SOUNDKIT_WEB_URL` for first-party SoundKit links. Tipping signs users in
 on `mysoundkit.com` through a popup handoff and sends the resulting Better Auth
 bearer session to the existing `/v1/payments/tips` flow. No SoundKit session
-cookie is assumed on `soundkit.bio`.
+cookie is assumed on the configured SoundKit web origin.
 
 ## Domain rollout
 
-The app is provisioned as the `soundkit-bio` Alchemy Worker. The custom
-`soundkit.bio` domain must be purchased and attached before a production
-`alchemy deploy`; preview stages use a `bio-<stage>.mysoundkit.com` domain.
-Set `SOUNDKIT_BIO_URL` only when overriding the generated origin.
+The initial rollout is provisioned as the `soundkit-bio` Alchemy Worker on the
+existing `mysoundkit.com` zone:
+
+- Production: `https://bio.mysoundkit.com`
+- Pull requests: `https://bio-pr-<number>.mysoundkit.com`
+
+The `soundkit.bio` custom domain can be attached later without changing the
+profile routes. Set `SOUNDKIT_BIO_URL` only when overriding the generated
+origin.
