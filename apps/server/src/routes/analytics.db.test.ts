@@ -437,11 +437,11 @@ describe.skipIf(!dbConnected)("analytics routes against local Postgres", () => {
       points: { value: number }[];
     };
 
-    // Long track: 29s is excluded, two 30s+ plays count (risk-rejected 40s
-    // still satisfies the 30s Play rule). Short track: 18s (<95%) excluded,
-    // 19s (>=95% of 20s) counts.
-    expect(body.total).toBe(4);
-    expect(body.points.reduce((acc, p) => acc + p.value, 0)).toBe(4);
+    // Long track: 29s is excluded, two clear 30s+ plays count, and the
+    // risk-rejected 40s session is excluded. Short track: 18s (<95%) is
+    // excluded, while 19s (>=95% of 20s) counts.
+    expect(body.total).toBe(3);
+    expect(body.points.reduce((acc, p) => acc + p.value, 0)).toBe(3);
   });
 
   it("timeseries qualified_streams counts only accepted streams", async () => {
@@ -481,7 +481,7 @@ describe.skipIf(!dbConnected)("analytics routes against local Postgres", () => {
       uniqueListeners: number;
     };
 
-    expect(body.totalPlays).toBe(4);
+    expect(body.totalPlays).toBe(3);
     // All-time qualified+clear across artist tracks: current-a, current-b,
     // and the prior-period prev-a (overview has no date window).
     expect(body.totalQualifiedStreams).toBe(3);

@@ -11,6 +11,7 @@ import { and, countDistinct, eq, gte, sql } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { enqueueForRecipient, getUserRecipient } from "@/lib/email-events";
+import { playConditionSql } from "@/lib/analytics-helpers";
 import { logInfo } from "@/middleware/structured-logging";
 
 const BATCH_LIMIT = 100;
@@ -76,7 +77,8 @@ export const runArtistDigest = async ({
         playbackSessions,
         and(
           eq(playbackSessions.trackId, tracks.id),
-          gte(playbackSessions.createdAt, weekStart)
+          gte(playbackSessions.createdAt, weekStart),
+          playConditionSql
         )
       )
       .where(eq(tracks.isPublic, true))
@@ -180,7 +182,9 @@ export const runFanDigest = async ({
         userId: playbackSessions.userId,
       })
       .from(playbackSessions)
-      .where(gte(playbackSessions.createdAt, periodStart))
+      .where(
+        and(gte(playbackSessions.createdAt, periodStart), playConditionSql)
+      )
       .groupBy(playbackSessions.userId)
       .limit(BATCH_LIMIT);
 

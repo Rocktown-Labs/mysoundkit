@@ -18,6 +18,7 @@ import { user as authUser } from "@soundkit/db/schema/auth";
 import type { InferSelectModel } from "drizzle-orm";
 import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
 
+import { playConditionSql } from "@/lib/analytics-helpers";
 import {
   formatDuration,
   guardedTrackPlaybackUrl,
@@ -423,7 +424,9 @@ export const buildTrackSummary = async (
           ? db
               .select({ count: sql<number>`count(*)::int` })
               .from(playbackSessions)
-              .where(eq(playbackSessions.trackId, row.id))
+              .where(
+                and(eq(playbackSessions.trackId, row.id), playConditionSql)
+              )
           : Promise.resolve([]),
         findPublicProjectCoverForTrack({ db, trackId: row.id }),
       ]),

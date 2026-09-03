@@ -6,13 +6,18 @@ import {
   adMetricDaily,
   userWallets,
 } from "@soundkit/db/schema/app";
-import { and, desc, eq, inArray, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, lte, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { isAdminUser } from "@/lib/admin";
-import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
+import {
+  isAuthenticatedSession,
+  isAuthenticatedUser,
+  resolveEntitlements,
+  unauthorizedMessage,
+} from "@/lib/entitlements";
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 import {
@@ -584,15 +589,34 @@ app.openapi(
     }
 
     const query = c.req.valid("query"),
-      targets = requestTargets(c.req.raw.headers);
+      targets = requestTargets(c.req.raw.headers),
+      user = c.get("user"),
+      session = c.get("session");
 
     if (targets.length === 0) {
       return c.body(null, HttpStatusCodes.NO_CONTENT);
     }
 
+    if (isAuthenticatedUser(user)) {
+      const entitlements = await resolveEntitlements({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
+
+      if (entitlements.isPremium) {
+        return c.body(null, HttpStatusCodes.NO_CONTENT);
+      }
+    }
+
     const db = createDb(),
       today = todayKey(),
       now = new Date(),
+      creativeCondition =
+        query.contentType === "audio"
+          ? eq(adCampaigns.creativeFormat, "audio")
+          : (query.placement === "video_overlay"
+            ? inArray(adCampaigns.creativeFormat, ["image", "video"])
+            : eq(adCampaigns.creativeFormat, "video")),
       candidates = await db
         .select({
           campaign: adCampaigns,
@@ -610,10 +634,16 @@ app.openapi(
             eq(adMetricDaily.date, today)
           )
         )
+        .leftJoin(userWallets, eq(userWallets.userId, adCampaigns.advertiserId))
         .where(
           and(
             eq(adCampaigns.status, "active"),
             eq(adCampaigns.placement, query.placement),
+            creativeCondition,
+            or(
+              eq(adCampaigns.billingType, "upfront_recurring"),
+              gt(userWallets.balanceCents, 0)
+            ),
             lte(adCampaigns.startDate, now),
             or(
               sql`${adCampaigns.endDate} is null`,

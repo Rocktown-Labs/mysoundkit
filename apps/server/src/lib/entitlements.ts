@@ -131,7 +131,16 @@ const defaultEntitlements = (): EntitlementSnapshot => ({
     return 2;
   },
   compareStatusPriority = (left: string, right: string) =>
-    statusPriority(left) - statusPriority(right);
+    statusPriority(left) - statusPriority(right),
+  isPaidSubscription = ({
+    monthlyPriceCents,
+    plan,
+  }: {
+    monthlyPriceCents: number | null;
+    plan: string;
+  }) =>
+    CONFIGURED_PAID_PLAN_CODES.has(plan) ||
+    (monthlyPriceCents !== null && monthlyPriceCents > 0);
 
 // The resolver intentionally combines workspace, subscription, catalog, and override precedence.
 // eslint-disable-next-line complexity
@@ -184,6 +193,13 @@ export const resolveEntitlements = async ({
         )
       ),
     [activeSubscription] = subscriptions.toSorted((left, right) => {
+      const paidPriority =
+        Number(isPaidSubscription(right)) - Number(isPaidSubscription(left));
+
+      if (paidPriority !== 0) {
+        return paidPriority;
+      }
+
       const referencePriority = compareReferencePriority(
         candidateReferenceIds,
         left.referenceId,
@@ -216,10 +232,7 @@ export const resolveEntitlements = async ({
     entitlementMap = new Map(
       entitlementRows.map(({ key, value }) => [key, value] as const)
     ),
-    paidPlan =
-      CONFIGURED_PAID_PLAN_CODES.has(activeSubscription.plan) ||
-      (activeSubscription.monthlyPriceCents !== null &&
-        activeSubscription.monthlyPriceCents > 0),
+    paidPlan = isPaidSubscription(activeSubscription),
     artistPlan =
       activeSubscription.audience === "artist" ||
       activeSubscription.plan.startsWith("artist_"),

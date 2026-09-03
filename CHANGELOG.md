@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added server-authoritative playback qualification, anonymous session-token tracking, organization Premium reward funding, Premium live-host enforcement, format-aware ad eligibility, aligned annual Premium pricing, and Payments-tab guidance.
 - Added the initial SoundKit Desktop Electron Forge app with a secure local renderer/preload boundary and Turbo/pnpm workspace integration.
 - Added the native mobile navigation shell with themed Explore, Library, Live, and Dashboard tabs, menu destinations, nested stacks, and branded placeholder screens for the planned mobile routes.
 - Added dedicated SoundKit.bio (`soundkit.bio`) artist link-in-bio platform with live artist autocomplete search, full multi-region interactive map supporting global, national, and US-state views, condensed `/tracks/$id` detail pages with Spotify, Apple Music, and YouTube outbound streaming links, artist claim onboarding, dialed-in artist dashboard sub-routes (`/dashboard`, `/dashboard/analytics`, `/dashboard/payments`), fan signup and session library (`/library`), and persistent docked audio player with MediaSession playback controls.

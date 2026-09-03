@@ -14,19 +14,23 @@ type SoundKitDb = ReturnType<typeof createDb>;
  * Rules:
  * - Play counts after >= 30 seconds of meaningful playback.
  * - Short track (< 30s) fallback: counts after >= 95% completion.
+ * - Rejected or held-risk sessions never count as verified plays.
  */
 export const playConditionSql = sql`(
+  ${playbackSessions.riskStatus} = 'clear'
+  AND (
   ${playbackSessions.playedSeconds} >= 30
   OR (
     EXISTS (
       SELECT 1 FROM ${trackAssets}
       WHERE ${trackAssets.trackId} = ${playbackSessions.trackId}
-        AND ${trackAssets.assetKind} IN ('master', 'untagged_wav', 'tagged_mp3')
+        AND ${trackAssets.assetKind} IN ('master', 'untagged_wav', 'tagged_mp3', 'variant_audio', 'instrumental')
         AND ${trackAssets.durationMs} IS NOT NULL
         AND ${trackAssets.durationMs} > 0
         AND ${trackAssets.durationMs} < 30000
         AND ${playbackSessions.playedSeconds} >= round((${trackAssets.durationMs} / 1000.0) * 0.95)
     )
+  )
   )
 )`;
 

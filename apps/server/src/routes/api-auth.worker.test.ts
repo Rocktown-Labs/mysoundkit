@@ -210,16 +210,6 @@ const API_ORIGIN = "http://soundkit.test",
     {
       init: jsonRequest(
         {
-          sourceType: "library",
-        },
-        "POST"
-      ),
-      label: "playback session creation",
-      path: "/v1/tracks/track_midnight_vibes/playback-sessions",
-    },
-    {
-      init: jsonRequest(
-        {
           durationSeconds: 200,
           playedSeconds: 140,
         },

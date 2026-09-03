@@ -13,7 +13,7 @@ export const fallbackBillingPlans = [
     name: "SoundKit Free Artist",
   },
   {
-    annualPriceCents: 22_899,
+    annualPriceCents: 18_000,
     audience: "artist" as const,
     code: "soundkit_premium_artist",
     entitlements: {},
@@ -31,7 +31,7 @@ export const fallbackBillingPlans = [
     name: "SoundKit Free Fan",
   },
   {
-    annualPriceCents: 22_899,
+    annualPriceCents: 18_000,
     audience: "fan" as const,
     code: "soundkit_premium_fan",
     entitlements: {},
