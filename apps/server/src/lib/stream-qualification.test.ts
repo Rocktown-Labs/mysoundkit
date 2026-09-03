@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  acceptedPlaybackSeconds,
   hasReachedQualifiedPlayback,
   minimumPlayedSecondsForQualification,
   qualificationWindowKey,
@@ -69,6 +70,33 @@ describe("stream qualification seat exclusions", () => {
         thresholdSeconds: 30,
       })
     ).toBe(30);
+  });
+
+  it("caps client progress to elapsed server time plus a small grace window", () => {
+    expect(
+      acceptedPlaybackSeconds({
+        durationSeconds: 200,
+        elapsedSeconds: 10,
+        previousPlayedSeconds: 0,
+        reportedPlayedSeconds: 200,
+      })
+    ).toBe(15);
+    expect(
+      acceptedPlaybackSeconds({
+        durationSeconds: 200,
+        elapsedSeconds: 10,
+        previousPlayedSeconds: 20,
+        reportedPlayedSeconds: 12,
+      })
+    ).toBe(20);
+    expect(
+      acceptedPlaybackSeconds({
+        durationSeconds: 200,
+        elapsedSeconds: 10,
+        previousPlayedSeconds: 190,
+        reportedPlayedSeconds: 200,
+      })
+    ).toBe(200);
   });
 
   it("builds deterministic deduplication window keys", () => {

@@ -1009,24 +1009,6 @@ const badRequest = (message: string) => ({
 
     return profile?.accountType === "artist";
   },
-  isPartyHostingAllowed = async ({
-    session,
-    user,
-  }: {
-    session: AppEnv["Variables"]["session"];
-    user: AuthenticatedUser;
-  }) => {
-    const entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
-
-    if (entitlements.isPremium) {
-      return true;
-    }
-
-    return isArtistUser(user.id);
-  },
   persistLiveExperience = async ({
     body,
     createdByUserId,
@@ -2371,15 +2353,26 @@ app.post("/experiences", async (c) => {
 
   const body = parseResult.data,
     startsAt = body.scheduledStartAt ?? new Date().toISOString(),
-    canHostParty = await isPartyHostingAllowed({
-      session: c.get("session"),
+    session = c.get("session"),
+    entitlements = await resolveEntitlements({
+      session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
+    }),
+    canHostParty = entitlements.isPremium || (await isArtistUser(user.id));
 
   if (body.kind === "party" && !canHostParty) {
     return c.json(
       forbiddenMessage(
-        "A premium subscription is required to host listening parties."
+        "Premium access or an artist account is required to host listening parties."
+      ),
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+
+  if (body.kind === "stream" && !entitlements.canHostLiveStreams) {
+    return c.json(
+      forbiddenMessage(
+        "A Premium Artist subscription is required to host live streams."
       ),
       HttpStatusCodes.FORBIDDEN
     );
@@ -2393,9 +2386,11 @@ app.post("/experiences", async (c) => {
       );
     }
 
-    const session = c.get("session"),
+    const requestSession = c.get("session"),
       organizationId = await resolveActiveOrganizationId({
-        session: isAuthenticatedSession(session) ? session : null,
+        session: isAuthenticatedSession(requestSession)
+          ? requestSession
+          : null,
         user,
       }),
       db = createDb(),

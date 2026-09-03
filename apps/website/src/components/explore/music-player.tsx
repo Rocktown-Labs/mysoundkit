@@ -71,7 +71,10 @@ import {
   completeQueuedTrack,
   shouldRestartCurrentTrack,
 } from "@/lib/player-queue";
-import { useMeQuery } from "@/lib/soundkit-api-hooks";
+import {
+  useMeEntitlementsQuery,
+  useMeQuery,
+} from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 interface Device {
@@ -88,6 +91,7 @@ interface SinkAudioElement extends HTMLAudioElement {
 interface PlaybackTelemetrySession {
   id: string;
   lastReportedSeconds: number;
+  sessionToken: string;
   thresholdReported: boolean;
   trackId: string;
 }
@@ -442,6 +446,7 @@ export function MusicPlayer() {
   });
 
   const meQuery = useMeQuery(),
+    entitlementsQuery = useMeEntitlementsQuery(),
     isSignedIn = Boolean(meQuery.data),
     [guestLimitReached, setGuestLimitReached] = useState(false);
 
@@ -572,6 +577,7 @@ export function MusicPlayer() {
             ended,
             isMuted: audio.muted || audio.volume === 0,
             playedSeconds,
+            sessionToken: telemetry.sessionToken,
           }),
           credentials: "include",
           headers: {
@@ -603,10 +609,21 @@ export function MusicPlayer() {
         !(
           audio &&
           currentTrack &&
-          !isSignedIn &&
           prerollServedTrackRef.current !== currentTrack.id
         )
       ) {
+        return false;
+      }
+
+      let isPremium =
+        isSignedIn && entitlementsQuery.data?.isPremium === true;
+      if (isSignedIn && !entitlementsQuery.isFetched) {
+        const result = await entitlementsQuery.refetch();
+        isPremium = result.data?.isPremium === true;
+      }
+
+      if (isPremium) {
+        prerollServedTrackRef.current = currentTrack.id;
         return false;
       }
 
@@ -680,11 +697,13 @@ export function MusicPlayer() {
     playbackTelemetryRef.current = null;
 
     const startPlaybackSession = async () => {
-      const response = await fetch(
+      const sessionToken = crypto.randomUUID(),
+        response = await fetch(
         `${API_V1_URL}/tracks/${encodeURIComponent(trackId)}/playback-sessions`,
         {
           body: JSON.stringify({
             clientType: "web",
+            sessionToken,
             sourceId: currentTrack.id,
             sourceType: currentTrack.sourceType ?? "library",
           }),
@@ -702,12 +721,14 @@ export function MusicPlayer() {
 
       const payload = (await response.json().catch(() => null)) as {
         id?: string;
+        sessionToken?: string;
       } | null;
 
       if (!(cancelled || !payload?.id)) {
         playbackTelemetryRef.current = {
           id: payload.id,
           lastReportedSeconds: 0,
+          sessionToken: payload.sessionToken ?? sessionToken,
           thresholdReported: false,
           trackId,
         };

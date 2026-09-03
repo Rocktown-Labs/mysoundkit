@@ -20,6 +20,7 @@ import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
+import { playConditionSql } from "@/lib/analytics-helpers";
 import { publicProfileAssetUrl } from "@/lib/asset-urls";
 import {
   buildProjectSummary,
@@ -123,12 +124,14 @@ const artistWeeklyPlays = sql<number>`coalesce((
     inner join ${tracks} on ${tracks.id} = ${playbackSessions.trackId}
     where ${tracks.ownerUserId} = ${artistProfiles.userId}
       and ${playbackSessions.startedAt} >= now() - interval '7 days'
+      and ${playConditionSql}
   ), 0)`,
   artistTotalPlays = sql<number>`coalesce((
     select count(${playbackSessions.id})::int
     from ${playbackSessions}
     inner join ${tracks} on ${tracks.id} = ${playbackSessions.trackId}
     where ${tracks.ownerUserId} = ${artistProfiles.userId}
+      and ${playConditionSql}
   ), 0)`,
   artistOrderBy = (query: {
     category?: "rising" | "new" | "top";
@@ -409,7 +412,7 @@ app.openapi(
             })
             .from(playbackSessions)
             .innerJoin(tracks, eq(tracks.id, playbackSessions.trackId))
-            .where(eq(tracks.ownerUserId, artist.id)),
+            .where(and(eq(tracks.ownerUserId, artist.id), playConditionSql)),
           totalPlays = playsRow?.totalPlays ?? 0,
           weeklyPlays =
             (playsRow?.weeklyPlays ?? 0) > 0

@@ -626,6 +626,7 @@ export const createPlaybackSessionBodySchema = z.object({
   clientVersion: z.string().trim().max(80).optional(),
   countryCode: z.string().trim().max(2).optional(),
   regionCode: z.string().trim().max(80).optional(),
+  sessionToken: z.string().trim().min(16).max(200).optional(),
   sourceId: z.string().trim().max(160).optional(),
   sourceType: playbackSourceTypeSchema.default("library"),
 });
@@ -634,6 +635,7 @@ export const playbackSessionResponseSchema = z.object({
   canQualify: z.boolean(),
   durationSeconds: z.number().int().positive().nullable(),
   id: z.string(),
+  sessionToken: z.string(),
 });
 
 export const playbackProgressBodySchema = z.object({
@@ -641,6 +643,7 @@ export const playbackProgressBodySchema = z.object({
   ended: z.boolean().default(false),
   isMuted: z.boolean().default(false),
   playedSeconds: z.number().nonnegative(),
+  sessionToken: z.string().trim().min(16).max(200).optional(),
 });
 
 export const playbackProgressResponseSchema = z.object({

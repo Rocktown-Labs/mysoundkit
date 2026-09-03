@@ -99,7 +99,7 @@ const DEFAULT_PLANS: DefaultPlanItem[] = [
       stripeMonthlyPriceId: "",
     },
     {
-      annualPriceCents: 22_899,
+      annualPriceCents: 18_000,
       audience: "artist",
       code: "soundkit_premium_artist",
       entitlements: {
@@ -126,7 +126,7 @@ const DEFAULT_PLANS: DefaultPlanItem[] = [
       stripeMonthlyPriceId: "",
     },
     {
-      annualPriceCents: 22_899,
+      annualPriceCents: 18_000,
       audience: "fan",
       code: "soundkit_premium_fan",
       entitlements: {
