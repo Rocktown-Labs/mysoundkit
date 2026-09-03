@@ -92,6 +92,7 @@
 ### Fixed
 
 - Fixed preview authentication origin mismatches caused by the web preview hostname changing from `web-pr-*` to `soundkit-web-pr-*`.
+- Fixed browser smoke test flakiness by scoping test headers to API requests, mocking auth capabilities, and preserving real application error checks while allowing expected anonymous API responses.
 
 - Fixed live stream shutdown so dashboard stops persist an ended experience without deleting reusable Cloudflare inputs, encoder disconnects take lifecycle precedence over stale input status, disconnected broadcasts leave public playback and discovery, and live genre labels render as `Hip-Hop` with Now Playing in the creator header.
 - Fixed public OBS stream discovery by syncing Cloudflare Stream lifecycle state, recognizing reconnecting inputs, normalizing Stream playback hostnames and status payloads, and replacing technical setup copy with creator-facing guidance.
