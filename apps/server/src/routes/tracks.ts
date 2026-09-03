@@ -38,6 +38,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { playConditionSql } from "@/lib/analytics-helpers";
 import { guardedTrackPlaybackUrl, publicAssetUrl } from "@/lib/asset-urls";
 import {
   resolveDownloadAccess,
@@ -415,6 +416,7 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
   select count(*)::int
   from ${playbackSessions}
   where ${playbackSessions.trackId} = ${tracks.id}
+    and ${playConditionSql}
 ), 0)`,
   trackEffectiveDate = sql`coalesce(${tracks.publishedAt}, ${tracks.createdAt}, ${tracks.updatedAt})`,
   publicTrackOrderBy = (sort?: string) => {
@@ -684,11 +686,8 @@ app.openapi(
     tags: ["Tracks"],
   }),
   async (c) => {
-    const user = c.get("user");
-
-    if (!isAuthenticatedUser(user)) {
-      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
-    }
+    const user = c.get("user"),
+      currentUser = isAuthenticatedUser(user) ? user : null;
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -702,7 +701,7 @@ app.openapi(
       session = c.get("session"),
       entitlements = await resolveEntitlements({
         session: isAuthenticatedSession(session) ? session : null,
-        user,
+        user: currentUser,
       }),
       db = createDb(),
       [trackPolicy] = await db
@@ -719,11 +718,13 @@ app.openapi(
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
-    const hasPurchase = await hasPurchasedTrack({
-        db,
-        trackId,
-        userId: user.id,
-      }),
+    const hasPurchase = currentUser
+        ? await hasPurchasedTrack({
+            db,
+            trackId,
+            userId: currentUser.id,
+          })
+        : false,
       access = resolveListeningAccess({
         hasPurchase,
         isPremium: entitlements.isPremium,
@@ -750,8 +751,9 @@ app.openapi(
             isPremium: entitlements.isPremium,
             status: entitlements.status,
           },
-          listenerUserId: user.id,
+          listenerUserId: currentUser?.id ?? null,
           regionCode: body.regionCode,
+          sessionToken: body.sessionToken,
           sourceId: body.sourceId,
           sourceType: body.sourceType,
           trackId,
@@ -764,6 +766,7 @@ app.openapi(
             canQualify: false,
             durationSeconds: null,
             id: crypto.randomUUID(),
+            sessionToken: body.sessionToken ?? crypto.randomUUID(),
           },
           HttpStatusCodes.CREATED
         );
@@ -776,6 +779,7 @@ app.openapi(
           canQualify: false,
           durationSeconds: null,
           id: crypto.randomUUID(),
+          sessionToken: body.sessionToken ?? crypto.randomUUID(),
         },
         HttpStatusCodes.CREATED
       );
@@ -814,9 +818,11 @@ app.openapi(
     tags: ["Tracks"],
   }),
   async (c) => {
-    const user = c.get("user");
+    const user = c.get("user"),
+      currentUser = isAuthenticatedUser(user) ? user : null,
+      body = c.req.valid("json");
 
-    if (!isAuthenticatedUser(user)) {
+    if (!currentUser && !body.sessionToken) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
@@ -828,16 +834,16 @@ app.openapi(
     }
 
     const { sessionId, trackId } = c.req.valid("param"),
-      body = c.req.valid("json"),
       result = await recordPlaybackProgress({
         db: createDb(),
         input: {
           durationSeconds: body.durationSeconds,
           ended: body.ended,
           isMuted: body.isMuted,
-          listenerUserId: user.id,
+          listenerUserId: currentUser?.id ?? null,
           playedSeconds: body.playedSeconds,
           sessionId,
+          sessionToken: body.sessionToken,
           trackId,
         },
       });
@@ -886,9 +892,11 @@ app.openapi(
     tags: ["Tracks"],
   }),
   async (c) => {
-    const user = c.get("user");
+    const user = c.get("user"),
+      currentUser = isAuthenticatedUser(user) ? user : null,
+      body = c.req.valid("json");
 
-    if (!isAuthenticatedUser(user)) {
+    if (!currentUser && !body.sessionToken) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
@@ -900,16 +908,16 @@ app.openapi(
     }
 
     const { sessionId, trackId } = c.req.valid("param"),
-      body = c.req.valid("json"),
       result = await recordPlaybackProgress({
         db: createDb(),
         input: {
           durationSeconds: body.durationSeconds,
           ended: true,
           isMuted: body.isMuted,
-          listenerUserId: user.id,
+          listenerUserId: currentUser?.id ?? null,
           playedSeconds: body.playedSeconds ?? 0,
           sessionId,
+          sessionToken: body.sessionToken,
           trackId,
         },
       });

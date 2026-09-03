@@ -7,7 +7,11 @@ import {
   rewardUnits,
   subscriptionRewardAllocations,
 } from "@soundkit/db/schema/app";
-import { subscription,user as authUser } from "@soundkit/db/schema/auth";
+import {
+  member,
+  subscription,
+  user as authUser,
+} from "@soundkit/db/schema/auth";
 import { and, eq, gt, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
@@ -133,17 +137,30 @@ export const runCreatorRewardsSettlement = async ({
         plan: subscription.plan,
         referenceId: subscription.referenceId,
         subId: subscription.id,
-        userId: authUser.id,
+        userId: sql<string | null>`coalesce(${authUser.id}, ${member.userId})`,
       })
       .from(subscription)
-      .innerJoin(authUser, eq(authUser.id, subscription.referenceId))
+      .leftJoin(authUser, eq(authUser.id, subscription.referenceId))
+      .leftJoin(
+        member,
+        and(
+          eq(member.organizationId, subscription.referenceId),
+          eq(member.role, "owner")
+        )
+      )
       .where(
         and(
           eq(subscription.status, "active"),
-          sql`${subscription.plan} like '%premium%'`
+          sql`${subscription.plan} like '%premium%'`,
+          sql`coalesce(${authUser.id}, ${member.userId}) is not null`
         )
       )
-      .limit(SETTLEMENT_BATCH_LIMIT),
+      .limit(SETTLEMENT_BATCH_LIMIT)
+      .then((rows) =>
+        rows.filter(
+          (row): row is typeof row & { userId: string } => row.userId !== null
+        )
+      ),
     existingAllocations = await db
       .select({ subscriptionId: subscriptionRewardAllocations.subscriptionId })
       .from(subscriptionRewardAllocations)

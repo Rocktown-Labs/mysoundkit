@@ -18,8 +18,10 @@ import {
   ExternalLink,
   FileText,
   Info,
+  ListChecks,
   Music,
   PiggyBank,
+  PlayCircle,
   ShieldCheck,
   Sparkles,
   TrendingUp,
@@ -370,11 +372,11 @@ function CareerPaymentsPage() {
                     User-Centric Creator Rewards Pool
                   </div>
                   <p>
-                    SoundKit uses a user-centric funded pool model. Each
-                    subscriber&apos;s subscription fee is allocated directly
-                    among the artists they listen to each month. Effective
-                    stream value varies based on individual subscriber listening
-                    behavior.
+                    Each active Premium membership adds $5 to the monthly
+                    creator pool. At month close, that pool is split across
+                    eligible Premium streams. A Premium workspace funds the pool
+                    once, including its seats; it is not multiplied by the number
+                    of members.
                   </p>
                 </div>
 
@@ -415,6 +417,77 @@ function CareerPaymentsPage() {
               </CardContent>
             </Card>
           </div>
+
+          <Card className="border-border/40 bg-card/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base font-bold">
+                <Info className="size-4 text-primary" />
+                How payments and plays work
+              </CardTitle>
+              <CardDescription className="text-xs">
+                The short version of how SoundKit turns listening into creator
+                earnings.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 text-xs md:grid-cols-2">
+              <div className="flex flex-col gap-3 rounded-xl border border-border/30 bg-muted/20 p-4">
+                <div className="flex items-center gap-2 font-bold text-foreground">
+                  <CircleDollarSign className="size-4 text-emerald-400" />
+                  Payments
+                </div>
+                <ol className="flex list-decimal flex-col gap-2 pl-5 text-muted-foreground">
+                  <li>
+                    Fans choose Free or Premium. Each active Premium membership
+                    contributes $5 to the monthly creator pool. Track sales and
+                    tips are separate earnings.
+                  </li>
+                  <li>
+                    At the end of the month, the pool is shared by artists with
+                    eligible Premium streams. Estimates update daily.
+                  </li>
+                  <li>
+                    Rewards remain in a 30-day reserve. Connect Stripe and reach
+                    $25 to receive a payout.
+                  </li>
+                </ol>
+              </div>
+
+              <div className="flex flex-col gap-3 rounded-xl border border-border/30 bg-muted/20 p-4">
+                <div className="flex items-center gap-2 font-bold text-foreground">
+                  <PlayCircle className="size-4 text-primary" />
+                  Play tracking
+                </div>
+                <ol className="flex list-decimal flex-col gap-2 pl-5 text-muted-foreground">
+                  <li>
+                    A server session starts when a track starts, including for
+                    guests.
+                  </li>
+                  <li>
+                    A verified play needs 30 seconds, or 95% of a track shorter
+                    than 30 seconds.
+                  </li>
+                  <li>
+                    A reward stream needs Premium at the start and about 70% of
+                    the track. The same listener and track count once per 24
+                    hours.
+                  </li>
+                  <li>
+                    Self-listens, collaborators, rightsholders, muted sessions,
+                    and risky playback do not earn creator rewards.
+                  </li>
+                </ol>
+              </div>
+
+              <Alert className="md:col-span-2" variant="default">
+                <ListChecks className="size-4" />
+                <AlertDescription>
+                  Verified plays and reward streams are different numbers. Free
+                  listening can count toward analytics, but only eligible
+                  Premium streams fund creator rewards.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* TAB 2: MONTHLY STATEMENTS */}

@@ -1761,7 +1761,12 @@ app.openapi(
 
     if (!video.sourceTrackId) {
       return c.json(
-        { canQualify: false, durationSeconds: null, id: crypto.randomUUID() },
+        {
+          canQualify: false,
+          durationSeconds: null,
+          id: crypto.randomUUID(),
+          sessionToken: body.sessionToken ?? crypto.randomUUID(),
+        },
         HttpStatusCodes.CREATED
       );
     }
@@ -1814,6 +1819,7 @@ app.openapi(
         },
         listenerUserId: user.id,
         regionCode: body.regionCode,
+        sessionToken: body.sessionToken,
         sourceId: videoId,
         sourceType: videoPlaybackSourceType,
         trackId: video.sourceTrackId,
@@ -1825,6 +1831,7 @@ app.openapi(
         canQualify: false,
         durationSeconds: null,
         id: crypto.randomUUID(),
+        sessionToken: body.sessionToken ?? crypto.randomUUID(),
       },
       HttpStatusCodes.CREATED
     );

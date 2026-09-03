@@ -82,7 +82,7 @@ function AccountSettingsPage() {
         const { origin } = window.location,
           response = await checkout.mutateAsync({
             cancelUrl: `${origin}/library/settings`,
-            customerType: "user",
+            customerType: "organization",
             planCode: premiumPlanCodeForAccount(me.user.accountType),
             successUrl: `${origin}${premiumSuccessPathForAccount(
               me.user.accountType
@@ -109,7 +109,7 @@ function AccountSettingsPage() {
       try {
         setCheckoutMessage("");
         const response = await billingPortal.mutateAsync({
-          customerType: "user",
+          customerType: "organization",
           returnUrl: `${window.location.origin}/library/settings`,
         });
 

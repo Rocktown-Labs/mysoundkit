@@ -19,7 +19,7 @@ const FALLBACK_PLANS = [
     stripeMonthlyPriceId: null,
   },
   {
-    annualPriceCents: 22_899,
+    annualPriceCents: 18_000,
     audience: "artist" as const,
     code: "soundkit_premium_artist",
     entitlements: { canCreateLiveBattles: true, canHostLiveStreams: true },
@@ -43,7 +43,7 @@ const FALLBACK_PLANS = [
     stripeMonthlyPriceId: null,
   },
   {
-    annualPriceCents: 22_899,
+    annualPriceCents: 18_000,
     audience: "fan" as const,
     code: "soundkit_premium_fan",
     entitlements: {

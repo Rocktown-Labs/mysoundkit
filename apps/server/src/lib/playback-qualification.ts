@@ -14,10 +14,12 @@ import {
   tracks,
 } from "@soundkit/db/schema/app";
 import { member, subscription } from "@soundkit/db/schema/auth";
-import { and, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 import {
+  acceptedPlaybackSeconds,
   hasReachedQualifiedPlayback,
+  minimumPlayedSecondsForQualification,
   qualificationWindowKey,
   shouldExcludeArtistSeatStream,
   streamQualificationRuleVersion,
@@ -61,8 +63,9 @@ export interface PlaybackSessionInput {
   clientVersion?: string;
   countryCode?: string;
   entitlementSnapshot: PlaybackEntitlementSnapshot;
-  listenerUserId: string;
+  listenerUserId: string | null;
   regionCode?: string;
+  sessionToken?: string;
   sourceId?: string;
   sourceType: typeof playbackSessions.$inferSelect.sourceType;
   trackId: string;
@@ -72,9 +75,11 @@ export interface PlaybackProgressInput {
   durationSeconds?: number;
   ended?: boolean;
   isMuted?: boolean;
-  listenerUserId: string;
+  listenerUserId: string | null;
   playedSeconds: number;
   sessionId: string;
+  sessionToken?: string;
+  trustedServerRecorded?: boolean;
   trackId: string;
 }
 
@@ -85,7 +90,17 @@ export type PlaybackQualificationResult =
   | "not_ready"
   | "qualified";
 
-const monthWindow = (date: Date) => {
+const hashSessionToken = async (token: string) => {
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(token)
+    );
+
+    return [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+  },
+  monthWindow = (date: Date) => {
     const startsAt = new Date(
         Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)
       ),
@@ -302,6 +317,7 @@ const monthWindow = (date: Date) => {
           eq(recordingRightsholders.payeeType, "artist"),
           eq(recordingRightsholders.payeeId, listenerUserId),
           eq(recordingRightsholders.status, "active"),
+          lte(recordingRightsholders.effectiveFrom, new Date()),
           or(
             isNull(recordingRightsholders.effectiveTo),
             gt(recordingRightsholders.effectiveTo, new Date())
@@ -371,7 +387,9 @@ export const createTrackPlaybackSession = async ({
   }
 
   const now = new Date(),
-    id = crypto.randomUUID();
+    id = crypto.randomUUID(),
+    sessionToken = input.sessionToken ?? crypto.randomUUID(),
+    sessionTokenHash = await hashSessionToken(sessionToken);
   await db.insert(playbackSessions).values({
     assetId: track.assetId,
     city: input.city,
@@ -384,6 +402,7 @@ export const createTrackPlaybackSession = async ({
     organizationId: track.organizationId,
     premiumAtStart: input.entitlementSnapshot.isPremium,
     regionCode: input.regionCode,
+    sessionTokenHash,
     sourceId: input.sourceId,
     sourceType: input.sourceType,
     startedAt: now,
@@ -391,19 +410,24 @@ export const createTrackPlaybackSession = async ({
     trackId: input.trackId,
     userId: input.listenerUserId,
   });
-  await updateRecentPlay({
-    db,
-    listenerUserId: input.listenerUserId,
-    now,
-    trackId: input.trackId,
-  });
+
+  if (input.listenerUserId) {
+    await updateRecentPlay({
+      db,
+      listenerUserId: input.listenerUserId,
+      now,
+      trackId: input.trackId,
+    });
+  }
 
   return {
-    canQualify: input.entitlementSnapshot.isPremium,
+    canQualify:
+      input.entitlementSnapshot.isPremium && Boolean(input.listenerUserId),
     durationSeconds: track.durationMs
       ? Math.ceil(track.durationMs / 1000)
       : null,
     id,
+    sessionToken,
   };
 };
 
@@ -414,7 +438,20 @@ export const recordPlaybackProgress = async ({
   db: SoundKitDb;
   input: PlaybackProgressInput;
 }) => {
+  if (!input.listenerUserId && !input.sessionToken) {
+    return { result: "ineligible" as PlaybackQualificationResult };
+  }
+
   const now = new Date(),
+    sessionTokenHash = input.sessionToken
+      ? await hashSessionToken(input.sessionToken)
+      : null,
+    listenerCondition = input.listenerUserId
+      ? eq(playbackSessions.userId, input.listenerUserId)
+      : isNull(playbackSessions.userId),
+    tokenCondition = input.sessionToken
+      ? eq(playbackSessions.sessionTokenHash, sessionTokenHash ?? "")
+      : sql`true`,
     [session] = await db
       .select()
       .from(playbackSessions)
@@ -422,24 +459,54 @@ export const recordPlaybackProgress = async ({
         and(
           eq(playbackSessions.id, input.sessionId),
           eq(playbackSessions.trackId, input.trackId),
-          eq(playbackSessions.userId, input.listenerUserId)
+          listenerCondition,
+          tokenCondition
         )
       )
       .limit(1);
 
-  if (!session || session.status === "rejected") {
+  if (
+    !session ||
+    session.status === "rejected" ||
+    session.status === "ended" ||
+    session.riskStatus !== "clear"
+  ) {
     return { result: "ineligible" as PlaybackQualificationResult };
   }
 
-  const playedSeconds = Math.max(session.playedSeconds, input.playedSeconds);
+  const track = await getPublicTrackWithPrimaryAsset({
+      db,
+      trackId: input.trackId,
+    }),
+    durationSeconds = track?.durationMs
+      ? Math.ceil(track.durationMs / 1000)
+      : 0,
+    elapsedSeconds =
+      (now.getTime() -
+        (session.lastHeartbeatAt?.getTime() ?? session.startedAt.getTime())) /
+      1000,
+    playedSeconds = input.trustedServerRecorded
+      ? Math.max(session.playedSeconds, input.playedSeconds)
+      : acceptedPlaybackSeconds({
+          durationSeconds,
+          elapsedSeconds,
+          previousPlayedSeconds: session.playedSeconds,
+          reportedPlayedSeconds: input.playedSeconds,
+        }),
+    mutedSeconds = input.isMuted
+      ? Math.max(session.mutedSeconds, playedSeconds)
+      : session.mutedSeconds;
+
+  if (!track) {
+    return { result: "ineligible" as PlaybackQualificationResult };
+  }
+
   await db
     .update(playbackSessions)
     .set({
       endedAt: input.ended ? now : session.endedAt,
       lastHeartbeatAt: now,
-      mutedSeconds: input.isMuted
-        ? Math.max(session.mutedSeconds, playedSeconds)
-        : session.mutedSeconds,
+      mutedSeconds,
       playedSeconds,
       status: input.ended ? "ended" : "active",
     })
@@ -455,23 +522,31 @@ export const recordPlaybackProgress = async ({
     return { result: "already_qualified" as PlaybackQualificationResult };
   }
 
-  if (!session.premiumAtStart) {
+  if (!session.premiumAtStart || !input.listenerUserId) {
     return { result: "ineligible" as PlaybackQualificationResult };
   }
 
-  const track = await getPublicTrackWithPrimaryAsset({
-    db,
-    trackId: input.trackId,
-  });
+  const snapshotStatus =
+      session.entitlementSnapshot &&
+      typeof session.entitlementSnapshot === "object" &&
+      "status" in session.entitlementSnapshot &&
+      typeof session.entitlementSnapshot.status === "string"
+        ? session.entitlementSnapshot.status
+        : null,
+    config = await getActiveRewardConfig(db),
+    qualificationThresholdSeconds = minimumPlayedSecondsForQualification({
+      durationSeconds,
+      thresholdPercent: config.playbackThresholdPercent,
+      thresholdSeconds: config.playbackThresholdSeconds,
+    });
 
-  if (!track) {
+  if (snapshotStatus && snapshotStatus !== "active") {
     return { result: "ineligible" as PlaybackQualificationResult };
   }
 
-  const durationSeconds =
-      input.durationSeconds ??
-      (track.durationMs ? Math.ceil(track.durationMs / 1000) : 0),
-    config = await getActiveRewardConfig(db);
+  if (mutedSeconds >= qualificationThresholdSeconds) {
+    return { result: "ineligible" as PlaybackQualificationResult };
+  }
 
   if (
     !hasReachedQualifiedPlayback({
@@ -538,6 +613,7 @@ export const recordPlaybackProgress = async ({
       playbackSessionId: input.sessionId,
       qualificationWindowKey: windowKey,
       qualifiedAt: now,
+      riskStatus: "clear",
       ruleVersion: config.version,
       sourceId: session.sourceId,
       sourceType: session.sourceType,
@@ -568,6 +644,7 @@ export const recordPlaybackProgress = async ({
       occurredAt: now,
       qualifiedStreamId: qualified.id,
       quantity: 1,
+      riskStatus: "clear",
       sourceId: session.sourceId,
       sourceType: session.sourceType,
       status: "eligible",
@@ -636,6 +713,7 @@ export const recordLiveSessionTrackPlayback = async ({
           playedSeconds,
           sessionId: session.id,
           trackId,
+          trustedServerRecorded: true,
         },
       });
       results.push({ listenerUserId, result: progress.result });
