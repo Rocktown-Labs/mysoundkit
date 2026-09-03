@@ -18,8 +18,8 @@
   --secondary-foreground: oklch(0.98 0 0);
   --muted: oklch(0.15 0 0);
   --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.65 0.2 45);
-  --accent-foreground: oklch(0.08 0 0);
+  --accent: oklch(0.18 0 0);
+  --accent-foreground: oklch(0.98 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.98 0 0);
   --border: oklch(0.25 0 0);
@@ -67,13 +67,7 @@
     min-width: 320px;
     min-height: 100vh;
     margin: 0;
-    background:
-      radial-gradient(
-        circle at 50% 0%,
-        rgb(129 92 246 / 12%),
-        transparent 36rem
-      ),
-      #101010;
+    background-color: var(--background);
   }
   button,
   a,

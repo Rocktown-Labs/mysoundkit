@@ -11,11 +11,7 @@ import {
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
-import {
-  buildSoundKitWebUrl,
-  searchBioArtists,
-  SOUNDKIT_WEB_URL,
-} from "@/lib/api";
+import { searchBioArtists, SOUNDKIT_WEB_URL } from "@/lib/api";
 import type { BioArtistSearchResult } from "@/lib/api";
 
 export function BioNav() {
@@ -61,8 +57,6 @@ export function BioNav() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const signupUrl = buildSoundKitWebUrl("/auth/signup");
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
@@ -174,9 +168,7 @@ export function BioNav() {
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <a
             className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-white/5 px-3.5 py-1.5 text-xs font-semibold text-foreground/85 hover:border-primary/40 hover:text-foreground transition-all"
-            href={signupUrl}
-            rel="noopener noreferrer"
-            target="_blank"
+            href="/signup/artist"
           >
             <Sparkles className="size-3.5 text-primary" />
             <span>Claim Account</span>

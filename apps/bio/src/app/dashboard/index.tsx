@@ -66,7 +66,7 @@ function BioArtistDashboard() {
       </div>
 
       {/* Primary SoundKit Web Onboarding Action Card */}
-      <div className="relative overflow-hidden rounded-3xl border border-primary/40 bg-gradient-to-r from-primary/15 via-primary/5 to-card p-6 sm:p-8 backdrop-blur-xl shadow-2xl space-y-4">
+      <div className="relative overflow-hidden rounded-3xl border border-primary/40 bg-card/60 p-6 sm:p-8 backdrop-blur-xl shadow-xl space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-1.5 text-xs font-bold text-primary">

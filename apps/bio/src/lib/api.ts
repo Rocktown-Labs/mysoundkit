@@ -255,17 +255,41 @@ export const loadRegionArtists = async (
 ): Promise<BioArtistSearchResult[]> => {
   try {
     const response = await fetch(
-        `${API_V1_URL}/discover/artists?region=${encodeURIComponent(region)}&regionType=${encodeURIComponent(regionType)}&category=rising&limit=12`,
+        `${API_V1_URL}/artists?region=${encodeURIComponent(region)}&regionType=${encodeURIComponent(regionType)}&category=top&limit=12`,
         { headers: { Accept: "application/json" } }
       ),
-      data = await readJson(response),
-      record =
-        data && typeof data === "object"
-          ? (data as Record<string, unknown>)
-          : null;
+      data = await readJson(response);
+
+    if (Array.isArray(data)) {
+      return data.map((item) => {
+        const raw = item as Record<string, unknown>;
+        return {
+          avatarUrl: (raw.avatarUrl as string) ?? null,
+          followers: Number(raw.followers || raw.followerCount || 0),
+          genre: (raw.genre as string) || "Independent Artist",
+          id: (raw.id as string) || "",
+          location:
+            (raw.location as string) ||
+            [raw.city, raw.state].filter(Boolean).join(", "),
+          name: (raw.name as string) || (raw.displayName as string) || "Artist",
+          username: (raw.username as string) || "",
+          verified: Boolean(raw.verified || raw.isVerified),
+          weeklyPlays: Number(raw.weeklyPlays || 0),
+        };
+      });
+    }
+
+    const record =
+      data && typeof data === "object"
+        ? (data as Record<string, unknown>)
+        : null;
 
     if (record && Array.isArray(record.artists)) {
-      return record.artists as BioArtistSearchResult[];
+      return (record.artists as BioArtistSearchResult[]).map((item) => ({
+        ...item,
+        followers: Number(item.followers || 0),
+        genre: item.genre || "Independent Artist",
+      }));
     }
 
     return [];
@@ -288,7 +312,10 @@ export const isSafeExternalUrl = (value: string | undefined) => {
 };
 
 export const buildSoundKitWebUrl = (path: string, refArtist?: string) => {
-  const base = `${SOUNDKIT_WEB_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  const normalizedPath = path
+    .replace(/^\/auth\/signup\b/u, "/signup")
+    .replace(/^\/auth\/login\b/u, "/login");
+  const base = `${SOUNDKIT_WEB_URL}${normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`}`;
   try {
     const url = new URL(base);
     url.searchParams.set("utm_source", "soundkit_bio");
@@ -300,4 +327,124 @@ export const buildSoundKitWebUrl = (path: string, refArtist?: string) => {
   } catch {
     return base;
   }
+};
+
+export const checkUsernameAvailable = async (username: string) => {
+  const trimmed = username.trim().toLowerCase();
+  if (!trimmed || trimmed.length < 3) {
+    return {
+      available: false,
+      message: "Username must be at least 3 characters",
+    };
+  }
+  try {
+    const response = await fetch(
+      `${API_V1_URL}/username/available?username=${encodeURIComponent(trimmed)}`,
+      { headers: { Accept: "application/json" } }
+    );
+    const data = await readJson(response);
+    if (data && typeof data === "object") {
+      const record = data as Record<string, unknown>;
+      return {
+        available: Boolean(record.available),
+        message:
+          (record.message as string) ||
+          (record.available ? "Username is available" : "Username is taken"),
+      };
+    }
+    return { available: true };
+  } catch {
+    return { available: true };
+  }
+};
+
+export const loadGenres = async (): Promise<string[]> => {
+  try {
+    const response = await fetch(`${API_V1_URL}/discover/genres`, {
+      headers: { Accept: "application/json" },
+    });
+    const data = await readJson(response);
+    if (Array.isArray(data)) {
+      return data
+        .map((entry) =>
+          typeof entry === "string"
+            ? entry
+            : (entry as { name?: string }).name || ""
+        )
+        .filter(Boolean);
+    }
+    return [
+      "Hip-Hop",
+      "R&B/Soul",
+      "Pop",
+      "Electronic",
+      "Rock",
+      "Country",
+      "Latin",
+      "Afrobeats",
+      "Jazz",
+    ];
+  } catch {
+    return [
+      "Hip-Hop",
+      "R&B/Soul",
+      "Pop",
+      "Electronic",
+      "Rock",
+      "Country",
+      "Latin",
+      "Afrobeats",
+      "Jazz",
+    ];
+  }
+};
+
+export const submitArtistOnboarding = async (
+  payload: Record<string, unknown>
+) => {
+  const response = await fetch(`${API_V1_URL}/onboarding/artist`, {
+    body: JSON.stringify(payload),
+    credentials: "include",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  const data = await readJson(response);
+  if (!response.ok) {
+    const errorMsg =
+      (data as { message?: string })?.message ||
+      `Onboarding failed (${response.status})`;
+    throw new Error(errorMsg);
+  }
+  return (
+    (data as { checkoutUrl?: string | null; message?: string }) ?? {
+      success: true,
+    }
+  );
+};
+
+export const submitFanOnboarding = async (payload: Record<string, unknown>) => {
+  const response = await fetch(`${API_V1_URL}/onboarding/fan`, {
+    body: JSON.stringify(payload),
+    credentials: "include",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  const data = await readJson(response);
+  if (!response.ok) {
+    const errorMsg =
+      (data as { message?: string })?.message ||
+      `Onboarding failed (${response.status})`;
+    throw new Error(errorMsg);
+  }
+  return (
+    (data as { checkoutUrl?: string | null; message?: string }) ?? {
+      success: true,
+    }
+  );
 };

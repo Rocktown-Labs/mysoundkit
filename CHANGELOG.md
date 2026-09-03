@@ -4,6 +4,9 @@
 
 ### Added
 
+- Added full multi-step artist onboarding (credentials, creator roles, eligibility, handle availability check, genre, streaming/social links, rights attestation, and plan selection) to `apps/bio`, completing into an empty artist dashboard that directs creators to finalize setup on SoundKit Web.
+- Added full multi-step fan onboarding (credentials, handle, location, favorite genres, plan selection) to `apps/bio`, completing into the home exploration route.
+- Synchronized SoundKit brand assets and favicons (`soundkit-mark.svg`, `soundkit-wordmark.svg`, `favicon.ico`, social cards, and webmanifest) into `apps/bio`.
 - Added the initial SoundKit Desktop Electron Forge app with a secure local renderer/preload boundary and Turbo/pnpm workspace integration.
 - Added the native mobile navigation shell with themed Explore, Library, Live, and Dashboard tabs, menu destinations, nested stacks, and branded placeholder screens for the planned mobile routes.
 - Added dedicated SoundKit.bio (`soundkit.bio`) artist link-in-bio platform with live artist autocomplete search, full multi-region interactive map supporting global, national, and US-state views, condensed `/tracks/$id` detail pages with Spotify, Apple Music, and YouTube outbound streaming links, artist claim onboarding, dialed-in artist dashboard sub-routes (`/dashboard`, `/dashboard/analytics`, `/dashboard/payments`), fan signup and session library (`/library`), and persistent docked audio player with MediaSession playback controls.
@@ -11,6 +14,11 @@
 
 ### Fixed
 
+- Refined SoundKit Bio (`apps/bio`) regional map discovery to query `/v1/artists` with `category=top` and properly parse array payloads, fixing empty results when filtering by regions like Arkansas.
+- Removed gradients, radial backgrounds, and decorative blur glow blobs across SoundKit Bio in favor of a sleek, flat dark theme matching `apps/website`.
+- Redesigned media items (`BioTrackCard`, `BioProjectCard`, `BioVideoCard`) from bordered box cards to frameless components matching the web app.
+- Condensed artist profile header on SoundKit Bio with compact avatar, cover banner, typography, and clear action buttons.
+- Fixed Claim Account CTAs to route to internal artist signup rather than external 404 links.
 - Fixed public web artist profile card alignment on `apps/website` so track, project, and video grids align cleanly to the start (`justify-start`) directly beneath section headings without blank desktop indentation.
 - Added authenticated live music review controls with manual Now Playing, linked StreamBot chat entities, replaceable hashed OBS overlay tokens, transparent read-only overlays, and SQLite-enabled Durable Object integration coverage.
 - Added authenticated, live-only on-page tipping for public streams, listening parties, and battles with Embedded Checkout and equal battle allocations.

@@ -18,18 +18,36 @@ export const Route = createRootRoute({
   head: () => ({
     links: [
       { href: appCss, rel: "stylesheet" },
-      { href: "/favicon.svg", rel: "icon", type: "image/svg+xml" },
+      { href: "/favicon.ico", rel: "icon" },
+      { href: "/soundkit-mark.svg", rel: "icon", type: "image/svg+xml" },
+      {
+        href: "/favicon-32x32.png",
+        rel: "icon",
+        sizes: "32x32",
+        type: "image/png",
+      },
+      {
+        href: "/favicon-16x16.png",
+        rel: "icon",
+        sizes: "16x16",
+        type: "image/png",
+      },
+      { href: "/apple-touch-icon.png", rel: "apple-touch-icon" },
+      { href: "/site.webmanifest", rel: "manifest" },
     ],
     meta: [
       { charSet: "utf-8" },
       { content: "width=device-width, initial-scale=1", name: "viewport" },
-      { title: "SoundKit.bio - Artist Profiles & Social Hub" },
+      { title: "SoundKit Bio — The Link-in-Bio for Music Creators" },
       {
         content:
-          "Discover independent artists, releases, and live support on SoundKit.",
+          "The official link-in-bio for SoundKit artists. Stream releases, explore artists by region, and support creator careers.",
         name: "description",
       },
-      { content: "#101010", name: "theme-color" },
+      { content: "/soundkit-social-card.png", property: "og:image" },
+      { content: "summary_large_image", name: "twitter:card" },
+      { content: "/soundkit-social-card.png", name: "twitter:image" },
+      { content: "#0e0e10", name: "theme-color" },
     ],
   }),
 });
