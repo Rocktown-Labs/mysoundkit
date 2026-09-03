@@ -43,6 +43,7 @@ import {
   STRIPE_PUBLISHABLE_KEY,
   isSafeExternalUrl,
   loadBioProfile,
+  toAbsoluteBioUrl,
 } from "@/lib/api";
 import type {
   BioArtist,
@@ -87,12 +88,13 @@ export const Route = createFileRoute("/$username")({
     const name = profile?.artist.name ?? `@${params.username}`;
     const title = `Check out ${name} on SoundKit Bio`;
     const description =
-      profile?.artist.bio ??
+      profile?.artist.bio ||
       `Listen to releases, stream tracks, and follow ${name} on SoundKit Bio.`;
-    const image =
-      profile?.artist.coverImageUrl ??
-      profile?.artist.avatarUrl ??
-      "/soundkit-social-card.png";
+    const image = toAbsoluteBioUrl(
+      profile?.artist.coverImageUrl ||
+        profile?.artist.avatarUrl ||
+        "/soundkit-social-card.png"
+    );
     const canonical = `${SOUNDKIT_BIO_URL}/${encodeURIComponent(params.username)}`;
 
     return {
@@ -104,6 +106,7 @@ export const Route = createFileRoute("/$username")({
         { content: "profile", property: "og:type" },
         { content: title, property: "og:title" },
         { content: description, property: "og:description" },
+        { content: "SoundKit Bio", property: "og:site_name" },
         { content: image, property: "og:image" },
         { content: "summary_large_image", name: "twitter:card" },
         { content: title, name: "twitter:title" },

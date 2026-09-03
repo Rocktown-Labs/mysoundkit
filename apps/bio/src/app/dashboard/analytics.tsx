@@ -109,7 +109,7 @@ function BioAnalyticsPage() {
             </div>
             <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-[#E4405F] to-primary rounded-full"
+                className="h-full bg-primary rounded-full"
                 style={{ width: "58%" }}
               />
             </div>

@@ -350,7 +350,7 @@ jobs:
       - name: Record preview URLs
         id: urls
         run: |
-          WEB_URL="https://web-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
+          WEB_URL="https://soundkit-web-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
           API_URL="https://api-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
           echo "web_url=$WEB_URL" >> "$GITHUB_OUTPUT"
           echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"

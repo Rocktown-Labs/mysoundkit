@@ -1,24 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
   <title id="title">SoundKit</title>
   <defs>
-    <radialGradient id="background" cx="50%" cy="45%" r="72%">
-      <stop offset="0" stop-color="#18181d" />
-      <stop offset="0.58" stop-color="#0a0a0d" />
-      <stop offset="1" stop-color="#040405" />
-    </radialGradient>
-    <linearGradient id="purpleAccent" x1="32" y1="32" x2="224" y2="224" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#9a8fc5" />
-      <stop offset="1" stop-color="#5c4d87" />
-    </linearGradient>
     <pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse">
       <path d="M64 0H0V64" fill="none" stroke="#fff" stroke-opacity=".045" />
     </pattern>
   </defs>
 
-  <rect width="256" height="256" rx="56" fill="url(#background)" />
+  <rect width="256" height="256" rx="56" fill="#0a0a0d" />
   <rect x="16" y="16" width="224" height="224" rx="48" fill="url(#grid)" />
   <rect x="12" y="12" width="232" height="232" rx="52" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="2" />
-  <rect x="17" y="17" width="222" height="222" rx="47" fill="none" stroke="url(#purpleAccent)" stroke-opacity=".58" stroke-width="2" />
+  <rect x="17" y="17" width="222" height="222" rx="47" fill="none" stroke="#8173ad" stroke-opacity=".58" stroke-width="2" />
 
   <path d="M54 48h42M160 48h42" stroke="#8173ad" stroke-linecap="round" stroke-width="5" />
   <path d="M72 195h28M156 195h28" stroke="#8173ad" stroke-linecap="round" stroke-width="5" />

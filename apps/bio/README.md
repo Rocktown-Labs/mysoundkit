@@ -11,8 +11,9 @@ pnpm --filter server dev
 pnpm --filter bio dev
 ```
 
-The app uses `VITE_SERVER_URL` for the public artist/media API and
-`VITE_SOUNDKIT_WEB_URL` for first-party SoundKit links. Tipping signs users in
+The app uses `VITE_SERVER_URL` for the public artist/media API,
+`VITE_SOUNDKIT_WEB_URL` for first-party SoundKit links, and
+`VITE_TURNSTILE_SITE_KEY` for signup bot protection. Tipping signs users in
 on `mysoundkit.com` through a popup handoff and sends the resulting Better Auth
 bearer session to the existing `/v1/payments/tips` flow. No SoundKit session
 cookie is assumed on the configured SoundKit web origin.

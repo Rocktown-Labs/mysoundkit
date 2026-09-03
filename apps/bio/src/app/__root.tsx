@@ -18,6 +18,7 @@ export const Route = createRootRoute({
   head: () => ({
     links: [
       { href: appCss, rel: "stylesheet" },
+      { href: `${SOUNDKIT_BIO_URL}/`, rel: "canonical" },
       { href: "/favicon.ico", rel: "icon" },
       { href: "/soundkit-mark.svg", rel: "icon", type: "image/svg+xml" },
       {
@@ -44,9 +45,27 @@ export const Route = createRootRoute({
           "The official link-in-bio for SoundKit artists. Stream releases, explore artists by region, and support creator careers.",
         name: "description",
       },
-      { content: "/soundkit-social-card.png", property: "og:image" },
+      { content: `${SOUNDKIT_BIO_URL}/`, property: "og:url" },
+      { content: "website", property: "og:type" },
+      {
+        content: "SoundKit Bio — The Link-in-Bio for Music Creators",
+        property: "og:title",
+      },
+      {
+        content:
+          "The official link-in-bio for SoundKit artists. Stream releases, explore artists by region, and support creator careers.",
+        property: "og:description",
+      },
+      { content: "SoundKit Bio", property: "og:site_name" },
+      {
+        content: `${SOUNDKIT_BIO_URL}/soundkit-social-card.png`,
+        property: "og:image",
+      },
       { content: "summary_large_image", name: "twitter:card" },
-      { content: "/soundkit-social-card.png", name: "twitter:image" },
+      {
+        content: `${SOUNDKIT_BIO_URL}/soundkit-social-card.png`,
+        name: "twitter:image",
+      },
       { content: "#0e0e10", name: "theme-color" },
     ],
   }),

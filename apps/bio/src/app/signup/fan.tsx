@@ -21,9 +21,13 @@ import React, { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 import {
-  API_BASE_URL,
+  BioTurnstile,
+  isBioTurnstileConfigured,
+} from "@/components/bio-turnstile";
+import {
   checkUsernameAvailable,
   loadGenres,
+  signUpWithEmail,
   submitFanOnboarding,
 } from "@/lib/api";
 
@@ -82,8 +86,11 @@ function FanSignupPage() {
   >("fan_free");
 
   // Submission state
+  const [isAccountCreated, setIsAccountCreated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   // Load genres on mount
   useEffect(() => {
@@ -135,8 +142,10 @@ function FanSignupPage() {
         }
       } catch {
         if (active) {
-          setUsernameStatus("available");
-          setUsernameMessage(`@${cleanUsername}`);
+          setUsernameStatus("idle");
+          setUsernameMessage(
+            "We could not verify this username. Please try again."
+          );
         }
       }
     }, 350);
@@ -160,7 +169,7 @@ function FanSignupPage() {
       case 2: {
         return (
           username.trim().length >= 3 &&
-          usernameStatus !== "taken" &&
+          usernameStatus === "available" &&
           city.trim().length > 0 &&
           stateValue.trim().length > 0
         );
@@ -218,21 +227,23 @@ function FanSignupPage() {
       .replaceAll(/[^a-z0-9_-]/gu, "");
 
     try {
-      // 1. Create auth session via better-auth
-      await fetch(`${API_BASE_URL}/api/auth/sign-up/email`, {
-        body: JSON.stringify({
-          accountType: "fan",
-          email: email.trim(),
-          name: name.trim(),
-          password,
-          username: cleanUsername,
-        }),
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      }).catch(() => null);
+      if (!isAccountCreated) {
+        if (isBioTurnstileConfigured && !turnstileToken) {
+          setErrorMessage("Complete the security check before continuing.");
+          return;
+        }
 
-      // 2. Submit fan onboarding record
+        await signUpWithEmail(
+          {
+            email: email.trim(),
+            name: name.trim(),
+            password,
+          },
+          turnstileToken
+        );
+        setIsAccountCreated(true);
+      }
+
       const result = await submitFanOnboarding({
         city: city.trim(),
         country: country.trim(),
@@ -241,7 +252,7 @@ function FanSignupPage() {
         selectedPlanCode,
         state: stateValue.trim(),
         username: cleanUsername,
-      }).catch(() => ({ checkoutUrl: null, success: true }));
+      });
 
       // If user selected paid plan and received checkout URL, redirect to Stripe
       if (result && "checkoutUrl" in result && result.checkoutUrl) {
@@ -251,9 +262,14 @@ function FanSignupPage() {
 
       // Fan onboarding completes and navigates directly to / (home page)
       navigate({ to: "/" });
-    } catch {
-      // On completion fallback, navigate to home page
-      navigate({ to: "/" });
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "We could not complete your signup. Please try again."
+      );
+      setTurnstileToken("");
+      setTurnstileResetKey((current) => current + 1);
     } finally {
       setIsSubmitting(false);
     }
@@ -662,6 +678,11 @@ function FanSignupPage() {
               </div>
             </div>
           )}
+
+          <BioTurnstile
+            onTokenChange={setTurnstileToken}
+            resetKey={turnstileResetKey}
+          />
 
           {/* Action Navigation Buttons */}
           <div className="mt-8 flex items-center justify-between pt-4 border-t border-border/40">

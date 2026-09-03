@@ -1,22 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1500" height="500" viewBox="0 0 1500 500" fill="none">
   <defs>
-    <radialGradient id="bgGlow" cx="50%" cy="50%" r="60%" fx="50%" fy="50%">
-      <stop offset="0%" stop-color="#18181f" stop-opacity="0.9" />
-      <stop offset="60%" stop-color="#09090b" stop-opacity="1" />
-      <stop offset="100%" stop-color="#040405" stop-opacity="1" />
-    </radialGradient>
-    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.1" />
-      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.03" />
-      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.08" />
-    </linearGradient>
     <clipPath id="wordmarkClip">
       <path d="M 0 0.1 L 187 0.1 L 187 74.9 L 0 74.9 Z" />
     </clipPath>
   </defs>
 
-  <!-- Deep pitch-black gradient background -->
-  <rect width="1500" height="500" fill="url(#bgGlow)" />
+  <!-- Deep pitch-black background -->
+  <rect width="1500" height="500" fill="#09090b" />
 
   <!-- Subtle grid texture lines -->
   <g opacity="0.04" stroke="#ffffff" stroke-width="1">
@@ -35,7 +25,7 @@
   <g transform="translate(600, 185) scale(1.6)">
     <!-- Outer Rounded Outline -->
     <rect x="0" y="0" width="187.5" height="75" rx="8" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-opacity="0.85" />
-    
+
     <!-- SOUNDKIT Text Paths -->
     <g fill="#ffffff" fill-opacity="0.95">
       <!-- S -->

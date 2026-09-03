@@ -1,4 +1,4 @@
-/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo */
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo, react/exhaustive-effect-dependencies */
 "use client";
 
 import { createFileRoute } from "@tanstack/react-router";
@@ -29,23 +29,34 @@ function BioHomePage() {
   const [mapScope, setMapScope] = useState<MapScope>("usa"),
     [selectedRegion, setSelectedRegion] = useState<string>("Arkansas"),
     [artists, setArtists] = useState<BioArtistSearchResult[]>([]),
-    [isLoading, setIsLoading] = useState(false);
+    [isLoading, setIsLoading] = useState(false),
+    [loadError, setLoadError] = useState<string | null>(null),
+    [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let isCancelled = false;
     const fetchArtists = async () => {
       setIsLoading(true);
+      setLoadError(null);
       try {
         const slug = exploreRegionSlug(selectedRegion),
-          apiRegion = mapScope === "usa" ? `us-${slug}` : slug || "us-arkansas",
+          apiRegion = selectedRegion
+            ? mapScope === "usa"
+              ? `us-${slug}`
+              : slug
+            : mapScope === "global"
+              ? "all"
+              : mapScope,
           regionType = regionTypeForMapScope(mapScope),
           list = await loadRegionArtists(apiRegion, regionType);
         if (!isCancelled) {
           setArtists(list);
+          setLoadError(null);
         }
       } catch {
         if (!isCancelled) {
           setArtists([]);
+          setLoadError("We could not load artists for this region.");
         }
       } finally {
         if (!isCancelled) {
@@ -58,7 +69,7 @@ function BioHomePage() {
     return () => {
       isCancelled = true;
     };
-  }, [selectedRegion, mapScope]);
+  }, [mapScope, retryCount, selectedRegion]);
 
   const handleRegionSelect = (regionName: string) => {
       setSelectedRegion(regionName);
@@ -70,14 +81,14 @@ function BioHomePage() {
       } else if (scope === "canada") {
         setSelectedRegion("Ontario");
       } else if (scope === "global") {
-        setSelectedRegion("United States");
+        setSelectedRegion("");
       } else {
         setSelectedRegion("");
       }
     },
     resetToGlobal = () => {
       setMapScope("global");
-      setSelectedRegion("United States");
+      setSelectedRegion("");
     };
 
   return (
@@ -178,7 +189,18 @@ function BioHomePage() {
           </p>
         </div>
 
-        {isLoading ? (
+        {loadError ? (
+          <div className="rounded-3xl border border-destructive/30 bg-destructive/10 p-12 text-center space-y-4">
+            <p className="text-sm text-destructive">{loadError}</p>
+            <button
+              className="inline-flex items-center gap-2 rounded-full border border-destructive/40 px-5 py-2 text-xs font-bold text-destructive hover:bg-destructive/10 transition-colors"
+              onClick={() => setRetryCount((count) => count + 1)}
+              type="button"
+            >
+              Try again
+            </button>
+          </div>
+        ) : isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
             <LoaderCircle className="size-7 animate-spin text-primary" />
             <p className="text-xs text-muted-foreground">

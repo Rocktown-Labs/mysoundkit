@@ -45,7 +45,7 @@ if (!(app.local || isProduction || isPullRequestPreview)) {
 // domain, so they route through the guarded /media API route instead.
 const SITE_HOST = isProduction
     ? "mysoundkit.com"
-    : `web-${app.stage}.mysoundkit.com`,
+    : `soundkit-web-${app.stage}.mysoundkit.com`,
   API_HOST = isProduction
     ? "api.mysoundkit.com"
     : `api-${app.stage}.mysoundkit.com`,
@@ -380,6 +380,7 @@ export const bio = await TanStackStart("bio", {
     VITE_SOUNDKIT_BIO_URL: BIO_URL,
     VITE_SOUNDKIT_WEB_URL: SITE_URL,
     ...optionalEnvBinding("VITE_STRIPE_PUBLISHABLE_KEY"),
+    ...optionalEnvBinding("VITE_TURNSTILE_SITE_KEY"),
   },
   cwd: "../../apps/bio",
   domains: app.local

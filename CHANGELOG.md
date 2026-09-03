@@ -86,8 +86,11 @@
 ### Changed
 
 - Changed the initial bio rollout to use `bio.mysoundkit.com` in production and `bio-pr-<number>.mysoundkit.com` for pull requests; `soundkit.bio` remains a later custom-domain cutover.
+- Changed pull-request web previews to use the canonical `soundkit-web-pr-<number>.mysoundkit.com` hostname across Alchemy and CI output.
 
 ### Fixed
+
+- Fixed preview authentication origin mismatches caused by the web preview hostname changing from `web-pr-*` to `soundkit-web-pr-*`.
 
 - Fixed live stream shutdown so dashboard stops persist an ended experience without deleting reusable Cloudflare inputs, encoder disconnects take lifecycle precedence over stale input status, disconnected broadcasts leave public playback and discovery, and live genre labels render as `Hip-Hop` with Now Playing in the creator header.
 - Fixed public OBS stream discovery by syncing Cloudflare Stream lifecycle state, recognizing reconnecting inputs, normalizing Stream playback hostnames and status payloads, and replacing technical setup copy with creator-facing guidance.

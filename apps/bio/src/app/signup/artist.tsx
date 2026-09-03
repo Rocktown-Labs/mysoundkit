@@ -21,9 +21,13 @@ import React, { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 import {
-  API_BASE_URL,
+  BioTurnstile,
+  isBioTurnstileConfigured,
+} from "@/components/bio-turnstile";
+import {
   checkUsernameAvailable,
   loadGenres,
+  signUpWithEmail,
   submitArtistOnboarding,
 } from "@/lib/api";
 
@@ -102,7 +106,7 @@ function ArtistSignupPage() {
   const [songwriterLegalName, setSongwriterLegalName] = useState("");
   const [proAffiliation, setProAffiliation] = useState("None");
   const [proMemberId, setProMemberId] = useState("");
-  const [rightsAttested, setRightsAttested] = useState(true);
+  const [rightsAttested, setRightsAttested] = useState(false);
 
   // Step 7: Plan Selection
   const [selectedPlanCode, setSelectedPlanCode] = useState<
@@ -110,8 +114,11 @@ function ArtistSignupPage() {
   >("artist_free");
 
   // Submission state
+  const [isAccountCreated, setIsAccountCreated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   // Load genres on mount
   useEffect(() => {
@@ -161,8 +168,10 @@ function ArtistSignupPage() {
         }
       } catch {
         if (active) {
-          setUsernameStatus("available");
-          setUsernameMessage(`soundkit.bio/${cleanUsername}`);
+          setUsernameStatus("idle");
+          setUsernameMessage(
+            "We could not verify this handle. Please try again."
+          );
         }
       }
     }, 350);
@@ -184,12 +193,12 @@ function ArtistSignupPage() {
         );
       }
       case 2: {
-        return roles.length > 0;
+        return roles.length > 0 && creatorEligibility === "independent";
       }
       case 3: {
         return (
           username.trim().length >= 3 &&
-          usernameStatus !== "taken" &&
+          usernameStatus === "available" &&
           city.trim().length > 0 &&
           stateValue.trim().length > 0
         );
@@ -217,7 +226,11 @@ function ArtistSignupPage() {
     if (canProceedFromStep(step)) {
       setStep((prev) => Math.min(prev + 1, totalSteps));
     } else {
-      setErrorMessage("Please complete all required fields on this step.");
+      setErrorMessage(
+        step === 2 && creatorEligibility === "major_label_affiliated"
+          ? "Major-label-controlled catalogs continue through Fan onboarding. Choose Independent / Indie-Controlled for an Artist account."
+          : "Please complete all required fields on this step."
+      );
     }
   };
 
@@ -253,22 +266,23 @@ function ArtistSignupPage() {
       .replaceAll(/[^a-z0-9_-]/gu, "");
 
     try {
-      // 1. Create authentication session via better-auth
-      await fetch(`${API_BASE_URL}/api/auth/sign-up/email`, {
-        body: JSON.stringify({
-          accountType: "artist",
-          email: email.trim(),
-          genre: primaryGenre,
-          name: name.trim(),
-          password,
-          username: cleanUsername,
-        }),
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      }).catch(() => null);
+      if (!isAccountCreated) {
+        if (isBioTurnstileConfigured && !turnstileToken) {
+          setErrorMessage("Complete the security check before continuing.");
+          return;
+        }
 
-      // 2. Submit artist onboarding record
+        await signUpWithEmail(
+          {
+            email: email.trim(),
+            name: name.trim(),
+            password,
+          },
+          turnstileToken
+        );
+        setIsAccountCreated(true);
+      }
+
       const result = await submitArtistOnboarding({
         appleMusicUrl: appleMusicUrl.trim() || undefined,
         city: city.trim(),
@@ -280,7 +294,7 @@ function ArtistSignupPage() {
         proAffiliation: proAffiliation || "None",
         proMemberId: proMemberId.trim() || undefined,
         rightsAttestationVersion: "2026-01",
-        rightsAttested: true,
+        rightsAttested,
         roles: roles.length > 0 ? roles : ["musician"],
         selectedPlanCode,
         songwriterLegalName: songwriterLegalName.trim() || undefined,
@@ -291,7 +305,7 @@ function ArtistSignupPage() {
         twitterHandle: twitterHandle.trim() || undefined,
         username: cleanUsername,
         youtubeUrl: youtubeUrl.trim() || undefined,
-      }).catch(() => ({ checkoutUrl: null, success: true }));
+      });
 
       if (typeof window !== "undefined") {
         sessionStorage.setItem("soundkit_bio_artist_username", cleanUsername);
@@ -305,12 +319,14 @@ function ArtistSignupPage() {
 
       // Route to empty bio dashboard with setup banner directing to SoundKit Web
       navigate({ to: "/dashboard" });
-    } catch {
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("soundkit_bio_artist_username", cleanUsername);
-      }
-      // If error occurs, still route to dashboard as fallback
-      navigate({ to: "/dashboard" });
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "We could not complete your signup. Please try again."
+      );
+      setTurnstileToken("");
+      setTurnstileResetKey((current) => current + 1);
     } finally {
       setIsSubmitting(false);
     }
@@ -1009,6 +1025,11 @@ function ArtistSignupPage() {
               </div>
             </div>
           )}
+
+          <BioTurnstile
+            onTokenChange={setTurnstileToken}
+            resetKey={turnstileResetKey}
+          />
 
           {/* Action Navigation Buttons */}
           <div className="mt-8 flex items-center justify-between pt-4 border-t border-border/40">
