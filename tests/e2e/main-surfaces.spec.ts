@@ -2,17 +2,36 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-const cookieDomain = (() => {
-  const rawUrl =
-    process.env.PLAYWRIGHT_BASE_URL ??
-    process.env.SOUNDKIT_E2E_WEB_URL ??
-    "http://127.0.0.1:4311";
-  try {
-    return new URL(rawUrl).hostname;
-  } catch {
-    return "127.0.0.1";
-  }
-})();
+const webOrigin = (() => {
+    const rawUrl =
+      process.env.PLAYWRIGHT_BASE_URL ??
+      process.env.SOUNDKIT_E2E_WEB_URL ??
+      "http://127.0.0.1:4311";
+    try {
+      return new URL(rawUrl).origin;
+    } catch {
+      return "http://127.0.0.1:4311";
+    }
+  })(),
+  apiOrigin = (() => {
+    const rawUrl =
+      process.env.PLAYWRIGHT_API_URL ??
+      process.env.SOUNDKIT_E2E_API_URL ??
+      "http://127.0.0.1:3000";
+    try {
+      return new URL(rawUrl).origin;
+    } catch {
+      return "http://127.0.0.1:3000";
+    }
+  })(),
+  appOrigins = new Set([apiOrigin, webOrigin]),
+  cookieDomain = (() => {
+    try {
+      return new URL(webOrigin).hostname;
+    } catch {
+      return "127.0.0.1";
+    }
+  })();
 
 const gotoWithViteRetry = async (page: Page, path: string) => {
   try {
@@ -37,8 +56,23 @@ const gotoWithViteRetry = async (page: Page, path: string) => {
 
 test.describe("main application surfaces", () => {
   test.beforeEach(async ({ context }, testInfo) => {
-    await context.setExtraHTTPHeaders({
-      "x-soundkit-test-id": `${testInfo.testId}-${testInfo.project.name}`,
+    const testId = `${testInfo.testId}-${testInfo.project.name}`;
+
+    await context.route("**/*", async (route) => {
+      const request = route.request(),
+        requestUrl = new URL(request.url());
+
+      if (requestUrl.origin !== apiOrigin) {
+        await route.continue();
+        return;
+      }
+
+      await route.continue({
+        headers: {
+          ...request.headers(),
+          "x-soundkit-test-id": testId,
+        },
+      });
     });
   });
 
@@ -1536,14 +1570,34 @@ test.describe("main application surfaces", () => {
   });
 
   test("signup surfaces load without console errors", async ({ page }) => {
-    const consoleErrors: string[] = [];
+    const consoleErrors: string[] = [],
+      httpErrors: string[] = [];
 
     page.on("console", (message) => {
-      if (message.type() === "error") {
+      if (
+        message.type() === "error" &&
+        !message.text().startsWith("Failed to load resource:")
+      ) {
         consoleErrors.push(message.text());
       }
     });
+    page.on("pageerror", (error) => {
+      consoleErrors.push(error.message);
+    });
+    page.on("response", (response) => {
+      const responseUrl = new URL(response.url()),
+        status = response.status(),
+        isExpectedAnonymousApiResponse =
+          responseUrl.origin === apiOrigin && status === 401;
 
+      if (
+        status >= 400 &&
+        appOrigins.has(responseUrl.origin) &&
+        !isExpectedAnonymousApiResponse
+      ) {
+        httpErrors.push(`${status} ${responseUrl.pathname}`);
+      }
+    });
     await page.goto("/signup");
     await expect(
       page.getByRole("heading", { name: /join soundkit/i })
@@ -1554,7 +1608,7 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: /create artist account/i })
     ).toBeVisible();
 
-    await expect.poll(() => consoleErrors).toEqual([]);
+    await expect.poll(() => [...consoleErrors, ...httpErrors]).toEqual([]);
   });
 
   test("desktop sidebar uses text branding when expanded", async ({

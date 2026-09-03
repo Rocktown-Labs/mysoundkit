@@ -1172,6 +1172,11 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (url.pathname === "/v1/auth/capabilities") {
+      json(response, 200, { google: false }, webOrigin);
+      return;
+    }
+
     if (url.pathname === "/auth/admin/list-users") {
       json(
         response,
