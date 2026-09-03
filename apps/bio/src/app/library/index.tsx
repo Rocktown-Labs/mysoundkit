@@ -112,7 +112,7 @@ function BioFanLibraryPage() {
       </div>
 
       {/* Sync with SoundKit Callout */}
-      <div className="rounded-3xl border border-border/50 bg-gradient-to-r from-card to-card/60 p-6 sm:p-8 backdrop-blur-xl shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="rounded-3xl border border-border/50 bg-card/60 p-6 sm:p-8 backdrop-blur-xl shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1 max-w-lg">
           <h3 className="font-semibold text-base text-foreground">
             Want to sync your liked songs and playlists?

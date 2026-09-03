@@ -1,0 +1,23 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#000000" />
+  <image href="soundkit-wordmark.svg" x="365" y="206" width="470" height="188" preserveAspectRatio="xMidYMid meet" />
+  <text
+    x="600"
+    y="474"
+    fill="#FFFFFF"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="44"
+    font-weight="800"
+    letter-spacing="0"
+    text-anchor="middle"
+  >Stream music. Join live moments.</text>
+  <text
+    x="600"
+    y="528"
+    fill="#9CA3AF"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="28"
+    font-weight="700"
+    text-anchor="middle"
+  >Discover artists, listening parties, battles, and streams.</text>
+</svg>

@@ -1,11 +1,10 @@
-/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo */
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo, react/exhaustive-effect-dependencies */
 "use client";
 
 import { createFileRoute } from "@tanstack/react-router";
 import {
   ArrowRight,
   ChevronRight,
-  Globe,
   LoaderCircle,
   MapPin,
   Music,
@@ -17,11 +16,7 @@ import {
 import React, { useEffect, useState } from "react";
 
 import { BioMap } from "@/components/bio-map";
-import {
-  buildSoundKitWebUrl,
-  loadRegionArtists,
-  SOUNDKIT_WEB_URL,
-} from "@/lib/api";
+import { loadRegionArtists } from "@/lib/api";
 import type { BioArtistSearchResult } from "@/lib/api";
 import { exploreRegionSlug, regionTypeForMapScope } from "@/lib/explore-region";
 import type { MapScope } from "@/lib/map-scopes";
@@ -34,23 +29,34 @@ function BioHomePage() {
   const [mapScope, setMapScope] = useState<MapScope>("usa"),
     [selectedRegion, setSelectedRegion] = useState<string>("Arkansas"),
     [artists, setArtists] = useState<BioArtistSearchResult[]>([]),
-    [isLoading, setIsLoading] = useState(false);
+    [isLoading, setIsLoading] = useState(false),
+    [loadError, setLoadError] = useState<string | null>(null),
+    [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let isCancelled = false;
     const fetchArtists = async () => {
       setIsLoading(true);
+      setLoadError(null);
       try {
         const slug = exploreRegionSlug(selectedRegion),
-          apiRegion = mapScope === "usa" ? `us-${slug}` : slug || "us-arkansas",
+          apiRegion = selectedRegion
+            ? mapScope === "usa"
+              ? `us-${slug}`
+              : slug
+            : mapScope === "global"
+              ? "all"
+              : mapScope,
           regionType = regionTypeForMapScope(mapScope),
           list = await loadRegionArtists(apiRegion, regionType);
         if (!isCancelled) {
           setArtists(list);
+          setLoadError(null);
         }
       } catch {
         if (!isCancelled) {
           setArtists([]);
+          setLoadError("We could not load artists for this region.");
         }
       } finally {
         if (!isCancelled) {
@@ -63,7 +69,7 @@ function BioHomePage() {
     return () => {
       isCancelled = true;
     };
-  }, [selectedRegion, mapScope]);
+  }, [mapScope, retryCount, selectedRegion]);
 
   const handleRegionSelect = (regionName: string) => {
       setSelectedRegion(regionName);
@@ -75,63 +81,54 @@ function BioHomePage() {
       } else if (scope === "canada") {
         setSelectedRegion("Ontario");
       } else if (scope === "global") {
-        setSelectedRegion("United States");
+        setSelectedRegion("");
       } else {
         setSelectedRegion("");
       }
     },
     resetToGlobal = () => {
       setMapScope("global");
-      setSelectedRegion("United States");
-    },
-    claimAccountUrl = buildSoundKitWebUrl("/auth/signup");
+      setSelectedRegion("");
+    };
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12 space-y-12 sm:space-y-16">
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-10 space-y-10 sm:space-y-14">
       {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-b from-card/80 to-card/30 p-8 sm:p-12 md:p-16 backdrop-blur-2xl shadow-2xl">
-        <div className="relative z-10 max-w-3xl space-y-6">
+      <div className="relative overflow-hidden rounded-3xl border border-border/40 bg-card/40 p-6 sm:p-10 md:p-12 shadow-lg">
+        <div className="relative z-10 max-w-2xl space-y-4 sm:space-y-5">
           <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3.5 py-1 text-xs font-semibold text-primary">
             <Sparkles className="size-3.5" />
-            <span>The Link-in-Bio for Music Creators</span>
+            <span>SoundKit Bio</span>
           </div>
 
-          <h1 className="font-playfair text-4xl sm:text-6xl md:text-7xl font-medium tracking-tight text-foreground leading-[1.05]">
+          <h1 className="font-playfair text-3xl sm:text-5xl md:text-6xl font-medium tracking-tight text-foreground leading-[1.08]">
             One link for the <span className="italic text-primary">music</span>{" "}
             you make.
           </h1>
 
-          <p className="max-w-2xl text-base sm:text-lg text-muted-foreground leading-relaxed">
-            Direct fans to all your releases, collect tips, stream tracks
-            seamlessly, and discover independent artists across every city and
-            region.
+          <p className="max-w-xl text-sm sm:text-base text-muted-foreground leading-relaxed">
+            The official link-in-bio for SoundKit creators. Share your releases,
+            let fans stream audio directly, discover artists by city and state,
+            and collect tips.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <a
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 hover:opacity-90 transition-all hover:scale-105 active:scale-95"
-              href={claimAccountUrl}
-              rel="noopener noreferrer"
-              target="_blank"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-xs sm:text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 hover:opacity-90 transition-all hover:scale-105 active:scale-95"
+              href="/signup/artist"
             >
               <span>Claim Your Artist Bio</span>
               <ArrowRight className="size-4" />
             </a>
 
             <a
-              className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white/5 px-6 py-3 text-sm font-semibold text-foreground/90 hover:bg-white/10 hover:text-foreground transition-all"
-              href={SOUNDKIT_WEB_URL}
-              rel="noopener noreferrer"
-              target="_blank"
+              className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white/5 px-5 py-2.5 text-xs sm:text-sm font-semibold text-foreground/90 hover:bg-white/10 hover:text-foreground transition-all"
+              href="/signup/fan"
             >
-              <Globe className="size-4 text-muted-foreground" />
-              <span>Explore SoundKit Web</span>
+              <span>Join as Fan</span>
             </a>
           </div>
         </div>
-
-        {/* Subtle background glow circle */}
-        <div className="pointer-events-none absolute -right-20 -top-20 size-96 rounded-full bg-primary/10 blur-3xl" />
       </div>
 
       {/* Map & Regional Discovery Section */}
@@ -192,7 +189,18 @@ function BioHomePage() {
           </p>
         </div>
 
-        {isLoading ? (
+        {loadError ? (
+          <div className="rounded-3xl border border-destructive/30 bg-destructive/10 p-12 text-center space-y-4">
+            <p className="text-sm text-destructive">{loadError}</p>
+            <button
+              className="inline-flex items-center gap-2 rounded-full border border-destructive/40 px-5 py-2 text-xs font-bold text-destructive hover:bg-destructive/10 transition-colors"
+              onClick={() => setRetryCount((count) => count + 1)}
+              type="button"
+            >
+              Try again
+            </button>
+          </div>
+        ) : isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
             <LoaderCircle className="size-7 animate-spin text-primary" />
             <p className="text-xs text-muted-foreground">
@@ -279,10 +287,8 @@ function BioHomePage() {
               </p>
             </div>
             <a
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-md hover:opacity-90 transition-opacity"
-              href={claimAccountUrl}
-              rel="noopener noreferrer"
-              target="_blank"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow-md hover:opacity-90 transition-opacity"
+              href="/signup/artist"
             >
               <span>Claim Your Artist Profile</span>
               <ArrowRight className="size-3.5" />

@@ -22,6 +22,7 @@ import {
   isSafeExternalUrl,
   loadBioTrack,
   SOUNDKIT_BIO_URL,
+  toAbsoluteBioUrl,
 } from "@/lib/api";
 import type { BioTrack } from "@/lib/api";
 
@@ -35,7 +36,9 @@ export const Route = createFileRoute("/tracks/$id")({
       description = track
         ? `Listen to ${track.title} by ${track.artistName} on SoundKit and streaming platforms.`
         : "Discover tracks on SoundKit.bio.",
-      image = track?.coverArtUrl,
+      image = toAbsoluteBioUrl(
+        track?.coverArtUrl || "/soundkit-social-card.png"
+      ),
       canonical = `${SOUNDKIT_BIO_URL}/tracks/${encodeURIComponent(params.id)}`;
 
     return {
@@ -47,11 +50,12 @@ export const Route = createFileRoute("/tracks/$id")({
         { content: "music.song", property: "og:type" },
         { content: title, property: "og:title" },
         { content: description, property: "og:description" },
-        ...(image ? [{ content: image, property: "og:image" }] : []),
+        { content: "SoundKit Bio", property: "og:site_name" },
+        { content: image, property: "og:image" },
         { content: "summary_large_image", name: "twitter:card" },
         { content: title, name: "twitter:title" },
         { content: description, name: "twitter:description" },
-        ...(image ? [{ content: image, name: "twitter:image" }] : []),
+        { content: image, name: "twitter:image" },
       ],
     };
   },

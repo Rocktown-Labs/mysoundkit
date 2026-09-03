@@ -28,6 +28,7 @@ import {
   UserPlus,
   Video,
   X,
+  Twitter,
   Youtube,
 } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
@@ -42,6 +43,7 @@ import {
   STRIPE_PUBLISHABLE_KEY,
   isSafeExternalUrl,
   loadBioProfile,
+  toAbsoluteBioUrl,
 } from "@/lib/api";
 import type {
   BioArtist,
@@ -84,26 +86,32 @@ export const Route = createFileRoute("/$username")({
   head: ({ loaderData, params }) => {
     const profile = loaderData as unknown as BioProfile | null;
     const name = profile?.artist.name ?? `@${params.username}`;
+    const title = `Check out ${name} on SoundKit Bio`;
     const description =
-      profile?.artist.bio ??
-      `Listen to ${name}'s music and support the artist directly on SoundKit.`;
-    const image = profile?.artist.coverImageUrl ?? profile?.artist.avatarUrl;
+      profile?.artist.bio ||
+      `Listen to releases, stream tracks, and follow ${name} on SoundKit Bio.`;
+    const image = toAbsoluteBioUrl(
+      profile?.artist.coverImageUrl ||
+        profile?.artist.avatarUrl ||
+        "/soundkit-social-card.png"
+    );
     const canonical = `${SOUNDKIT_BIO_URL}/${encodeURIComponent(params.username)}`;
 
     return {
       links: [{ href: canonical, rel: "canonical" }],
       meta: [
-        { title: `${name} — SoundKit.bio` },
+        { title },
         { content: description, name: "description" },
         { content: canonical, property: "og:url" },
         { content: "profile", property: "og:type" },
-        { content: name, property: "og:title" },
+        { content: title, property: "og:title" },
         { content: description, property: "og:description" },
-        ...(image ? [{ content: image, property: "og:image" }] : []),
+        { content: "SoundKit Bio", property: "og:site_name" },
+        { content: image, property: "og:image" },
         { content: "summary_large_image", name: "twitter:card" },
-        { content: name, name: "twitter:title" },
+        { content: title, name: "twitter:title" },
         { content: description, name: "twitter:description" },
-        ...(image ? [{ content: image, name: "twitter:image" }] : []),
+        { content: image, name: "twitter:image" },
       ],
     };
   },
@@ -157,9 +165,24 @@ function BioProfilePage() {
     setIsFollowing((prev) => !prev);
   };
 
-  const handleShareClick = () => {
-    if (typeof window !== "undefined") {
-      navigator.clipboard.writeText(window.location.href);
+  const handleShareClick = async () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const shareUrl = window.location.href;
+    const shareTitle = `Check out ${artist?.name || "this artist"} on SoundKit Bio`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          text: `Listen to releases and support ${artist?.name || "this artist"} on SoundKit Bio.`,
+          title: shareTitle,
+          url: shareUrl,
+        });
+      } catch {
+        // Dismissed share sheet
+      }
+    } else {
+      await navigator.clipboard.writeText(shareUrl);
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2200);
     }
@@ -240,26 +263,26 @@ function BioProfilePage() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-10 space-y-8">
-      {/* SoundKit Profile Card */}
-      <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/60 p-6 sm:p-8 md:p-10 backdrop-blur-2xl shadow-2xl">
-        {/* Glowing background header effect */}
-        {artist.coverImageUrl ? (
-          <div className="pointer-events-none absolute inset-0 opacity-20 blur-3xl">
-            <img
-              alt=""
-              className="size-full object-cover"
-              src={artist.coverImageUrl}
-            />
-          </div>
-        ) : (
-          <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 size-96 rounded-full bg-primary/15 blur-3xl" />
-        )}
+    <div className="mx-auto w-full max-w-5xl px-4 py-4 sm:px-6 sm:py-8 space-y-6 sm:space-y-8">
+      {/* Cover Banner */}
+      {artist.coverImageUrl ? (
+        <div className="relative h-32 sm:h-48 md:h-56 w-full overflow-hidden rounded-3xl border border-border/40 shadow-md">
+          <img
+            alt="Cover"
+            className="size-full object-cover"
+            src={artist.coverImageUrl}
+          />
+        </div>
+      ) : (
+        <div className="relative h-24 sm:h-32 w-full overflow-hidden rounded-3xl border border-border/30 bg-card/40" />
+      )}
 
-        <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8">
+      {/* Condensed Profile Card */}
+      <div className="relative z-10 -mt-14 sm:-mt-20 overflow-hidden rounded-3xl border border-border/40 bg-card/60 p-5 sm:p-7 md:p-8 backdrop-blur-xl shadow-xl">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 sm:gap-6">
           {/* Circular Avatar */}
-          <div className="relative group">
-            <div className="size-28 sm:size-36 md:size-40 overflow-hidden rounded-full border-2 border-primary/50 shadow-2xl bg-black/60 shrink-0">
+          <div className="relative shrink-0">
+            <div className="size-20 sm:size-28 md:size-32 overflow-hidden rounded-full border-4 border-card bg-muted/60 shadow-lg">
               {artist.avatarUrl ? (
                 <img
                   alt={artist.name}
@@ -267,7 +290,7 @@ function BioProfilePage() {
                   src={artist.avatarUrl}
                 />
               ) : (
-                <div className="flex size-full items-center justify-center font-bold text-4xl text-primary font-playfair">
+                <div className="flex size-full items-center justify-center font-bold text-2xl sm:text-4xl text-primary font-playfair">
                   {artist.name[0]?.toUpperCase()}
                 </div>
               )}
@@ -275,129 +298,129 @@ function BioProfilePage() {
             {artist.verified ? (
               <div
                 aria-label="Verified artist"
-                className="absolute bottom-1 right-1 flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
+                className="absolute bottom-0 right-0 flex size-6 sm:size-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow"
                 title="Verified SoundKit Artist"
               >
-                <Check className="size-4 stroke-[3]" />
+                <Check className="size-3.5 sm:size-4 stroke-[3]" />
               </div>
             ) : null}
           </div>
 
           {/* Profile Header Details */}
-          <div className="min-w-0 flex-1 text-center md:text-left space-y-4">
-            <div>
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-                <span className="rounded-full border border-primary/40 bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
-                  {artist.genre || "Independent Artist"}
-                </span>
-                {artist.location ? (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <MapPin className="size-3" />
-                    {artist.location}
+          <div className="min-w-0 flex-1 space-y-2 w-full">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h1 className="font-playfair text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-foreground">
+                  {artist.name}
+                </h1>
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <span className="text-primary font-bold text-xs sm:text-sm">
+                    @{artist.username}
                   </span>
-                ) : null}
+                  <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                    {artist.genre || "Independent Artist"}
+                  </span>
+                  {artist.location ? (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <MapPin className="size-3" />
+                      {artist.location}
+                    </span>
+                  ) : null}
+                </div>
               </div>
 
-              <h1 className="mt-2 font-playfair text-3xl sm:text-5xl font-medium tracking-tight text-foreground">
-                {artist.name}
-              </h1>
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 sm:pt-0 shrink-0">
+                <button
+                  className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs sm:text-sm font-bold shadow transition-all ${
+                    isFollowing
+                      ? "border border-primary bg-primary/15 text-primary"
+                      : "bg-primary text-primary-foreground hover:opacity-90 active:scale-95"
+                  }`}
+                  onClick={handleFollowClick}
+                  type="button"
+                >
+                  {isFollowing ? (
+                    <>
+                      <UserCheck className="size-3.5" />
+                      <span>Following</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="size-3.5" />
+                      <span>Follow</span>
+                    </>
+                  )}
+                </button>
 
-              <p className="mt-1 text-sm text-muted-foreground">
-                @{artist.username}
-              </p>
+                <button
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-white/5 px-4 py-1.5 text-xs sm:text-sm font-semibold text-foreground hover:bg-white/10 hover:border-primary/40 transition-all active:scale-95"
+                  onClick={handleTipClick}
+                  type="button"
+                >
+                  <HandCoins className="size-3.5 text-primary" />
+                  <span>Tip</span>
+                </button>
+
+                <button
+                  aria-label="Share bio"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-white/5 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all"
+                  onClick={handleShareClick}
+                  type="button"
+                >
+                  {copiedLink ? (
+                    <>
+                      <Check className="size-3.5 text-primary" />
+                      <span className="text-primary font-bold">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="size-3.5" />
+                      <span className="hidden sm:inline">Share</span>
+                    </>
+                  )}
+                </button>
+
+                <a
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
+                  href={soundKitArtistUrl}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  <span>Full Profile</span>
+                  <ExternalLink className="size-3" />
+                </a>
+              </div>
             </div>
 
             {/* Stats Row */}
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 sm:gap-6 pt-1 text-xs sm:text-sm">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-5 pt-1 text-xs text-muted-foreground">
               <div>
                 <span className="font-bold text-foreground">
                   {tracks.length}
                 </span>{" "}
-                <span className="text-muted-foreground">Tracks</span>
+                Tracks
               </div>
-              <div className="h-3 w-px bg-border" />
+              <div className="h-2.5 w-px bg-border" />
               <div>
                 <span className="font-bold text-foreground">
                   {formatCount(artist.followers)}
                 </span>{" "}
-                <span className="text-muted-foreground">Followers</span>
+                Followers
               </div>
-              <div className="h-3 w-px bg-border" />
+              <div className="h-2.5 w-px bg-border" />
               <div>
                 <span className="font-bold text-foreground">Record: 0-0</span>{" "}
-                <span className="text-muted-foreground">Battles</span>
+                Battles
               </div>
             </div>
 
-            {/* Bio narrative */}
+            {/* Bio */}
             {artist.bio ? (
-              <p className="max-w-2xl text-xs sm:text-sm text-muted-foreground/90 leading-relaxed whitespace-pre-wrap">
+              <p className="max-w-2xl text-xs sm:text-sm text-muted-foreground/90 leading-relaxed whitespace-pre-wrap pt-1">
                 {artist.bio}
               </p>
             ) : null}
-
-            {/* Actions Bar */}
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
-              <button
-                className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-xs sm:text-sm font-bold shadow-md transition-all ${
-                  isFollowing
-                    ? "border border-primary bg-primary/15 text-primary"
-                    : "bg-primary text-primary-foreground hover:opacity-90 hover:scale-105 active:scale-95"
-                }`}
-                onClick={handleFollowClick}
-                type="button"
-              >
-                {isFollowing ? (
-                  <>
-                    <UserCheck className="size-4" />
-                    <span>Following</span>
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="size-4" />
-                    <span>Follow</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white/5 px-5 py-2 text-xs sm:text-sm font-semibold text-foreground hover:bg-white/10 hover:border-primary/40 transition-all active:scale-95"
-                onClick={handleTipClick}
-                type="button"
-              >
-                <HandCoins className="size-4 text-primary" />
-                <span>Tip Artist</span>
-              </button>
-
-              <button
-                aria-label="Share bio"
-                className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white/5 px-4 py-2 text-xs sm:text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all"
-                onClick={handleShareClick}
-                type="button"
-              >
-                {copiedLink ? (
-                  <>
-                    <Check className="size-4 text-primary" />
-                    <span className="text-primary font-bold">Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="size-4" />
-                    <span>Share</span>
-                  </>
-                )}
-              </button>
-
-              <a
-                className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
-                href={soundKitArtistUrl}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                <span>Full Profile</span>
-                <ExternalLink className="size-3.5" />
-              </a>
-            </div>
 
             {authMessage ? (
               <p aria-live="polite" className="text-xs text-primary pt-1">
@@ -405,19 +428,19 @@ function BioProfilePage() {
               </p>
             ) : null}
 
-            {/* Social & Streaming Links */}
+            {/* Social & Streaming Links Row */}
             {artist.links && Object.keys(artist.links).length > 0 ? (
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 pt-2">
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
                 {artist.links.spotify &&
                 isSafeExternalUrl(artist.links.spotify) ? (
                   <a
                     aria-label="Spotify"
-                    className="flex size-8 items-center justify-center rounded-full border border-border/50 bg-white/5 text-muted-foreground hover:bg-[#1DB954]/20 hover:text-[#1DB954] hover:border-[#1DB954]/40 transition-all"
+                    className="flex size-7 sm:size-8 items-center justify-center rounded-full border border-border/50 bg-white/5 text-muted-foreground hover:bg-[#1DB954]/20 hover:text-[#1DB954] hover:border-[#1DB954]/40 transition-all"
                     href={artist.links.spotify}
                     rel="noopener noreferrer"
                     target="_blank"
                   >
-                    <Headphones className="size-4" />
+                    <Headphones className="size-3.5 sm:size-4" />
                   </a>
                 ) : null}
 
@@ -425,12 +448,12 @@ function BioProfilePage() {
                 isSafeExternalUrl(artist.links.appleMusic) ? (
                   <a
                     aria-label="Apple Music"
-                    className="flex size-8 items-center justify-center rounded-full border border-border/50 bg-white/5 text-muted-foreground hover:bg-[#FC3C44]/20 hover:text-[#FC3C44] hover:border-[#FC3C44]/40 transition-all"
+                    className="flex size-7 sm:size-8 items-center justify-center rounded-full border border-border/50 bg-white/5 text-muted-foreground hover:bg-[#FC3C44]/20 hover:text-[#FC3C44] hover:border-[#FC3C44]/40 transition-all"
                     href={artist.links.appleMusic}
                     rel="noopener noreferrer"
                     target="_blank"
                   >
-                    <Music className="size-4" />
+                    <Music className="size-3.5 sm:size-4" />
                   </a>
                 ) : null}
 
@@ -438,12 +461,12 @@ function BioProfilePage() {
                 isSafeExternalUrl(artist.links.youtube) ? (
                   <a
                     aria-label="YouTube"
-                    className="flex size-8 items-center justify-center rounded-full border border-border/50 bg-white/5 text-muted-foreground hover:bg-[#FF0000]/20 hover:text-[#FF0000] hover:border-[#FF0000]/40 transition-all"
+                    className="flex size-7 sm:size-8 items-center justify-center rounded-full border border-border/50 bg-white/5 text-muted-foreground hover:bg-[#FF0000]/20 hover:text-[#FF0000] hover:border-[#FF0000]/40 transition-all"
                     href={artist.links.youtube}
                     rel="noopener noreferrer"
                     target="_blank"
                   >
-                    <Youtube className="size-4" />
+                    <Youtube className="size-3.5 sm:size-4" />
                   </a>
                 ) : null}
 
@@ -451,25 +474,38 @@ function BioProfilePage() {
                 isSafeExternalUrl(artist.links.instagram) ? (
                   <a
                     aria-label="Instagram"
-                    className="flex size-8 items-center justify-center rounded-full border border-border/50 bg-white/5 text-muted-foreground hover:bg-[#E4405F]/20 hover:text-[#E4405F] hover:border-[#E4405F]/40 transition-all"
+                    className="flex size-7 sm:size-8 items-center justify-center rounded-full border border-border/50 bg-white/5 text-muted-foreground hover:bg-[#E4405F]/20 hover:text-[#E4405F] hover:border-[#E4405F]/40 transition-all"
                     href={artist.links.instagram}
                     rel="noopener noreferrer"
                     target="_blank"
                   >
-                    <Instagram className="size-4" />
+                    <Instagram className="size-3.5 sm:size-4" />
+                  </a>
+                ) : null}
+
+                {artist.links.twitter &&
+                isSafeExternalUrl(artist.links.twitter) ? (
+                  <a
+                    aria-label="Twitter / X"
+                    className="flex size-7 sm:size-8 items-center justify-center rounded-full border border-border/50 bg-white/5 text-muted-foreground hover:bg-white/20 hover:text-foreground hover:border-white/40 transition-all"
+                    href={artist.links.twitter}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    <Twitter className="size-3.5 sm:size-4" />
                   </a>
                 ) : null}
 
                 {artist.links.personalSite &&
                 isSafeExternalUrl(artist.links.personalSite) ? (
                   <a
-                    aria-label="Personal Website"
-                    className="flex size-8 items-center justify-center rounded-full border border-border/50 bg-white/5 text-muted-foreground hover:bg-primary/20 hover:text-primary hover:border-primary/40 transition-all"
+                    aria-label="Website"
+                    className="flex size-7 sm:size-8 items-center justify-center rounded-full border border-border/50 bg-white/5 text-muted-foreground hover:bg-primary/20 hover:text-primary hover:border-primary/40 transition-all"
                     href={artist.links.personalSite}
                     rel="noopener noreferrer"
                     target="_blank"
                   >
-                    <Link2 className="size-4" />
+                    <Link2 className="size-3.5 sm:size-4" />
                   </a>
                 ) : null}
               </div>
@@ -783,11 +819,11 @@ function BioTrackCard({
 
   return (
     <article
-      className="group relative flex w-[calc((100%-1.5rem)/3)] sm:w-[calc((100%-1.5rem)/3)] md:w-[180px] lg:w-[200px] flex-col overflow-hidden rounded-2xl border border-border/50 bg-card/40 p-2.5 transition-all hover:border-primary/40 hover:bg-card/70 backdrop-blur-lg"
+      className="group relative flex w-[calc((100%-1.5rem)/3)] sm:w-[calc((100%-1.5rem)/3)] md:w-[180px] lg:w-[200px] flex-col min-w-0 cursor-pointer"
       data-testid="track-card"
     >
-      {/* Artwork with play button overlay */}
-      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-black/40 border border-border/40">
+      {/* Frameless Artwork with play button overlay */}
+      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-muted/60 border border-border/30">
         {track.coverArtUrl ? (
           <img
             alt={track.title}
@@ -802,7 +838,7 @@ function BioTrackCard({
 
         <button
           aria-label={isThisPlaying ? "Pause track" : `Play ${track.title}`}
-          className={`absolute bottom-2.5 right-2.5 flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl transition-all ${
+          className={`absolute bottom-2.5 right-2.5 flex size-9 sm:size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl transition-all ${
             isThisPlaying
               ? "opacity-100 scale-100 ring-2 ring-white/50"
               : "opacity-90 sm:opacity-0 sm:group-hover:opacity-100 scale-90 sm:group-hover:scale-100"
@@ -811,15 +847,15 @@ function BioTrackCard({
           type="button"
         >
           {isThisPlaying ? (
-            <Pause className="size-5 fill-current" />
+            <Pause className="size-4 sm:size-5 fill-current" />
           ) : (
-            <Play className="ml-0.5 size-5 fill-current" />
+            <Play className="ml-0.5 size-4 sm:size-5 fill-current" />
           )}
         </button>
       </div>
 
       {/* Info */}
-      <div className="mt-2.5 min-w-0 flex-1">
+      <div className="mt-2 min-w-0 flex-1 space-y-0.5">
         <a
           className="block truncate font-semibold text-xs sm:text-sm text-foreground hover:text-primary transition-colors"
           href={`/tracks/${encodeURIComponent(track.id)}`}
@@ -827,11 +863,11 @@ function BioTrackCard({
         >
           {track.title}
         </a>
-        <p className="truncate text-[11px] text-muted-foreground mt-0.5">
+        <p className="truncate text-[11px] text-muted-foreground">
           {track.artistName}
         </p>
 
-        <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground/80 font-mono">
+        <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground/80 font-mono">
           <span>{track.duration || "0:00"}</span>
           <span>{track.plays ? track.plays.toLocaleString() : "0"} plays</span>
         </div>
@@ -842,8 +878,8 @@ function BioTrackCard({
 
 function BioProjectCard({ project }: { project: BioProject }) {
   return (
-    <div className="group w-[calc((100%-0.75rem)/2)] max-w-[260px] md:w-[calc((100%-1.5rem)/3)] lg:w-[calc((100%-2.25rem)/4)] rounded-2xl border border-border/50 bg-card/40 p-2.5 backdrop-blur-lg hover:border-primary/40 transition-all">
-      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-black/40 border border-border/40">
+    <div className="group w-[calc((100%-0.75rem)/2)] max-w-[260px] md:w-[calc((100%-1.5rem)/3)] lg:w-[calc((100%-2.25rem)/4)] flex flex-col min-w-0">
+      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-muted/60 border border-border/30">
         {project.coverArtUrl ? (
           <img
             alt={project.title}
@@ -859,11 +895,11 @@ function BioProjectCard({ project }: { project: BioProject }) {
           {project.projectType}
         </span>
       </div>
-      <div className="mt-2.5 min-w-0">
-        <p className="truncate font-semibold text-xs sm:text-sm text-foreground">
+      <div className="mt-2 min-w-0 space-y-0.5">
+        <p className="truncate font-semibold text-xs sm:text-sm text-foreground hover:text-primary transition-colors">
           {project.title}
         </p>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
+        <p className="text-[11px] text-muted-foreground">
           {project.trackCount} {project.trackCount === 1 ? "track" : "tracks"}
         </p>
       </div>
@@ -873,8 +909,8 @@ function BioProjectCard({ project }: { project: BioProject }) {
 
 function BioVideoCard({ video }: { video: BioVideo }) {
   return (
-    <div className="group w-full md:w-[calc((100%-1rem)/2)] rounded-2xl border border-border/50 bg-card/40 p-3 backdrop-blur-lg hover:border-primary/40 transition-all">
-      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black/40 border border-border/40">
+    <div className="group w-full md:w-[calc((100%-1rem)/2)] flex flex-col min-w-0">
+      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted/60 border border-border/30">
         {video.thumbnailUrl ? (
           <img
             alt={video.title}
@@ -892,12 +928,12 @@ function BioVideoCard({ video }: { video: BioVideo }) {
           </span>
         ) : null}
       </div>
-      <div className="mt-2.5 min-w-0">
-        <p className="truncate font-semibold text-xs sm:text-sm text-foreground">
+      <div className="mt-2 min-w-0 space-y-0.5">
+        <p className="truncate font-semibold text-xs sm:text-sm text-foreground hover:text-primary transition-colors">
           {video.title}
         </p>
         {video.viewCount ? (
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+          <p className="text-[11px] text-muted-foreground">
             {video.viewCount} views
           </p>
         ) : null}

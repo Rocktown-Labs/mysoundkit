@@ -19,6 +19,14 @@ export const SOUNDKIT_BIO_URL = trimTrailingSlash(
 export const STRIPE_PUBLISHABLE_KEY =
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "";
 
+export const toAbsoluteBioUrl = (value: string) => {
+  try {
+    return new URL(value, SOUNDKIT_BIO_URL).toString();
+  } catch {
+    return value;
+  }
+};
+
 export interface BioArtist {
   avatarUrl?: string | null;
   battleCount?: number;
@@ -253,25 +261,47 @@ export const loadRegionArtists = async (
   region = "us-arkansas",
   regionType = "north-america"
 ): Promise<BioArtistSearchResult[]> => {
-  try {
-    const response = await fetch(
-        `${API_V1_URL}/discover/artists?region=${encodeURIComponent(region)}&regionType=${encodeURIComponent(regionType)}&category=rising&limit=12`,
-        { headers: { Accept: "application/json" } }
-      ),
-      data = await readJson(response),
-      record =
-        data && typeof data === "object"
-          ? (data as Record<string, unknown>)
-          : null;
+  const response = await fetch(
+      `${API_V1_URL}/artists?region=${encodeURIComponent(region)}&regionType=${encodeURIComponent(regionType)}&category=top&limit=12`,
+      { headers: { Accept: "application/json" } }
+    ),
+    data = (await response.json().catch(() => null)) as unknown;
 
-    if (record && Array.isArray(record.artists)) {
-      return record.artists as BioArtistSearchResult[];
-    }
-
-    return [];
-  } catch {
-    return [];
+  if (!response.ok) {
+    throw new Error(`Could not load artists (${response.status}).`);
   }
+
+  if (Array.isArray(data)) {
+    return data.map((item) => {
+      const raw = item as Record<string, unknown>;
+      return {
+        avatarUrl: (raw.avatarUrl as string) ?? null,
+        followers: Number(raw.followers || raw.followerCount || 0),
+        genre: (raw.genre as string) || "Independent Artist",
+        id: (raw.id as string) || "",
+        location:
+          (raw.location as string) ||
+          [raw.city, raw.state].filter(Boolean).join(", "),
+        name: (raw.name as string) || (raw.displayName as string) || "Artist",
+        username: (raw.username as string) || "",
+        verified: Boolean(raw.verified || raw.isVerified),
+        weeklyPlays: Number(raw.weeklyPlays || 0),
+      };
+    });
+  }
+
+  const record =
+    data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+
+  if (record && Array.isArray(record.artists)) {
+    return (record.artists as BioArtistSearchResult[]).map((item) => ({
+      ...item,
+      followers: Number(item.followers || 0),
+      genre: item.genre || "Independent Artist",
+    }));
+  }
+
+  return [];
 };
 
 export const isSafeExternalUrl = (value: string | undefined) => {
@@ -288,7 +318,10 @@ export const isSafeExternalUrl = (value: string | undefined) => {
 };
 
 export const buildSoundKitWebUrl = (path: string, refArtist?: string) => {
-  const base = `${SOUNDKIT_WEB_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  const normalizedPath = path
+    .replace(/^\/auth\/signup\b/u, "/signup")
+    .replace(/^\/auth\/login\b/u, "/login");
+  const base = `${SOUNDKIT_WEB_URL}${normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`}`;
   try {
     const url = new URL(base);
     url.searchParams.set("utm_source", "soundkit_bio");
@@ -301,3 +334,138 @@ export const buildSoundKitWebUrl = (path: string, refArtist?: string) => {
     return base;
   }
 };
+
+export const checkUsernameAvailable = async (username: string) => {
+  const trimmed = username.trim().toLowerCase();
+  if (!trimmed || trimmed.length < 3) {
+    return {
+      available: false,
+      message: "Username must be at least 3 characters",
+    };
+  }
+
+  const response = await fetch(
+    `${API_V1_URL}/onboarding/username-availability?username=${encodeURIComponent(trimmed)}`,
+    { headers: { Accept: "application/json" } }
+  );
+  const data = (await response.json().catch(() => null)) as {
+    available?: boolean;
+    message?: string;
+  } | null;
+
+  if (!response.ok) {
+    throw new Error(data?.message ?? "Could not check username availability.");
+  }
+
+  return {
+    available: data?.available === true,
+    message:
+      data?.message ??
+      (data?.available ? "Username is available" : "Username is taken"),
+  };
+};
+
+export const loadGenres = async (): Promise<string[]> => {
+  try {
+    const response = await fetch(`${API_V1_URL}/discover/genres`, {
+      headers: { Accept: "application/json" },
+    });
+    const data = await readJson(response);
+    if (Array.isArray(data)) {
+      return data
+        .map((entry) =>
+          typeof entry === "string"
+            ? entry
+            : (entry as { name?: string }).name || ""
+        )
+        .filter(Boolean);
+    }
+    return [
+      "Hip-Hop",
+      "R&B/Soul",
+      "Pop",
+      "Electronic",
+      "Rock",
+      "Country",
+      "Latin",
+      "Afrobeats",
+      "Jazz",
+    ];
+  } catch {
+    return [
+      "Hip-Hop",
+      "R&B/Soul",
+      "Pop",
+      "Electronic",
+      "Rock",
+      "Country",
+      "Latin",
+      "Afrobeats",
+      "Jazz",
+    ];
+  }
+};
+
+interface OnboardingResponse {
+  checkoutUrl?: string | null;
+  message?: string;
+  requiresCheckout?: boolean;
+  setupRequired?: boolean;
+}
+
+export const signUpWithEmail = async (
+  payload: { email: string; name: string; password: string },
+  turnstileToken?: string
+) => {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+  if (turnstileToken) {
+    headers["X-Turnstile-Token"] = turnstileToken;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/sign-up/email`, {
+    body: JSON.stringify(payload),
+    credentials: "include",
+    headers,
+    method: "POST",
+  });
+  const data = (await response.json().catch(() => null)) as {
+    message?: string;
+  } | null;
+
+  if (!response.ok) {
+    throw new Error(data?.message ?? "Could not create your SoundKit account.");
+  }
+};
+
+const submitOnboarding = async (
+  accountType: "artist" | "fan",
+  payload: Record<string, unknown>
+): Promise<OnboardingResponse> => {
+  const response = await fetch(`${API_V1_URL}/onboarding/${accountType}`, {
+    body: JSON.stringify(payload),
+    credentials: "include",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  const data = (await response.json().catch(() => null)) as {
+    message?: string;
+  } | null;
+
+  if (!response.ok) {
+    throw new Error(data?.message ?? `Onboarding failed (${response.status})`);
+  }
+
+  return data ?? {};
+};
+
+export const submitArtistOnboarding = (payload: Record<string, unknown>) =>
+  submitOnboarding("artist", payload);
+
+export const submitFanOnboarding = (payload: Record<string, unknown>) =>
+  submitOnboarding("fan", payload);

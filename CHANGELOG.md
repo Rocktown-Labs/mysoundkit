@@ -4,6 +4,9 @@
 
 ### Added
 
+- Added full multi-step artist onboarding (credentials, creator roles, eligibility, handle availability check, genre, streaming/social links, rights attestation, and plan selection) to `apps/bio`, completing into an empty artist dashboard that directs creators to finalize setup on SoundKit Web.
+- Added full multi-step fan onboarding (credentials, handle, location, favorite genres, plan selection) to `apps/bio`, completing into the home exploration route.
+- Synchronized SoundKit brand assets and favicons (`soundkit-mark.svg`, `soundkit-wordmark.svg`, `favicon.ico`, social cards, and webmanifest) into `apps/bio`.
 - Added server-authoritative playback qualification, anonymous session-token tracking, organization Premium reward funding, Premium live-host enforcement, format-aware ad eligibility, aligned annual Premium pricing, and Payments-tab guidance.
 - Added the initial SoundKit Desktop Electron Forge app with a secure local renderer/preload boundary and Turbo/pnpm workspace integration.
 - Added the native mobile navigation shell with themed Explore, Library, Live, and Dashboard tabs, menu destinations, nested stacks, and branded placeholder screens for the planned mobile routes.
@@ -12,6 +15,11 @@
 
 ### Fixed
 
+- Refined SoundKit Bio (`apps/bio`) regional map discovery to query `/v1/artists` with `category=top` and properly parse array payloads, fixing empty results when filtering by regions like Arkansas.
+- Removed gradients, radial backgrounds, and decorative blur glow blobs across SoundKit Bio in favor of a sleek, flat dark theme matching `apps/website`.
+- Redesigned media items (`BioTrackCard`, `BioProjectCard`, `BioVideoCard`) from bordered box cards to frameless components matching the web app.
+- Condensed artist profile header on SoundKit Bio with compact avatar, cover banner, typography, and clear action buttons.
+- Fixed Claim Account CTAs to route to internal artist signup rather than external 404 links.
 - Fixed public web artist profile card alignment on `apps/website` so track, project, and video grids align cleanly to the start (`justify-start`) directly beneath section headings without blank desktop indentation.
 - Added authenticated live music review controls with manual Now Playing, linked StreamBot chat entities, replaceable hashed OBS overlay tokens, transparent read-only overlays, and SQLite-enabled Durable Object integration coverage.
 - Added authenticated, live-only on-page tipping for public streams, listening parties, and battles with Embedded Checkout and equal battle allocations.
@@ -79,8 +87,11 @@
 ### Changed
 
 - Changed the initial bio rollout to use `bio.mysoundkit.com` in production and `bio-pr-<number>.mysoundkit.com` for pull requests; `soundkit.bio` remains a later custom-domain cutover.
+- Changed pull-request web previews to use the canonical `soundkit-web-pr-<number>.mysoundkit.com` hostname across Alchemy and CI output.
 
 ### Fixed
+
+- Fixed preview authentication origin mismatches caused by the web preview hostname changing from `web-pr-*` to `soundkit-web-pr-*`.
 
 - Fixed live stream shutdown so dashboard stops persist an ended experience without deleting reusable Cloudflare inputs, encoder disconnects take lifecycle precedence over stale input status, disconnected broadcasts leave public playback and discovery, and live genre labels render as `Hip-Hop` with Now Playing in the creator header.
 - Fixed public OBS stream discovery by syncing Cloudflare Stream lifecycle state, recognizing reconnecting inputs, normalizing Stream playback hostnames and status payloads, and replacing technical setup copy with creator-facing guidance.

@@ -1,6 +1,6 @@
 # Preview environments and database schema safety
 
-SoundKit pull-request Workers use isolated Cloudflare resources where practical, but currently share the production PlanetScale Postgres application database. Treat that database as production even when testing a `web-pr-*` or `api-pr-*` URL.
+SoundKit pull-request Workers use isolated Cloudflare resources where practical, but currently share the production PlanetScale Postgres application database. Treat that database as production even when testing a `soundkit-web-pr-*` or `api-pr-*` URL.
 
 ## Safety policy
 
@@ -22,7 +22,7 @@ This prevents an older branch from deleting or reverting columns introduced by a
 
 ## Monitoring
 
-Sentry events use `production` for the production stage, `development` locally, and the Alchemy stage name such as `pr-83` for pull-request previews. An `api-pr-*` URL is not a production request even if it uses production-like data.
+Sentry events use `production` for the production stage, `development` locally, and the Alchemy stage name such as `pr-83` for pull-request previews. A `soundkit-web-pr-*` or `api-pr-*` URL is not a production request even if it uses production-like data.
 
 ## Incident recovery
 
