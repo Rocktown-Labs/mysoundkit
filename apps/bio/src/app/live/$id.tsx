@@ -30,7 +30,7 @@ export const Route = createFileRoute("/live/$id")({
       description =
         live?.description ||
         (live
-          ? `Join ${live.hostDisplayName || live.creatorUsername} live on SoundKit Bio.`
+          ? `Join ${live.hostDisplayName || live.creatorUsername} live on SoundKit.`
           : "Live streaming experiences on SoundKit.bio."),
       canonical = `${SOUNDKIT_BIO_URL}/live/${encodeURIComponent(params.id)}`,
       image = toAbsoluteBioUrl("/soundkit-social-card.png");

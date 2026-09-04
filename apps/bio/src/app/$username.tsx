@@ -81,15 +81,23 @@ const formatCount = (value: number | undefined) => {
   }).format(value);
 };
 
+const formatPossessive = (name: string) => {
+  const trimmed = name.trim();
+  if (trimmed.endsWith("s") || trimmed.endsWith("S") || trimmed.endsWith("'")) {
+    return `${trimmed}'`;
+  }
+  return `${trimmed}'s`;
+};
+
 export const Route = createFileRoute("/$username")({
   component: BioProfilePage,
   head: ({ loaderData, params }) => {
     const profile = loaderData as unknown as BioProfile | null;
     const name = profile?.artist.name ?? `@${params.username}`;
-    const title = `Check out ${name} on SoundKit Bio`;
+    const title = `Check out ${formatPossessive(name)} SoundKit bio`;
     const description =
       profile?.artist.bio ||
-      `Listen to releases, stream tracks, and follow ${name} on SoundKit Bio.`;
+      `Stream releases, listen to tracks, and support ${name} on SoundKit.`;
     const image = toAbsoluteBioUrl(
       profile?.artist.coverImageUrl ||
         profile?.artist.avatarUrl ||
@@ -172,11 +180,12 @@ function BioProfilePage() {
       return;
     }
     const shareUrl = window.location.href;
-    const shareTitle = `Check out ${artist?.name || "this artist"} on SoundKit Bio`;
+    const artistName = artist?.name || "this artist";
+    const shareTitle = `Check out ${formatPossessive(artistName)} SoundKit bio`;
     if (navigator.share) {
       try {
         await navigator.share({
-          text: `Listen to releases and support ${artist?.name || "this artist"} on SoundKit Bio.`,
+          text: `Check out ${formatPossessive(artistName)} SoundKit bio — stream tracks and support releases on SoundKit.`,
           title: shareTitle,
           url: shareUrl,
         });

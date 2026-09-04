@@ -39,13 +39,13 @@ import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
 import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { UserProfilePreviewModal } from "@/components/live/user-profile-preview-modal";
 import type { UserPreviewData } from "@/components/live/user-profile-preview-modal";
-import { AppImage } from "@/components/ui/app-image";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -88,11 +88,79 @@ import {
 } from "@/lib/battle-share";
 import type { LiveBattleRound, LiveRoomArtist } from "@/lib/live-room";
 import { useLiveRoom } from "@/lib/live-room";
+import {
+  absoluteSiteUrl,
+  createShareMeta,
+  seoDescription,
+  seoOgDescription,
+} from "@/lib/seo";
+import { loadPublicBattleSeo } from "@/lib/seo-data";
+import type { BattleSeoData } from "@/lib/seo-data";
+import { shareLink } from "@/lib/share";
 import type { BattleKit } from "@/lib/soundkit-api-hooks";
 import { useBattleKitsQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/live/battles/$id")({
   component: PublicBattlePage,
+  head: ({ loaderData, params }) => {
+    const battle = loaderData as unknown as BattleSeoData | null,
+      p1 = battle?.participants[0]?.name || "Producer 1",
+      p2 = battle?.participants[1]?.name || "Producer 2",
+      hasTwoProducers = Boolean(
+        battle?.participants[0]?.name && battle?.participants[1]?.name
+      ),
+      battleTitle = battle?.title || "Beat Battle",
+      title = hasTwoProducers
+        ? `Watch ${p1} battle ${p2} live on SoundKit Premium`
+        : `Watch ${battleTitle} live on SoundKit Premium`,
+      description = seoDescription(
+        null,
+        `Watch ${p1} battle ${p2} live on SoundKit Premium. Live beat battle, real-time audience voting, and unreleased beats.`
+      ),
+      ogDescription = seoOgDescription(
+        null,
+        `Watch ${p1} battle ${p2} live on SoundKit Premium. Real-time audience voting and high-stakes producer competition.`
+      ),
+      ogImageUrl = `${API_V1_URL}/battles/${encodeURIComponent(params.id)}/og-image`,
+      head = createShareMeta({
+        canonicalPath: `/live/battles/${params.id}`,
+        description,
+        imageUrl: ogImageUrl,
+        ogDescription,
+        title,
+        type: "website",
+      });
+
+    return {
+      ...head,
+      meta: [
+        ...(head.meta || []),
+        {
+          content: "SoundKit Premium",
+          property: "og:site_name",
+        },
+      ],
+      scripts: battle
+        ? [
+            {
+              children: JSON.stringify({
+                "@context": "https://schema.org",
+                "@type": "BroadcastEvent",
+                description,
+                isLiveBroadcast: battle.status === "live",
+                name: title,
+                startDate: battle.startsAt || undefined,
+                url: absoluteSiteUrl(`/live/battles/${params.id}`),
+                videoFormat: "HD",
+              }),
+              type: "application/ld+json",
+            },
+          ]
+        : [],
+    };
+  },
+  loader: ({ params }) => loadPublicBattleSeo(params.id).catch(() => null),
+  ssr: "data-only",
 });
 
 function PublicBattlePage() {
@@ -864,7 +932,9 @@ function ArtistBattlePreparation({
                   </div>
                   <div>
                     <CardTitle className="text-sm">
-                      {isReady ? "Ready for battle" : "Prepare your battle lineup"}
+                      {isReady
+                        ? "Ready for battle"
+                        : "Prepare your battle lineup"}
                     </CardTitle>
                     <CardDescription className="mt-1 text-xs">
                       {isReady
@@ -875,7 +945,9 @@ function ArtistBattlePreparation({
                 </div>
                 <Badge
                   className="gap-1.5 text-[10px]"
-                  variant={isReady ? "default" : isLocked ? "secondary" : "outline"}
+                  variant={
+                    isReady ? "default" : isLocked ? "secondary" : "outline"
+                  }
                 >
                   {isReady || isLocked ? (
                     <LockKeyhole className="size-3" />
@@ -889,154 +961,168 @@ function ArtistBattlePreparation({
           </CardHeader>
           <AccordionContent className="px-6 pb-6 pt-0">
             <div className="space-y-3">
-        {kitsQuery.isLoading && (
-          <div className="rounded-lg border border-dashed border-border/70 bg-background/40 p-3 text-xs text-muted-foreground">
-            Loading your {formatDetails.label} Battle Kits...
-          </div>
-        )}
-
-        {kitsQuery.error && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-            <p className="text-xs text-destructive">
-              We could not load your Battle Kits. Try again before the battle
-              starts.
-            </p>
-            <Button
-              className="gap-1.5 text-xs"
-              onClick={async () => {
-                await kitsQuery.refetch();
-              }}
-              size="sm"
-              variant="outline"
-            >
-              <RefreshCw className="size-3.5" />
-              Retry
-            </Button>
-          </div>
-        )}
-
-        {!kitsQuery.isLoading && !kitsQuery.error && kits.length === 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border/70 bg-background/40 p-3">
-            <div>
-              <p className="font-semibold text-xs">
-                No battle-ready {formatDetails.label} kits yet.
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Build the required lineup in My Battle Kits, then return here.
-              </p>
-            </div>
-            <Button asChild className="text-xs" size="sm" variant="outline">
-              <Link to="/dashboard/live/my-kit">Manage kits</Link>
-            </Button>
-          </div>
-        )}
-
-        {!kitsQuery.isLoading && !kitsQuery.error && kits.length > 0 && (
-          <div className="grid gap-3 lg:grid-cols-3">
-            <div className="space-y-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <label
-                    className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground"
-                    htmlFor="battle-kit-select"
-                  >
-                    Battle Kit
-                  </label>
-                  <Select
-                    onValueChange={(value) => {
-                      setSaveError(null);
-                      setDraftKitId(value);
-                    }}
-                    value={selectedKitId}
-                  >
-                    <SelectTrigger
-                      aria-label="Battle Kit"
-                      className="bg-background/70"
-                      id="battle-kit-select"
-                    >
-                      <SelectValue
-                        placeholder={`Choose a ${formatDetails.label} kit`}
-                      />
-                    </SelectTrigger>
-                    <SelectContent className="[&_[data-highlighted]]:bg-muted [&_[data-highlighted]]:text-foreground">
-                      {kits.map((kit) => (
-                        <SelectItem key={kit.id} value={kit.id}>
-                          <span className="flex items-center gap-2">
-                            <span>{kit.name}</span>
-                            <span className="text-muted-foreground">
-                              · {kit.totalUniqueTracks} tracks
-                            </span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              {kitsQuery.isLoading && (
+                <div className="rounded-lg border border-dashed border-border/70 bg-background/40 p-3 text-xs text-muted-foreground">
+                  Loading your {formatDetails.label} Battle Kits...
                 </div>
+              )}
+
+              {kitsQuery.error && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                  <p className="text-xs text-destructive">
+                    We could not load your Battle Kits. Try again before the
+                    battle starts.
+                  </p>
+                  <Button
+                    className="gap-1.5 text-xs"
+                    onClick={async () => {
+                      await kitsQuery.refetch();
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <RefreshCw className="size-3.5" />
+                    Retry
+                  </Button>
+                </div>
+              )}
+
+              {!kitsQuery.isLoading &&
+                !kitsQuery.error &&
+                kits.length === 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border/70 bg-background/40 p-3">
+                    <div>
+                      <p className="font-semibold text-xs">
+                        No battle-ready {formatDetails.label} kits yet.
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Build the required lineup in My Battle Kits, then return
+                        here.
+                      </p>
+                    </div>
+                    <Button
+                      asChild
+                      className="text-xs"
+                      size="sm"
+                      variant="outline"
+                    >
+                      <Link to="/dashboard/live/my-kit">Manage kits</Link>
+                    </Button>
+                  </div>
+                )}
+
+              {!kitsQuery.isLoading && !kitsQuery.error && kits.length > 0 && (
+                <div className="grid gap-3 lg:grid-cols-3">
+                  <div className="space-y-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <label
+                          className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground"
+                          htmlFor="battle-kit-select"
+                        >
+                          Battle Kit
+                        </label>
+                        <Select
+                          onValueChange={(value) => {
+                            setSaveError(null);
+                            setDraftKitId(value);
+                          }}
+                          value={selectedKitId}
+                        >
+                          <SelectTrigger
+                            aria-label="Battle Kit"
+                            className="bg-background/70"
+                            id="battle-kit-select"
+                          >
+                            <SelectValue
+                              placeholder={`Choose a ${formatDetails.label} kit`}
+                            />
+                          </SelectTrigger>
+                          <SelectContent className="[&_[data-highlighted]]:bg-muted [&_[data-highlighted]]:text-foreground">
+                            {kits.map((kit) => (
+                              <SelectItem key={kit.id} value={kit.id}>
+                                <span className="flex items-center gap-2">
+                                  <span>{kit.name}</span>
+                                  <span className="text-muted-foreground">
+                                    · {kit.totalUniqueTracks} tracks
+                                  </span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        className="gap-1.5 text-xs"
+                        disabled={
+                          !selectedKitId || isLocked || kitsQuery.isFetching
+                        }
+                        onClick={async () => {
+                          await lockKit();
+                        }}
+                        size="sm"
+                      >
+                        <LockKeyhole className="size-3.5" />
+                        {isLocked ? "Locked for battle" : "Lock Kit"}
+                      </Button>
+                    </div>
+
+                    {selectedKit && (
+                      <div className="rounded-lg border border-border/60 bg-background/40 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-semibold text-xs">
+                            {selectedKit.name}
+                          </p>
+                          <Badge className="text-[10px]" variant="secondary">
+                            {selectedKit.totalUniqueTracks} tracks ready
+                          </Badge>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {selectedKit.tracks.map((track) => (
+                            <Badge
+                              className="max-w-full truncate text-[10px]"
+                              key={track.id}
+                              variant="outline"
+                            >
+                              {track.role === "tiebreaker"
+                                ? "TB"
+                                : `R${track.mainSlot ?? "?"}`}{" "}
+                              {track.title}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <BattleDeviceSetup
+                    onSaved={handleMediaSetupSaved}
+                    pending={pending}
+                  />
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
+                <p className="text-[11px] text-muted-foreground">
+                  {mediaSetupSaved
+                    ? "Device setup saved. Mark yourself ready when your Battle Kit is locked."
+                    : "Save your Battle Kit, camera, and microphone before marking yourself ready."}
+                </p>
                 <Button
-                  className="gap-1.5 text-xs"
-                  disabled={!selectedKitId || isLocked || kitsQuery.isFetching}
-                  onClick={async () => {
-                    await lockKit();
-                  }}
+                  className="gap-1.5"
+                  disabled={pending || !isLocked || !mediaSetupSaved}
+                  onClick={() => void handleReady(!isReady)}
                   size="sm"
+                  type="button"
+                  variant={isReady ? "secondary" : "default"}
                 >
-                  <LockKeyhole className="size-3.5" />
-                  {isLocked ? "Locked for battle" : "Lock Kit"}
+                  <CheckCircle2 className="size-3.5" />
+                  {isReady ? "Not ready" : "I’m ready"}
                 </Button>
               </div>
 
-              {selectedKit && (
-                <div className="rounded-lg border border-border/60 bg-background/40 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-semibold text-xs">{selectedKit.name}</p>
-                    <Badge className="text-[10px]" variant="secondary">
-                      {selectedKit.totalUniqueTracks} tracks ready
-                    </Badge>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {selectedKit.tracks.map((track) => (
-                      <Badge
-                        className="max-w-full truncate text-[10px]"
-                        key={track.id}
-                        variant="outline"
-                      >
-                        {track.role === "tiebreaker"
-                          ? "TB"
-                          : `R${track.mainSlot ?? "?"}`}{" "}
-                        {track.title}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
+              {saveError && (
+                <p className="text-xs text-destructive">{saveError}</p>
               )}
-            </div>
-            <BattleDeviceSetup
-              onSaved={handleMediaSetupSaved}
-              pending={pending}
-            />
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
-          <p className="text-[11px] text-muted-foreground">
-            {mediaSetupSaved
-              ? "Device setup saved. Mark yourself ready when your Battle Kit is locked."
-              : "Save your Battle Kit, camera, and microphone before marking yourself ready."}
-          </p>
-          <Button
-            className="gap-1.5"
-            disabled={pending || !isLocked || !mediaSetupSaved}
-            onClick={() => void handleReady(!isReady)}
-            size="sm"
-            type="button"
-            variant={isReady ? "secondary" : "default"}
-          >
-            <CheckCircle2 className="size-3.5" />
-            {isReady ? "Not ready" : "I’m ready"}
-          </Button>
-        </div>
-
-        {saveError && <p className="text-xs text-destructive">{saveError}</p>}
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -1369,14 +1455,40 @@ export function BattlePage({
     });
   };
 
-  const handleShareBattle = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
+  const handleShareBattle = async () => {
+    const p1 = battle?.artists?.[0]?.name;
+    const p2 = battle?.artists?.[1]?.name;
+    const shareText =
+      p1 && p2
+        ? `Watch ${p1} battle ${p2} live on SoundKit Premium.`
+        : "Watch this beat battle live on SoundKit Premium.";
+    const shareTitle =
+      p1 && p2
+        ? `Watch ${p1} battle ${p2} live on SoundKit Premium`
+        : "Live Beat Battle on SoundKit Premium";
+
+    const outcome = await shareLink({
+      text: shareText,
+      title: shareTitle,
+      url: window.location.href,
+    });
+
+    if (outcome === "unsupported") {
       toast({
-        description: "Battle link copied to clipboard.",
-        title: "Link Copied",
+        description: "Sharing is not supported on this device.",
+        title: "Unable to share battle",
+        variant: "destructive",
       });
+      return;
     }
+
+    toast({
+      description:
+        outcome === "copied"
+          ? "Battle invite link copied to your clipboard."
+          : "Battle invite ready to share.",
+      title: outcome === "copied" ? "Link Copied" : "Battle shared",
+    });
   };
 
   const handleToggleFollow = () => {
@@ -1439,7 +1551,7 @@ export function BattlePage({
 
   if (isBattleEnded) {
     const replayIsReady =
-      battle.replayStatus === "available" && Boolean(battle.replayVideoId),
+        battle.replayStatus === "available" && Boolean(battle.replayVideoId),
       endedBeforeFirstTurn = battle.hasPlayedTurn === false;
 
     return (

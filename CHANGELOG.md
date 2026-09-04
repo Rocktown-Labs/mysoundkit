@@ -4,7 +4,17 @@
 
 ### Added
 
+- Added dynamic branded Battle Open Graph SVG generator endpoints (`/v1/battles/:battleId/og-image` and `/v1/battles/og-image`) featuring SoundKit Premium branding, dual-producer avatar rendering with fallback badges, fiery VS emblem, and high-converting battle headlines.
+- Added public battle SEO endpoint (`/v1/battles/:battleId/public`) and client loader (`loadPublicBattleSeo`) with dynamic SSR Open Graph/Twitter meta tags and BroadcastEvent structured schema on `/live/battles/:id`.
 - Added authenticated Bio dashboard adapters for real analytics, earnings, seller status, and fan-tip data, plus a server-backed artist tip history endpoint at `/v1/payments/tips`.
+
+### Changed
+
+- Updated live battle share messaging across the dashboard and explore rooms to `"Watch {artist/producer1} battle {artist/producer2} live on SoundKit Premium"`.
+- Aligned SoundKit Bio meta tags and share copy across `$username.tsx`, `projects/$id.tsx`, `videos/$id.tsx`, and `live/$id.tsx` to possessive phrasing (`Check out {name}'s SoundKit bio`) and platform attribution (`Stream ... on SoundKit`), clarifying that `soundkit.bio` is an accessory to the main web app.
+
+### Fixed
+
 - Added responsive Bio navigation with a full-width mobile search row, mobile-safe autocomplete, centered artist profile hero content, and direct dashboard routing for claimed artist accounts.
 - Added full multi-step artist onboarding (credentials, creator roles, eligibility, handle availability check, genre, streaming/social links, rights attestation, and plan selection) to `apps/bio`, completing into an empty artist dashboard that directs creators to finalize setup on SoundKit Web.
 - Added full multi-step fan onboarding (credentials, handle, location, favorite genres, plan selection) to `apps/bio`, completing into the home exploration route.
