@@ -20,30 +20,31 @@ import { isPublicTrackArtwork } from "@/lib/media-access";
 import type { AppEnv } from "@/lib/types";
 import { logWarn } from "@/middleware/structured-logging";
 
+export const objectKeyFromPath = (path: string) => {
+  const prefix = "/media/";
+  if (!path.startsWith(prefix)) {
+    return null;
+  }
+
+  const encodedKey = path.slice(prefix.length);
+  if (!encodedKey) {
+    return null;
+  }
+
+  try {
+    const key = decodeURIComponent(encodedKey),
+      segments = key.split(/[\\/]/u);
+    return key &&
+      !key.startsWith("/") &&
+      !segments.some((segment) => segment === "." || segment === "..")
+      ? key
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 const app = new OpenAPIHono<AppEnv>(),
-  objectKeyFromPath = (path: string) => {
-    const prefix = "/media/";
-    if (!path.startsWith(prefix)) {
-      return null;
-    }
-
-    const encodedKey = path.slice(prefix.length);
-    if (!encodedKey) {
-      return null;
-    }
-
-    try {
-      const key = decodeURIComponent(encodedKey);
-      return key &&
-        !key.startsWith("/") &&
-        !key.includes("../") &&
-        !key.includes("..\\")
-        ? key
-        : null;
-    } catch {
-      return null;
-    }
-  },
   isPrivateTrackAsset = (asset: typeof trackAssets.$inferSelect) =>
     asset.purpose === "master" ||
     asset.purpose === "stem" ||
