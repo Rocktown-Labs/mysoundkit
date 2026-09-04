@@ -122,6 +122,11 @@ const API_ORIGIN = "http://soundkit.test",
       path: "/v1/payments/checkout",
     },
     {
+      init: { method: "GET" },
+      label: "artist tip history",
+      path: "/v1/payments/tips",
+    },
+    {
       init: jsonRequest({
         amountCents: 500,
         artistUserId: "artist_1",

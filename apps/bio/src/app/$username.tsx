@@ -269,10 +269,10 @@ function BioProfilePage() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-4 sm:px-6 sm:py-8 space-y-6 sm:space-y-8">
+    <div className="mx-auto min-w-0 w-full max-w-5xl overflow-x-clip px-4 py-4 sm:px-6 sm:py-8 space-y-6 sm:space-y-8">
       {/* Cover Banner */}
       {artist.coverImageUrl ? (
-        <div className="relative h-32 sm:h-48 md:h-56 w-full overflow-hidden rounded-3xl border border-border/40 shadow-md">
+        <div className="relative h-24 w-full overflow-hidden rounded-3xl border border-border/40 shadow-md sm:h-48 md:h-56">
           <img
             alt="Cover"
             className="size-full object-cover"
@@ -280,12 +280,12 @@ function BioProfilePage() {
           />
         </div>
       ) : (
-        <div className="relative h-24 sm:h-32 w-full overflow-hidden rounded-3xl border border-border/30 bg-card/40" />
+        <div className="relative h-16 w-full overflow-hidden rounded-3xl border border-border/30 bg-card/40 sm:h-32" />
       )}
 
       {/* Condensed Profile Card */}
-      <div className="relative z-10 -mt-14 sm:-mt-20 overflow-hidden rounded-3xl border border-border/40 bg-card/60 p-5 sm:p-7 md:p-8 backdrop-blur-xl shadow-xl">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 sm:gap-6">
+      <div className="relative z-10 -mt-8 overflow-hidden rounded-3xl border border-border/40 bg-card/60 p-5 text-center shadow-xl backdrop-blur-xl sm:-mt-20 sm:p-7 sm:text-left md:p-8">
+        <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
           {/* Circular Avatar */}
           <div className="relative shrink-0">
             <div className="size-20 sm:size-28 md:size-32 overflow-hidden rounded-full border-4 border-card bg-muted/60 shadow-lg">
@@ -313,13 +313,13 @@ function BioProfilePage() {
           </div>
 
           {/* Profile Header Details */}
-          <div className="min-w-0 flex-1 space-y-2 w-full">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
+          <div className="min-w-0 w-full flex-1 space-y-2">
+            <div className="flex flex-col items-center justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <div className="min-w-0">
                 <h1 className="font-playfair text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-foreground">
                   {artist.name}
                 </h1>
-                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5 sm:justify-start">
                   <span className="text-primary font-bold text-xs sm:text-sm">
                     @{artist.username}
                   </span>
@@ -336,7 +336,7 @@ function BioProfilePage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-2 pt-1 sm:pt-0 shrink-0">
+              <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 pt-1 sm:justify-end sm:pt-0">
                 <button
                   className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs sm:text-sm font-bold shadow transition-all ${
                     isFollowing
@@ -400,7 +400,7 @@ function BioProfilePage() {
             </div>
 
             {/* Stats Row */}
-            <div className="flex flex-wrap items-center gap-3 sm:gap-5 pt-1 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-1 text-xs text-muted-foreground sm:justify-start sm:gap-5">
               <div>
                 <span className="font-bold text-foreground">
                   {tracks.length}
@@ -423,7 +423,7 @@ function BioProfilePage() {
 
             {/* Bio */}
             {artist.bio ? (
-              <p className="max-w-2xl text-xs sm:text-sm text-muted-foreground/90 leading-relaxed whitespace-pre-wrap pt-1">
+              <p className="mx-auto max-w-2xl text-xs leading-relaxed text-muted-foreground/90 whitespace-pre-wrap pt-1 sm:mx-0 sm:text-sm">
                 {artist.bio}
               </p>
             ) : null}
@@ -436,7 +436,7 @@ function BioProfilePage() {
 
             {/* Social & Streaming Links Row */}
             {artist.links && Object.keys(artist.links).length > 0 ? (
-              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
+              <div className="flex flex-wrap items-center justify-center gap-2 border-t border-border/40 pt-2 sm:justify-start">
                 {artist.links.spotify &&
                 isSafeExternalUrl(artist.links.spotify) ? (
                   <a
@@ -573,7 +573,7 @@ function BioProfilePage() {
                 </div>
 
                 <div
-                  className="flex flex-wrap justify-start gap-3 md:gap-4"
+                  className="flex flex-wrap justify-center gap-3 md:justify-start md:gap-4"
                   data-testid="artist-track-grid"
                 >
                   {tracks.slice(0, 6).map((track) => (
@@ -613,7 +613,7 @@ function BioProfilePage() {
                   ) : null}
                 </div>
 
-                <div className="flex flex-wrap justify-start gap-3 md:gap-4">
+                <div className="flex flex-wrap justify-center gap-3 md:justify-start md:gap-4">
                   {media.projects.slice(0, 4).map((project) => (
                     <BioProjectCard key={project.id} project={project} />
                   ))}
@@ -653,7 +653,7 @@ function BioProfilePage() {
                 <h3 className="font-playfair text-xl sm:text-2xl font-medium text-foreground">
                   Also Featured On
                 </h3>
-                <div className="flex flex-wrap justify-start gap-3 md:gap-4">
+                <div className="flex flex-wrap justify-center gap-3 md:justify-start md:gap-4">
                   {media.featuredTracks.slice(0, 6).map((track) => (
                     <BioTrackCard
                       currentTrackId={currentTrack?.id}
@@ -682,7 +682,7 @@ function BioProfilePage() {
               All Tracks ({tracks.length})
             </h3>
             <div
-              className="flex flex-wrap justify-start gap-3 md:gap-4"
+              className="flex flex-wrap justify-center gap-3 md:justify-start md:gap-4"
               data-testid="artist-track-grid"
             >
               {tracks.map((track) => (
@@ -710,7 +710,7 @@ function BioProfilePage() {
             <h3 className="font-playfair text-2xl font-medium text-foreground">
               Projects ({media.projects.length})
             </h3>
-            <div className="flex flex-wrap justify-start gap-3 md:gap-4">
+            <div className="flex flex-wrap justify-center gap-3 md:justify-start md:gap-4">
               {media.projects.map((project) => (
                 <BioProjectCard key={project.id} project={project} />
               ))}

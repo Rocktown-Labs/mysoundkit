@@ -1124,6 +1124,22 @@ export const sellerStatusSchema = z.object({
   stripeAccountId: z.string().nullable(),
 });
 
+export const artistTipSchema = z.object({
+  amountCents: z.number().int().nonnegative(),
+  createdAt: z.string(),
+  fanDisplayName: z.string(),
+  id: z.string(),
+  message: z.string().nullable(),
+});
+
+export const artistTipsOverviewSchema = z.object({
+  averageTipCents: z.number().int().nonnegative(),
+  supporterCount: z.number().int().nonnegative(),
+  tips: artistTipSchema.array(),
+  totalTipCount: z.number().int().nonnegative(),
+  totalTipsCents: z.number().int().nonnegative(),
+});
+
 export const sellerOnboardingResponseSchema = z.object({
   accountLinkUrl: z.string().url(),
   onboardingStatus: z.enum([

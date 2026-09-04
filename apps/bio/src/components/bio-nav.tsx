@@ -3,7 +3,6 @@
 
 import { Link } from "@tanstack/react-router";
 import {
-  ExternalLink,
   LayoutDashboard,
   LoaderCircle,
   LogIn,
@@ -14,6 +13,7 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 
 import {
+  buildSoundKitWebUrl,
   getCurrentSessionUser,
   searchBioArtists,
   setBioAuthToken,
@@ -139,11 +139,11 @@ export function BioNav() {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+    <header className="sticky top-0 z-40 w-full overflow-x-clip border-b border-border/40 bg-background/80 backdrop-blur-xl">
+      <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:h-16 sm:flex-nowrap sm:gap-4 sm:px-6 sm:py-0">
         {/* Logo without disc icon */}
         <Link
-          className="flex items-center gap-2 font-bold tracking-wider text-sm hover:opacity-85 transition-opacity shrink-0"
+          className="min-w-0 flex-1 shrink hover:opacity-85 transition-opacity"
           to="/"
         >
           <span className="font-notable tracking-[0.2em] text-xs sm:text-sm">
@@ -152,12 +152,15 @@ export function BioNav() {
         </Link>
 
         {/* Center Search Bar */}
-        <div className="relative flex-1 max-w-md mx-auto" ref={containerRef}>
+        <div
+          className="order-3 basis-full relative min-w-0 max-w-none sm:order-none sm:flex-1 sm:basis-auto sm:max-w-lg"
+          ref={containerRef}
+        >
           <div className="relative flex items-center">
             <Search className="absolute left-3 size-4 text-muted-foreground pointer-events-none" />
             <input
               aria-label="Search artists"
-              className="h-9 w-full rounded-full border border-border/50 bg-card/60 pl-9 pr-8 text-xs sm:text-sm placeholder:text-muted-foreground/70 focus:border-primary focus:bg-card focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+              className="h-11 w-full rounded-full border border-border/50 bg-card/60 pl-10 pr-9 text-sm placeholder:text-muted-foreground/70 focus:border-primary focus:bg-card focus:outline-none focus:ring-1 focus:ring-primary transition-all sm:h-10"
               onChange={(e) => {
                 setQuery(e.target.value);
                 setIsOpen(true);
@@ -245,8 +248,8 @@ export function BioNav() {
         </div>
 
         {/* Right CTAs */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {currentUser ? (
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          {currentUser?.accountType === "artist" ? (
             <Link
               className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-all"
               to="/dashboard"
@@ -254,6 +257,14 @@ export function BioNav() {
               <LayoutDashboard className="size-3.5" />
               <span>Dashboard</span>
             </Link>
+          ) : currentUser ? (
+            <a
+              className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-all"
+              href={buildSoundKitWebUrl("/dashboard")}
+            >
+              <LayoutDashboard className="size-3.5" />
+              <span>Dashboard</span>
+            </a>
           ) : (
             <>
               <button
@@ -274,16 +285,6 @@ export function BioNav() {
               </Link>
             </>
           )}
-
-          <a
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
-            href={SOUNDKIT_WEB_URL}
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            <span>SoundKit</span>
-            <ExternalLink className="size-3" />
-          </a>
         </div>
       </div>
     </header>

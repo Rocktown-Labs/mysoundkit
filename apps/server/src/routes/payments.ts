@@ -9,9 +9,11 @@ import {
   orderItems,
   orders,
   sellerAccounts,
+  userProfiles,
 } from "@soundkit/db/schema/app";
+import { user as authUser } from "@soundkit/db/schema/auth";
 import { platformFees, tips, transactions } from "@soundkit/db/schema/payments";
-import { and, eq, or } from "drizzle-orm";
+import { and, count, countDistinct, desc, eq, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -23,6 +25,7 @@ import {
   PRODUCT_PLATFORM_FEE_BPS,
   TIP_PLATFORM_FEE_BPS,
 } from "@/lib/fees";
+import { artistTipsOverviewSchema, messageResponseSchema } from "@/lib/schemas";
 import { refreshSellerAccount } from "@/lib/seller";
 import {
   createDestinationCheckout,
@@ -160,6 +163,9 @@ const resolveTipEvent = async ({
     liveKind: z.enum(["battle", "party", "stream"]).optional(),
     message: z.string().max(500).optional(),
     recipientUserIds: z.string().array().min(1).max(2).optional(),
+  }),
+  tipListQuerySchema = z.object({
+    limit: z.coerce.number().int().positive().max(100).default(20),
   }),
   getEnabledSeller = async (userId: string) => {
     await refreshSellerAccount({ organizationId: null, userId });
@@ -393,6 +399,103 @@ app.openapi(
         clientSecret: null,
         setupRequired: !checkout?.url,
         transactionId,
+      },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/tips",
+    request: { query: tipListQuerySchema },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        artistTipsOverviewSchema,
+        "Artist tip history"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Payments"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        {
+          averageTipCents: 0,
+          supporterCount: 0,
+          tips: [],
+          totalTipCount: 0,
+          totalTipsCents: 0,
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const { limit } = c.req.valid("query"),
+      db = createDb(),
+      [summary] = await db
+        .select({
+          supporterCount: countDistinct(tips.fanUserId),
+          totalTipCount: count(tips.id),
+          totalTipsCents: sql<number>`coalesce(sum(${tips.amountCents}), 0)::int`,
+        })
+        .from(tips)
+        .innerJoin(transactions, eq(tips.transactionId, transactions.id))
+        .where(
+          and(
+            eq(tips.artistUserId, user.id),
+            eq(transactions.status, "succeeded")
+          )
+        ),
+      rows = await db
+        .select({
+          amountCents: tips.amountCents,
+          authName: authUser.name,
+          createdAt: tips.createdAt,
+          fanDisplayName: userProfiles.displayName,
+          id: tips.id,
+          message: tips.message,
+        })
+        .from(tips)
+        .innerJoin(transactions, eq(tips.transactionId, transactions.id))
+        .leftJoin(authUser, eq(authUser.id, tips.fanUserId))
+        .leftJoin(userProfiles, eq(userProfiles.userId, tips.fanUserId))
+        .where(
+          and(
+            eq(tips.artistUserId, user.id),
+            eq(transactions.status, "succeeded")
+          )
+        )
+        .orderBy(desc(tips.createdAt))
+        .limit(limit),
+      totalTipCount = Number(summary?.totalTipCount ?? 0),
+      totalTipsCents = Number(summary?.totalTipsCents ?? 0);
+
+    return c.json(
+      {
+        averageTipCents:
+          totalTipCount > 0 ? Math.round(totalTipsCents / totalTipCount) : 0,
+        supporterCount: Number(summary?.supporterCount ?? 0),
+        tips: rows.map((tip) => ({
+          amountCents: tip.amountCents,
+          createdAt: tip.createdAt.toISOString(),
+          fanDisplayName: tip.fanDisplayName ?? tip.authName ?? "SoundKit fan",
+          id: tip.id,
+          message: tip.message,
+        })),
+        totalTipCount,
+        totalTipsCents,
       },
       HttpStatusCodes.OK
     );

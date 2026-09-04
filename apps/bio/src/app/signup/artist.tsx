@@ -26,6 +26,7 @@ import {
 } from "@/components/bio-turnstile";
 import {
   checkUsernameAvailable,
+  getCurrentSessionUser,
   loadGenres,
   signUpWithEmail,
   submitArtistOnboarding,
@@ -119,6 +120,25 @@ function ArtistSignupPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [turnstileToken, setTurnstileToken] = useState("");
+
+  // Return artists with a completed claim to their Bio dashboard.
+  useEffect(() => {
+    let active = true;
+    const redirectClaimedArtist = async () => {
+      const user = await getCurrentSessionUser();
+      if (
+        active &&
+        user?.accountType === "artist" &&
+        user.onboardingCompletedAt
+      ) {
+        navigate({ to: "/dashboard" });
+      }
+    };
+    void redirectClaimedArtist();
+    return () => {
+      active = false;
+    };
+  }, [navigate]);
 
   // Load genres on mount
   useEffect(() => {

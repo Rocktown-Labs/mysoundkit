@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added authenticated Bio dashboard adapters for real analytics, earnings, seller status, and fan-tip data, plus a server-backed artist tip history endpoint at `/v1/payments/tips`.
+- Added responsive Bio navigation with a full-width mobile search row, mobile-safe autocomplete, centered artist profile hero content, and direct dashboard routing for claimed artist accounts.
 - Added full multi-step artist onboarding (credentials, creator roles, eligibility, handle availability check, genre, streaming/social links, rights attestation, and plan selection) to `apps/bio`, completing into an empty artist dashboard that directs creators to finalize setup on SoundKit Web.
 - Added full multi-step fan onboarding (credentials, handle, location, favorite genres, plan selection) to `apps/bio`, completing into the home exploration route.
 - Synchronized SoundKit brand assets and favicons (`soundkit-mark.svg`, `soundkit-wordmark.svg`, `favicon.ico`, social cards, and webmanifest) into `apps/bio`.
@@ -16,6 +18,8 @@
 
 ### Fixed
 
+- Fixed Bio dashboard summaries and analytics/payment pages so they use server data with loading, error, and empty states instead of placeholder metrics.
+- Fixed mobile Bio horizontal overflow caused by the desktop header/search layout and removed the external SoundKit navigation CTA.
 - Refined SoundKit Bio (`apps/bio`) regional map discovery to query `/v1/artists` with `category=top` and properly parse array payloads, fixing empty results when filtering by regions like Arkansas.
 - Removed gradients, radial backgrounds, and decorative blur glow blobs across SoundKit Bio in favor of a sleek, flat dark theme matching `apps/website`.
 - Redesigned media items (`BioTrackCard`, `BioProjectCard`, `BioVideoCard`) from bordered box cards to frameless components matching the web app.
