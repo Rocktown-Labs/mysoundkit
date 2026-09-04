@@ -34,7 +34,7 @@ export const Route = createFileRoute("/projects/$id")({
       description =
         project?.description ||
         (project
-          ? `Listen to ${project.title} (${project.projectType}) by ${project.artistName} on SoundKit Bio.`
+          ? `Stream ${project.title} by ${project.artistName} on SoundKit.`
           : "Discover projects and albums on SoundKit.bio."),
       image = toAbsoluteBioUrl(
         project?.coverArtUrl || "/soundkit-social-card.png"

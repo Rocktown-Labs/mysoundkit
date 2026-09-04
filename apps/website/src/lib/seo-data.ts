@@ -49,6 +49,23 @@ export interface VideoSeoData {
   videoKind: string;
 }
 
+export interface BattleParticipantSeoData {
+  avatarUrl: string | null;
+  id: string;
+  name: string;
+  username: string | null;
+}
+
+export interface BattleSeoData {
+  format: string;
+  genre: string | null;
+  id: string;
+  participants: BattleParticipantSeoData[];
+  startsAt: string | null;
+  status: string;
+  title: string;
+}
+
 const readObject = (value: unknown): Record<string, unknown> =>
     typeof value === "object" && value !== null
       ? (value as Record<string, unknown>)
@@ -188,5 +205,55 @@ export const loadPublicVideoSeo = async (
     thumbnailUrl: readString(rawVideo.thumbnailUrl),
     title,
     videoKind: readString(rawVideo.videoKind) ?? "video",
+  };
+};
+
+export const loadPublicBattleSeo = async (
+  battleId: string
+): Promise<BattleSeoData | null> => {
+  const response = await fetch(
+    `${API_V1_URL}/battles/${encodeURIComponent(battleId)}/public`
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const raw = readObject(await response.json()),
+    id = readString(raw.id),
+    title = readString(raw.title);
+
+  if (!(id && title)) {
+    return null;
+  }
+
+  const rawParticipants = Array.isArray(raw.participants)
+      ? raw.participants
+      : [],
+    participants: BattleParticipantSeoData[] = rawParticipants
+      .map((p) => {
+        const item = readObject(p),
+          pId = readString(item.id),
+          pName = readString(item.name);
+        if (!(pId && pName)) {
+          return null;
+        }
+        return {
+          avatarUrl: readString(item.avatarUrl),
+          id: pId,
+          name: pName,
+          username: readString(item.username),
+        };
+      })
+      .filter((p): p is BattleParticipantSeoData => p !== null);
+
+  return {
+    format: readString(raw.format) ?? "1v1",
+    genre: readString(raw.genre),
+    id,
+    participants,
+    startsAt: readString(raw.startsAt),
+    status: readString(raw.status) ?? "live",
+    title,
   };
 };

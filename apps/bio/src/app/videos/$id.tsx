@@ -30,7 +30,7 @@ export const Route = createFileRoute("/videos/$id")({
       description =
         video?.description ||
         (video
-          ? `Watch ${video.title} by ${video.creatorName} on SoundKit Bio.`
+          ? `Watch ${video.title} by ${video.creatorName} on SoundKit.`
           : "Discover artist videos on SoundKit.bio."),
       image = toAbsoluteBioUrl(
         video?.thumbnailUrl || "/soundkit-social-card.png"

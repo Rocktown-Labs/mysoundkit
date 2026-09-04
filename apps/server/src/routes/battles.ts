@@ -388,18 +388,6 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
         participants,
         phaseEndsAt: currentRound?.votingEndsAt?.toISOString() ?? null,
         queueSize: queueSizeByBattleId.get(battle.id) ?? 0,
-        round: currentRound
-          ? {
-              current: currentRound.roundNumber,
-              id: currentRound.id,
-              isVoting: currentRound.status === "active",
-              status: currentRound.status,
-              total: battleTotalRoundsByFormat[battle.format],
-            }
-          : null,
-        startsAt: battle.startsAt?.toISOString() ?? null,
-        title: resolveArtistBattleTitle(battle.title, battle.genre),
-        tracks: roundTracks,
         replayStatus: resolveBattleReplayStatus({
           recordingStatus: experience?.recordingStatus,
           replayPublishedAt: experience?.replayPublishedAt,
@@ -412,6 +400,18 @@ const selectCurrentRound = (rounds: BattleFeedRound[]) =>
           ),
         }),
         replayVideoId: battle.replayVideoId,
+        round: currentRound
+          ? {
+              current: currentRound.roundNumber,
+              id: currentRound.id,
+              isVoting: currentRound.status === "active",
+              status: currentRound.status,
+              total: battleTotalRoundsByFormat[battle.format],
+            }
+          : null,
+        startsAt: battle.startsAt?.toISOString() ?? null,
+        title: resolveArtistBattleTitle(battle.title, battle.genre),
+        tracks: roundTracks,
       };
     });
   },
@@ -518,6 +518,370 @@ app.openapi(
     return c.json(rankFeaturedBattles(visibleRows), HttpStatusCodes.OK);
   }
 );
+
+const escapeXml = (unsafe: string): string =>
+  unsafe
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+
+export interface BattleOgParams {
+  genre?: string | null;
+  p1Image?: string | null;
+  p1Name?: string | null;
+  p2Image?: string | null;
+  p2Name?: string | null;
+  status?: string | null;
+  title?: string | null;
+}
+
+export const generateBattleOgSvg = ({
+  genre,
+  p1Image,
+  p1Name,
+  p2Image,
+  p2Name,
+  status,
+  title,
+}: BattleOgParams): string => {
+  const name1 = escapeXml(p1Name?.trim() || "Producer 1"),
+    name2 = escapeXml(p2Name?.trim() || "Producer 2"),
+    isLive = status === "live",
+    statusBadge = isLive ? "LIVE NOW" : "SCHEDULED BATTLE",
+    genreBadge = escapeXml(
+      genre?.toUpperCase() || (title ? title.toUpperCase() : "BEAT BATTLE")
+    ),
+    initials1 = escapeXml(name1.slice(0, 2).toUpperCase()),
+    initials2 = escapeXml(name2.slice(0, 2).toUpperCase()),
+    safeImage1 = p1Image ? escapeXml(p1Image) : null,
+    safeImage2 = p2Image ? escapeXml(p2Image) : null;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#08090E" />
+      <stop offset="50%" stop-color="#0F111A" />
+      <stop offset="100%" stop-color="#07080C" />
+    </linearGradient>
+    <radialGradient id="glow-left" cx="25%" cy="35%" r="40%">
+      <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.32" />
+      <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="glow-right" cx="75%" cy="35%" r="40%">
+      <stop offset="0%" stop-color="#EC4899" stop-opacity="0.32" />
+      <stop offset="100%" stop-color="#EC4899" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="vs-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#F43F5E" stop-opacity="0.5" />
+      <stop offset="100%" stop-color="#F43F5E" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="vs-badge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F43F5E" />
+      <stop offset="100%" stop-color="#BE123C" />
+    </linearGradient>
+    <clipPath id="avatar-left-clip">
+      <circle cx="280" cy="245" r="95" />
+    </clipPath>
+    <clipPath id="avatar-right-clip">
+      <circle cx="920" cy="245" r="95" />
+    </clipPath>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="1200" height="630" fill="url(#bg)" />
+
+  <!-- Ambient Glow Orbs -->
+  <circle cx="280" cy="245" r="280" fill="url(#glow-left)" />
+  <circle cx="920" cy="245" r="280" fill="url(#glow-right)" />
+  <circle cx="600" cy="245" r="180" fill="url(#vs-glow)" />
+
+  <!-- Subtle grid lines for studio arena atmosphere -->
+  <line x1="0" y1="120" x2="1200" y2="120" stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="1" />
+  <line x1="0" y1="460" x2="1200" y2="460" stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="1" />
+  <line x1="600" y1="0" x2="600" y2="120" stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="1" />
+
+  <!-- Top Header Bar: SoundKit Brand & Badges -->
+  <g transform="translate(60, 42)">
+    <text x="0" y="28" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="900" letter-spacing="3">SOUNDKIT</text>
+    <text x="142" y="28" fill="#8B5CF6" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="900">.LIVE</text>
+
+    <!-- SoundKit Premium pill badge -->
+    <rect x="235" y="8" width="168" height="26" rx="13" fill="#F59E0B" fill-opacity="0.12" stroke="#F59E0B" stroke-opacity="0.4" stroke-width="1" />
+    <text x="319" y="25" text-anchor="middle" fill="#FBBF24" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" letter-spacing="1.5">★ SOUNDKIT PREMIUM</text>
+
+    <!-- Match Status badge -->
+    <rect x="910" y="8" width="170" height="26" rx="13" fill="${isLive ? "#EF4444" : "#3B82F6"}" fill-opacity="0.15" stroke="${isLive ? "#EF4444" : "#3B82F6"}" stroke-opacity="0.4" stroke-width="1" />
+    ${isLive ? '<circle cx="928" cy="21" r="4" fill="#EF4444" />' : ""}
+    <text x="${isLive ? "1002" : "995"}" y="25" text-anchor="middle" fill="${isLive ? "#F87171" : "#60A5FA"}" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" letter-spacing="1.5">${statusBadge}</text>
+  </g>
+
+  <!-- LEFT PARTICIPANT -->
+  <g>
+    <circle cx="280" cy="245" r="103" fill="none" stroke="#8B5CF6" stroke-width="3" stroke-opacity="0.6" />
+    <circle cx="280" cy="245" r="95" fill="#1E1338" />
+    ${
+      safeImage1
+        ? `<image href="${safeImage1}" x="185" y="150" width="190" height="190" preserveAspectRatio="xMidYMid slice" clip-path="url(#avatar-left-clip)" />`
+        : `<text x="280" y="263" text-anchor="middle" fill="#A78BFA" font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="800">${initials1}</text>`
+    }
+    <text x="280" y="375" text-anchor="middle" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="800">${name1}</text>
+    <rect x="220" y="390" width="120" height="22" rx="11" fill="#8B5CF6" fill-opacity="0.15" stroke="#8B5CF6" stroke-opacity="0.3" stroke-width="1" />
+    <text x="280" y="405" text-anchor="middle" fill="#C4B5FD" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" letter-spacing="1">PRODUCER</text>
+  </g>
+
+  <!-- CENTER VS BADGE -->
+  <g transform="translate(600, 245)">
+    <circle cx="0" cy="0" r="48" fill="#151722" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="2" />
+    <circle cx="0" cy="0" r="40" fill="url(#vs-badge)" />
+    <text x="0" y="12" text-anchor="middle" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="34" font-weight="900" font-style="italic" letter-spacing="1">VS</text>
+
+    <!-- Genre tag pill below VS -->
+    <rect x="-65" y="62" width="130" height="24" rx="12" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-opacity="0.15" stroke-width="1" />
+    <text x="0" y="78" text-anchor="middle" fill="#E2E8F0" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="800" letter-spacing="1.5">${genreBadge}</text>
+  </g>
+
+  <!-- RIGHT PARTICIPANT -->
+  <g>
+    <circle cx="920" cy="245" r="103" fill="none" stroke="#EC4899" stroke-width="3" stroke-opacity="0.6" />
+    <circle cx="920" cy="245" r="95" fill="#3B0B24" />
+    ${
+      safeImage2
+        ? `<image href="${safeImage2}" x="825" y="150" width="190" height="190" preserveAspectRatio="xMidYMid slice" clip-path="url(#avatar-right-clip)" />`
+        : `<text x="920" y="263" text-anchor="middle" fill="#F472B6" font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="800">${initials2}</text>`
+    }
+    <text x="920" y="375" text-anchor="middle" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="800">${name2}</text>
+    <rect x="860" y="390" width="120" height="22" rx="11" fill="#EC4899" fill-opacity="0.15" stroke="#EC4899" stroke-opacity="0.3" stroke-width="1" />
+    <text x="920" y="405" text-anchor="middle" fill="#FBCFE8" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" letter-spacing="1">PRODUCER</text>
+  </g>
+
+  <!-- BOTTOM CARD: Conversion-tuned headline & subtitle -->
+  <g transform="translate(140, 465)">
+    <rect width="920" height="120" rx="24" fill="#12131D" fill-opacity="0.8" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="1" />
+    <text x="460" y="48" text-anchor="middle" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="800">Watch ${name1} battle ${name2} live on SoundKit Premium</text>
+    <text x="460" y="82" text-anchor="middle" fill="#94A3B8" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" letter-spacing="0.5">Live Beat Battle • Real-Time Audience Voting • Unreleased Beats</text>
+  </g>
+</svg>`;
+};
+
+app.get("/og-image", (c) => {
+  const p1Name = c.req.query("p1") || null,
+    p2Name = c.req.query("p2") || null,
+    p1Image = c.req.query("img1") || null,
+    p2Image = c.req.query("img2") || null,
+    title = c.req.query("title") || null,
+    genre = c.req.query("genre") || null,
+    status = c.req.query("status") || "live",
+    svg = generateBattleOgSvg({
+      genre,
+      p1Image,
+      p1Name,
+      p2Image,
+      p2Name,
+      status,
+      title,
+    });
+
+  return c.body(svg, HttpStatusCodes.OK, {
+    "Cache-Control": "public, max-age=3600, s-maxage=86400",
+    "Content-Type": "image/svg+xml; charset=utf-8",
+  });
+});
+
+app.get("/:battleId/og-image", async (c) => {
+  const battleId = c.req.param("battleId");
+  let p1Name = c.req.query("p1") || null,
+    p2Name = c.req.query("p2") || null,
+    p1Image = c.req.query("img1") || null,
+    p2Image = c.req.query("img2") || null,
+    title = c.req.query("title") || null,
+    genre = c.req.query("genre") || null,
+    status = c.req.query("status") || "live";
+
+  if (isDatabaseConfigured() && (!p1Name || !p2Name)) {
+    try {
+      const db = createDb(),
+        [battleRow] = await db
+          .select({
+            challengerArtistUserId: battles.challengerArtistUserId,
+            genre: genres.name,
+            id: battles.id,
+            opponentArtistUserId: battles.opponentArtistUserId,
+            status: battles.status,
+            title: battles.title,
+          })
+          .from(battles)
+          .leftJoin(genres, eq(genres.id, battles.genreId))
+          .where(
+            or(eq(battles.id, battleId), eq(battles.externalBattleId, battleId))
+          )
+          .limit(1);
+
+      if (battleRow) {
+        title ||= battleRow.title;
+        status ||= battleRow.status;
+        genre ||= battleRow.genre || null;
+
+        const userIds = [
+          battleRow.challengerArtistUserId,
+          battleRow.opponentArtistUserId,
+        ].filter((id): id is string => Boolean(id));
+
+        if (userIds.length > 0) {
+          const profileRows = await db
+              .select({
+                avatarUrl: userProfiles.avatarUrl,
+                displayName: userProfiles.displayName,
+                userId: userProfiles.userId,
+                username: userProfiles.username,
+              })
+              .from(userProfiles)
+              .where(inArray(userProfiles.userId, userIds)),
+            profileMap = new Map(profileRows.map((r) => [r.userId, r])),
+            p1Profile = battleRow.challengerArtistUserId
+              ? profileMap.get(battleRow.challengerArtistUserId)
+              : null,
+            p2Profile = battleRow.opponentArtistUserId
+              ? profileMap.get(battleRow.opponentArtistUserId)
+              : null;
+
+          if (p1Profile && !p1Name) {
+            p1Name =
+              p1Profile.displayName || p1Profile.username || "Producer 1";
+            p1Image ||= p1Profile.avatarUrl;
+          }
+          if (p2Profile && !p2Name) {
+            p2Name =
+              p2Profile.displayName || p2Profile.username || "Producer 2";
+            p2Image ||= p2Profile.avatarUrl;
+          }
+        }
+      }
+    } catch {
+      // Fall through to query params or defaults
+    }
+  }
+
+  const svg = generateBattleOgSvg({
+    genre,
+    p1Image,
+    p1Name,
+    p2Image,
+    p2Name,
+    status,
+    title,
+  });
+
+  return c.body(svg, HttpStatusCodes.OK, {
+    "Cache-Control": "public, max-age=3600, s-maxage=86400",
+    "Content-Type": "image/svg+xml; charset=utf-8",
+  });
+});
+
+app.get("/:battleId/public", async (c) => {
+  const battleId = c.req.param("battleId");
+  if (!isDatabaseConfigured()) {
+    const sample = sampleBattles.find((b) => b.id === battleId);
+    if (!sample) {
+      return c.json({ message: "Battle not found" }, HttpStatusCodes.NOT_FOUND);
+    }
+    return c.json(
+      {
+        format: sample.format,
+        genre: sample.genre,
+        id: sample.id,
+        participants: [
+          { avatarUrl: null, id: "p1", name: "Artist One", username: null },
+          { avatarUrl: null, id: "p2", name: "Artist Two", username: null },
+        ],
+        startsAt: sample.startsAt ? String(sample.startsAt) : null,
+        status: sample.status,
+        title: sample.title,
+      },
+      HttpStatusCodes.OK
+    );
+  }
+
+  const db = createDb(),
+    [battleRow] = await db
+      .select({
+        challengerArtistUserId: battles.challengerArtistUserId,
+        format: battles.format,
+        genre: genres.name,
+        id: battles.id,
+        opponentArtistUserId: battles.opponentArtistUserId,
+        startsAt: battles.startsAt,
+        status: battles.status,
+        title: battles.title,
+      })
+      .from(battles)
+      .leftJoin(genres, eq(genres.id, battles.genreId))
+      .where(
+        or(eq(battles.id, battleId), eq(battles.externalBattleId, battleId))
+      )
+      .limit(1);
+
+  if (!battleRow) {
+    return c.json({ message: "Battle not found" }, HttpStatusCodes.NOT_FOUND);
+  }
+
+  const userIds = [
+      battleRow.challengerArtistUserId,
+      battleRow.opponentArtistUserId,
+    ].filter((id): id is string => Boolean(id)),
+    participants: {
+      avatarUrl: string | null;
+      id: string;
+      name: string;
+      username: string | null;
+    }[] = [];
+
+  if (userIds.length > 0) {
+    const profileRows = await db
+        .select({
+          avatarUrl: userProfiles.avatarUrl,
+          displayName: userProfiles.displayName,
+          userId: userProfiles.userId,
+          username: userProfiles.username,
+        })
+        .from(userProfiles)
+        .where(inArray(userProfiles.userId, userIds)),
+      profileMap = new Map(profileRows.map((r) => [r.userId, r]));
+
+    for (const uid of userIds) {
+      const p = profileMap.get(uid);
+      if (p) {
+        participants.push({
+          avatarUrl: p.avatarUrl,
+          id: p.userId,
+          name: p.displayName || p.username || "Producer",
+          username: p.username,
+        });
+      }
+    }
+  }
+
+  const formattedStartsAt =
+    battleRow.startsAt instanceof Date
+      ? battleRow.startsAt.toISOString()
+      : battleRow.startsAt
+        ? String(battleRow.startsAt)
+        : null;
+
+  return c.json(
+    {
+      format: battleRow.format,
+      genre: battleRow.genre ?? null,
+      id: battleRow.id,
+      participants,
+      startsAt: formattedStartsAt,
+      status: battleRow.status,
+      title: battleRow.title,
+    },
+    HttpStatusCodes.OK
+  );
+});
 
 app.openapi(
   createRoute({

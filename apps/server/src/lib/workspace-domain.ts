@@ -1,4 +1,4 @@
-export const canManageWorkspace = (role: string | null | undefined) =>
+export const canManageWorkspace = (role?: string | null) =>
   role === "owner" || role === "admin";
 
 export const hasWorkspaceCapacity = ({

@@ -180,15 +180,19 @@ function BattleHubPage() {
       const shareUrl = absoluteSiteUrl(
           `/live/battles/${battle.id}?ref=${encodeURIComponent(senderUsername)}`
         ),
-        participantNames = battle.participants
-          .map((participant) => participant.name)
-          .join(" vs "),
-        shareText = participantNames
-          ? `${participantNames} are battling on SoundKit. Join the waiting room.`
-          : `${battle.title} is coming up on SoundKit. Join the waiting room.`,
+        p1 = battle.participants[0]?.name,
+        p2 = battle.participants[1]?.name,
+        shareText =
+          p1 && p2
+            ? `Watch ${p1} battle ${p2} live on SoundKit Premium.`
+            : `Watch ${battle.title} live on SoundKit Premium.`,
+        shareTitle =
+          p1 && p2
+            ? `Watch ${p1} battle ${p2} live on SoundKit Premium`
+            : `Watch ${battle.title} live on SoundKit Premium`,
         outcome = await shareLink({
           text: shareText,
-          title: `${battle.title} is coming up on SoundKit`,
+          title: shareTitle,
           url: shareUrl,
         });
 
@@ -509,9 +513,9 @@ function BattleHubPage() {
                                 variant={
                                   req.status === "accepted"
                                     ? "default"
-                                    : req.status === "declined"
+                                    : (req.status === "declined"
                                       ? "destructive"
-                                      : "outline"
+                                      : "outline")
                                 }
                               >
                                 {req.status}
@@ -621,7 +625,7 @@ function BattleHubPage() {
                               <Trash2 className="mr-1.5 size-4" />
                               Cancel Request
                             </Button>
-                          ) : req.status !== "accepted" ? (
+                          ) : (req.status !== "accepted" ? (
                             <Button
                               className="shrink-0"
                               disabled={pendingChallengeId === req.id}
@@ -632,7 +636,7 @@ function BattleHubPage() {
                               <Trash2 className="mr-1.5 size-4" />
                               Clear
                             </Button>
-                          ) : null}
+                          ) : null)}
                         </div>
                       ))
                     )}
@@ -730,9 +734,9 @@ function BattleHubPage() {
                               >
                                 {isLive
                                   ? "Watch Live"
-                                  : isActive
+                                  : (isActive
                                     ? "View Room"
-                                    : "View Result"}
+                                    : "View Result")}
                               </Link>
                             )}
                           </Button>
@@ -849,9 +853,9 @@ function BattleHubPage() {
                   >
                     {deletingBattleId !== null || deleteExperience.isPending
                       ? "Processing..."
-                      : targetBattle?.status === "live"
+                      : (targetBattle?.status === "live"
                         ? "Confirm Forfeit"
-                        : "Confirm Cancellation"}
+                        : "Confirm Cancellation")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
