@@ -1,13 +1,16 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo, react/memo-dependencies, react/preserve-manual-memoization, react/immutability, react/exhaustive-effect-dependencies, promise/prefer-await-to-then */
 "use client";
 
+import { Link } from "@tanstack/react-router";
 import {
   ExternalLink,
+  ListMusic,
   Music,
   Pause,
   Play,
   SkipBack,
   SkipForward,
+  Trash2,
   Volume2,
   VolumeX,
   X,
@@ -26,17 +29,25 @@ import type { ReactNode } from "react";
 import { buildSoundKitWebUrl } from "@/lib/api";
 import type { BioTrack } from "@/lib/api";
 
+const bioAudioPlayerStorageKey = "soundkit.bio.audio-player.v1";
+
 interface BioAudioPlayerContextValue {
+  addToQueue: (track: BioTrack) => boolean;
+  clearQueue: () => void;
   currentTrack: BioTrack | null;
   duration: number;
   isMuted: boolean;
   isPlaying: boolean;
+  isQueueOpen: boolean;
   nextTrack: () => void;
+  playProjectTracks: (tracks: BioTrack[]) => void;
   playTrack: (track: BioTrack, queue?: BioTrack[]) => void;
   previousTrack: () => void;
   progress: number;
   queue: BioTrack[];
+  removeFromQueue: (index: number) => void;
   seek: (seconds: number) => void;
+  setIsQueueOpen: (open: boolean) => void;
   setVolume: (volume: number) => void;
   stop: () => void;
   toggleMute: () => void;
@@ -57,15 +68,61 @@ const formatTime = (seconds: number) => {
   return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
 };
 
+const isStoredTrack = (value: unknown): value is BioTrack => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const track = value as Partial<BioTrack>;
+  return (
+    typeof track.artistName === "string" &&
+    typeof track.duration === "string" &&
+    typeof track.id === "string" &&
+    typeof track.title === "string" &&
+    (typeof track.playbackUrl === "string" && track.playbackUrl.length > 0) ||
+    (typeof track.previewUrl === "string" && track.previewUrl.length > 0)
+  );
+};
+
+const readStoredPlayerState = () => {
+  if (typeof window === "undefined") {
+    return { currentTrack: null as BioTrack | null, queue: [] as BioTrack[] };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(bioAudioPlayerStorageKey);
+    if (!raw) {
+      return { currentTrack: null, queue: [] };
+    }
+
+    const parsed = JSON.parse(raw) as {
+        currentTrack?: unknown;
+        queue?: unknown;
+      },
+      currentTrack = isStoredTrack(parsed.currentTrack)
+        ? parsed.currentTrack
+        : null,
+      queue = Array.isArray(parsed.queue)
+        ? parsed.queue.filter(isStoredTrack)
+        : [];
+
+    return { currentTrack, queue };
+  } catch {
+    return { currentTrack: null, queue: [] };
+  }
+};
+
 export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null),
     [currentTrack, setCurrentTrack] = useState<BioTrack | null>(null),
     [queue, setQueue] = useState<BioTrack[]>([]),
     [isPlaying, setIsPlaying] = useState(false),
+    [isQueueOpen, setIsQueueOpen] = useState(false),
     [progress, setProgress] = useState(0),
     [duration, setDuration] = useState(0),
     [volumeLevel, setVolumeLevel] = useState(0.85),
     [isMuted, setIsMuted] = useState(false),
+    [hasRestored, setHasRestored] = useState(false),
     activeSrc = useMemo(() => {
       if (!currentTrack) {
         return "";
@@ -74,6 +131,10 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
     }, [currentTrack]),
     playTrack = useCallback(
       (track: BioTrack, newQueue?: BioTrack[]) => {
+        if (!track.playbackUrl && !track.previewUrl) {
+          return;
+        }
+
         setCurrentTrack(track);
         if (newQueue && newQueue.length > 0) {
           setQueue(newQueue);
@@ -82,9 +143,60 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
         }
         setIsPlaying(true);
         setProgress(0);
+        setDuration(0);
       },
       [queue]
     ),
+    playProjectTracks = useCallback((tracks: BioTrack[]) => {
+      const playableTracks = tracks.filter(
+        (track) => track.playbackUrl || track.previewUrl
+      );
+      if (playableTracks.length === 0) {
+        return;
+      }
+      setQueue(playableTracks);
+      setCurrentTrack(playableTracks[0] ?? null);
+      setIsPlaying(true);
+      setProgress(0);
+      setDuration(0);
+    }, []),
+    addToQueue = useCallback((track: BioTrack) => {
+      if (!track.playbackUrl && !track.previewUrl) {
+        return false;
+      }
+
+      setQueue((prev) => {
+        if (prev.some((item) => item.id === track.id)) {
+          return prev;
+        }
+        return [...prev, track];
+      });
+      return true;
+    }, []),
+    removeFromQueue = useCallback(
+      (index: number) => {
+        const removedTrack = queue[index];
+        if (!removedTrack) {
+          return;
+        }
+
+        const nextQueue = queue.filter((_, queueIndex) => queueIndex !== index);
+        setQueue(nextQueue);
+        if (removedTrack.id !== currentTrack?.id) {
+          return;
+        }
+
+        const replacement = nextQueue[index] ?? nextQueue[index - 1] ?? null;
+        setCurrentTrack(replacement);
+        setProgress(0);
+        setDuration(0);
+        setIsPlaying(Boolean(replacement));
+      },
+      [currentTrack, queue]
+    ),
+    clearQueue = useCallback(() => {
+      setQueue(currentTrack ? [currentTrack] : []);
+    }, [currentTrack]),
     togglePlay = useCallback(() => {
       if (!currentTrack) {
         return;
@@ -95,6 +207,7 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
       setIsPlaying(false);
       setCurrentTrack(null);
       setProgress(0);
+      setIsQueueOpen(false);
     }, []),
     currentIndex = useMemo(() => {
       if (!currentTrack || queue.length === 0) {
@@ -112,6 +225,7 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
         setCurrentTrack(next);
         setIsPlaying(true);
         setProgress(0);
+        setDuration(0);
       }
     }, [currentIndex, queue]),
     previousTrack = useCallback(() => {
@@ -130,6 +244,7 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
         setCurrentTrack(prev);
         setIsPlaying(true);
         setProgress(0);
+        setDuration(0);
       }
     }, [currentIndex, progress, queue]),
     seek = useCallback((seconds: number) => {
@@ -164,6 +279,28 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
       });
     }, []);
 
+  useEffect(() => {
+    const stored = readStoredPlayerState();
+    setCurrentTrack(stored.currentTrack);
+    setQueue(stored.queue);
+    setHasRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasRestored || typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        bioAudioPlayerStorageKey,
+        JSON.stringify({ currentTrack, queue })
+      );
+    } catch {
+      // Storage is optional; playback still works for this tab.
+    }
+  }, [currentTrack, hasRestored, queue]);
+
   // Sync audio element with state changes
   useEffect(() => {
     const audio = audioRef.current;
@@ -179,6 +316,15 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.pause();
     }
   }, [isPlaying, activeSrc]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    audio.muted = isMuted;
+    audio.volume = volumeLevel;
+  }, [isMuted, volumeLevel, activeSrc]);
 
   // Sync media session for background playback & mobile controls
   useEffect(() => {
@@ -215,16 +361,22 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
 
   const contextValue = useMemo<BioAudioPlayerContextValue>(
     () => ({
+      addToQueue,
+      clearQueue,
       currentTrack,
       duration,
       isMuted,
       isPlaying,
+      isQueueOpen,
       nextTrack,
+      playProjectTracks,
       playTrack,
       previousTrack,
       progress,
       queue,
+      removeFromQueue,
       seek,
+      setIsQueueOpen,
       setVolume,
       stop,
       toggleMute,
@@ -232,16 +384,22 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
       volume: volumeLevel,
     }),
     [
+      addToQueue,
+      clearQueue,
       currentTrack,
       duration,
       isMuted,
       isPlaying,
+      isQueueOpen,
       nextTrack,
+      playProjectTracks,
       playTrack,
       previousTrack,
       progress,
       queue,
+      removeFromQueue,
       seek,
+      setIsQueueOpen,
       setVolume,
       stop,
       toggleMute,
@@ -262,6 +420,7 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
           onPause={() => setIsPlaying(false)}
           onPlay={() => setIsPlaying(true)}
           onTimeUpdate={(e) => setProgress(e.currentTarget.currentTime || 0)}
+          crossOrigin="use-credentials"
           preload="auto"
           ref={audioRef}
           src={activeSrc}
@@ -286,15 +445,20 @@ export function useBioAudioPlayer() {
 
 export function BioBottomPlayer() {
   const {
+    clearQueue,
     currentTrack,
     duration,
     isMuted,
     isPlaying,
+    isQueueOpen,
     nextTrack,
+    playTrack,
     previousTrack,
     progress,
     queue,
+    removeFromQueue,
     seek,
+    setIsQueueOpen,
     setVolume,
     stop,
     toggleMute,
@@ -341,12 +505,13 @@ export function BioBottomPlayer() {
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <a
+            <Link
               className="block truncate font-medium text-sm text-foreground hover:text-primary transition-colors"
-              href={`/tracks/${encodeURIComponent(currentTrack.id)}`}
+              params={{ id: currentTrack.id }}
+              to="/tracks/$id"
             >
               {currentTrack.title}
-            </a>
+            </Link>
             <p className="truncate text-xs text-muted-foreground">
               {currentTrack.artistName}
             </p>
@@ -412,7 +577,26 @@ export function BioBottomPlayer() {
         </div>
 
         {/* Right Actions & Volume */}
-        <div className="flex items-center justify-end gap-3 w-1/3 sm:w-1/4">
+        <div className="flex items-center justify-end gap-2 sm:gap-3 w-1/3 sm:w-1/4">
+          {/* Queue toggle button */}
+          <button
+            aria-label={`Open queue with ${queue.length} track${queue.length === 1 ? "" : "s"}`}
+            className={`relative rounded-full p-2 transition-colors ${
+              isQueueOpen
+                ? "bg-primary/20 text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setIsQueueOpen(!isQueueOpen)}
+            type="button"
+          >
+            <ListMusic className="size-4 sm:size-5" />
+            {queue.length > 0 ? (
+              <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                {queue.length}
+              </span>
+            ) : null}
+          </button>
+
           {/* Volume slider */}
           <div className="hidden md:flex items-center gap-2">
             <button
@@ -461,6 +645,112 @@ export function BioBottomPlayer() {
           </button>
         </div>
       </div>
+
+      {/* Queue Drawer Panel */}
+      {isQueueOpen ? (
+        <div className="fixed bottom-24 right-4 z-50 w-full max-w-sm sm:max-w-md rounded-3xl border border-border/60 bg-card/95 p-5 shadow-2xl backdrop-blur-2xl space-y-4 max-h-[70vh] flex flex-col">
+          <div className="flex items-center justify-between border-b border-border/40 pb-3">
+            <div className="flex items-center gap-2">
+              <ListMusic className="size-4 text-primary" />
+              <h3 className="font-semibold text-sm text-foreground">
+                Play Queue ({queue.length})
+              </h3>
+            </div>
+            <div className="flex items-center gap-2">
+              {queue.length > 1 ? (
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={clearQueue}
+                  type="button"
+                >
+                  Clear
+                </button>
+              ) : null}
+              <button
+                aria-label="Close queue"
+                className="rounded-full p-1 text-muted-foreground hover:text-foreground"
+                onClick={() => setIsQueueOpen(false)}
+                type="button"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+            {queue.length === 0 ? (
+              <p className="py-6 text-center text-xs text-muted-foreground">
+                Your queue is empty.
+              </p>
+            ) : (
+              queue.map((track, idx) => {
+                const isCurrent = currentTrack?.id === track.id;
+                return (
+                  <div
+                    className={`flex items-center justify-between gap-3 rounded-2xl p-2.5 transition-colors ${
+                      isCurrent
+                        ? "border border-primary/40 bg-primary/10"
+                        : "hover:bg-white/5"
+                    }`}
+                    key={track.id}
+                  >
+                    <button
+                      className="flex items-center gap-3 min-w-0 flex-1 text-left"
+                      onClick={() => playTrack(track, queue)}
+                      type="button"
+                    >
+                      <div className="relative size-10 shrink-0 overflow-hidden rounded-xl border border-border/40 bg-black/40">
+                        {track.coverArtUrl ? (
+                          <img
+                            alt={track.title}
+                            className="size-full object-cover"
+                            src={track.coverArtUrl}
+                          />
+                        ) : (
+                          <Music className="size-4 m-3 text-muted-foreground" />
+                        )}
+                        {isCurrent && isPlaying ? (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <Pause className="size-4 text-primary fill-current" />
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={`truncate font-medium text-xs sm:text-sm ${
+                            isCurrent
+                              ? "text-primary font-bold"
+                              : "text-foreground"
+                          }`}
+                        >
+                          {track.title}
+                        </p>
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          {track.artistName}
+                        </p>
+                      </div>
+                    </button>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {track.duration}
+                      </span>
+                      <button
+                        aria-label="Remove from queue"
+                        className="rounded-full p-1 text-muted-foreground hover:text-destructive transition-colors"
+                        onClick={() => removeFromQueue(idx)}
+                        type="button"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

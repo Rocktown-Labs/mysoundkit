@@ -1,7 +1,7 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo */
 "use client";
 
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -23,13 +23,13 @@ function BioPaymentsPage() {
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12 space-y-8">
       {/* Back Link */}
       <div>
-        <a
+        <Link
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground group transition-colors"
-          href="/dashboard"
+          to="/dashboard"
         >
           <ArrowLeft className="size-3.5 group-hover:-translate-x-1 transition-transform" />
           <span>Back to Dashboard</span>
-        </a>
+        </Link>
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

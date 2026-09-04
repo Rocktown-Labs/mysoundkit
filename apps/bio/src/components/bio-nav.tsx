@@ -1,25 +1,87 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo, react/set-state-in-effect */
 "use client";
 
+import { Link } from "@tanstack/react-router";
 import {
-  Disc3,
   ExternalLink,
+  LayoutDashboard,
   LoaderCircle,
+  LogIn,
   Search,
   Sparkles,
   X,
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
-import { searchBioArtists, SOUNDKIT_WEB_URL } from "@/lib/api";
-import type { BioArtistSearchResult } from "@/lib/api";
+import {
+  getCurrentSessionUser,
+  searchBioArtists,
+  setBioAuthToken,
+  SOUNDKIT_WEB_URL,
+} from "@/lib/api";
+import type { BioArtistSearchResult, BioCurrentUser } from "@/lib/api";
+
+const getSoundKitWebOrigin = () => {
+  try {
+    return new URL(SOUNDKIT_WEB_URL).origin;
+  } catch {
+    return "https://mysoundkit.com";
+  }
+};
+const SOUNDKIT_WEB_ORIGIN = getSoundKitWebOrigin();
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === "object");
 
 export function BioNav() {
   const [query, setQuery] = useState(""),
     [results, setResults] = useState<BioArtistSearchResult[]>([]),
     [isLoading, setIsLoading] = useState(false),
     [isOpen, setIsOpen] = useState(false),
-    containerRef = useRef<HTMLDivElement | null>(null);
+    [currentUser, setCurrentUser] = useState<BioCurrentUser | null>(null),
+    containerRef = useRef<HTMLDivElement | null>(null),
+    handoffWindowRef = useRef<Window | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkSession = async () => {
+      try {
+        const user = await getCurrentSessionUser();
+        if (!cancelled) {
+          setCurrentUser(user);
+        }
+      } catch {
+        if (!cancelled) {
+          setCurrentUser(null);
+        }
+      }
+    };
+
+    void checkSession();
+
+    const handleMessage = async (event: MessageEvent<unknown>) => {
+      if (
+        event.origin !== SOUNDKIT_WEB_ORIGIN ||
+        event.source !== handoffWindowRef.current ||
+        !isRecord(event.data) ||
+        event.data.type !== "soundkit-auth-handoff" ||
+        typeof event.data.token !== "string"
+      ) {
+        return;
+      }
+      setBioAuthToken(event.data.token);
+      const user = await getCurrentSessionUser();
+      if (!cancelled) {
+        setCurrentUser(user);
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("message", handleMessage);
+    };
+  }, []);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -58,19 +120,36 @@ export function BioNav() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleSignIn = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const returnOrigin = window.location.origin,
+      handoffUrl = `${SOUNDKIT_WEB_URL}/auth/handoff?returnOrigin=${encodeURIComponent(returnOrigin)}`,
+      popup = window.open(
+        handoffUrl,
+        "soundkit-auth-handoff",
+        "popup,width=480,height=760,resizable,scrollbars"
+      );
+    if (!popup) {
+      window.location.href = `${SOUNDKIT_WEB_URL}/login?redirect=${encodeURIComponent(window.location.href)}`;
+      return;
+    }
+    handoffWindowRef.current = popup;
+  };
+
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-        {/* Logo */}
-        <a
+        {/* Logo without disc icon */}
+        <Link
           className="flex items-center gap-2 font-bold tracking-wider text-sm hover:opacity-85 transition-opacity shrink-0"
-          href="/"
+          to="/"
         >
-          <Disc3 className="size-5 text-primary animate-spin-slow" />
           <span className="font-notable tracking-[0.2em] text-xs sm:text-sm">
             SOUNDKIT<span className="text-primary">.BIO</span>
           </span>
-        </a>
+        </Link>
 
         {/* Center Search Bar */}
         <div className="relative flex-1 max-w-md mx-auto" ref={containerRef}>
@@ -117,11 +196,12 @@ export function BioNav() {
                     Artists ({results.length})
                   </p>
                   {results.map((artist) => (
-                    <a
+                    <Link
                       className="flex items-center gap-3 rounded-xl p-2 hover:bg-white/5 transition-colors"
-                      href={`/${encodeURIComponent(artist.username)}`}
                       key={artist.id}
                       onClick={() => setIsOpen(false)}
+                      params={{ username: artist.username }}
+                      to="/$username"
                     >
                       <div className="relative size-10 shrink-0 overflow-hidden rounded-full border border-border/40 bg-muted/40">
                         {artist.avatarUrl ? (
@@ -152,7 +232,7 @@ export function BioNav() {
                           {artist.genre}
                         </span>
                       ) : null}
-                    </a>
+                    </Link>
                   ))}
                 </div>
               ) : query.trim() ? (
@@ -166,13 +246,34 @@ export function BioNav() {
 
         {/* Right CTAs */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <a
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-white/5 px-3.5 py-1.5 text-xs font-semibold text-foreground/85 hover:border-primary/40 hover:text-foreground transition-all"
-            href="/signup/artist"
-          >
-            <Sparkles className="size-3.5 text-primary" />
-            <span>Claim Account</span>
-          </a>
+          {currentUser ? (
+            <Link
+              className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-all"
+              to="/dashboard"
+            >
+              <LayoutDashboard className="size-3.5" />
+              <span>Dashboard</span>
+            </Link>
+          ) : (
+            <>
+              <button
+                className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-white/5 px-3 py-1.5 text-xs font-semibold text-foreground/85 hover:border-primary/40 hover:text-foreground transition-all"
+                onClick={handleSignIn}
+                type="button"
+              >
+                <LogIn className="size-3.5 text-primary" />
+                <span>Sign In</span>
+              </button>
+
+              <Link
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-white/5 px-3.5 py-1.5 text-xs font-semibold text-foreground/85 hover:border-primary/40 hover:text-foreground transition-all"
+                to="/signup/artist"
+              >
+                <Sparkles className="size-3.5 text-primary" />
+                <span>Claim Account</span>
+              </Link>
+            </>
+          )}
 
           <a
             className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"

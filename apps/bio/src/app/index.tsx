@@ -1,7 +1,7 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo, react/exhaustive-effect-dependencies */
 "use client";
 
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   ChevronRight,
@@ -9,7 +9,6 @@ import {
   MapPin,
   Music,
   RotateCcw,
-  Sparkles,
   Trophy,
   UserCheck,
 } from "lucide-react";
@@ -96,11 +95,6 @@ function BioHomePage() {
       {/* Hero Section */}
       <div className="relative overflow-hidden rounded-3xl border border-border/40 bg-card/40 p-6 sm:p-10 md:p-12 shadow-lg">
         <div className="relative z-10 max-w-2xl space-y-4 sm:space-y-5">
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3.5 py-1 text-xs font-semibold text-primary">
-            <Sparkles className="size-3.5" />
-            <span>SoundKit Bio</span>
-          </div>
-
           <h1 className="font-playfair text-3xl sm:text-5xl md:text-6xl font-medium tracking-tight text-foreground leading-[1.08]">
             One link for the <span className="italic text-primary">music</span>{" "}
             you make.
@@ -113,20 +107,20 @@ function BioHomePage() {
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
-            <a
+            <Link
               className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-xs sm:text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 hover:opacity-90 transition-all hover:scale-105 active:scale-95"
-              href="/signup/artist"
+              to="/signup/artist"
             >
               <span>Claim Your Artist Bio</span>
               <ArrowRight className="size-4" />
-            </a>
+            </Link>
 
-            <a
+            <Link
               className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white/5 px-5 py-2.5 text-xs sm:text-sm font-semibold text-foreground/90 hover:bg-white/10 hover:text-foreground transition-all"
-              href="/signup/fan"
+              to="/signup/fan"
             >
               <span>Join as Fan</span>
-            </a>
+            </Link>
           </div>
         </div>
       </div>
@@ -210,10 +204,11 @@ function BioHomePage() {
         ) : artists.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {artists.map((artist, idx) => (
-              <a
+              <Link
                 className="group relative flex items-center justify-between rounded-2xl border border-border/50 bg-card/40 p-4 backdrop-blur-xl hover:border-primary/40 hover:bg-card/70 transition-all shadow-md"
-                href={`/${encodeURIComponent(artist.username)}`}
                 key={artist.id}
+                params={{ username: artist.username }}
+                to="/$username"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   {/* Rank Badge */}
@@ -269,7 +264,7 @@ function BioHomePage() {
                 </div>
 
                 <ChevronRight className="size-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
-              </a>
+              </Link>
             ))}
           </div>
         ) : (
@@ -286,13 +281,13 @@ function BioHomePage() {
                 {selectedRegion || "this area"} on SoundKit.
               </p>
             </div>
-            <a
+            <Link
               className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow-md hover:opacity-90 transition-opacity"
-              href="/signup/artist"
+              to="/signup/artist"
             >
               <span>Claim Your Artist Profile</span>
               <ArrowRight className="size-3.5" />
-            </a>
+            </Link>
           </div>
         )}
       </section>

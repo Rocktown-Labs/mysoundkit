@@ -12,6 +12,7 @@
 - Added the native mobile navigation shell with themed Explore, Library, Live, and Dashboard tabs, menu destinations, nested stacks, and branded placeholder screens for the planned mobile routes.
 - Added dedicated SoundKit.bio (`soundkit.bio`) artist link-in-bio platform with live artist autocomplete search, full multi-region interactive map supporting global, national, and US-state views, condensed `/tracks/$id` detail pages with Spotify, Apple Music, and YouTube outbound streaming links, artist claim onboarding, dialed-in artist dashboard sub-routes (`/dashboard`, `/dashboard/analytics`, `/dashboard/payments`), fan signup and session library (`/library`), and persistent docked audio player with MediaSession playback controls.
 - Added standalone SoundKit artist pages with cross-domain auth handoff, guarded track previews, Stripe Embedded Checkout tipping, metadata, and safe external links.
+- Added session-aware Bio navigation, normalized real API payloads, persistent queued playback controls, and `/projects/$id`, `/videos/$id`, and `/live/$id` detail routes with canonical metadata and SoundKit handoffs.
 
 ### Fixed
 
@@ -93,6 +94,7 @@
 
 - Fixed preview authentication origin mismatches caused by the web preview hostname changing from `web-pr-*` to `soundkit-web-pr-*`.
 - Fixed browser smoke test flakiness by scoping test headers to API requests, mocking auth capabilities, and preserving real application error checks while allowing expected anonymous API responses.
+- Fixed Bio media and live matching across nullable/legacy API shapes, guarded cross-origin auth handoffs by popup source, and exposed creator identity fields needed by public live detail pages.
 
 - Fixed live stream shutdown so dashboard stops persist an ended experience without deleting reusable Cloudflare inputs, encoder disconnects take lifecycle precedence over stale input status, disconnected broadcasts leave public playback and discovery, and live genre labels render as `Hip-Hop` with Now Playing in the creator header.
 - Fixed public OBS stream discovery by syncing Cloudflare Stream lifecycle state, recognizing reconnecting inputs, normalizing Stream playback hostnames and status payloads, and replacing technical setup copy with creator-facing guidance.

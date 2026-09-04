@@ -117,9 +117,50 @@ export interface BioMedia {
   videos: BioVideo[];
 }
 
+export interface BioCurrentUser {
+  accountType?: "artist" | "fan";
+  avatarUrl?: string | null;
+  displayName: string;
+  email?: string | null;
+  id: string;
+  name?: string | null;
+  role?: string | null;
+  username: string;
+}
+
+export interface BioProjectDetail extends BioProject {
+  description?: string | null;
+  genre?: string | null;
+  isPublic?: boolean;
+  tracks: BioTrack[];
+}
+
+export interface BioVideoDetail extends BioVideo {
+  creatorName: string;
+  creatorUsername: string;
+  description?: string | null;
+  externalPlaybackUrl?: string | null;
+  genre?: string | null;
+  muxPlaybackId?: string | null;
+  playbackPolicy?: "public" | "signed";
+  sourceProvider?: "mux" | "external";
+  videoKind: string;
+}
+
+export interface BioLiveExperienceDetail extends BioLiveStream {
+  description?: string | null;
+  genre?: string | null;
+  hostDisplayName?: string | null;
+  scheduledStartAt?: string | null;
+  startedAt?: string | null;
+  streamPlaybackUrl?: string | null;
+  viewerCount: number;
+}
+
 export interface BioLiveStream {
   creatorUsername: string;
   id: string;
+  kind?: "battle" | "party" | "stream";
   status: "live" | "ended" | "scheduled";
   title: string;
   viewerCount?: number;
@@ -143,16 +184,65 @@ export interface BioArtistSearchResult {
   weeklyPlays?: number;
 }
 
-const emptyMedia: BioMedia = {
-    credits: [],
-    featuredProjects: [],
-    featuredTracks: [],
-    projects: [],
-    tracks: [],
-    videos: [],
+const safeExternalUrl = (value: string | null): string | null => {
+    if (!value) {
+      return null;
+    }
+
+    try {
+      const { protocol } = new URL(value);
+      return protocol === "http:" || protocol === "https:" ? value : null;
+    } catch {
+      return null;
+    }
   },
-  readJson = async (response: Response) => {
-    if (!response.ok) {
+  isRecord = (value: unknown): value is Record<string, unknown> =>
+    Boolean(value && typeof value === "object"),
+  stringValue = (value: unknown): string | null =>
+    typeof value === "string" && value.length > 0 ? value : null,
+  apiMediaUrl = (value: string | null): string | null =>
+    value?.startsWith("/") ? `${API_BASE_URL}${value}` : value,
+  numberValue = (value: unknown): number | null =>
+    typeof value === "number" && Number.isFinite(value) ? value : null,
+  formatDuration = (value: unknown): string => {
+    const durationMs = numberValue(value);
+    if (durationMs === null || durationMs < 0) {
+      return "0:00";
+    }
+
+    const totalSeconds = Math.round(durationMs / 1000),
+      minutes = Math.floor(totalSeconds / 60),
+      seconds = totalSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  },
+  projectTypeFrom = (value: unknown): BioProject["projectType"] | null => {
+    if (
+      value === "album" ||
+      value === "ep" ||
+      value === "mixtape" ||
+      value === "single"
+    ) {
+      return value;
+    }
+    return null;
+  },
+  liveKindFrom = (value: unknown): BioLiveStream["kind"] => {
+    if (value === "battle" || value === "party" || value === "stream") {
+      return value;
+    }
+    return undefined;
+  },
+  liveStatusFrom = (value: string | null): BioLiveStream["status"] => {
+    if (value === "live") {
+      return "live";
+    }
+    if (value === "ended" || value === "completed") {
+      return "ended";
+    }
+    return "scheduled";
+  },
+  readJson = async (response: Response | null): Promise<unknown> => {
+    if (!response?.ok) {
       return null;
     }
 
@@ -161,74 +251,368 @@ const emptyMedia: BioMedia = {
     } catch {
       return null;
     }
+  },
+  normalizeArtist = (value: unknown): BioArtist | null => {
+    if (!isRecord(value)) {
+      return null;
+    }
+
+    const normalizedLinks: Record<string, string | undefined> = {};
+    if (isRecord(value.links)) {
+      for (const [platform, link] of Object.entries(value.links)) {
+        if (typeof link === "string") {
+          normalizedLinks[platform] = link;
+        }
+      }
+    }
+    if (!normalizedLinks.appleMusic && normalizedLinks.apple) {
+      normalizedLinks.appleMusic = normalizedLinks.apple;
+    }
+    const links = Object.keys(normalizedLinks).length
+      ? normalizedLinks
+      : undefined;
+
+    return {
+      avatarUrl: apiMediaUrl(stringValue(value.avatarUrl)),
+      battleCount: numberValue(value.battleCount) ?? 0,
+      bio: stringValue(value.bio),
+      coverImageUrl: apiMediaUrl(
+        stringValue(value.coverImageUrl) ?? stringValue(value.headerUrl)
+      ),
+      followers:
+        numberValue(value.followers) ?? numberValue(value.followerCount) ?? 0,
+      genre: stringValue(value.genre) ?? "Independent Artist",
+      id: stringValue(value.id) ?? "",
+      joinedAt: stringValue(value.joinedAt) ?? undefined,
+      links,
+      location:
+        stringValue(value.location) ??
+        [stringValue(value.city), stringValue(value.state)]
+          .filter((part): part is string => Boolean(part))
+          .join(", "),
+      name:
+        stringValue(value.name) ??
+        stringValue(value.displayName) ??
+        stringValue(value.stageName) ??
+        "SoundKit Artist",
+      state: stringValue(value.state),
+      trackCount:
+        numberValue(value.trackCount) ?? numberValue(value.track_count) ?? 0,
+      username: stringValue(value.username) ?? "",
+      verified: Boolean(value.verified ?? value.isVerified),
+      weeklyPlays: numberValue(value.weeklyPlays) ?? 0,
+    };
+  },
+  normalizeTrack = (
+    value: unknown,
+    fallbackArtistName = "SoundKit Artist",
+    fallbackArtistUsername: string | null = null
+  ): BioTrack | null => {
+    if (!isRecord(value)) {
+      return null;
+    }
+
+    const artist = isRecord(value.artist) ? value.artist : null,
+      id = stringValue(value.id) ?? stringValue(value.slug);
+    if (!id) {
+      return null;
+    }
+
+    const playbackUrl = apiMediaUrl(stringValue(value.playbackUrl)),
+      previewUrl = apiMediaUrl(stringValue(value.previewUrl)),
+      duration =
+        stringValue(value.duration) ?? formatDuration(value.durationMs),
+      streamingLinks = isRecord(value.streamingLinks)
+        ? {
+            appleMusic:
+              stringValue(value.streamingLinks.appleMusic) ??
+              stringValue(value.streamingLinks.apple) ??
+              undefined,
+            spotify: stringValue(value.streamingLinks.spotify) ?? undefined,
+            youtube: stringValue(value.streamingLinks.youtube) ?? undefined,
+          }
+        : undefined;
+
+    return {
+      artistName:
+        stringValue(value.artistName) ??
+        stringValue(artist?.name) ??
+        fallbackArtistName,
+      artistUsername:
+        stringValue(value.artistUsername) ??
+        stringValue(artist?.username) ??
+        stringValue(artist?.handle) ??
+        fallbackArtistUsername,
+      bpm: numberValue(value.bpm),
+      coverArtUrl: apiMediaUrl(
+        stringValue(value.coverArtUrl) ?? stringValue(value.artworkUrl)
+      ),
+      duration,
+      genre:
+        stringValue(value.genre) ?? stringValue(artist?.genre) ?? undefined,
+      id,
+      mediaReady:
+        typeof value.mediaReady === "boolean"
+          ? value.mediaReady
+          : Boolean(playbackUrl || previewUrl),
+      musicalKey: stringValue(value.musicalKey),
+      playbackUrl,
+      plays:
+        numberValue(value.plays) ??
+        numberValue(value.playCount) ??
+        numberValue(value.streamCount) ??
+        0,
+      previewUrl,
+      regionSlug: stringValue(value.regionSlug),
+      slug: stringValue(value.slug),
+      streamingLinks,
+      title: stringValue(value.title) ?? "Untitled Track",
+    };
+  },
+  normalizeProject = (
+    value: unknown,
+    fallbackArtistName = "SoundKit Artist",
+    fallbackArtistUsername: string | null = null
+  ): BioProject | null => {
+    if (!isRecord(value)) {
+      return null;
+    }
+
+    const id = stringValue(value.id) ?? stringValue(value.slug);
+    if (!id) {
+      return null;
+    }
+
+    const projectType = stringValue(value.projectType);
+    return {
+      artistName: stringValue(value.artistName) ?? fallbackArtistName,
+      artistUsername:
+        stringValue(value.artistUsername) ?? fallbackArtistUsername,
+      coverArtUrl: apiMediaUrl(stringValue(value.coverArtUrl)),
+      id,
+      projectType: projectTypeFrom(projectType) ?? "album",
+      releaseDate:
+        stringValue(value.releaseDate) ?? stringValue(value.releaseAt),
+      slug: stringValue(value.slug) ?? id,
+      title: stringValue(value.title) ?? "Untitled Project",
+      trackCount:
+        numberValue(value.trackCount) ?? numberValue(value.track_count) ?? 0,
+    };
+  },
+  normalizeVideo = (value: unknown): BioVideo | null => {
+    if (!isRecord(value)) {
+      return null;
+    }
+
+    const id = stringValue(value.id) ?? stringValue(value.slug);
+    if (!id) {
+      return null;
+    }
+
+    return {
+      creatorAvatarUrl: apiMediaUrl(
+        stringValue(value.creatorAvatarUrl) ?? stringValue(value.avatarUrl)
+      ),
+      creatorName:
+        stringValue(value.creatorName) ??
+        stringValue(value.displayName) ??
+        stringValue(value.name) ??
+        "SoundKit Artist",
+      creatorUsername:
+        stringValue(value.creatorUsername) ?? stringValue(value.username) ?? "",
+      duration: stringValue(value.duration) ?? undefined,
+      id,
+      slug: stringValue(value.slug) ?? id,
+      thumbnailUrl: apiMediaUrl(stringValue(value.thumbnailUrl)),
+      title: stringValue(value.title) ?? "Untitled Video",
+      viewCount:
+        stringValue(value.viewCount) ??
+        numberValue(value.viewCount)?.toLocaleString() ??
+        undefined,
+    };
+  },
+  normalizeLiveStream = (value: unknown): BioLiveStream | null => {
+    if (!isRecord(value)) {
+      return null;
+    }
+
+    const id = stringValue(value.id);
+    if (!id) {
+      return null;
+    }
+
+    const rawStatus = stringValue(value.status);
+    return {
+      creatorUsername:
+        stringValue(value.creatorUsername) ??
+        stringValue(value.hostUsername) ??
+        "",
+      id,
+      kind: liveKindFrom(value.kind),
+      status: liveStatusFrom(rawStatus),
+      title: stringValue(value.title) ?? "Live Session",
+      viewerCount: numberValue(value.viewerCount) ?? 0,
+    };
+  },
+  emptyMedia: BioMedia = {
+    credits: [],
+    featuredProjects: [],
+    featuredTracks: [],
+    projects: [],
+    tracks: [],
+    videos: [],
   };
+
+const fetchBio = async (
+  input: string,
+  init?: RequestInit
+): Promise<Response | null> => {
+  try {
+    return await fetch(input, init);
+  } catch {
+    return null;
+  }
+};
+
+const normalizeArtistSearchResult = (
+  value: unknown
+): BioArtistSearchResult | null => {
+  const artist = normalizeArtist(value);
+  if (!artist) {
+    return null;
+  }
+
+  return {
+    avatarUrl: artist.avatarUrl,
+    followers: artist.followers,
+    genre: artist.genre,
+    id: artist.id,
+    location: artist.location,
+    name: artist.name,
+    username: artist.username,
+    verified: artist.verified,
+    weeklyPlays: artist.weeklyPlays,
+  };
+};
+
+const normalizeMediaList = <T>(
+  value: unknown,
+  mapper: (entry: unknown) => T | null
+): T[] =>
+  Array.isArray(value)
+    ? value.flatMap((entry) => {
+        const normalized = mapper(entry);
+        return normalized ? [normalized] : [];
+      })
+    : [];
 
 export const loadBioProfile = async (
   username: string
 ): Promise<BioProfile | null> => {
   const encodedUsername = encodeURIComponent(username),
-    [artistResponse, mediaResponse] = await Promise.all([
-      fetch(`${API_V1_URL}/artists/${encodedUsername}`, {
+    [artistResponse, mediaResponse, liveResponse] = await Promise.all([
+      fetchBio(`${API_V1_URL}/artists/${encodedUsername}`, {
         headers: { Accept: "application/json" },
       }),
-      fetch(`${API_V1_URL}/artists/${encodedUsername}/media`, {
+      fetchBio(`${API_V1_URL}/artists/${encodedUsername}/media`, {
+        headers: { Accept: "application/json" },
+      }),
+      fetchBio(`${API_V1_URL}/live/experiences/public`, {
         headers: { Accept: "application/json" },
       }),
     ]),
-    artist = await readJson(artistResponse);
+    artistData = await readJson(artistResponse),
+    artistRecord =
+      isRecord(artistData) && isRecord(artistData.artist)
+        ? artistData.artist
+        : artistData,
+    artist = normalizeArtist(artistRecord);
 
-  if (!artist || typeof artist !== "object") {
+  if (!artist || !artist.id || !artist.username) {
     return null;
   }
 
   const rawMedia = await readJson(mediaResponse),
-    rawRecord =
-      rawMedia && typeof rawMedia === "object"
-        ? (rawMedia as Record<string, unknown>)
-        : null,
+    rawLive = await readJson(liveResponse),
+    liveExperiences = Array.isArray(rawLive) ? rawLive : [],
+    live =
+      liveExperiences.map(normalizeLiveStream).find((experience, index) => {
+        const rawExperience = liveExperiences[index];
+        return (
+          experience?.status === "live" &&
+          isRecord(rawExperience) &&
+          (rawExperience.creatorUserId === artist.id ||
+            experience.creatorUsername === artist.username)
+        );
+      }) ?? null,
+    rawRecord = isRecord(rawMedia) ? rawMedia : null,
+    normalizeCredit = (value: unknown): BioCredit | null => {
+      if (!isRecord(value)) {
+        return null;
+      }
+
+      const id = stringValue(value.id) ?? stringValue(value.contentId);
+      if (!id) {
+        return null;
+      }
+
+      const role = stringValue(value.role);
+      if (role !== "producer" && role !== "engineer" && role !== "songwriter") {
+        return null;
+      }
+
+      const contentType = value.contentType === "project" ? "project" : "track";
+      return {
+        contentId: stringValue(value.contentId) ?? id,
+        contentType,
+        coverArtUrl: apiMediaUrl(stringValue(value.coverArtUrl)),
+        id,
+        ownerName: stringValue(value.ownerName) ?? "SoundKit Artist",
+        ownerUsername: stringValue(value.ownerUsername) ?? "",
+        projectType: projectTypeFrom(value.projectType),
+        role,
+        slug: stringValue(value.slug) ?? stringValue(value.contentId) ?? id,
+        title: stringValue(value.title) ?? "Untitled Release",
+      };
+    },
     media: BioMedia = rawRecord
       ? {
-          credits: Array.isArray(rawRecord.credits)
-            ? (rawRecord.credits as BioCredit[])
-            : [],
-          featuredProjects: Array.isArray(rawRecord.featuredProjects)
-            ? (rawRecord.featuredProjects as BioProject[])
-            : [],
-          featuredTracks: Array.isArray(rawRecord.featuredTracks)
-            ? (rawRecord.featuredTracks as BioTrack[])
-            : [],
-          projects: Array.isArray(rawRecord.projects)
-            ? (rawRecord.projects as BioProject[])
-            : [],
-          tracks: Array.isArray(rawRecord.tracks)
-            ? (rawRecord.tracks as BioTrack[])
-            : [],
-          videos: Array.isArray(rawRecord.videos)
-            ? (rawRecord.videos as BioVideo[])
-            : [],
+          credits: normalizeMediaList(rawRecord.credits, normalizeCredit),
+          featuredProjects: normalizeMediaList(
+            rawRecord.featuredProjects,
+            (entry) => normalizeProject(entry, artist.name, artist.username)
+          ),
+          featuredTracks: normalizeMediaList(
+            rawRecord.featuredTracks,
+            (entry) => normalizeTrack(entry, artist.name, artist.username)
+          ),
+          projects: normalizeMediaList(rawRecord.projects, (entry) =>
+            normalizeProject(entry, artist.name, artist.username)
+          ),
+          tracks: normalizeMediaList(rawRecord.tracks, (entry) =>
+            normalizeTrack(entry, artist.name, artist.username)
+          ),
+          videos: normalizeMediaList(rawRecord.videos, normalizeVideo),
         }
       : emptyMedia;
 
-  return {
-    artist: artist as BioArtist,
-    media,
-  };
+  return { artist, live, media };
 };
 
 export const loadBioTrack = async (
   trackId: string
 ): Promise<BioTrack | null> => {
-  const encodedId = encodeURIComponent(trackId),
-    response = await fetch(`${API_V1_URL}/tracks/${encodedId}`, {
-      headers: { Accept: "application/json" },
-    }),
-    data = await readJson(response);
+  try {
+    const encodedId = encodeURIComponent(trackId),
+      response = await fetchBio(`${API_V1_URL}/tracks/${encodedId}`, {
+        headers: { Accept: "application/json" },
+      }),
+      data = await readJson(response);
 
-  if (!data || typeof data !== "object") {
+    return normalizeTrack(data);
+  } catch {
     return null;
   }
-
-  return data as BioTrack;
 };
 
 export const searchBioArtists = async (
@@ -251,7 +635,7 @@ export const searchBioArtists = async (
         : null;
 
   if (record && Array.isArray(record.artists)) {
-    return record.artists as BioArtistSearchResult[];
+    return normalizeMediaList(record.artists, normalizeArtistSearchResult);
   }
 
   return [];
@@ -272,50 +656,21 @@ export const loadRegionArtists = async (
   }
 
   if (Array.isArray(data)) {
-    return data.map((item) => {
-      const raw = item as Record<string, unknown>;
-      return {
-        avatarUrl: (raw.avatarUrl as string) ?? null,
-        followers: Number(raw.followers || raw.followerCount || 0),
-        genre: (raw.genre as string) || "Independent Artist",
-        id: (raw.id as string) || "",
-        location:
-          (raw.location as string) ||
-          [raw.city, raw.state].filter(Boolean).join(", "),
-        name: (raw.name as string) || (raw.displayName as string) || "Artist",
-        username: (raw.username as string) || "",
-        verified: Boolean(raw.verified || raw.isVerified),
-        weeklyPlays: Number(raw.weeklyPlays || 0),
-      };
-    });
+    return normalizeMediaList(data, normalizeArtistSearchResult);
   }
 
   const record =
     data && typeof data === "object" ? (data as Record<string, unknown>) : null;
 
   if (record && Array.isArray(record.artists)) {
-    return (record.artists as BioArtistSearchResult[]).map((item) => ({
-      ...item,
-      followers: Number(item.followers || 0),
-      genre: item.genre || "Independent Artist",
-    }));
+    return normalizeMediaList(record.artists, normalizeArtistSearchResult);
   }
 
   return [];
 };
 
-export const isSafeExternalUrl = (value: string | undefined) => {
-  if (!value) {
-    return false;
-  }
-
-  try {
-    const { protocol } = new URL(value);
-    return protocol === "http:" || protocol === "https:";
-  } catch {
-    return false;
-  }
-};
+export const isSafeExternalUrl = (value: string | undefined) =>
+  safeExternalUrl(value ?? null) !== null;
 
 export const buildSoundKitWebUrl = (path: string, refArtist?: string) => {
   const normalizedPath = path
@@ -469,3 +824,248 @@ export const submitArtistOnboarding = (payload: Record<string, unknown>) =>
 
 export const submitFanOnboarding = (payload: Record<string, unknown>) =>
   submitOnboarding("fan", payload);
+
+const BIO_AUTH_TOKEN_KEY = "soundkit_bio_auth_token";
+
+export const getBioAuthToken = (): string | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return (
+      localStorage.getItem(BIO_AUTH_TOKEN_KEY) ||
+      sessionStorage.getItem(BIO_AUTH_TOKEN_KEY)
+    );
+  } catch {
+    return null;
+  }
+};
+
+export const setBioAuthToken = (token: string): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    localStorage.setItem(BIO_AUTH_TOKEN_KEY, token);
+    sessionStorage.setItem(BIO_AUTH_TOKEN_KEY, token);
+  } catch {
+    // storage unavailable
+  }
+};
+
+export const clearBioAuthToken = (): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    localStorage.removeItem(BIO_AUTH_TOKEN_KEY);
+    sessionStorage.removeItem(BIO_AUTH_TOKEN_KEY);
+  } catch {
+    // storage unavailable
+  }
+};
+
+export const getCurrentSessionUser =
+  async (): Promise<BioCurrentUser | null> => {
+    try {
+      const headers: Record<string, string> = { Accept: "application/json" };
+      const token = getBioAuthToken();
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_V1_URL}/me`, {
+        credentials: "include",
+        headers,
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const payload: unknown = await response.json(),
+        data =
+          isRecord(payload) && isRecord(payload.user) ? payload.user : payload;
+      const id = isRecord(data) ? stringValue(data.id) : null;
+      if (!isRecord(data) || !id) {
+        return null;
+      }
+
+      const accountType = data.accountType === "fan" ? "fan" : "artist",
+        username =
+          stringValue(data.username) ??
+          stringValue(data.stageName)?.toLowerCase().replaceAll(/\s+/gu, "") ??
+          "artist";
+
+      return {
+        accountType,
+        avatarUrl: apiMediaUrl(stringValue(data.avatarUrl)),
+        displayName:
+          stringValue(data.displayName) ?? stringValue(data.name) ?? "Artist",
+        email: stringValue(data.email),
+        id,
+        name: stringValue(data.name),
+        role: stringValue(data.role),
+        username,
+      };
+    } catch {
+      return null;
+    }
+  };
+
+export const loadBioProject = async (
+  idOrSlug: string
+): Promise<BioProjectDetail | null> => {
+  try {
+    const encodedId = encodeURIComponent(idOrSlug);
+    const response = await fetch(`${API_V1_URL}/projects/public/${encodedId}`, {
+      headers: { Accept: "application/json" },
+    });
+    const data = await readJson(response);
+
+    if (!data || typeof data !== "object") {
+      return null;
+    }
+
+    const raw = data as Record<string, unknown>,
+      artistRecord = isRecord(raw.artist) ? raw.artist : null,
+      artistName =
+        stringValue(raw.artistName) ??
+        stringValue(artistRecord?.name) ??
+        stringValue(raw.ownerName) ??
+        "SoundKit Artist",
+      artistUsername =
+        stringValue(raw.artistUsername) ??
+        stringValue(artistRecord?.username) ??
+        stringValue(raw.ownerUsername),
+      rawTracks = Array.isArray(raw.tracks) ? raw.tracks : [],
+      tracks = rawTracks.flatMap((track) => {
+        const normalized = normalizeTrack(track, artistName, artistUsername);
+        return normalized ? [normalized] : [];
+      });
+
+    return {
+      artistName,
+      artistUsername,
+      coverArtUrl: apiMediaUrl(stringValue(raw.coverArtUrl)),
+      description: stringValue(raw.description),
+      genre: stringValue(raw.genre),
+      id: stringValue(raw.id) ?? idOrSlug,
+      isPublic: raw.isPublic !== false,
+      projectType:
+        raw.projectType === "ep" ||
+        raw.projectType === "mixtape" ||
+        raw.projectType === "single"
+          ? raw.projectType
+          : "album",
+      releaseDate: stringValue(raw.releaseDate) ?? stringValue(raw.releaseAt),
+      slug: stringValue(raw.slug) ?? idOrSlug,
+      title: stringValue(raw.title) ?? "Untitled Project",
+      trackCount: numberValue(raw.trackCount) ?? tracks.length,
+      tracks,
+    };
+  } catch {
+    return null;
+  }
+};
+
+export const loadBioVideo = async (
+  videoId: string
+): Promise<BioVideoDetail | null> => {
+  try {
+    const encodedId = encodeURIComponent(videoId);
+    const response = await fetch(`${API_V1_URL}/videos/${encodedId}`, {
+      headers: { Accept: "application/json" },
+    });
+    const data = await readJson(response);
+
+    if (!data || typeof data !== "object") {
+      return null;
+    }
+
+    const raw = data as Record<string, unknown>,
+      normalized = normalizeVideo(raw);
+    if (!normalized) {
+      return null;
+    }
+
+    const playbackPolicy =
+        raw.playbackPolicy === "signed" ? "signed" : "public",
+      sourceProvider = raw.sourceProvider === "external" ? "external" : "mux";
+
+    return {
+      ...normalized,
+      creatorName: normalized.creatorName ?? "SoundKit Artist",
+      creatorUsername: normalized.creatorUsername ?? "",
+      description: stringValue(raw.description),
+      externalPlaybackUrl: safeExternalUrl(
+        stringValue(raw.externalPlaybackUrl)
+      ),
+      genre: stringValue(raw.genre),
+      muxPlaybackId: stringValue(raw.muxPlaybackId),
+      playbackPolicy,
+      sourceProvider,
+      videoKind: stringValue(raw.videoKind) ?? "music_video",
+    };
+  } catch {
+    return null;
+  }
+};
+
+export const loadBioLiveExperience = async (
+  experienceId: string
+): Promise<BioLiveExperienceDetail | null> => {
+  try {
+    const encodedId = encodeURIComponent(experienceId);
+    const response = await fetchBio(
+      `${API_V1_URL}/live/experiences/${encodedId}`,
+      {
+        headers: { Accept: "application/json" },
+      }
+    );
+    let data = await readJson(response);
+
+    if (!data && response?.status === 403) {
+      const publicResponse = await fetchBio(
+          `${API_V1_URL}/live/experiences/public`,
+          { headers: { Accept: "application/json" } }
+        ),
+        publicData = await readJson(publicResponse);
+      data = Array.isArray(publicData)
+        ? (publicData.find(
+            (experience) =>
+              isRecord(experience) && experience.id === experienceId
+          ) ?? null)
+        : null;
+    }
+
+    if (!isRecord(data)) {
+      return null;
+    }
+
+    const raw = data,
+      normalized = normalizeLiveStream({ ...raw, id: raw.id ?? experienceId });
+    if (!normalized) {
+      return null;
+    }
+
+    return {
+      ...normalized,
+      description: stringValue(raw.description),
+      genre: stringValue(raw.genre),
+      hostDisplayName:
+        stringValue(raw.hostDisplayName) ??
+        stringValue(raw.creatorName) ??
+        (normalized.creatorUsername ? `@${normalized.creatorUsername}` : null),
+      scheduledStartAt:
+        stringValue(raw.scheduledStartAt) ?? stringValue(raw.startsAt),
+      startedAt: stringValue(raw.startedAt),
+      streamPlaybackUrl:
+        apiMediaUrl(stringValue(raw.streamPlaybackUrl)) ??
+        apiMediaUrl(stringValue(raw.playbackUrl)),
+      viewerCount: normalized.viewerCount ?? 0,
+    };
+  } catch {
+    return null;
+  }
+};

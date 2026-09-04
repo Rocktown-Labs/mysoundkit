@@ -1,7 +1,7 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo, react/hook-use-state, react/set-state-in-effect */
 "use client";
 
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowRight,
@@ -347,13 +347,13 @@ function ArtistSignupPage() {
               <span>Back</span>
             </button>
           ) : (
-            <a
+            <Link
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
-              href="/signup"
+              to="/signup"
             >
               <ArrowLeft className="size-3.5" />
               <span>Back to choices</span>
-            </a>
+            </Link>
           )}
 
           <span className="text-xs font-mono text-muted-foreground">
