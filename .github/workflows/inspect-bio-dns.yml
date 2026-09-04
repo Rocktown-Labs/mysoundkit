@@ -25,6 +25,8 @@ jobs:
           set -euo pipefail
 
           auth_header="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          alchemy_access_token=$(jq -r '.access // empty' <<< "$ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON")
+          alchemy_auth_header="Authorization: Bearer $alchemy_access_token"
           echo "Alchemy credential keys:"
           jq -r 'keys | join(",")' <<< "$ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON"
 
@@ -33,3 +35,15 @@ jobs:
             -H "$auth_header" \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains?per_page=100" \
             | jq -c '.result[] | select(.hostname == "soundkit.bio" or .hostname == "www.soundkit.bio" or .hostname == "bio.mysoundkit.com") | {id, hostname, zone_id, service, environment}'
+
+          echo "DNS records with Alchemy credentials:"
+          zone_json=$(curl --fail --silent --show-error \
+            -H "$alchemy_auth_header" \
+            "https://api.cloudflare.com/client/v4/zones?name=soundkit.bio&status=active")
+          zone_id=$(jq -r '.result[0].id // empty' <<< "$zone_json")
+          for hostname in soundkit.bio www.soundkit.bio; do
+            curl --fail --silent --show-error \
+              -H "$alchemy_auth_header" \
+              "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=$hostname&per_page=100" \
+              | jq -c --arg hostname "$hostname" '.result[] | {hostname: $hostname, id, type, name, content, proxied, ttl}'
+          done
