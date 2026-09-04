@@ -235,6 +235,29 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
     entityId: z.string(),
     entityType: z.enum(["artist", "lyrics", "project", "track", "video"]),
   }),
+  diagnosticCheckSchema = z.object({
+    detail: z.string(),
+    test: z.string(),
+    verdict: z.string(),
+  }),
+  diagnosticJobSchema = z.object({
+    completedAt: z.string().nullable(),
+    createdAt: z.string(),
+    error: z.string().nullable(),
+    id: z.string(),
+    progressDone: z.number().int(),
+    results: z
+      .object({
+        checks: diagnosticCheckSchema.array(),
+        trackId: z.string(),
+        trackTitle: z.string(),
+        verdict: z.string(),
+      })
+      .array(),
+    status: z.string(),
+    tests: z.string().array(),
+    total: z.number().int(),
+  }),
   communityAuthorSchema = z.object({
     avatarUrl: z.string().nullable(),
     name: z.string(),
@@ -1159,6 +1182,20 @@ export const rpcContract = new Hono()
   )
   .get("/v1/admin/embeddings/status", (c) =>
     c.json({} as z.infer<typeof embeddingStatusSchema>)
+  )
+  .get("/v1/admin/audio-diagnostics/tests", (c) =>
+    c.json([] as { description: string; id: string; label: string }[])
+  )
+  .post(
+    "/v1/admin/audio-diagnostics/jobs",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as z.infer<typeof diagnosticJobSchema>, 201)
+  )
+  .get("/v1/admin/audio-diagnostics/jobs", (c) =>
+    c.json([] as z.infer<typeof diagnosticJobSchema>[])
+  )
+  .get("/v1/admin/audio-diagnostics/jobs/:jobId", (c) =>
+    c.json({} as z.infer<typeof diagnosticJobSchema>)
   )
   .post(
     "/v1/admin/embeddings/backfill",

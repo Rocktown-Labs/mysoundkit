@@ -54,6 +54,7 @@ import {
   structuredLoggingMiddleware,
 } from "@/middleware/structured-logging";
 import adminRoutes from "@/routes/admin";
+import adminAudioDiagnosticsRoutes from "@/routes/admin-audio-diagnostics";
 import adminFinanceRoutes from "@/routes/admin-finance";
 import adsRoutes from "@/routes/ads";
 import analyticsRoutes from "@/routes/analytics";
@@ -260,6 +261,7 @@ app
   .route("/v1/communities", communitiesRoutes)
   .route("/v1/community-billing", communityBillingRoutes)
   .route("/v1/admin", adminRoutes)
+  .route("/v1/admin", adminAudioDiagnosticsRoutes)
   .route("/v1/admin/finance", adminFinanceRoutes)
   .route("/v1/ads", adsRoutes)
   .route("/v1/analytics", analyticsRoutes)

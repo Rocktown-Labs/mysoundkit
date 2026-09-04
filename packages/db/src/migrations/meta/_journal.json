@@ -407,6 +407,13 @@
       "when": 1788274403189,
       "tag": "0057_align_annual_premium_price",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1788559064100,
+      "tag": "0058_elite_namor",
+      "breakpoints": true
     }
   ]
 }
