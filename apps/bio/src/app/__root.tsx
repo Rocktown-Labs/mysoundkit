@@ -77,11 +77,11 @@ function RootComponent() {
       <head>
         <HeadContent />
       </head>
-      <body className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary-foreground">
+      <body className="min-h-screen overflow-x-clip bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary-foreground">
         <BioAudioPlayerProvider>
           <div className="flex min-h-screen flex-col pb-24">
             <BioNav />
-            <main className="flex-1">
+            <main className="min-w-0 flex-1">
               <Outlet />
             </main>
           </div>

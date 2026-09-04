@@ -67,6 +67,7 @@ import {
 } from "./lib/schemas";
 import type {
   adminAccessSchema,
+  artistTipsOverviewSchema,
   adminFinanceSummarySchema,
   adminGenreSchema,
   adminPaymentsOverviewSchema,
@@ -1332,6 +1333,9 @@ export const rpcContract = new Hono()
   )
   .post("/v1/payments/checkout", jsonValidator(genericJsonBodySchema), (c) =>
     c.json({} as Record<string, unknown>)
+  )
+  .get("/v1/payments/tips", (c) =>
+    c.json({} as z.infer<typeof artistTipsOverviewSchema>)
   )
   .post("/v1/payments/tips", jsonValidator(genericJsonBodySchema), (c) =>
     c.json({} as Record<string, unknown>)

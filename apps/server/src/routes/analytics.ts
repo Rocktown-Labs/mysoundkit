@@ -1284,17 +1284,48 @@ app.openapi(
                   gte(qualifiedStreams.qualifiedAt, pStarts),
                   sql`${qualifiedStreams.qualifiedAt} < ${pEnds}`
                 )
+              ),
+            [pSales] = await db
+              .select({
+                totalCents: sql<number>`coalesce(sum(round(${orderItems.priceSnapshot} * 100)), 0)::int`,
+              })
+              .from(orders)
+              .innerJoin(orderItems, eq(orderItems.orderId, orders.id))
+              .where(
+                and(
+                  inArray(
+                    orderItems.trackId,
+                    trackIds.length > 0 ? trackIds : ["_none"]
+                  ),
+                  eq(orders.status, "paid"),
+                  gte(orders.createdAt, pStarts),
+                  sql`${orders.createdAt} < ${pEnds}`
+                )
+              ),
+            [pTips] = await db
+              .select({
+                totalCents: sql<number>`coalesce(sum(${tips.artistAmountCents}), 0)::int`,
+              })
+              .from(tips)
+              .innerJoin(transactions, eq(tips.transactionId, transactions.id))
+              .where(
+                and(
+                  eq(tips.artistUserId, user.id),
+                  eq(transactions.status, "succeeded"),
+                  gte(tips.createdAt, pStarts),
+                  sql`${tips.createdAt} < ${pEnds}`
+                )
               );
 
           return {
             creatorRewardsCents: Number(st.grossAmountCents ?? 0),
             monthLabel,
-            musicSalesCents: 0,
+            musicSalesCents: Number(pSales?.totalCents ?? 0),
             periodEndsAt: pEnds.toISOString(),
             periodStartsAt: pStarts.toISOString(),
             plays: Number(pPlays?.count ?? 0),
             qualifiedStreams: Number(pQual?.count ?? 0),
-            tipsCents: 0,
+            tipsCents: Number(pTips?.totalCents ?? 0),
             totalEarningsCents: Number(
               st.payableAmountCents ?? st.grossAmountCents ?? 0
             ),

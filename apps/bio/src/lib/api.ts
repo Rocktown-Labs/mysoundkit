@@ -124,8 +124,92 @@ export interface BioCurrentUser {
   email?: string | null;
   id: string;
   name?: string | null;
+  onboardingCompletedAt?: string | null;
   role?: string | null;
   username: string;
+}
+
+export interface BioAnalyticsOverview {
+  estimatedEarningsCents: number;
+  premiumSupporters: number;
+  totalFollowers: number;
+  totalPlays: number;
+  totalQualifiedStreams: number;
+  uniqueListeners: number;
+}
+
+export interface BioAnalyticsTimeseriesPoint {
+  date: string;
+  label: string;
+  value: number;
+}
+
+export interface BioAnalyticsTimeseries {
+  metric: string;
+  points: BioAnalyticsTimeseriesPoint[];
+  range: string;
+  total: number;
+}
+
+export interface BioAnalyticsSource {
+  count: number;
+  label: string;
+  percentage: number;
+  sourceType: string;
+}
+
+export interface BioAnalyticsSources {
+  sources: BioAnalyticsSource[];
+  total: number;
+}
+
+export interface BioArtistEarnings {
+  availableBalanceCents: number;
+  estimatedThisMonthCents: number;
+  nextEstimatedPayoutDate: string;
+  paidLifetimeCents: number;
+  payoutMinimumCents: number;
+  payoutProgressPercent: number;
+  pendingReserveCents: number;
+  statements: {
+    creatorRewardsCents: number;
+    monthLabel: string;
+    musicSalesCents: number;
+    periodEndsAt: string;
+    periodStartsAt: string;
+    plays: number;
+    qualifiedStreams: number;
+    tipsCents: number;
+    totalEarningsCents: number;
+  }[];
+}
+
+export interface BioTip {
+  amountCents: number;
+  createdAt: string;
+  fanDisplayName: string;
+  id: string;
+  message: string | null;
+}
+
+export interface BioTipsOverview {
+  averageTipCents: number;
+  supporterCount: number;
+  tips: BioTip[];
+  totalTipCount: number;
+  totalTipsCents: number;
+}
+
+export interface BioSellerStatus {
+  chargesEnabled: boolean;
+  detailsSubmitted: boolean;
+  onboardingStatus:
+    | "not_started"
+    | "pending"
+    | "restricted"
+    | "enabled"
+    | "rejected";
+  payoutsEnabled: boolean;
 }
 
 export interface BioProjectDetail extends BioProject {
@@ -905,6 +989,7 @@ export const getCurrentSessionUser =
         email: stringValue(data.email),
         id,
         name: stringValue(data.name),
+        onboardingCompletedAt: stringValue(data.onboardingCompletedAt),
         role: stringValue(data.role),
         username,
       };
@@ -912,6 +997,227 @@ export const getCurrentSessionUser =
       return null;
     }
   };
+
+export class BioApiError extends Error {
+  public status: number;
+
+  public constructor(message: string, status = 0) {
+    super(message);
+    this.name = "BioApiError";
+    this.status = status;
+  }
+}
+
+const nonNegativeInteger = (value: unknown): number =>
+    Math.max(0, Math.round(numberValue(value) ?? 0)),
+  nonNegativeNumber = (value: unknown): number =>
+    Math.max(0, numberValue(value) ?? 0),
+  fetchBioJson = async <T>(
+    path: string,
+    init: RequestInit = {}
+  ): Promise<T> => {
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
+    const token = getBioAuthToken();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(`${API_V1_URL}${path}`, {
+        ...init,
+        credentials: "include",
+        headers,
+      });
+    } catch {
+      throw new BioApiError("SoundKit is unavailable right now.");
+    }
+
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message =
+        isRecord(payload) && typeof payload.message === "string"
+          ? payload.message
+          : `SoundKit request failed (${response.status}).`;
+      throw new BioApiError(message, response.status);
+    }
+
+    return payload as T;
+  },
+  normalizeAnalyticsOverview = (value: unknown): BioAnalyticsOverview => {
+    const data = isRecord(value) ? value : {};
+    return {
+      estimatedEarningsCents: nonNegativeInteger(data.estimatedEarningsCents),
+      premiumSupporters: nonNegativeInteger(data.premiumSupporters),
+      totalFollowers: nonNegativeInteger(data.totalFollowers),
+      totalPlays: nonNegativeInteger(data.totalPlays),
+      totalQualifiedStreams: nonNegativeInteger(data.totalQualifiedStreams),
+      uniqueListeners: nonNegativeInteger(data.uniqueListeners),
+    };
+  },
+  normalizeAnalyticsTimeseries = (value: unknown): BioAnalyticsTimeseries => {
+    const data = isRecord(value) ? value : {},
+      rawPoints = Array.isArray(data.points) ? data.points : [];
+    return {
+      metric: stringValue(data.metric) ?? "plays",
+      points: rawPoints.flatMap((point) => {
+        if (!isRecord(point)) {
+          return [];
+        }
+        const date = stringValue(point.date),
+          label = stringValue(point.label);
+        return date && label
+          ? [{ date, label, value: nonNegativeInteger(point.value) }]
+          : [];
+      }),
+      range: stringValue(data.range) ?? "7d",
+      total: nonNegativeInteger(data.total),
+    };
+  },
+  normalizeAnalyticsSources = (value: unknown): BioAnalyticsSources => {
+    const data = isRecord(value) ? value : {},
+      rawSources = Array.isArray(data.sources) ? data.sources : [];
+    return {
+      sources: rawSources.flatMap((source) => {
+        if (!isRecord(source)) {
+          return [];
+        }
+        const label = stringValue(source.label),
+          sourceType = stringValue(source.sourceType);
+        return label && sourceType
+          ? [
+              {
+                count: nonNegativeInteger(source.count),
+                label,
+                percentage: nonNegativeNumber(source.percentage),
+                sourceType,
+              },
+            ]
+          : [];
+      }),
+      total: nonNegativeInteger(data.total),
+    };
+  },
+  normalizeArtistEarnings = (value: unknown): BioArtistEarnings => {
+    const data = isRecord(value) ? value : {},
+      rawStatements = Array.isArray(data.statements) ? data.statements : [];
+    return {
+      availableBalanceCents: nonNegativeInteger(data.availableBalanceCents),
+      estimatedThisMonthCents: nonNegativeInteger(data.estimatedThisMonthCents),
+      nextEstimatedPayoutDate:
+        stringValue(data.nextEstimatedPayoutDate) ?? "End of month",
+      paidLifetimeCents: nonNegativeInteger(data.paidLifetimeCents),
+      payoutMinimumCents: nonNegativeInteger(data.payoutMinimumCents),
+      payoutProgressPercent: Math.min(
+        100,
+        nonNegativeNumber(data.payoutProgressPercent)
+      ),
+      pendingReserveCents: nonNegativeInteger(data.pendingReserveCents),
+      statements: rawStatements.flatMap((statement) => {
+        if (!isRecord(statement)) {
+          return [];
+        }
+        const monthLabel = stringValue(statement.monthLabel),
+          periodEndsAt = stringValue(statement.periodEndsAt),
+          periodStartsAt = stringValue(statement.periodStartsAt);
+        return monthLabel && periodEndsAt && periodStartsAt
+          ? [
+              {
+                creatorRewardsCents: nonNegativeInteger(
+                  statement.creatorRewardsCents
+                ),
+                monthLabel,
+                musicSalesCents: nonNegativeInteger(statement.musicSalesCents),
+                periodEndsAt,
+                periodStartsAt,
+                plays: nonNegativeInteger(statement.plays),
+                qualifiedStreams: nonNegativeInteger(
+                  statement.qualifiedStreams
+                ),
+                tipsCents: nonNegativeInteger(statement.tipsCents),
+                totalEarningsCents: nonNegativeInteger(
+                  statement.totalEarningsCents
+                ),
+              },
+            ]
+          : [];
+      }),
+    };
+  },
+  normalizeTipsOverview = (value: unknown): BioTipsOverview => {
+    const data = isRecord(value) ? value : {},
+      rawTips = Array.isArray(data.tips) ? data.tips : [];
+    return {
+      averageTipCents: nonNegativeInteger(data.averageTipCents),
+      supporterCount: nonNegativeInteger(data.supporterCount),
+      tips: rawTips.flatMap((tip) => {
+        if (!isRecord(tip)) {
+          return [];
+        }
+        const id = stringValue(tip.id),
+          createdAt = stringValue(tip.createdAt),
+          fanDisplayName = stringValue(tip.fanDisplayName);
+        return id && createdAt && fanDisplayName
+          ? [
+              {
+                amountCents: nonNegativeInteger(tip.amountCents),
+                createdAt,
+                fanDisplayName,
+                id,
+                message: stringValue(tip.message),
+              },
+            ]
+          : [];
+      }),
+      totalTipCount: nonNegativeInteger(data.totalTipCount),
+      totalTipsCents: nonNegativeInteger(data.totalTipsCents),
+    };
+  },
+  normalizeSellerStatus = (value: unknown): BioSellerStatus => {
+    const data = isRecord(value) ? value : {},
+      { onboardingStatus } = data;
+    return {
+      chargesEnabled: data.chargesEnabled === true,
+      detailsSubmitted: data.detailsSubmitted === true,
+      onboardingStatus:
+        onboardingStatus === "pending" ||
+        onboardingStatus === "restricted" ||
+        onboardingStatus === "enabled" ||
+        onboardingStatus === "rejected"
+          ? onboardingStatus
+          : "not_started",
+      payoutsEnabled: data.payoutsEnabled === true,
+    };
+  };
+
+export const loadBioAnalyticsOverview =
+  async (): Promise<BioAnalyticsOverview> =>
+    normalizeAnalyticsOverview(await fetchBioJson("/analytics/overview"));
+
+export const loadBioAnalyticsTimeseries = async (
+  metric: "plays" | "qualified_streams" | "unique_listeners" = "plays",
+  range: "7d" | "28d" | "90d" | "12m" = "7d"
+): Promise<BioAnalyticsTimeseries> =>
+  normalizeAnalyticsTimeseries(
+    await fetchBioJson(
+      `/analytics/timeseries?metric=${encodeURIComponent(metric)}&range=${encodeURIComponent(range)}`
+    )
+  );
+
+export const loadBioAnalyticsSources = async (): Promise<BioAnalyticsSources> =>
+  normalizeAnalyticsSources(await fetchBioJson("/analytics/sources"));
+
+export const loadBioArtistEarnings = async (): Promise<BioArtistEarnings> =>
+  normalizeArtistEarnings(await fetchBioJson("/analytics/earnings"));
+
+export const loadBioTips = async (limit = 20): Promise<BioTipsOverview> =>
+  normalizeTipsOverview(
+    await fetchBioJson(`/payments/tips?limit=${encodeURIComponent(limit)}`)
+  );
+
+export const loadBioSellerStatus = async (): Promise<BioSellerStatus> =>
+  normalizeSellerStatus(await fetchBioJson("/seller/status"));
 
 export const loadBioProject = async (
   idOrSlug: string
