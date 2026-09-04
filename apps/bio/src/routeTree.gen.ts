@@ -14,9 +14,12 @@ import { Route as IndexRouteImport } from './app/index'
 import { Route as SignupIndexRouteImport } from './app/signup/index'
 import { Route as LibraryIndexRouteImport } from './app/library/index'
 import { Route as DashboardIndexRouteImport } from './app/dashboard/index'
+import { Route as VideosIdRouteImport } from './app/videos/$id'
 import { Route as TracksIdRouteImport } from './app/tracks/$id'
 import { Route as SignupFanRouteImport } from './app/signup/fan'
 import { Route as SignupArtistRouteImport } from './app/signup/artist'
+import { Route as ProjectsIdRouteImport } from './app/projects/$id'
+import { Route as LiveIdRouteImport } from './app/live/$id'
 import { Route as DashboardPaymentsRouteImport } from './app/dashboard/payments'
 import { Route as DashboardAnalyticsRouteImport } from './app/dashboard/analytics'
 
@@ -45,6 +48,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   path: '/dashboard/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VideosIdRoute = VideosIdRouteImport.update({
+  id: '/videos/$id',
+  path: '/videos/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TracksIdRoute = TracksIdRouteImport.update({
   id: '/tracks/$id',
   path: '/tracks/$id',
@@ -58,6 +66,16 @@ const SignupFanRoute = SignupFanRouteImport.update({
 const SignupArtistRoute = SignupArtistRouteImport.update({
   id: '/signup/artist',
   path: '/signup/artist',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectsIdRoute = ProjectsIdRouteImport.update({
+  id: '/projects/$id',
+  path: '/projects/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveIdRoute = LiveIdRouteImport.update({
+  id: '/live/$id',
+  path: '/live/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardPaymentsRoute = DashboardPaymentsRouteImport.update({
@@ -76,9 +94,12 @@ export interface FileRoutesByFullPath {
   '/$username': typeof UsernameRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/payments': typeof DashboardPaymentsRoute
+  '/live/$id': typeof LiveIdRoute
+  '/projects/$id': typeof ProjectsIdRoute
   '/signup/artist': typeof SignupArtistRoute
   '/signup/fan': typeof SignupFanRoute
   '/tracks/$id': typeof TracksIdRoute
+  '/videos/$id': typeof VideosIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/library/': typeof LibraryIndexRoute
   '/signup/': typeof SignupIndexRoute
@@ -88,9 +109,12 @@ export interface FileRoutesByTo {
   '/$username': typeof UsernameRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/payments': typeof DashboardPaymentsRoute
+  '/live/$id': typeof LiveIdRoute
+  '/projects/$id': typeof ProjectsIdRoute
   '/signup/artist': typeof SignupArtistRoute
   '/signup/fan': typeof SignupFanRoute
   '/tracks/$id': typeof TracksIdRoute
+  '/videos/$id': typeof VideosIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/library': typeof LibraryIndexRoute
   '/signup': typeof SignupIndexRoute
@@ -101,9 +125,12 @@ export interface FileRoutesById {
   '/$username': typeof UsernameRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/payments': typeof DashboardPaymentsRoute
+  '/live/$id': typeof LiveIdRoute
+  '/projects/$id': typeof ProjectsIdRoute
   '/signup/artist': typeof SignupArtistRoute
   '/signup/fan': typeof SignupFanRoute
   '/tracks/$id': typeof TracksIdRoute
+  '/videos/$id': typeof VideosIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/library/': typeof LibraryIndexRoute
   '/signup/': typeof SignupIndexRoute
@@ -115,9 +142,12 @@ export interface FileRouteTypes {
     | '/$username'
     | '/dashboard/analytics'
     | '/dashboard/payments'
+    | '/live/$id'
+    | '/projects/$id'
     | '/signup/artist'
     | '/signup/fan'
     | '/tracks/$id'
+    | '/videos/$id'
     | '/dashboard/'
     | '/library/'
     | '/signup/'
@@ -127,9 +157,12 @@ export interface FileRouteTypes {
     | '/$username'
     | '/dashboard/analytics'
     | '/dashboard/payments'
+    | '/live/$id'
+    | '/projects/$id'
     | '/signup/artist'
     | '/signup/fan'
     | '/tracks/$id'
+    | '/videos/$id'
     | '/dashboard'
     | '/library'
     | '/signup'
@@ -139,9 +172,12 @@ export interface FileRouteTypes {
     | '/$username'
     | '/dashboard/analytics'
     | '/dashboard/payments'
+    | '/live/$id'
+    | '/projects/$id'
     | '/signup/artist'
     | '/signup/fan'
     | '/tracks/$id'
+    | '/videos/$id'
     | '/dashboard/'
     | '/library/'
     | '/signup/'
@@ -152,9 +188,12 @@ export interface RootRouteChildren {
   UsernameRoute: typeof UsernameRoute
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
   DashboardPaymentsRoute: typeof DashboardPaymentsRoute
+  LiveIdRoute: typeof LiveIdRoute
+  ProjectsIdRoute: typeof ProjectsIdRoute
   SignupArtistRoute: typeof SignupArtistRoute
   SignupFanRoute: typeof SignupFanRoute
   TracksIdRoute: typeof TracksIdRoute
+  VideosIdRoute: typeof VideosIdRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   LibraryIndexRoute: typeof LibraryIndexRoute
   SignupIndexRoute: typeof SignupIndexRoute
@@ -197,6 +236,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/videos/$id': {
+      id: '/videos/$id'
+      path: '/videos/$id'
+      fullPath: '/videos/$id'
+      preLoaderRoute: typeof VideosIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tracks/$id': {
       id: '/tracks/$id'
       path: '/tracks/$id'
@@ -216,6 +262,20 @@ declare module '@tanstack/react-router' {
       path: '/signup/artist'
       fullPath: '/signup/artist'
       preLoaderRoute: typeof SignupArtistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projects/$id': {
+      id: '/projects/$id'
+      path: '/projects/$id'
+      fullPath: '/projects/$id'
+      preLoaderRoute: typeof ProjectsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live/$id': {
+      id: '/live/$id'
+      path: '/live/$id'
+      fullPath: '/live/$id'
+      preLoaderRoute: typeof LiveIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard/payments': {
@@ -240,9 +300,12 @@ const rootRouteChildren: RootRouteChildren = {
   UsernameRoute: UsernameRoute,
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
   DashboardPaymentsRoute: DashboardPaymentsRoute,
+  LiveIdRoute: LiveIdRoute,
+  ProjectsIdRoute: ProjectsIdRoute,
   SignupArtistRoute: SignupArtistRoute,
   SignupFanRoute: SignupFanRoute,
   TracksIdRoute: TracksIdRoute,
+  VideosIdRoute: VideosIdRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   LibraryIndexRoute: LibraryIndexRoute,
   SignupIndexRoute: SignupIndexRoute,

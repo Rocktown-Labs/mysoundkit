@@ -2872,6 +2872,11 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (url.pathname === "/v1/live/experiences/public") {
+      json(response, 200, [], webOrigin);
+      return;
+    }
+
     if (url.pathname === "/v1/live/experiences/me") {
       const user = mockUser(session);
 

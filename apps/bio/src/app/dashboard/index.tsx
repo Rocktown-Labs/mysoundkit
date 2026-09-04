@@ -1,7 +1,7 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo, react/hook-use-state */
 "use client";
 
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   BarChart3,
@@ -11,22 +11,54 @@ import {
   HandCoins,
   Sparkles,
 } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
-import { buildSoundKitWebUrl, SOUNDKIT_BIO_URL } from "@/lib/api";
+import {
+  buildSoundKitWebUrl,
+  getCurrentSessionUser,
+  SOUNDKIT_BIO_URL,
+} from "@/lib/api";
 
 export const Route = createFileRoute("/dashboard/")({
   component: BioArtistDashboard,
 });
 
 function BioArtistDashboard() {
-  const [username] = useState(() => {
+  const [username, setUsername] = useState(() => {
     if (typeof window !== "undefined") {
       return sessionStorage.getItem("soundkit_bio_artist_username") || "artist";
     }
     return "artist";
   });
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchUser = async () => {
+      try {
+        const user = await getCurrentSessionUser();
+        if (!cancelled && user) {
+          if (user.username) {
+            setUsername(user.username);
+            sessionStorage.setItem(
+              "soundkit_bio_artist_username",
+              user.username
+            );
+          }
+          if (user.displayName) {
+            setDisplayName(user.displayName);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+    void fetchUser();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const bioUrl = `${SOUNDKIT_BIO_URL}/${encodeURIComponent(username)}`,
     copyBioLink = () => {
@@ -47,7 +79,9 @@ function BioArtistDashboard() {
             Artist Bio Hub
           </span>
           <h1 className="mt-2 font-playfair text-3xl sm:text-4xl font-medium text-foreground">
-            Welcome to your Bio Dashboard
+            {displayName
+              ? `Welcome back, ${displayName}`
+              : "Welcome to your Bio Dashboard"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Manage your link in bio, check tips, and monitor page performance.
@@ -55,13 +89,14 @@ function BioArtistDashboard() {
         </div>
 
         <div className="flex items-center gap-2">
-          <a
+          <Link
             className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-4 py-2 text-xs font-semibold text-foreground hover:bg-card hover:border-primary/40 transition-all shadow-sm"
-            href={bioUrl}
+            params={{ username }}
+            to="/$username"
           >
             <span>View Public Bio</span>
             <ExternalLink className="size-3.5" />
-          </a>
+          </Link>
         </div>
       </div>
 
@@ -138,13 +173,13 @@ function BioArtistDashboard() {
               <BarChart3 className="size-5 text-primary" />
               <span>Bio Analytics</span>
             </div>
-            <a
+            <Link
               className="text-xs font-bold text-primary hover:underline inline-flex items-center gap-1"
-              href="/dashboard/analytics"
+              to="/dashboard/analytics"
             >
               <span>View Details</span>
               <ChevronRight className="size-3.5" />
-            </a>
+            </Link>
           </div>
 
           <p className="text-xs text-muted-foreground">
@@ -174,13 +209,13 @@ function BioArtistDashboard() {
               <HandCoins className="size-5 text-primary" />
               <span>Bio Tips & Payouts</span>
             </div>
-            <a
+            <Link
               className="text-xs font-bold text-primary hover:underline inline-flex items-center gap-1"
-              href="/dashboard/payments"
+              to="/dashboard/payments"
             >
               <span>View Details</span>
               <ChevronRight className="size-3.5" />
-            </a>
+            </Link>
           </div>
 
           <p className="text-xs text-muted-foreground">

@@ -6,7 +6,7 @@ import {
   EmbeddedCheckoutProvider,
 } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   Check,
@@ -31,7 +31,7 @@ import {
   Twitter,
   Youtube,
 } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { useBioAudioPlayer } from "@/components/bio-audio-player";
@@ -121,13 +121,14 @@ export const Route = createFileRoute("/$username")({
 type TabType = "feed" | "tracks" | "projects" | "videos" | "credits" | "live";
 
 function BioProfilePage() {
-  const profile = Route.useLoaderData() as unknown as BioProfile | null;
+  const profile = Route.useLoaderData() as BioProfile | null;
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isTipOpen, setIsTipOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("feed");
+  const authPopupRef = useRef<Window | null>(null);
 
   const { currentTrack, isPlaying, playTrack, togglePlay } =
     useBioAudioPlayer();
@@ -146,6 +147,7 @@ function BioProfilePage() {
       return;
     }
 
+    authPopupRef.current = popup;
     setAuthMessage("Sign in via the SoundKit window to continue.");
   };
 
@@ -190,7 +192,11 @@ function BioProfilePage() {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent<unknown>) => {
-      if (event.origin !== SOUNDKIT_WEB_ORIGIN || !isRecord(event.data)) {
+      if (
+        event.origin !== SOUNDKIT_WEB_ORIGIN ||
+        event.source !== authPopupRef.current ||
+        !isRecord(event.data)
+      ) {
         return;
       }
 
@@ -779,15 +785,14 @@ function BioProfilePage() {
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
               {artist.name} is streaming live right now on SoundKit.
             </p>
-            <a
+            <Link
               className="inline-flex items-center gap-2 rounded-full bg-red-500 px-6 py-3 font-bold text-sm text-white shadow-lg shadow-red-500/25 hover:bg-red-600 transition-all"
-              href={`${SOUNDKIT_WEB_URL}/live/${profile.live.id}`}
-              rel="noopener noreferrer"
-              target="_blank"
+              params={{ id: profile.live.id }}
+              to="/live/$id"
             >
               <span>Watch Live Stream</span>
-              <ExternalLink className="size-4" />
-            </a>
+              <Radio className="size-4" />
+            </Link>
           </div>
         )}
       </div>
@@ -856,13 +861,14 @@ function BioTrackCard({
 
       {/* Info */}
       <div className="mt-2 min-w-0 flex-1 space-y-0.5">
-        <a
+        <Link
           className="block truncate font-semibold text-xs sm:text-sm text-foreground hover:text-primary transition-colors"
-          href={`/tracks/${encodeURIComponent(track.id)}`}
+          params={{ id: track.id }}
           title={track.title}
+          to="/tracks/$id"
         >
           {track.title}
-        </a>
+        </Link>
         <p className="truncate text-[11px] text-muted-foreground">
           {track.artistName}
         </p>
@@ -878,7 +884,11 @@ function BioTrackCard({
 
 function BioProjectCard({ project }: { project: BioProject }) {
   return (
-    <div className="group w-[calc((100%-0.75rem)/2)] max-w-[260px] md:w-[calc((100%-1.5rem)/3)] lg:w-[calc((100%-2.25rem)/4)] flex flex-col min-w-0">
+    <Link
+      className="group w-[calc((100%-0.75rem)/2)] max-w-[260px] md:w-[calc((100%-1.5rem)/3)] lg:w-[calc((100%-2.25rem)/4)] flex flex-col min-w-0"
+      params={{ id: project.id }}
+      to="/projects/$id"
+    >
       <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-muted/60 border border-border/30">
         {project.coverArtUrl ? (
           <img
@@ -903,13 +913,17 @@ function BioProjectCard({ project }: { project: BioProject }) {
           {project.trackCount} {project.trackCount === 1 ? "track" : "tracks"}
         </p>
       </div>
-    </div>
+    </Link>
   );
 }
 
 function BioVideoCard({ video }: { video: BioVideo }) {
   return (
-    <div className="group w-full md:w-[calc((100%-1rem)/2)] flex flex-col min-w-0">
+    <Link
+      className="group w-full md:w-[calc((100%-1rem)/2)] flex flex-col min-w-0"
+      params={{ id: video.id }}
+      to="/videos/$id"
+    >
       <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted/60 border border-border/30">
         {video.thumbnailUrl ? (
           <img
@@ -938,7 +952,7 @@ function BioVideoCard({ video }: { video: BioVideo }) {
           </p>
         ) : null}
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -1225,13 +1239,13 @@ function ProfileNotFound() {
           username is incorrect.
         </p>
       </div>
-      <a
+      <Link
         className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-md hover:opacity-90 transition-opacity"
-        href="/"
+        to="/"
       >
         <span>Discover Artists on SoundKit.bio</span>
         <ArrowRight className="size-3.5" />
-      </a>
+      </Link>
     </div>
   );
 }

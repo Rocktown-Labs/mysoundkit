@@ -181,6 +181,8 @@ app.get("/experiences/public", async (c) => {
       .select({
         creatorAvatar: userProfiles.avatarUrl,
         creatorName: userProfiles.displayName,
+        creatorUserId: liveExperiences.createdByUserId,
+        creatorUsername: userProfiles.username,
         endsAt: liveExperiences.endsAt,
         genre: liveExperiences.genre,
         id: liveExperiences.id,
@@ -2665,7 +2667,8 @@ app.get("/experiences/:experienceId", async (c) => {
       streamBaseUrl && canPlayStream ? `${streamBaseUrl}/iframe` : null;
 
   let creatorAvatar: string | null = null,
-    creatorName: string | null = null;
+    creatorName: string | null = null,
+    creatorUsername: string | null = null;
 
   if (isDatabaseConfigured()) {
     const db = createDb(),
@@ -2684,6 +2687,7 @@ app.get("/experiences/:experienceId", async (c) => {
       creatorProfile?.username ??
       "SoundKit Creator";
     creatorAvatar = creatorProfile?.avatarUrl ?? null;
+    creatorUsername = creatorProfile?.username ?? null;
   }
 
   return c.json(
@@ -2691,6 +2695,7 @@ app.get("/experiences/:experienceId", async (c) => {
       creatorAvatar,
       creatorName,
       creatorUserId: experience.createdByUserId,
+      creatorUsername,
       genre: experience.genre ?? null,
       id: experience.id,
       ingestErrorCode: experience.ingestErrorCode,

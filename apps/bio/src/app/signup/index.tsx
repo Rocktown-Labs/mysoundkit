@@ -1,7 +1,7 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo */
 "use client";
 
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Headphones, Mic2, Sparkles } from "lucide-react";
 import React from "react";
 
@@ -27,9 +27,9 @@ function SignupSelectionPage() {
 
       <div className="mt-8 grid w-full grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Fan Choice */}
-        <a
+        <Link
           className="group flex flex-col items-center rounded-3xl border border-border/50 bg-card/40 p-6 text-center backdrop-blur-xl hover:border-primary/50 hover:bg-card/70 transition-all shadow-lg"
-          href="/signup/fan"
+          to="/signup/fan"
         >
           <div className="flex size-14 items-center justify-center rounded-2xl bg-white/5 text-foreground group-hover:bg-primary/20 group-hover:text-primary transition-colors">
             <Headphones className="size-7" />
@@ -45,12 +45,12 @@ function SignupSelectionPage() {
             <span>Continue as Fan</span>
             <ArrowRight className="size-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
-        </a>
+        </Link>
 
         {/* Artist Choice */}
-        <a
+        <Link
           className="group flex flex-col items-center rounded-3xl border border-primary/40 bg-primary/5 p-6 text-center backdrop-blur-xl hover:border-primary hover:bg-primary/10 transition-all shadow-lg ring-1 ring-primary/20"
-          href="/signup/artist"
+          to="/signup/artist"
         >
           <div className="flex size-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md shadow-primary/25">
             <Mic2 className="size-7" />
@@ -69,7 +69,7 @@ function SignupSelectionPage() {
             <span>Claim Artist Bio</span>
             <ArrowRight className="size-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
-        </a>
+        </Link>
       </div>
     </div>
   );

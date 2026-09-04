@@ -1,7 +1,7 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo */
 "use client";
 
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Check,
@@ -63,7 +63,7 @@ export const Route = createFileRoute("/tracks/$id")({
 });
 
 function BioTrackDetailPage() {
-  const track = Route.useLoaderData() as unknown as BioTrack | null,
+  const track = Route.useLoaderData() as BioTrack | null,
     [copiedLink, setCopiedLink] = useState(false),
     { currentTrack, isPlaying, playTrack, togglePlay } = useBioAudioPlayer();
 
@@ -89,26 +89,30 @@ function BioTrackDetailPage() {
     soundKitTrackUrl = buildSoundKitWebUrl(
       `/tracks/${encodeURIComponent(track.id)}`,
       track.artistUsername ?? undefined
-    ),
-    artistBioUrl = track.artistUsername
-      ? `/${encodeURIComponent(track.artistUsername)}`
-      : "/";
+    );
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 sm:py-10 space-y-8">
       {/* Back to Artist link */}
       <div>
-        <a
-          className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors group"
-          href={artistBioUrl}
-        >
-          <ArrowLeft className="size-4 group-hover:-translate-x-1 transition-transform" />
-          <span>
-            {track.artistUsername
-              ? `Back to @${track.artistUsername}`
-              : "Back to Artist"}
-          </span>
-        </a>
+        {track.artistUsername ? (
+          <Link
+            className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors group"
+            params={{ username: track.artistUsername }}
+            to="/$username"
+          >
+            <ArrowLeft className="size-4 group-hover:-translate-x-1 transition-transform" />
+            <span>Back to @{track.artistUsername}</span>
+          </Link>
+        ) : (
+          <Link
+            className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors group"
+            to="/"
+          >
+            <ArrowLeft className="size-4 group-hover:-translate-x-1 transition-transform" />
+            <span>Back to Artists</span>
+          </Link>
+        )}
       </div>
 
       {/* Main Track Presentation Card */}
@@ -181,12 +185,19 @@ function BioTrackDetailPage() {
               </h1>
 
               <div className="mt-2">
-                <a
-                  className="font-semibold text-base sm:text-lg text-primary hover:underline"
-                  href={artistBioUrl}
-                >
-                  {track.artistName}
-                </a>
+                {track.artistUsername ? (
+                  <Link
+                    className="font-semibold text-base sm:text-lg text-primary hover:underline"
+                    params={{ username: track.artistUsername }}
+                    to="/$username"
+                  >
+                    {track.artistName}
+                  </Link>
+                ) : (
+                  <span className="font-semibold text-base sm:text-lg text-primary">
+                    {track.artistName}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -381,12 +392,12 @@ function TrackNotFound() {
           The requested track could not be loaded or is no longer available.
         </p>
       </div>
-      <a
+      <Link
         className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-md hover:opacity-90 transition-opacity"
-        href="/"
+        to="/"
       >
         <span>Discover Artists & Music</span>
-      </a>
+      </Link>
     </div>
   );
 }

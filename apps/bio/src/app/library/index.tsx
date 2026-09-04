@@ -1,7 +1,7 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo */
 "use client";
 
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, ExternalLink, Music } from "lucide-react";
 import React from "react";
 
@@ -58,10 +58,10 @@ function BioFanLibraryPage() {
         </div>
 
         {queue.length > 0 ? (
-          <div className="divide-y divide-border/40">
+          <div className="space-y-2">
             {queue.map((track) => (
               <div
-                className="flex items-center justify-between py-3 hover:bg-white/5 px-2 rounded-xl transition-colors"
+                className="flex items-center justify-between rounded-2xl border border-border/40 bg-white/5 p-3 hover:bg-white/10 transition-colors"
                 key={track.id}
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -77,12 +77,13 @@ function BioFanLibraryPage() {
                     )}
                   </div>
                   <div className="min-w-0">
-                    <a
+                    <Link
                       className="font-medium text-sm text-foreground hover:text-primary transition-colors block truncate"
-                      href={`/tracks/${encodeURIComponent(track.id)}`}
+                      params={{ id: track.id }}
+                      to="/tracks/$id"
                     >
                       {track.title}
-                    </a>
+                    </Link>
                     <p className="text-xs text-muted-foreground truncate">
                       {track.artistName}
                     </p>
@@ -100,13 +101,13 @@ function BioFanLibraryPage() {
             <p className="text-xs text-muted-foreground">
               You haven&apos;t played any tracks in this session yet.
             </p>
-            <a
+            <Link
               className="inline-flex items-center gap-2 text-xs font-bold text-primary hover:underline"
-              href="/"
+              to="/"
             >
               <span>Explore music by region</span>
               <ArrowRight className="size-3.5" />
-            </a>
+            </Link>
           </div>
         )}
       </div>
