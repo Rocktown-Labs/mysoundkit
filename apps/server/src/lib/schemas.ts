@@ -1739,13 +1739,26 @@ export const analyticsLocationItemSchema = z.object({
   hasEnoughData: z.boolean(),
   listeners: z.number().int(),
   percentage: z.number(),
+  plays: z.number().int().optional(),
   regionCode: z.string().nullable(),
+  regionName: z.string().nullable().optional(),
+});
+
+export const analyticsRegionBreakdownItemSchema = z.object({
+  countryCode: z.string().nullable(),
+  listeners: z.number().int(),
+  percentage: z.number(),
+  plays: z.number().int(),
+  regionCode: z.string(),
+  regionName: z.string(),
 });
 
 export const analyticsLocationsSchema = z.object({
   hasEnoughData: z.boolean(),
   locations: analyticsLocationItemSchema.array(),
+  regions: analyticsRegionBreakdownItemSchema.array().optional(),
   totalListeners: z.number().int(),
+  totalPlays: z.number().int().optional(),
 });
 
 export const analyticsLiveImpactSchema = z.object({

@@ -172,6 +172,34 @@ export interface BioAnalyticsSources {
   total: number;
 }
 
+export interface BioAnalyticsLocationItem {
+  city: string | null;
+  countryCode: string | null;
+  hasEnoughData: boolean;
+  listeners: number;
+  percentage: number;
+  plays?: number;
+  regionCode: string | null;
+  regionName?: string | null;
+}
+
+export interface BioAnalyticsRegionItem {
+  countryCode: string | null;
+  listeners: number;
+  percentage: number;
+  plays: number;
+  regionCode: string;
+  regionName: string;
+}
+
+export interface BioAnalyticsLocations {
+  hasEnoughData: boolean;
+  locations: BioAnalyticsLocationItem[];
+  regions: BioAnalyticsRegionItem[];
+  totalListeners: number;
+  totalPlays: number;
+}
+
 export interface BioArtistEarnings {
   availableBalanceCents: number;
   estimatedThisMonthCents: number;
@@ -1231,6 +1259,53 @@ const nonNegativeInteger = (value: unknown): number =>
       total: nonNegativeInteger(data.total),
     };
   },
+  normalizeAnalyticsLocations = (value: unknown): BioAnalyticsLocations => {
+    const data = isRecord(value) ? value : {},
+      rawLocations = Array.isArray(data.locations) ? data.locations : [],
+      rawRegions = Array.isArray(data.regions) ? data.regions : [];
+    return {
+      hasEnoughData: Boolean(data.hasEnoughData) || rawRegions.length > 0,
+      locations: rawLocations.flatMap((location) => {
+        if (!isRecord(location)) {
+          return [];
+        }
+        return [
+          {
+            city: stringValue(location.city),
+            countryCode: stringValue(location.countryCode),
+            hasEnoughData: Boolean(location.hasEnoughData),
+            listeners: nonNegativeInteger(location.listeners),
+            percentage: nonNegativeNumber(location.percentage),
+            plays: nonNegativeInteger(location.plays),
+            regionCode: stringValue(location.regionCode),
+            regionName: stringValue(location.regionName),
+          },
+        ];
+      }),
+      regions: rawRegions.flatMap((region) => {
+        if (!isRecord(region)) {
+          return [];
+        }
+        const regionCode = stringValue(region.regionCode) ?? "other",
+          regionName =
+            stringValue(region.regionName) ??
+            stringValue(region.regionCode) ??
+            "Unknown";
+        return [
+          {
+            countryCode: stringValue(region.countryCode),
+            listeners: nonNegativeInteger(region.listeners),
+            percentage: nonNegativeNumber(region.percentage),
+            plays: nonNegativeInteger(region.plays),
+            regionCode,
+            regionName,
+          },
+        ];
+      }),
+      totalListeners: nonNegativeInteger(data.totalListeners),
+      totalPlays: nonNegativeInteger(data.totalPlays),
+    };
+  },
   normalizeArtistEarnings = (value: unknown): BioArtistEarnings => {
     const data = isRecord(value) ? value : {},
       rawStatements = Array.isArray(data.statements) ? data.statements : [];
@@ -1341,6 +1416,12 @@ export const loadBioAnalyticsTimeseries = async (
 
 export const loadBioAnalyticsSources = async (): Promise<BioAnalyticsSources> =>
   normalizeAnalyticsSources(await fetchBioJson("/analytics/sources?scope=bio"));
+
+export const loadBioAnalyticsLocations =
+  async (): Promise<BioAnalyticsLocations> =>
+    normalizeAnalyticsLocations(
+      await fetchBioJson("/analytics/locations?scope=bio")
+    );
 
 export const loadBioRecentTracks = async (): Promise<BioRecentTrack[]> =>
   normalizeBioRecentTracks(await fetchBioJson("/library/recent"));

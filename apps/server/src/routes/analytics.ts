@@ -37,6 +37,7 @@ import {
   dateBucketSql,
   getOpenAccountingPeriod,
   playConditionSql,
+  resolveRegionName,
 } from "@/lib/analytics-helpers";
 import { publicAssetUrl } from "@/lib/asset-urls";
 import {
@@ -425,7 +426,7 @@ app.openapi(
         dateMap.set(key, 0);
       }
     } else {
-      const numDays = range === "7d" ? 7 : range === "28d" ? 28 : 90;
+      const numDays = range === "7d" ? 7 : (range === "28d" ? 28 : 90);
       for (let i = numDays - 1; i >= 0; i -= 1) {
         const d = new Date(now);
         d.setUTCDate(d.getUTCDate() - i);
@@ -935,6 +936,7 @@ app.openapi(
   createRoute({
     method: "get",
     path: "/locations",
+    request: { query: analyticsScopeQuerySchema },
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
         analyticsLocationsSchema,
@@ -944,46 +946,71 @@ app.openapi(
     tags: ["Analytics"],
   }),
   async (c) => {
-    const user = c.get("user");
+    const user = c.get("user"),
+      { scope } = c.req.valid("query");
     if (!isDatabaseConfigured() || !isAuthenticatedUser(user)) {
       return c.json(
-        { hasEnoughData: false, locations: [], totalListeners: 0 },
+        {
+          hasEnoughData: false,
+          locations: [],
+          regions: [],
+          totalListeners: 0,
+          totalPlays: 0,
+        },
         HttpStatusCodes.OK
       );
     }
 
     const db = createDb(),
-      session = c.get("session"),
-      organizationId = await resolveActiveOrganizationId({
-        session: isAuthenticatedSession(session) ? session : null,
-        user,
-      }),
-      { trackIds } = await getArtistTrackIds({
-        db,
-        organizationId,
-        userId: user.id,
-      });
+     session = c.get("session"),
+     organizationId = await resolveActiveOrganizationId({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    }),
+     { trackIds } = await getArtistTrackIds({
+      db,
+      organizationId,
+      userId: user.id,
+    }),
+     bioUsername =
+      scope === "bio"
+        ? await getArtistBioUsername({ db, userId: user.id })
+        : null,
+     playbackSourceCondition = bioPlaybackCondition(scope, bioUsername);
 
     if (trackIds.length === 0) {
       return c.json(
-        { hasEnoughData: false, locations: [], totalListeners: 0 },
+        {
+          hasEnoughData: false,
+          locations: [],
+          regions: [],
+          totalListeners: 0,
+          totalPlays: 0,
+        },
         HttpStatusCodes.OK
       );
     }
 
-    const rows = await db
+    const hasTrackCondition = inArray(playbackSessions.trackId, trackIds),
+     hasCountryCondition = isNotNull(playbackSessions.countryCode),
+     hasRegionCondition = isNotNull(playbackSessions.regionCode),
+
+     [rows, regionRows] = await Promise.all([
+      db
         .select({
           city: playbackSessions.city,
           countryCode: playbackSessions.countryCode,
-          listeners: countDistinct(playbackSessions.userId),
+          listeners: sql<number>`count(distinct coalesce(${playbackSessions.userId}, ${playbackSessions.sessionTokenHash}))::int`,
+          plays: count(),
           regionCode: playbackSessions.regionCode,
         })
         .from(playbackSessions)
         .where(
           and(
-            inArray(playbackSessions.trackId, trackIds),
-            isNotNull(playbackSessions.countryCode),
-            playConditionSql
+            hasTrackCondition,
+            hasCountryCondition,
+            playConditionSql,
+            playbackSourceCondition
           )
         )
         .groupBy(
@@ -991,61 +1018,77 @@ app.openapi(
           playbackSessions.regionCode,
           playbackSessions.city
         ),
-      MIN_LOCATION_LISTENERS = 3,
-      totalListeners = rows.reduce((acc, r) => acc + Number(r.listeners), 0);
+      db
+        .select({
+          countryCode: playbackSessions.countryCode,
+          listeners: sql<number>`count(distinct coalesce(${playbackSessions.userId}, ${playbackSessions.sessionTokenHash}))::int`,
+          plays: count(),
+          regionCode: playbackSessions.regionCode,
+        })
+        .from(playbackSessions)
+        .where(
+          and(
+            hasTrackCondition,
+            hasCountryCondition,
+            hasRegionCondition,
+            playConditionSql,
+            playbackSourceCondition
+          )
+        )
+        .groupBy(playbackSessions.countryCode, playbackSessions.regionCode),
+    ]),
 
-    if (totalListeners < MIN_LOCATION_LISTENERS) {
-      return c.json(
-        {
-          hasEnoughData: false,
-          locations: [],
-          totalListeners,
-        },
-        HttpStatusCodes.OK
-      );
-    }
+     totalPlays = rows.reduce((acc, r) => acc + Number(r.plays), 0),
+     totalListeners = rows.reduce(
+      (acc, r) => acc + Number(r.listeners),
+      0
+    ),
 
-    let otherCount = 0;
-    const safeLocations = [];
+     regions = regionRows
+      .map((r) => {
+        const plays = Number(r.plays),
+         listeners = Number(r.listeners),
+         regionCode = r.regionCode ?? "other",
+         countryCode = r.countryCode ?? "US",
+         regionName =
+          resolveRegionName(countryCode, regionCode) ?? regionCode;
 
-    for (const r of rows) {
-      const countNum = Number(r.listeners);
-      if (countNum >= MIN_LOCATION_LISTENERS) {
-        safeLocations.push({
-          city: r.city,
-          countryCode: r.countryCode,
-          hasEnoughData: true,
-          listeners: countNum,
+        return {
+          countryCode,
+          listeners,
           percentage:
-            totalListeners > 0
-              ? Math.round((countNum / totalListeners) * 100)
-              : 0,
-          regionCode: r.regionCode,
-        });
-      } else {
-        otherCount += countNum;
-      }
-    }
+            totalPlays > 0 ? Math.round((plays / totalPlays) * 100) : 0,
+          plays,
+          regionCode,
+          regionName,
+        };
+      })
+      .toSorted((a, b) => b.plays - a.plays),
 
-    if (otherCount > 0) {
-      safeLocations.push({
-        city: "Other Regions",
-        countryCode: null,
+     safeLocations = rows.map((r) => {
+      const plays = Number(r.plays),
+       listeners = Number(r.listeners),
+       regionName = resolveRegionName(r.countryCode, r.regionCode);
+
+      return {
+        city: r.city,
+        countryCode: r.countryCode,
         hasEnoughData: true,
-        listeners: otherCount,
-        percentage:
-          totalListeners > 0
-            ? Math.round((otherCount / totalListeners) * 100)
-            : 0,
-        regionCode: null,
-      });
-    }
+        listeners,
+        percentage: totalPlays > 0 ? Math.round((plays / totalPlays) * 100) : 0,
+        plays,
+        regionCode: r.regionCode,
+        regionName,
+      };
+    });
 
     return c.json(
       {
-        hasEnoughData: safeLocations.length > 0,
+        hasEnoughData: safeLocations.length > 0 || regions.length > 0,
         locations: safeLocations,
+        regions,
         totalListeners,
+        totalPlays,
       },
       HttpStatusCodes.OK
     );
