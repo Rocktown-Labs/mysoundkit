@@ -1231,50 +1231,38 @@ function OverviewPanel() {
   const { data, error, isLoading } = useAdminOverviewQuery(),
     backfillDurations = useBackfillTrackDurationsMutation(),
     [backfillRunId, setBackfillRunId] = useState<string | null>(null),
-    [backfillActive, setBackfillActive] = useState(false),
     completionHandledRef = useRef(false),
-    backfillStatus = useTrackDurationBackfillStatusQuery(backfillRunId);
+    runStartedRef = useRef(false),
+    backfillStatus = useTrackDurationBackfillStatusQuery(backfillRunId),
+    backfillSnapshot = backfillStatus.data,
+    // Derive run state during render instead of syncing query data back
+    // into state from effects (React Compiler set-state-in-effect).
+    backfillInFlight =
+      (backfillSnapshot?.queued ?? 0) + (backfillSnapshot?.processing ?? 0) > 0,
+    displayRunId = backfillRunId ?? backfillSnapshot?.runId ?? null;
 
   useEffect(() => {
-    const status = backfillStatus.data;
-    if (!status) {
-      return;
-    }
-
-    if (status.runId && status.runId !== backfillRunId) {
-      setBackfillRunId(status.runId);
-    }
-
-    const inFlight = status.processing + status.queued;
-    if (inFlight > 0 && !backfillActive) {
-      completionHandledRef.current = false;
-      setBackfillActive(true);
-    }
-  }, [backfillActive, backfillRunId, backfillStatus.data]);
-
-  useEffect(() => {
+    // Completion toast only: refs and the toast external system are
+    // effect-safe — no setState here. The started-ref gates this to runs
+    // the admin actually kicked off, so stale latest-run data on mount
+    // never toasts.
     if (
-      !backfillActive ||
+      !runStartedRef.current ||
       completionHandledRef.current ||
-      !backfillStatus.data
+      !backfillSnapshot
     ) {
       return;
     }
-
-    const { done, failed, processing, queued } = backfillStatus.data,
-      inFlight = processing + queued;
-
-    if (inFlight > 0) {
+    if (backfillSnapshot.processing + backfillSnapshot.queued > 0) {
       return;
     }
-
     completionHandledRef.current = true;
-    setBackfillActive(false);
+    runStartedRef.current = false;
     toast({
-      description: `Backfill finished · ${done} done${failed > 0 ? ` · ${failed} failed` : ""}.`,
+      description: `Backfill finished · ${backfillSnapshot.done} done${backfillSnapshot.failed > 0 ? ` · ${backfillSnapshot.failed} failed` : ""}.`,
       title: "Track durations backfilled",
     });
-  }, [backfillActive, backfillStatus.data]);
+  }, [backfillSnapshot]);
 
   const handleBackfillDurations = () => {
     backfillDurations.mutate(
@@ -1301,8 +1289,8 @@ function OverviewPanel() {
           }
 
           completionHandledRef.current = false;
+          runStartedRef.current = true;
           setBackfillRunId(result.runId);
-          setBackfillActive(true);
           toast({
             description: `Queued ${result.enqueued} track${result.enqueued === 1 ? "" : "s"} for duration detection in the background.`,
             title: "Backfill queued",
@@ -1428,7 +1416,7 @@ function OverviewPanel() {
                 {data.operations.tracksMissingDuration === 1 ? "" : "s"} have no
                 duration yet. Backfill reads each file in R2 to detect playback
                 length in the background.
-                {backfillRunId && backfillStatus.data ? (
+                {displayRunId && backfillStatus.data ? (
                   <>
                     <span className="mt-1 block">
                       {backfillStatus.data.queued +
@@ -1461,24 +1449,18 @@ function OverviewPanel() {
               </CardDescription>
             </div>
             <Button
-              disabled={
-                backfillDurations.isPending ||
-                (backfillActive &&
-                  (backfillStatus.data?.queued ?? 0) +
-                    (backfillStatus.data?.processing ?? 0) >
-                    0)
-              }
+              disabled={backfillDurations.isPending || backfillInFlight}
               onClick={handleBackfillDurations}
               size="sm"
             >
-              {backfillDurations.isPending || backfillActive ? (
+              {backfillDurations.isPending || backfillInFlight ? (
                 <RefreshCw className="mr-2 size-4 animate-spin" />
               ) : (
                 <RefreshCw className="mr-2 size-4" />
               )}
               {backfillDurations.isPending
                 ? "Backfilling..."
-                : backfillActive
+                : backfillInFlight
                   ? "Backfill running..."
                   : "Backfill durations"}
             </Button>
@@ -2334,72 +2316,79 @@ function CouponsManagerCard() {
         percentOff: Number(percentOff) || 17,
       };
 
+      let res: Response;
       try {
-        const res = await fetch(
-          `${API_V1_URL}/admin/finance/payments/coupons`,
-          {
-            body: JSON.stringify(payload),
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          }
-        );
-
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as {
-            message?: string;
-          };
-          throw new Error(body.message ?? "Failed to create coupon");
-        }
-
-        setIsDialogOpen(false);
-        setName("");
-        setCode("");
-        setMaxRedemptions("");
-        refetch();
-        toast({
-          description: `Stripe coupon created and ready for checkout.`,
-          title: "Coupon Created",
+        res = await fetch(`${API_V1_URL}/admin/finance/payments/coupons`, {
+          body: JSON.stringify(payload),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
         });
-      } catch (error) {
+      } catch {
         toast({
-          description:
-            error instanceof Error
-              ? error.message
-              : "Could not create coupon. Please try again.",
+          description: "Could not create coupon. Please try again.",
           title: "Error",
           variant: "destructive",
         });
+        return;
       }
+
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        toast({
+          description: body.message ?? "Failed to create coupon",
+          title: "Error",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsDialogOpen(false);
+      setName("");
+      setCode("");
+      setMaxRedemptions("");
+      refetch();
+      toast({
+        description: `Stripe coupon created and ready for checkout.`,
+        title: "Coupon Created",
+      });
     },
     handleDeleteCoupon = async (couponId: string) => {
+      let res: Response;
       try {
-        const res = await fetch(
+        res = await fetch(
           `${API_V1_URL}/admin/finance/payments/coupons/${encodeURIComponent(couponId)}`,
           {
             credentials: "include",
             method: "DELETE",
           }
         );
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as {
-            message?: string;
-          };
-          throw new Error(body.message ?? "Failed to delete coupon");
-        }
-        refetch();
+      } catch {
         toast({
-          description: `Coupon ${couponId} archived.`,
-          title: "Coupon Deleted",
-        });
-      } catch (error) {
-        toast({
-          description:
-            error instanceof Error ? error.message : "Could not delete coupon.",
+          description: "Could not delete coupon.",
           title: "Error",
           variant: "destructive",
         });
+        return;
       }
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        toast({
+          description: body.message ?? "Failed to delete coupon",
+          title: "Error",
+          variant: "destructive",
+        });
+        return;
+      }
+      refetch();
+      toast({
+        description: `Coupon ${couponId} archived.`,
+        title: "Coupon Deleted",
+      });
     },
     handleSyncStripe = async () => {
       try {
