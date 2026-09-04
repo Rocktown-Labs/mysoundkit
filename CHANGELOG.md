@@ -4,6 +4,10 @@
 
 ### Added
 
+- Added an admin Audio Diagnostics lab (`/dashboard/admin` → Audio tab): select up to 25 library tracks, run playback-resolution, derivative loudness/true-peak, normalization-gain, and master-headroom tests as a background job with progress polling, per-track pass/warn/fail evidence, and an in-app completion alert.
+- Added music-player recovery: same-track reload guard (re-setting an identical stream no longer restarts playback) and a media-error listener that retries once before surfacing a failure toast.
+- Added `media_playback_asset_resolved` logging to the guarded playback route so normalized-derivative vs legacy-fallback playback share is quantifiable.
+
 - Added region-ranked Bio artist discovery with cursor pagination, on-demand profile media loading, immutable public profile-media caching, and explicit image dimensions/lazy loading.
 - Added SVGL authentic brand icons (`SpotifyIcon`, `AppleMusicIcon`, `YoutubeIcon`, `InstagramIcon`, `TikTokIcon`, `TwitterIcon`) for platform and social links on Bio profiles, tracks, and projects.
 - Added dynamic 1200x630 Track OpenGraph SVG card generation endpoint (`/v1/tracks/:trackId/og-image` and `/v1/tracks/og-image`) with creator branding, genre tags, and waveform graphics.

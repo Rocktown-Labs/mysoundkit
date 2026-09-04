@@ -24,6 +24,12 @@ const meGet = apiClient.v1.me.index.$get,
   adminFinanceSummaryGet = apiClient.v1.admin.finance.summary.$get,
   adminEmbeddingStatusGet = apiClient.v1.admin.embeddings.status.$get,
   adminEmbeddingBackfillPost = apiClient.v1.admin.embeddings.backfill.$post,
+  adminDiagnosticTestsGet = apiClient.v1.admin["audio-diagnostics"].tests.$get,
+  adminDiagnosticJobsGet = apiClient.v1.admin["audio-diagnostics"].jobs.$get,
+  adminDiagnosticJobCreatePost =
+    apiClient.v1.admin["audio-diagnostics"].jobs.$post,
+  adminDiagnosticJobGet =
+    apiClient.v1.admin["audio-diagnostics"].jobs[":jobId"].$get,
   adminImportStripePlanPost =
     apiClient.v1.admin.finance.payments["import-plan"].$post,
   adminOverviewGet = apiClient.v1.admin.overview.$get,
@@ -664,6 +670,48 @@ export const useAdminEmbeddingBackfillMutation = () => {
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: ["admin", "embeddings", "status"],
+      }),
+  });
+};
+
+export type DiagnosticJob = InferResponseType<
+  typeof adminDiagnosticJobCreatePost
+>;
+
+export const useDiagnosticTestsQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () => rpcJson(await adminDiagnosticTestsGet()),
+    queryKey: ["admin", "audio-diagnostics", "tests"],
+  });
+
+export const useDiagnosticJobsQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () => rpcJson(await adminDiagnosticJobsGet()),
+    queryKey: ["admin", "audio-diagnostics", "jobs"],
+  });
+
+export const useDiagnosticJobQuery = (jobId: string | null, enabled = true) =>
+  useQuery({
+    enabled: enabled && Boolean(jobId),
+    queryFn: async () =>
+      rpcJson(await adminDiagnosticJobGet({ param: { jobId: jobId ?? "" } })),
+    queryKey: ["admin", "audio-diagnostics", "jobs", jobId],
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "queued" || status === "running" ? 5000 : false;
+    },
+  });
+
+export const useCreateDiagnosticJobMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { tests: string[]; trackIds: string[] }) =>
+      rpcJson(await adminDiagnosticJobCreatePost({ json: body })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "audio-diagnostics", "jobs"],
       }),
   });
 };

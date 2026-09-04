@@ -116,7 +116,7 @@ import { notifyTrackLive } from "@/lib/track-notifications";
 import type { AppEnv } from "@/lib/types";
 import { claimUploadIntent, completeUploadIntent } from "@/lib/upload-intents";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
-import { logError } from "@/middleware/structured-logging";
+import { logError, logInfo } from "@/middleware/structured-logging";
 import { isAllowedUploadKeyForAssetKind } from "@/routes/uploads";
 
 const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
@@ -3325,6 +3325,22 @@ app.openapi(
         HttpStatusCodes.NOT_FOUND
       );
     }
+    // Diagnostics: record exactly what backs each playback so fallback
+    // (raw master served without normalization) vs. normalized-derivative
+    // playback share can be quantified from logs.
+    // Master assets served to managers on request are expected; legacy
+    // unprocessed assets (processingVersion null) bypass normalization.
+    logInfo({
+      assetId: asset.id,
+      assetKind: asset.assetKind,
+      assetPurpose: asset.purpose,
+      event: "media_playback_asset_resolved",
+      isLegacyUnprocessed:
+        asset.processingVersion === null && asset.purpose !== "streaming",
+      processingVersion: asset.processingVersion,
+      requestedContext: context,
+      trackId,
+    });
     const requestedRange = c.req.header("range"),
       r2Range = buildR2Range(requestedRange, head.size),
       object = await bucket.get(asset.objectKey, {

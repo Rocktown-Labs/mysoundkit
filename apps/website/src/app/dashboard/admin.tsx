@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { AudioDiagnosticsPanel } from "@/components/admin/audio-diagnostics-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -191,10 +192,10 @@ function AdminDashboard() {
         </p>
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue={initialAdminTab()}>
         <div className="max-w-full pb-1">
           <TabsList
-            className="h-auto w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-9"
+            className="h-auto w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-10"
             style={{ display: "grid" }}
           >
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -203,6 +204,7 @@ function AdminDashboard() {
             <TabsTrigger value="ads">Ads</TabsTrigger>
             <TabsTrigger value="coupons">Coupons</TabsTrigger>
             <TabsTrigger value="operations">Operations</TabsTrigger>
+            <TabsTrigger value="audio">Audio</TabsTrigger>
             <TabsTrigger className="scroll-mt-20" value="genres">
               Genres
             </TabsTrigger>
@@ -232,6 +234,9 @@ function AdminDashboard() {
         <TabsContent value="operations" className="mt-6">
           <PlatformOperationsPanel />
         </TabsContent>
+        <TabsContent value="audio" className="mt-6">
+          <AudioDiagnosticsPanel />
+        </TabsContent>
         <TabsContent value="genres" className="mt-6">
           <GenreCatalogPanel />
         </TabsContent>
@@ -244,6 +249,14 @@ function AdminDashboard() {
       </Tabs>
     </div>
   );
+}
+
+function initialAdminTab() {
+  if (typeof window === "undefined") {
+    return "overview";
+  }
+  const tab = new URLSearchParams(window.location.search).get("tab");
+  return tab === "audio" ? "audio" : "overview";
 }
 
 function PlatformOperationsPanel() {

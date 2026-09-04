@@ -71,10 +71,7 @@ import {
   completeQueuedTrack,
   shouldRestartCurrentTrack,
 } from "@/lib/player-queue";
-import {
-  useMeEntitlementsQuery,
-  useMeQuery,
-} from "@/lib/soundkit-api-hooks";
+import { useMeEntitlementsQuery, useMeQuery } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 interface Device {
@@ -280,6 +277,8 @@ export function MusicPlayer() {
     activeAdRef = useRef<ServedAudioAd | null>(null),
     hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null),
     pendingContentSrcRef = useRef<string | null>(null),
+    loadedTrackKeyRef = useRef<string | null>(null),
+    playbackErrorRetryRef = useRef(false),
     playbackTelemetryRef = useRef<PlaybackTelemetrySession | null>(null),
     prerollServedTrackRef = useRef<string | null>(null),
     [audioOutput, setAudioOutput] = useState<Device>({
@@ -615,8 +614,7 @@ export function MusicPlayer() {
         return false;
       }
 
-      let isPremium =
-        isSignedIn && entitlementsQuery.data?.isPremium === true;
+      let isPremium = isSignedIn && entitlementsQuery.data?.isPremium === true;
       if (isSignedIn && !entitlementsQuery.isFetched) {
         const result = await entitlementsQuery.refetch();
         isPremium = result.data?.isPremium === true;
@@ -699,21 +697,21 @@ export function MusicPlayer() {
     const startPlaybackSession = async () => {
       const sessionToken = crypto.randomUUID(),
         response = await fetch(
-        `${API_V1_URL}/tracks/${encodeURIComponent(trackId)}/playback-sessions`,
-        {
-          body: JSON.stringify({
-            clientType: "web",
-            sessionToken,
-            sourceId: currentTrack.id,
-            sourceType: currentTrack.sourceType ?? "library",
-          }),
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          method: "POST",
-        }
-      );
+          `${API_V1_URL}/tracks/${encodeURIComponent(trackId)}/playback-sessions`,
+          {
+            body: JSON.stringify({
+              clientType: "web",
+              sessionToken,
+              sourceId: currentTrack.id,
+              sourceType: currentTrack.sourceType ?? "library",
+            }),
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            method: "POST",
+          }
+        );
 
       if (!response.ok) {
         return;
@@ -784,10 +782,18 @@ export function MusicPlayer() {
     activeAdRef.current = null;
     pendingContentSrcRef.current = null;
     setActiveAd(null);
-    audio.src = currentTrack.src;
-    audio.load();
-    setProgress(0);
-    setDuration(currentTrack.duration ?? 0);
+    // Guard against same-track reloads: re-setting an identical src restarts
+    // playback from 0, which surfaces as a "skip". Only reload when the
+    // track identity or its stream URL actually changed.
+    const loadedTrackKey = `${currentTrack.id}::${currentTrack.src}`;
+    if (loadedTrackKeyRef.current !== loadedTrackKey) {
+      loadedTrackKeyRef.current = loadedTrackKey;
+      playbackErrorRetryRef.current = false;
+      audio.src = currentTrack.src;
+      audio.load();
+      setProgress(0);
+      setDuration(currentTrack.duration ?? 0);
+    }
 
     if (visible && currentTrack.src && currentTrack.autoplay !== false) {
       void startContentPlayback().catch(() => {
@@ -820,6 +826,27 @@ export function MusicPlayer() {
     }
 
     const handleLoadedMetadata = () => setDuration(audio.duration || 0),
+      handlePlaybackError = () => {
+        // Media element errors (expired session, failed range request,
+        // transient R2/Worker failure) previously stalled silently with no
+        // recovery. Retry once from the current position, then surface.
+        if (!currentTrack) {
+          return;
+        }
+        if (!playbackErrorRetryRef.current && audio.currentSrc) {
+          playbackErrorRetryRef.current = true;
+          audio.load();
+          void audio.play().catch(() => setIsPlaying(false));
+          return;
+        }
+        setIsPlaying(false);
+        toast({
+          description:
+            "The stream failed after a retry. Check your connection and press play.",
+          title: "Playback failed",
+          variant: "destructive",
+        });
+      },
       handleTimeUpdate = () => {
         if (activeAdRef.current) {
           return;
@@ -859,11 +886,13 @@ export function MusicPlayer() {
       };
 
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("error", handlePlaybackError);
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("ended", handleEnded);
 
     return () => {
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.removeEventListener("error", handlePlaybackError);
       audio.removeEventListener("timeupdate", handleTimeUpdate);
       audio.removeEventListener("ended", handleEnded);
     };

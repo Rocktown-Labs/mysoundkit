@@ -1265,6 +1265,7 @@ export const projectAssets = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     exportVersion: integer("export_version"),
     id: text("id").primaryKey(),
+    isCurrent: boolean("is_current").default(true).notNull(),
     metadata: jsonb("metadata"),
     mimeType: text("mime_type"),
     muxAssetId: text("mux_asset_id"),
@@ -1288,7 +1289,6 @@ export const projectAssets = pgTable(
       onDelete: "set null",
     }),
     version: integer("version").default(1).notNull(),
-    isCurrent: boolean("is_current").default(true).notNull(),
   },
   (table) => [
     index("project_assets_project_id_idx").on(table.projectId),
@@ -3711,5 +3711,39 @@ export const notificationEmailCooldowns = pgTable(
   (table) => [
     primaryKey({ columns: [table.recipientUserId, table.scope] }),
     index("notification_email_cooldowns_last_sent_idx").on(table.lastSentAt),
+  ]
+);
+
+export const audioDiagnosticJobStatusEnum = pgEnum(
+  "audio_diagnostic_job_status",
+  ["queued", "running", "completed", "failed"]
+);
+
+export const audioDiagnosticJobs = pgTable(
+  "audio_diagnostic_jobs",
+  {
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    error: text("error"),
+    id: text("id").primaryKey(),
+    progressDone: integer("progress_done").default(0).notNull(),
+    results: jsonb("results")
+      .$type<Record<string, unknown>[]>()
+      .default([])
+      .notNull(),
+    status: audioDiagnosticJobStatusEnum("status").default("queued").notNull(),
+    tests: jsonb("tests").$type<string[]>().notNull(),
+    trackIds: jsonb("track_ids").$type<string[]>().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("audio_diagnostic_jobs_status_idx").on(table.status),
+    index("audio_diagnostic_jobs_created_by_idx").on(table.createdByUserId),
   ]
 );
