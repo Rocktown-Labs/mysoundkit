@@ -164,6 +164,23 @@ describe("SoundKit Worker API", () => {
     const response = await SELF.fetch("http://soundkit.test/auth/session", {
       headers: {
         "access-control-request-method": "GET",
+        origin: "https://soundkit.bio",
+      },
+      method: "OPTIONS",
+    });
+
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "https://soundkit.bio"
+    );
+    expect(response.headers.get("access-control-allow-credentials")).toBe(
+      "true"
+    );
+  });
+
+  it("allows the legacy bio origin for credentialed auth requests", async () => {
+    const response = await SELF.fetch("http://soundkit.test/auth/session", {
+      headers: {
+        "access-control-request-method": "GET",
         origin: "https://bio.mysoundkit.com",
       },
       method: "OPTIONS",
@@ -171,6 +188,23 @@ describe("SoundKit Worker API", () => {
 
     expect(response.headers.get("access-control-allow-origin")).toBe(
       "https://bio.mysoundkit.com"
+    );
+    expect(response.headers.get("access-control-allow-credentials")).toBe(
+      "true"
+    );
+  });
+
+  it("allows the www bio origin for credentialed auth requests", async () => {
+    const response = await SELF.fetch("http://soundkit.test/auth/session", {
+      headers: {
+        "access-control-request-method": "GET",
+        origin: "https://www.soundkit.bio",
+      },
+      method: "OPTIONS",
+    });
+
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "https://www.soundkit.bio"
     );
     expect(response.headers.get("access-control-allow-credentials")).toBe(
       "true"

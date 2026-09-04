@@ -1624,6 +1624,12 @@ export const purchasedCatalogDetailSchema = z.object({
   purchase: purchasedCatalogItemSchema,
 });
 
+export const analyticsScopeSchema = z.enum(["platform", "bio"]);
+
+export const analyticsScopeQuerySchema = z.object({
+  scope: analyticsScopeSchema.default("platform"),
+});
+
 export const analyticsOverviewSchema = z.object({
   estimatedEarningsCents: z.number().int(),
   premiumSupporters: z.number().int(),
@@ -1638,6 +1644,7 @@ export const analyticsTimeseriesQuerySchema = z.object({
     .enum(["plays", "qualified_streams", "unique_listeners"])
     .default("plays"),
   range: z.enum(["7d", "28d", "90d", "12m"]).default("7d"),
+  scope: analyticsScopeSchema.default("platform"),
 });
 
 export const analyticsTimeseriesPointSchema = z.object({

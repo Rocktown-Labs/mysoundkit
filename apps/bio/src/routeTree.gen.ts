@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './app/__root'
+import { Route as DashboardRouteImport } from './app/dashboard'
 import { Route as UsernameRouteImport } from './app/$username'
 import { Route as IndexRouteImport } from './app/index'
 import { Route as SignupIndexRouteImport } from './app/signup/index'
@@ -23,6 +24,11 @@ import { Route as LiveIdRouteImport } from './app/live/$id'
 import { Route as DashboardPaymentsRouteImport } from './app/dashboard/payments'
 import { Route as DashboardAnalyticsRouteImport } from './app/dashboard/analytics'
 
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UsernameRoute = UsernameRouteImport.update({
   id: '/$username',
   path: '/$username',
@@ -44,9 +50,9 @@ const LibraryIndexRoute = LibraryIndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
-  id: '/dashboard/',
-  path: '/dashboard/',
-  getParentRoute: () => rootRouteImport,
+  id: '/',
+  path: '/',
+  getParentRoute: () => DashboardRoute,
 } as any)
 const VideosIdRoute = VideosIdRouteImport.update({
   id: '/videos/$id',
@@ -79,19 +85,20 @@ const LiveIdRoute = LiveIdRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardPaymentsRoute = DashboardPaymentsRouteImport.update({
-  id: '/dashboard/payments',
-  path: '/dashboard/payments',
-  getParentRoute: () => rootRouteImport,
+  id: '/payments',
+  path: '/payments',
+  getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
-  id: '/dashboard/analytics',
-  path: '/dashboard/analytics',
-  getParentRoute: () => rootRouteImport,
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => DashboardRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$username': typeof UsernameRoute
+  '/dashboard': typeof DashboardRouteWithChildren
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/payments': typeof DashboardPaymentsRoute
   '/live/$id': typeof LiveIdRoute
@@ -123,6 +130,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$username': typeof UsernameRoute
+  '/dashboard': typeof DashboardRouteWithChildren
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/payments': typeof DashboardPaymentsRoute
   '/live/$id': typeof LiveIdRoute
@@ -140,6 +148,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$username'
+    | '/dashboard'
     | '/dashboard/analytics'
     | '/dashboard/payments'
     | '/live/$id'
@@ -170,6 +179,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/$username'
+    | '/dashboard'
     | '/dashboard/analytics'
     | '/dashboard/payments'
     | '/live/$id'
@@ -186,21 +196,26 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   UsernameRoute: typeof UsernameRoute
-  DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
-  DashboardPaymentsRoute: typeof DashboardPaymentsRoute
+  DashboardRoute: typeof DashboardRouteWithChildren
   LiveIdRoute: typeof LiveIdRoute
   ProjectsIdRoute: typeof ProjectsIdRoute
   SignupArtistRoute: typeof SignupArtistRoute
   SignupFanRoute: typeof SignupFanRoute
   TracksIdRoute: typeof TracksIdRoute
   VideosIdRoute: typeof VideosIdRoute
-  DashboardIndexRoute: typeof DashboardIndexRoute
   LibraryIndexRoute: typeof LibraryIndexRoute
   SignupIndexRoute: typeof SignupIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$username': {
       id: '/$username'
       path: '/$username'
@@ -231,10 +246,10 @@ declare module '@tanstack/react-router' {
     }
     '/dashboard/': {
       id: '/dashboard/'
-      path: '/dashboard'
+      path: '/'
       fullPath: '/dashboard/'
       preLoaderRoute: typeof DashboardIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DashboardRoute
     }
     '/videos/$id': {
       id: '/videos/$id'
@@ -280,33 +295,47 @@ declare module '@tanstack/react-router' {
     }
     '/dashboard/payments': {
       id: '/dashboard/payments'
-      path: '/dashboard/payments'
+      path: '/payments'
       fullPath: '/dashboard/payments'
       preLoaderRoute: typeof DashboardPaymentsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DashboardRoute
     }
     '/dashboard/analytics': {
       id: '/dashboard/analytics'
-      path: '/dashboard/analytics'
+      path: '/analytics'
       fullPath: '/dashboard/analytics'
       preLoaderRoute: typeof DashboardAnalyticsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DashboardRoute
     }
   }
 }
 
+interface DashboardRouteChildren {
+  DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
+  DashboardPaymentsRoute: typeof DashboardPaymentsRoute
+  DashboardIndexRoute: typeof DashboardIndexRoute
+}
+
+const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardAnalyticsRoute: DashboardAnalyticsRoute,
+  DashboardPaymentsRoute: DashboardPaymentsRoute,
+  DashboardIndexRoute: DashboardIndexRoute,
+}
+
+const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
+  DashboardRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   UsernameRoute: UsernameRoute,
-  DashboardAnalyticsRoute: DashboardAnalyticsRoute,
-  DashboardPaymentsRoute: DashboardPaymentsRoute,
+  DashboardRoute: DashboardRouteWithChildren,
   LiveIdRoute: LiveIdRoute,
   ProjectsIdRoute: ProjectsIdRoute,
   SignupArtistRoute: SignupArtistRoute,
   SignupFanRoute: SignupFanRoute,
   TracksIdRoute: TracksIdRoute,
   VideosIdRoute: VideosIdRoute,
-  DashboardIndexRoute: DashboardIndexRoute,
   LibraryIndexRoute: LibraryIndexRoute,
   SignupIndexRoute: SignupIndexRoute,
 }

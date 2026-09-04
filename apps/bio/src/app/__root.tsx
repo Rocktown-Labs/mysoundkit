@@ -5,6 +5,7 @@ import {
   Outlet,
   Scripts,
   createRootRoute,
+  useLocation,
 } from "@tanstack/react-router";
 
 import { BioAudioPlayerProvider } from "@/components/bio-audio-player";
@@ -72,6 +73,9 @@ export const Route = createRootRoute({
 });
 
 function RootComponent() {
+  const { pathname } = useLocation(),
+    isDashboard = pathname.startsWith("/dashboard");
+
   return (
     <html lang="en" className="dark">
       <head>
@@ -80,7 +84,7 @@ function RootComponent() {
       <body className="min-h-screen overflow-x-clip bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary-foreground">
         <BioAudioPlayerProvider>
           <div className="flex min-h-screen flex-col pb-24">
-            <BioNav />
+            {isDashboard ? null : <BioNav />}
             <main className="min-w-0 flex-1">
               <Outlet />
             </main>

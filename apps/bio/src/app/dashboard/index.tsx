@@ -6,21 +6,28 @@ import {
   ArrowRight,
   BarChart3,
   Check,
+  Compass,
   Copy,
   ExternalLink,
   HandCoins,
   LoaderCircle,
+  MapPin,
+  Music,
   Sparkles,
+  UserRound,
 } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 
+import { BioMap } from "@/components/bio-map";
 import {
   buildSoundKitWebUrl,
   getCurrentSessionUser,
   loadBioAnalyticsOverview,
   loadBioArtistEarnings,
   loadBioTips,
-  SOUNDKIT_BIO_URL,
+  loadRegionArtists,
+  toBioShareUrl,
 } from "@/lib/api";
 import type {
   BioAnalyticsOverview,
@@ -28,6 +35,8 @@ import type {
   BioCurrentUser,
   BioTipsOverview,
 } from "@/lib/api";
+import { exploreRegionSlug, regionTypeForMapScope } from "@/lib/explore-region";
+import type { MapScope } from "@/lib/map-scopes";
 
 export const Route = createFileRoute("/dashboard/")({
   component: BioArtistDashboard,
@@ -45,6 +54,12 @@ function BioArtistDashboard() {
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [mapScope, setMapScope] = useState<MapScope>("usa");
+  const [selectedRegion, setSelectedRegion] = useState("Arkansas");
+  const [regionalArtists, setRegionalArtists] = useState<
+    { id: string; name: string; username: string }[]
+  >([]);
+  const [isRegionLoading, setIsRegionLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,8 +110,47 @@ function BioArtistDashboard() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadArtists = async () => {
+      setIsRegionLoading(true);
+      try {
+        const slug = exploreRegionSlug(selectedRegion),
+          apiRegion = selectedRegion
+            ? mapScope === "usa"
+              ? `us-${slug}`
+              : slug
+            : mapScope === "global"
+              ? "all"
+              : mapScope,
+          artists = await loadRegionArtists(
+            apiRegion,
+            regionTypeForMapScope(mapScope)
+          );
+        if (!cancelled) {
+          setRegionalArtists(
+            artists.map(({ id, name, username }) => ({ id, name, username }))
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setRegionalArtists([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsRegionLoading(false);
+        }
+      }
+    };
+
+    void loadArtists();
+    return () => {
+      cancelled = true;
+    };
+  }, [mapScope, selectedRegion]);
+
   const username = currentUser?.username ?? "artist",
-    bioUrl = `${SOUNDKIT_BIO_URL}/${encodeURIComponent(username)}`,
+    bioUrl = toBioShareUrl(username),
     fullWebDashboardUrl = buildSoundKitWebUrl("/dashboard"),
     copyBioLink = () => {
       if (typeof window !== "undefined") {
@@ -138,8 +192,7 @@ function BioArtistDashboard() {
   }
 
   const isClaimed = Boolean(currentUser.onboardingCompletedAt),
-    totalTipsCents = tips?.totalTipsCents ?? 0,
-    supporterCount = tips?.supporterCount ?? 0;
+    totalTipsCents = tips?.totalTipsCents ?? 0;
 
   return (
     <div className="mx-auto min-w-0 w-full max-w-5xl overflow-x-clip px-4 py-8 sm:px-6 sm:py-12 space-y-8">
@@ -239,39 +292,110 @@ function BioArtistDashboard() {
         </div>
       </div>
 
-      {/* Live dashboard summaries */}
-      <div className="grid min-w-0 grid-cols-1 gap-6 md:grid-cols-2">
-        <DashboardSummaryCard
-          description="Verified playback sessions across your catalog."
-          icon={<BarChart3 className="size-5 text-primary" />}
-          isLoading={isDataLoading}
-          items={[
-            {
-              label: "Verified Plays",
-              value: (analytics?.totalPlays ?? 0).toLocaleString(),
-            },
-            {
-              label: "Unique Listeners",
-              value: (analytics?.uniqueListeners ?? 0).toLocaleString(),
-            },
-          ]}
-          linkLabel="View analytics"
-          linkTo="/dashboard/analytics"
-          title="Bio Analytics"
-        />
-        <DashboardSummaryCard
-          description="Fan tips sent directly to your Bio page."
-          icon={<HandCoins className="size-5 text-primary" />}
-          isLoading={isDataLoading}
-          items={[
-            { label: "Total Tips", value: formatDollars(totalTipsCents) },
-            { label: "Supporters", value: supporterCount.toLocaleString() },
-          ]}
-          linkLabel="View payments"
-          linkTo="/dashboard/payments"
-          title="Bio Tips & Payouts"
-        />
-      </div>
+      {/* Bio activity summary */}
+      <section className="space-y-6">
+        <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4">
+          <DashboardStatCard
+            icon={<BarChart3 className="size-4" />}
+            isLoading={isDataLoading}
+            label="Bio plays"
+            value={analytics?.totalPlays ?? 0}
+          />
+          <DashboardStatCard
+            icon={<Music className="size-4" />}
+            isLoading={isDataLoading}
+            label="Listeners"
+            value={analytics?.uniqueListeners ?? 0}
+          />
+          <DashboardStatCard
+            icon={<UserRound className="size-4" />}
+            isLoading={isDataLoading}
+            label="Followers"
+            value={analytics?.totalFollowers ?? 0}
+          />
+          <DashboardStatCard
+            icon={<HandCoins className="size-4" />}
+            isLoading={isDataLoading}
+            label="Tips"
+            value={formatDollars(totalTipsCents)}
+          />
+        </div>
+
+        <section className="min-w-0 space-y-5 rounded-3xl border border-border/50 bg-card/40 p-5 shadow-md sm:p-7">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary">
+                <Compass className="size-4" />
+                <span>Bio audience</span>
+              </div>
+              <h2 className="mt-1 font-playfair text-2xl font-medium text-foreground sm:text-3xl">
+                Where your listeners find you
+              </h2>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                Explore the artists and listeners connected to your Bio
+                discovery regions.
+              </p>
+            </div>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {selectedRegion || "Global"}
+            </span>
+          </div>
+
+          <BioMap
+            mapScope={mapScope}
+            onRegionSelect={setSelectedRegion}
+            onScopeChange={(scope) => {
+              setMapScope(scope);
+              setSelectedRegion(
+                scope === "usa"
+                  ? "Arkansas"
+                  : scope === "canada"
+                    ? "Ontario"
+                    : ""
+              );
+            }}
+            selectedRegion={selectedRegion}
+          />
+
+          <div className="rounded-2xl border border-border/40 bg-white/[0.03] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                {selectedRegion
+                  ? `Artists in ${selectedRegion}`
+                  : "Artists in this view"}
+              </h3>
+              {isRegionLoading ? (
+                <LoaderCircle className="size-4 animate-spin text-primary" />
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  {regionalArtists.length} found
+                </span>
+              )}
+            </div>
+            {regionalArtists.length > 0 ? (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {regionalArtists.slice(0, 6).map((artist) => (
+                  <Link
+                    className="flex min-w-0 items-center gap-2 rounded-xl border border-border/40 px-3 py-2 text-xs transition-colors hover:border-primary/40 hover:bg-white/5"
+                    key={artist.id}
+                    params={{ username: artist.username }}
+                    to="/$username"
+                  >
+                    <MapPin className="size-3 shrink-0 text-primary" />
+                    <span className="truncate font-semibold text-foreground">
+                      {artist.name}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : isRegionLoading ? null : (
+              <p className="mt-3 text-xs text-muted-foreground">
+                No artists are listed in this region yet.
+              </p>
+            )}
+          </div>
+        </section>
+      </section>
 
       {earnings ? (
         <p className="text-center text-xs text-muted-foreground">
@@ -283,57 +407,32 @@ function BioArtistDashboard() {
   );
 }
 
-function DashboardSummaryCard({
-  description,
+function DashboardStatCard({
   icon,
   isLoading,
-  items,
-  linkLabel,
-  linkTo,
-  title,
+  label,
+  value,
 }: {
-  description: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   isLoading: boolean;
-  items: { label: string; value: string }[];
-  linkLabel: string;
-  linkTo: "/dashboard/analytics" | "/dashboard/payments";
-  title: string;
+  label: string;
+  value: number | string;
 }) {
   return (
-    <div className="min-w-0 rounded-3xl border border-border/50 bg-card/40 p-6 shadow-md backdrop-blur-xl space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2 font-semibold text-foreground">
+    <div className="min-w-0 rounded-2xl border border-border/50 bg-card/40 p-4 shadow-md sm:p-5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-xs text-muted-foreground">{label}</p>
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
           {icon}
-          <span className="truncate">{title}</span>
-        </div>
-        <Link
-          className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-primary hover:underline"
-          to={linkTo}
-        >
-          <span className="hidden sm:inline">{linkLabel}</span>
-          <span className="sm:hidden">View</span>
-          <ChevronRight className="size-3.5" />
-        </Link>
+        </span>
       </div>
-
-      <p className="text-xs text-muted-foreground">{description}</p>
-
-      <div className="grid grid-cols-2 gap-3 pt-2">
-        {items.map((item) => (
-          <div
-            className="min-w-0 rounded-2xl border border-border/40 bg-white/5 p-4 text-center"
-            key={item.label}
-          >
-            <p className="truncate text-xs text-muted-foreground">
-              {item.label}
-            </p>
-            <p className="mt-1 truncate font-playfair text-2xl font-bold text-foreground">
-              {isLoading ? "—" : item.value}
-            </p>
-          </div>
-        ))}
-      </div>
+      <p className="mt-3 truncate font-playfair text-2xl font-bold text-foreground sm:text-3xl">
+        {isLoading
+          ? "—"
+          : typeof value === "number"
+            ? value.toLocaleString()
+            : value}
+      </p>
     </div>
   );
 }
@@ -368,23 +467,5 @@ function DashboardMessage({
         <ArrowRight className="size-3.5" />
       </a>
     </div>
-  );
-}
-
-function ChevronRight(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      fill="none"
-      height="24"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-      width="24"
-      {...props}
-    >
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
   );
 }

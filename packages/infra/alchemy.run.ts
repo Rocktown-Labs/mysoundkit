@@ -53,12 +53,17 @@ const SITE_HOST = isProduction
     ? "media.mysoundkit.com"
     : `media-${app.stage}.mysoundkit.com`,
   SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`,
-  BIO_HOST = isProduction
-    ? "bio.mysoundkit.com"
-    : `bio-${app.stage}.mysoundkit.com`,
-  BIO_URL = app.local
-    ? "http://localhost:3002"
-    : process.env.SOUNDKIT_BIO_URL || `https://${BIO_HOST}`,
+  BIO_HOST = isProduction ? "soundkit.bio" : `bio-${app.stage}.mysoundkit.com`,
+  BIO_ALIAS_HOSTS = ["bio.mysoundkit.com", "www.soundkit.bio"],
+  BIO_URL = (() => {
+    if (app.local) {
+      return "http://localhost:3002";
+    }
+    if (isProduction) {
+      return `https://${BIO_HOST}`;
+    }
+    return process.env.SOUNDKIT_BIO_URL || `https://${BIO_HOST}`;
+  })(),
   API_URL = app.local ? "http://localhost:3000" : `https://${API_HOST}`,
   MEDIA_URL = isProduction ? `https://${MEDIA_HOST}/media` : `${API_URL}/media`,
   SENTRY_WEB_DSN =
@@ -137,6 +142,9 @@ const SITE_HOST = isProduction
             "http://localhost:3001",
             "https://*.mysoundkit.com",
             "https://mysoundkit.com",
+            "https://bio.mysoundkit.com",
+            "https://soundkit.bio",
+            "https://www.soundkit.bio",
           ],
         },
         // @better-upload multipart uploads read the ETag response header from
@@ -385,7 +393,15 @@ export const bio = await TanStackStart("bio", {
   cwd: "../../apps/bio",
   domains: app.local
     ? undefined
-    : [{ adopt: isProduction, domainName: BIO_HOST }],
+    : [
+        { adopt: isProduction, domainName: BIO_HOST },
+        ...(isProduction
+          ? BIO_ALIAS_HOSTS.map((domainName) => ({
+              adopt: true,
+              domainName,
+            }))
+          : []),
+      ],
   name: resourceName("soundkit-bio"),
 });
 

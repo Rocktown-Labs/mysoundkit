@@ -15,7 +15,7 @@ import {
 import React, { useEffect, useState } from "react";
 
 import { BioMap } from "@/components/bio-map";
-import { loadRegionArtists } from "@/lib/api";
+import { getCurrentSessionUser, loadRegionArtists } from "@/lib/api";
 import type { BioArtistSearchResult } from "@/lib/api";
 import { exploreRegionSlug, regionTypeForMapScope } from "@/lib/explore-region";
 import type { MapScope } from "@/lib/map-scopes";
@@ -25,12 +25,30 @@ export const Route = createFileRoute("/")({
 });
 
 function BioHomePage() {
-  const [mapScope, setMapScope] = useState<MapScope>("usa"),
+  const [currentUser, setCurrentUser] = useState<string | null>(null),
+    [isSessionResolved, setIsSessionResolved] = useState(false),
+    [mapScope, setMapScope] = useState<MapScope>("usa"),
     [selectedRegion, setSelectedRegion] = useState<string>("Arkansas"),
     [artists, setArtists] = useState<BioArtistSearchResult[]>([]),
     [isLoading, setIsLoading] = useState(false),
     [loadError, setLoadError] = useState<string | null>(null),
     [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCurrentUser = async () => {
+      const user = await getCurrentSessionUser();
+      if (!cancelled) {
+        setCurrentUser(user?.id ?? null);
+        setIsSessionResolved(true);
+      }
+    };
+
+    void loadCurrentUser();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let isCancelled = false;
@@ -92,38 +110,40 @@ function BioHomePage() {
 
   return (
     <div className="mx-auto min-w-0 w-full max-w-7xl overflow-x-clip px-4 py-6 sm:px-6 sm:py-10 space-y-10 sm:space-y-14">
-      {/* Hero Section */}
-      <div className="relative min-w-0 overflow-hidden rounded-3xl border border-border/40 bg-card/40 p-5 shadow-lg sm:p-10 md:p-12">
-        <div className="relative z-10 mx-auto max-w-2xl space-y-4 text-center sm:mx-0 sm:space-y-5 sm:text-left">
-          <h1 className="font-playfair text-3xl sm:text-5xl md:text-6xl font-medium tracking-tight text-foreground leading-[1.08]">
-            One link for the <span className="italic text-primary">music</span>{" "}
-            you make.
-          </h1>
+      {/* Public discovery hero is intentionally omitted for signed-in users. */}
+      {isSessionResolved && !currentUser ? (
+        <div className="relative min-w-0 overflow-hidden rounded-3xl border border-border/40 bg-card/40 p-5 shadow-lg sm:p-10 md:p-12">
+          <div className="relative z-10 mx-auto max-w-2xl space-y-4 text-center sm:mx-0 sm:space-y-5 sm:text-left">
+            <h1 className="font-playfair text-3xl font-medium leading-[1.08] tracking-tight text-foreground sm:text-5xl md:text-6xl">
+              One link for the{" "}
+              <span className="italic text-primary">music</span> you make.
+            </h1>
 
-          <p className="max-w-xl text-sm sm:text-base text-muted-foreground leading-relaxed">
-            The official link-in-bio for SoundKit creators. Share your releases,
-            let fans stream audio directly, discover artists by city and state,
-            and collect tips.
-          </p>
+            <p className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+              The official link-in-bio for SoundKit creators. Share your
+              releases, let fans stream audio directly, discover artists by city
+              and state, and collect tips.
+            </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2 sm:justify-start">
-            <Link
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-2.5 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:scale-105 hover:opacity-90 active:scale-95 sm:w-auto sm:text-sm"
-              to="/signup/artist"
-            >
-              <span>Claim Your Artist Bio</span>
-              <ArrowRight className="size-4" />
-            </Link>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2 sm:justify-start">
+              <Link
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-2.5 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:scale-105 hover:opacity-90 active:scale-95 sm:w-auto sm:text-sm"
+                to="/signup/artist"
+              >
+                <span>Claim Your Artist Bio</span>
+                <ArrowRight className="size-4" />
+              </Link>
 
-            <Link
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border/60 bg-white/5 px-5 py-2.5 text-xs font-semibold text-foreground/90 transition-all hover:bg-white/10 hover:text-foreground sm:w-auto sm:text-sm"
-              to="/signup/fan"
-            >
-              <span>Join as Fan</span>
-            </Link>
+              <Link
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border/60 bg-white/5 px-5 py-2.5 text-xs font-semibold text-foreground/90 transition-all hover:bg-white/10 hover:text-foreground sm:w-auto sm:text-sm"
+                to="/signup/fan"
+              >
+                <span>Join as Fan</span>
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
       {/* Map & Regional Discovery Section */}
       <section className="space-y-6">

@@ -11,12 +11,17 @@ import type { AppEnv } from "@/lib/types";
 
 const getEnvValue = (key: string) =>
     (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
-  getBioOrigin = () => {
+  getBioOrigins = () => {
+    const configuredOrigin =
+      getEnvValue("SOUNDKIT_BIO_URL") || "https://soundkit.bio";
     try {
-      return new URL(getEnvValue("SOUNDKIT_BIO_URL") || "https://bio.mysoundkit.com")
-        .origin;
+      return [
+        new URL(configuredOrigin).origin,
+        "https://bio.mysoundkit.com",
+        "https://www.soundkit.bio",
+      ];
     } catch {
-      return null;
+      return [];
     }
   },
   app = new OpenAPIHono<AppEnv>(),
@@ -47,11 +52,11 @@ app.openapi(
   }),
   (c) => {
     const targetOrigin = new URL(c.req.valid("json").targetOrigin).origin,
-      bioOrigin = getBioOrigin(),
+      bioOrigins = getBioOrigins(),
       user = c.get("user"),
       token = getSessionCookie(c.req.raw);
 
-    if (!bioOrigin || targetOrigin !== bioOrigin) {
+    if (!bioOrigins.includes(targetOrigin)) {
       return c.json({ message: "This handoff origin is not allowed." }, 403);
     }
 

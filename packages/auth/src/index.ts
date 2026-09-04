@@ -36,7 +36,7 @@ const getEnvValue = (key: string) =>
     getEnvValue("CORS_ORIGIN") ||
     "https://mysoundkit.com",
   getBioSiteUrl = () =>
-    getEnvValue("SOUNDKIT_BIO_URL") || "https://bio.mysoundkit.com",
+    getEnvValue("SOUNDKIT_BIO_URL") || "https://soundkit.bio",
   getEmailFrom = () =>
     getEnvValue("SOUNDKIT_EMAIL_FROM") ||
     "SoundKit <noreply@news.mysoundkit.com>",
