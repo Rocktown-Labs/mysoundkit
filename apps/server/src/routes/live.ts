@@ -148,7 +148,8 @@ app.get("/experiences/public", async (c) => {
     return c.json([], HttpStatusCodes.OK);
   }
 
-  const kind = c.req.query("kind"),
+  const creatorUsername = c.req.query("creatorUsername"),
+    kind = c.req.query("kind"),
     regionCondition = profileRegionCondition({
       region: c.req.query("region"),
       regionType: c.req.query("regionType"),
@@ -173,6 +174,7 @@ app.get("/experiences/public", async (c) => {
       kind
         ? eq(liveExperiences.kind, kind as "battle" | "party" | "stream")
         : undefined,
+      creatorUsername ? eq(userProfiles.username, creatorUsername) : undefined,
       regionCondition,
     ].filter((condition): condition is NonNullable<typeof condition> =>
       Boolean(condition)
@@ -2390,9 +2392,7 @@ app.post("/experiences", async (c) => {
 
     const requestSession = c.get("session"),
       organizationId = await resolveActiveOrganizationId({
-        session: isAuthenticatedSession(requestSession)
-          ? requestSession
-          : null,
+        session: isAuthenticatedSession(requestSession) ? requestSession : null,
         user,
       }),
       db = createDb(),

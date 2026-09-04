@@ -7,10 +7,12 @@ const PUBLIC_CACHE_STALE_SECONDS = 300,
   PUBLIC_CACHE_TTL_SECONDS = 60,
   publicListPaths = new Set([
     "/v1/artists",
+    "/v1/artists/discover",
     "/v1/discover/genres",
     "/v1/projects/public",
     "/v1/videos",
   ]),
+  publicArtistPathPattern = /^\/v1\/artists\/[^/]+(?:\/media)?$/u,
   normalizePath = (pathname: string): string =>
     pathname.length > 1 ? pathname.replace(/\/+$/u, "") : pathname;
 
@@ -28,6 +30,10 @@ export const isPublicCacheRequest = (request: Request): boolean => {
 
   if (pathname === "/v1/tracks") {
     return url.searchParams.get("scope") === "public";
+  }
+
+  if (publicArtistPathPattern.test(pathname)) {
+    return true;
   }
 
   if (!publicListPaths.has(pathname)) {

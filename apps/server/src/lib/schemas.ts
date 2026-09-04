@@ -524,6 +524,21 @@ export const artistRankingQuerySchema = publicExploreQuerySchema.extend({
   category: z.enum(["rising", "new", "top"]).default("top"),
 });
 
+export const artistDiscoveryQuerySchema = z.object({
+  cursor: z.string().max(512).optional(),
+  genre: z.string().trim().max(80).default("all"),
+  limit: z.coerce.number().int().positive().max(50).default(12),
+  q: z.string().trim().max(120).optional(),
+  region: z.string().trim().max(80).default("us-arkansas"),
+  regionType: z.enum(["north-america", "global"]).default("north-america"),
+});
+
+export const artistDiscoveryPageSchema = z.object({
+  artists: artistSummarySchema.array(),
+  hasMore: z.boolean(),
+  nextCursor: z.string().nullable(),
+});
+
 export const trackSummarySchema = z.object({
   artistName: z.string(),
   artistUsername: z.string().nullable().optional(),
@@ -1100,10 +1115,27 @@ export const artistProfileCreditSchema = z.object({
   title: z.string(),
 });
 
+export const artistProfileMediaSectionSchema = z.enum([
+  "all",
+  "credits",
+  "feed",
+  "projects",
+  "tracks",
+  "videos",
+]);
+
+export const artistProfileMediaAvailabilitySchema = z.object({
+  credits: z.boolean(),
+  projects: z.boolean(),
+  tracks: z.boolean(),
+  videos: z.boolean(),
+});
+
 export const artistProfileMediaSchema = z.object({
   credits: artistProfileCreditSchema.array(),
   featuredProjects: projectSummarySchema.array(),
   featuredTracks: trackSummarySchema.array(),
+  hasMore: artistProfileMediaAvailabilitySchema.optional(),
   projects: projectSummarySchema.array(),
   tracks: trackSummarySchema.array(),
   videos: videoSummarySchema.array(),
@@ -1707,13 +1739,26 @@ export const analyticsLocationItemSchema = z.object({
   hasEnoughData: z.boolean(),
   listeners: z.number().int(),
   percentage: z.number(),
+  plays: z.number().int().optional(),
   regionCode: z.string().nullable(),
+  regionName: z.string().nullable().optional(),
+});
+
+export const analyticsRegionBreakdownItemSchema = z.object({
+  countryCode: z.string().nullable(),
+  listeners: z.number().int(),
+  percentage: z.number(),
+  plays: z.number().int(),
+  regionCode: z.string(),
+  regionName: z.string(),
 });
 
 export const analyticsLocationsSchema = z.object({
   hasEnoughData: z.boolean(),
   locations: analyticsLocationItemSchema.array(),
+  regions: analyticsRegionBreakdownItemSchema.array().optional(),
   totalListeners: z.number().int(),
+  totalPlays: z.number().int().optional(),
 });
 
 export const analyticsLiveImpactSchema = z.object({

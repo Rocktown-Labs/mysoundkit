@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './app/__root'
 import { Route as DashboardRouteImport } from './app/dashboard'
+import { Route as ArtistsRouteImport } from './app/artists'
 import { Route as UsernameRouteImport } from './app/$username'
 import { Route as IndexRouteImport } from './app/index'
 import { Route as SignupIndexRouteImport } from './app/signup/index'
@@ -27,6 +28,11 @@ import { Route as DashboardAnalyticsRouteImport } from './app/dashboard/analytic
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArtistsRoute = ArtistsRouteImport.update({
+  id: '/artists',
+  path: '/artists',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UsernameRoute = UsernameRouteImport.update({
@@ -98,6 +104,7 @@ const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$username': typeof UsernameRoute
+  '/artists': typeof ArtistsRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/payments': typeof DashboardPaymentsRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$username': typeof UsernameRoute
+  '/artists': typeof ArtistsRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/payments': typeof DashboardPaymentsRoute
   '/live/$id': typeof LiveIdRoute
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$username': typeof UsernameRoute
+  '/artists': typeof ArtistsRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/payments': typeof DashboardPaymentsRoute
@@ -148,6 +157,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$username'
+    | '/artists'
     | '/dashboard'
     | '/dashboard/analytics'
     | '/dashboard/payments'
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$username'
+    | '/artists'
     | '/dashboard/analytics'
     | '/dashboard/payments'
     | '/live/$id'
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/$username'
+    | '/artists'
     | '/dashboard'
     | '/dashboard/analytics'
     | '/dashboard/payments'
@@ -196,6 +208,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   UsernameRoute: typeof UsernameRoute
+  ArtistsRoute: typeof ArtistsRoute
   DashboardRoute: typeof DashboardRouteWithChildren
   LiveIdRoute: typeof LiveIdRoute
   ProjectsIdRoute: typeof ProjectsIdRoute
@@ -214,6 +227,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/artists': {
+      id: '/artists'
+      path: '/artists'
+      fullPath: '/artists'
+      preLoaderRoute: typeof ArtistsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$username': {
@@ -329,6 +349,7 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   UsernameRoute: UsernameRoute,
+  ArtistsRoute: ArtistsRoute,
   DashboardRoute: DashboardRouteWithChildren,
   LiveIdRoute: LiveIdRoute,
   ProjectsIdRoute: ProjectsIdRoute,

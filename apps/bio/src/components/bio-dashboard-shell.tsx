@@ -2,7 +2,13 @@
 
 import { Link } from "@tanstack/react-router";
 import { BarChart3, Home, LayoutDashboard, WalletCards } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+
+import { useBioAudioPlayer } from "@/components/bio-audio-player";
+import { BioSearchBar } from "@/components/bio-search-bar";
+import { getCurrentSessionUser } from "@/lib/api";
+import type { BioCurrentUser } from "@/lib/api";
 
 const dashboardItems = [
   { icon: Home, label: "Home", to: "/dashboard" as const },
@@ -58,6 +64,30 @@ function DashboardNavigation({ mobile = false }: { mobile?: boolean }) {
 }
 
 export function BioDashboardShell({ children }: { children: ReactNode }) {
+  const { currentTrack } = useBioAudioPlayer(),
+    [currentUser, setCurrentUser] = useState<BioCurrentUser | null>(null),
+    bioHref = currentUser?.username ? `/${currentUser.username}` : "/";
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchUser = async () => {
+      try {
+        const user = await getCurrentSessionUser();
+        if (!cancelled) {
+          setCurrentUser(user);
+        }
+      } catch {
+        if (!cancelled) {
+          setCurrentUser(null);
+        }
+      }
+    };
+    void fetchUser();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="bio-dashboard-shell relative flex min-h-screen w-full min-w-0">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border/50 bg-background lg:flex">
@@ -91,28 +121,45 @@ export function BioDashboardShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
         <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-border/50 bg-background/95 px-4 backdrop-blur-xl sm:px-6 lg:px-10">
-          <Link
-            aria-label="SoundKit Bio home"
-            className="font-notable text-xs tracking-[0.18em] lg:hidden"
-            to="/"
-          >
-            SOUNDKIT<span className="text-primary">.BIO</span>
-          </Link>
-          <div className="hidden text-sm font-semibold text-foreground lg:block">
-            Creator studio
+          <div className="flex items-center gap-4">
+            <Link
+              aria-label="SoundKit Bio home"
+              className="font-notable text-xs tracking-[0.18em] lg:hidden"
+              to="/"
+            >
+              SOUNDKIT<span className="text-primary">.BIO</span>
+            </Link>
+            <div className="hidden text-sm font-semibold text-foreground lg:block">
+              Creator studio
+            </div>
           </div>
-          <Link
-            className="ml-auto inline-flex items-center gap-2 rounded-full border border-border/60 bg-white/5 px-3.5 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-            to="/"
-          >
-            <span>View Bio</span>
-          </Link>
+
+          <div className="hidden flex-1 max-w-sm mx-6 md:block">
+            <BioSearchBar className="w-full" />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Link
+              className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white/5 px-3.5 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+              to={bioHref}
+            >
+              <span>View Bio</span>
+            </Link>
+          </div>
         </header>
 
-        <div className="min-w-0 flex-1 pb-36 lg:pb-12">{children}</div>
+        <div
+          className={`min-w-0 flex-1 ${currentTrack ? "pb-56" : "pb-36"} lg:pb-12`}
+        >
+          {children}
+        </div>
       </div>
 
-      <div className="bio-dashboard-mobile-tabs fixed inset-x-3 bottom-3 z-40 mx-auto max-w-md rounded-2xl border border-border/60 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl lg:hidden">
+      <div
+        className={`bio-dashboard-mobile-tabs fixed inset-x-3 z-50 mx-auto max-w-md rounded-2xl border border-border/60 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl transition-all duration-300 lg:hidden ${
+          currentTrack ? "bottom-[5.5rem]" : "bottom-3"
+        }`}
+      >
         <DashboardNavigation mobile />
       </div>
     </div>

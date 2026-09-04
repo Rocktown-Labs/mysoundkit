@@ -32,10 +32,11 @@ export const Route = createFileRoute("/projects/$id")({
         ? `${project.title} by ${project.artistName} — SoundKit.bio`
         : "Project Details — SoundKit.bio",
       description =
-        project?.description ||
-        (project
-          ? `Stream ${project.title} by ${project.artistName} on SoundKit.`
-          : "Discover projects and albums on SoundKit.bio."),
+        project?.description && project.description.length >= 100
+          ? project.description
+          : project
+            ? `Explore and stream "${project.title}" by ${project.artistName} on SoundKit. Discover full project tracklists, verified lossless audio, and artist credits.`
+            : "Discover and stream complete project tracklists, lossless albums, and artist credits on SoundKit.bio.",
       image = toAbsoluteBioUrl(
         project?.coverArtUrl || "/soundkit-social-card.png"
       ),
@@ -65,8 +66,14 @@ export const Route = createFileRoute("/projects/$id")({
 function BioProjectDetailPage() {
   const project = Route.useLoaderData() as BioProjectDetail | null,
     [copiedLink, setCopiedLink] = useState(false),
-    { currentTrack, isPlaying, playProjectTracks, playTrack, togglePlay } =
-      useBioAudioPlayer();
+    {
+      currentTrack,
+      isPlaying,
+      playProjectTracks,
+      playTrack,
+      queue,
+      togglePlay,
+    } = useBioAudioPlayer();
 
   if (!project) {
     return <ProjectNotFound />;
@@ -74,7 +81,9 @@ function BioProjectDetailPage() {
 
   const isProjectPlaying =
       isPlaying &&
-      project.tracks.some((track) => track.id === currentTrack?.id),
+      project.tracks.length > 0 &&
+      project.tracks.some((t) => t.id === currentTrack?.id) &&
+      queue.length === project.tracks.length,
     handlePlayProject = () => {
       if (isProjectPlaying) {
         togglePlay();
@@ -86,7 +95,7 @@ function BioProjectDetailPage() {
       if (currentTrack?.id === track.id) {
         togglePlay();
       } else {
-        playTrack(track, project.tracks);
+        playTrack(track, [track]);
       }
     },
     handleShareClick = () => {
@@ -102,7 +111,7 @@ function BioProjectDetailPage() {
     );
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 sm:py-10 space-y-8">
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 sm:py-10 space-y-8">
       {/* Back to Artist link */}
       <div>
         {project.artistUsername ? (

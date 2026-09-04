@@ -44,6 +44,18 @@ describe("public asset URLs", () => {
     ).toBe("https://media.mysoundkit.com/media/profiles/user/avatar.jpg");
   });
 
+  it("encodes object-key characters without changing path separators", () => {
+    process.env.MEDIA_PUBLIC_URL = "https://media.mysoundkit.com/media";
+
+    expect(
+      publicProfileAssetUrl({
+        objectKey: "profiles/user/cover art #1.jpg",
+      })
+    ).toBe(
+      "https://media.mysoundkit.com/media/profiles/user/cover%20art%20%231.jpg"
+    );
+  });
+
   it("keeps metadata URLs as a legacy fallback", () => {
     process.env.MEDIA_PUBLIC_URL = "https://media.mysoundkit.com";
 

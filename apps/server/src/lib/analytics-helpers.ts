@@ -77,3 +77,82 @@ export const getOpenAccountingPeriod = async (
 
   return period ?? null;
 };
+
+export const US_STATE_CODE_TO_NAME: Readonly<Record<string, string>> = {
+  AK: "Alaska",
+  AL: "Alabama",
+  AR: "Arkansas",
+  AZ: "Arizona",
+  CA: "California",
+  CO: "Colorado",
+  CT: "Connecticut",
+  DC: "District of Columbia",
+  DE: "Delaware",
+  FL: "Florida",
+  GA: "Georgia",
+  HI: "Hawaii",
+  IA: "Iowa",
+  ID: "Idaho",
+  IL: "Illinois",
+  IN: "Indiana",
+  KS: "Kansas",
+  KY: "Kentucky",
+  LA: "Louisiana",
+  MA: "Massachusetts",
+  MD: "Maryland",
+  ME: "Maine",
+  MI: "Michigan",
+  MN: "Minnesota",
+  MO: "Missouri",
+  MS: "Mississippi",
+  MT: "Montana",
+  NC: "North Carolina",
+  ND: "North Dakota",
+  NE: "Nebraska",
+  NH: "New Hampshire",
+  NJ: "New Jersey",
+  NM: "New Mexico",
+  NV: "Nevada",
+  NY: "New York",
+  OH: "Ohio",
+  OK: "Oklahoma",
+  OR: "Oregon",
+  PA: "Pennsylvania",
+  RI: "Rhode Island",
+  SC: "South Carolina",
+  SD: "South Dakota",
+  TN: "Tennessee",
+  TX: "Texas",
+  UT: "Utah",
+  VA: "Virginia",
+  VT: "Vermont",
+  WA: "Washington",
+  WI: "Wisconsin",
+  WV: "West Virginia",
+  WY: "Wyoming",
+};
+
+const US_STATE_NAME_TO_NAME = Object.fromEntries(
+  Object.values(US_STATE_CODE_TO_NAME).map((name) => [name.toLowerCase(), name])
+);
+
+export const resolveRegionName = (
+  countryCode: string | null,
+  regionCode: string | null
+): string | null => {
+  if (!regionCode) {
+    return null;
+  }
+  const clean = regionCode.trim();
+  if (!clean) {
+    return null;
+  }
+  if (countryCode === "US" || !countryCode) {
+    const fromCode = US_STATE_CODE_TO_NAME[clean.toUpperCase()];
+    if (fromCode) {
+      return fromCode;
+    }
+    return US_STATE_NAME_TO_NAME[clean.toLowerCase()] ?? clean;
+  }
+  return clean;
+};

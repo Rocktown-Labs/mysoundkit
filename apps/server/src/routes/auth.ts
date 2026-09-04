@@ -15,11 +15,7 @@ const getEnvValue = (key: string) =>
     const configuredOrigin =
       getEnvValue("SOUNDKIT_BIO_URL") || "https://soundkit.bio";
     try {
-      return [
-        new URL(configuredOrigin).origin,
-        "https://bio.mysoundkit.com",
-        "https://www.soundkit.bio",
-      ];
+      return [new URL(configuredOrigin).origin, "https://www.soundkit.bio"];
     } catch {
       return [];
     }

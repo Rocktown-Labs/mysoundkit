@@ -1,4 +1,4 @@
-/* eslint-disable complexity, unicorn/max-nested-calls, sort-vars, one-var, no-nested-ternary, unicorn/no-nested-ternary, unicorn/no-await-expression-member, unicorn/no-negated-condition, unicorn/prefer-number-properties, unicorn/prefer-ternary */
+/* eslint-disable complexity, unicorn/max-nested-calls, sort-vars, one-var, no-nested-ternary, unicorn/no-nested-ternary, unicorn/no-await-expression-member, unicorn/no-negated-condition, unicorn/prefer-number-properties, unicorn/prefer-ternary, require-unicode-regexp */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
@@ -4063,5 +4063,223 @@ app.openapi(
     );
   }
 );
+
+const escapeXml = (unsafe: string) =>
+  unsafe
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+
+interface TrackOgOptions {
+  artistName: string;
+  coverArtUrl?: string | null;
+  genre?: string | null;
+  title: string;
+}
+
+const generateTrackOgSvg = ({
+  artistName,
+  coverArtUrl,
+  genre,
+  title,
+}: TrackOgOptions) => {
+  const safeTitle = escapeXml(
+    title.length > 34 ? `${title.slice(0, 32)}…` : title
+  );
+  const safeArtist = escapeXml(
+    artistName.length > 34 ? `${artistName.slice(0, 32)}…` : artistName
+  );
+  const genreBadge = escapeXml(
+    (genre || "Lossless Audio").toUpperCase().slice(0, 20)
+  );
+  const safeCover =
+    coverArtUrl &&
+    (coverArtUrl.startsWith("http://") || coverArtUrl.startsWith("https://"))
+      ? escapeXml(coverArtUrl)
+      : null;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090A0F" />
+      <stop offset="50%" stop-color="#11131E" />
+      <stop offset="100%" stop-color="#181B2B" />
+    </linearGradient>
+    <radialGradient id="glow-ambient" cx="25%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#22C55E" stop-opacity="0.18" />
+      <stop offset="60%" stop-color="#10B981" stop-opacity="0.04" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+    <clipPath id="cover-clip">
+      <rect x="70" y="115" width="400" height="400" rx="28" />
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg-grad)" />
+  <rect width="1200" height="630" fill="url(#glow-ambient)" />
+
+  <!-- Studio Grid Texture -->
+  <line x1="0" y1="90" x2="1200" y2="90" stroke="#FFFFFF" stroke-opacity="0.05" stroke-width="1" />
+  <line x1="0" y1="540" x2="1200" y2="540" stroke="#FFFFFF" stroke-opacity="0.05" stroke-width="1" />
+  <line x1="510" y1="90" x2="510" y2="540" stroke="#FFFFFF" stroke-opacity="0.04" stroke-width="1" />
+
+  <!-- Brand Header -->
+  <g transform="translate(70, 36)">
+    <text x="0" y="26" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="900" letter-spacing="3">SOUNDKIT</text>
+    <text x="132" y="26" fill="#22C55E" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="900">.BIO</text>
+
+    <rect x="215" y="8" width="160" height="26" rx="13" fill="#22C55E" fill-opacity="0.12" stroke="#22C55E" stroke-opacity="0.35" stroke-width="1" />
+    <text x="295" y="25" text-anchor="middle" fill="#4ADE80" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" letter-spacing="1.5">LOSSLESS AUDIO</text>
+
+    <rect x="910" y="8" width="160" height="26" rx="13" fill="#FFFFFF" fill-opacity="0.06" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="1" />
+    <text x="990" y="25" text-anchor="middle" fill="#E4E4E7" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" letter-spacing="1.5">ARTIST PROFILE</text>
+  </g>
+
+  <!-- Left: Cover Artwork Container -->
+  <g>
+    <rect x="68" y="113" width="404" height="404" rx="30" fill="none" stroke="#22C55E" stroke-width="2" stroke-opacity="0.3" />
+    <rect x="70" y="115" width="400" height="400" rx="28" fill="#181A26" />
+    ${
+      safeCover
+        ? `<image href="${safeCover}" x="70" y="115" width="400" height="400" preserveAspectRatio="xMidYMid slice" clip-path="url(#cover-clip)" />`
+        : `<circle cx="270" cy="315" r="70" fill="#22C55E" fill-opacity="0.15" />
+           <polygon points="260,285 260,345 300,315" fill="#22C55E" />`
+    }
+  </g>
+
+  <!-- Right: Track Metadata & CTA -->
+  <g transform="translate(540, 0)">
+    <!-- Genre Pill -->
+    <g transform="translate(0, 140)">
+      <rect x="0" y="0" width="130" height="26" rx="13" fill="#22C55E" fill-opacity="0.12" stroke="#22C55E" stroke-opacity="0.35" stroke-width="1" />
+      <text x="65" y="17" text-anchor="middle" fill="#4ADE80" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" letter-spacing="1.5">${genreBadge}</text>
+    </g>
+
+    <!-- Track Title -->
+    <text x="0" y="235" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="44" font-weight="900" letter-spacing="-0.5">${safeTitle}</text>
+
+    <!-- Artist Name -->
+    <text x="0" y="285" fill="#A1A1AA" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="700">${safeArtist}</text>
+
+    <!-- Badges Row -->
+    <g transform="translate(0, 325)">
+      <rect x="0" y="0" width="180" height="28" rx="8" fill="#FFFFFF" fill-opacity="0.05" stroke="#FFFFFF" stroke-opacity="0.1" stroke-width="1" />
+      <text x="90" y="18" text-anchor="middle" fill="#D4D4D8" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700">★ 24-Bit Studio Audio</text>
+
+      <rect x="192" y="0" width="180" height="28" rx="8" fill="#FFFFFF" fill-opacity="0.05" stroke="#FFFFFF" stroke-opacity="0.1" stroke-width="1" />
+      <text x="282" y="18" text-anchor="middle" fill="#D4D4D8" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700">♥ Direct Artist Support</text>
+    </g>
+
+    <!-- Conversion CTA Button -->
+    <g transform="translate(0, 405)">
+      <rect x="0" y="0" width="340" height="60" rx="30" fill="#22C55E" />
+      <circle cx="42" cy="30" r="15" fill="#000000" fill-opacity="0.2" />
+      <polygon points="38,23 38,37 49,30" fill="#000000" />
+      <text x="185" y="38" text-anchor="middle" fill="#000000" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="900" letter-spacing="0.5">Stream on SoundKit</text>
+    </g>
+
+    <!-- Subtitle / SERP Anchor -->
+    <text x="0" y="500" fill="#71717A" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="500">Listen, explore credits &amp; support directly on SoundKit Bio</text>
+  </g>
+</svg>`;
+};
+
+app.get("/og-image", (c) => {
+  const title = c.req.query("title") || "SoundKit Track",
+    artistName = c.req.query("artist") || "SoundKit Artist",
+    coverArtUrl = c.req.query("cover") || null,
+    genre = c.req.query("genre") || "Original Audio",
+    svg = generateTrackOgSvg({ artistName, coverArtUrl, genre, title });
+
+  return c.body(svg, HttpStatusCodes.OK, {
+    "Cache-Control": "public, max-age=3600, s-maxage=86400",
+    "Content-Type": "image/svg+xml; charset=utf-8",
+  });
+});
+
+app.get("/:trackId/og-image", async (c) => {
+  const trackId = c.req.param("trackId");
+  let title = c.req.query("title") || null,
+    artistName = c.req.query("artist") || null,
+    coverArtUrl = c.req.query("cover") || null,
+    genre = c.req.query("genre") || null;
+
+  if (isDatabaseConfigured() && (!title || !artistName || !coverArtUrl)) {
+    try {
+      const db = createDb();
+      const [trackRow] = await db
+        .select({
+          genreId: tracks.genreId,
+          genreName: genres.name,
+          ownerUserId: tracks.ownerUserId,
+          title: tracks.title,
+        })
+        .from(tracks)
+        .leftJoin(genres, eq(genres.id, tracks.genreId))
+        .where(eq(tracks.id, trackId))
+        .limit(1);
+
+      if (trackRow) {
+        title ||= trackRow.title;
+        genre ||= trackRow.genreName || null;
+        if (!coverArtUrl) {
+          const [coverAsset] = await db
+            .select({
+              metadata: trackAssets.metadata,
+              objectKey: trackAssets.objectKey,
+            })
+            .from(trackAssets)
+            .where(
+              and(
+                eq(trackAssets.trackId, trackId),
+                eq(trackAssets.assetKind, "cover_art"),
+                eq(trackAssets.isCurrent, true)
+              )
+            )
+            .limit(1);
+          if (coverAsset) {
+            coverArtUrl = publicAssetUrl(coverAsset);
+          }
+        }
+        if (!artistName && trackRow.ownerUserId) {
+          const [profile] = await db
+            .select({
+              displayName: userProfiles.displayName,
+              stageName: artistProfiles.stageName,
+            })
+            .from(userProfiles)
+            .leftJoin(
+              artistProfiles,
+              eq(artistProfiles.userId, trackRow.ownerUserId)
+            )
+            .where(eq(userProfiles.userId, trackRow.ownerUserId))
+            .limit(1);
+          if (profile) {
+            artistName =
+              profile.stageName || profile.displayName || "SoundKit Artist";
+          }
+        }
+      }
+    } catch {
+      // Best effort lookup
+    }
+  }
+
+  const svg = generateTrackOgSvg({
+    artistName: artistName || "SoundKit Artist",
+    coverArtUrl,
+    genre: genre || "Original Audio",
+    title: title || "SoundKit Track",
+  });
+
+  return c.body(svg, HttpStatusCodes.OK, {
+    "Cache-Control": "public, max-age=3600, s-maxage=86400",
+    "Content-Type": "image/svg+xml; charset=utf-8",
+  });
+});
 
 export default app;

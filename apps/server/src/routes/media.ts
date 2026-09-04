@@ -20,15 +20,31 @@ import { isPublicTrackArtwork } from "@/lib/media-access";
 import type { AppEnv } from "@/lib/types";
 import { logWarn } from "@/middleware/structured-logging";
 
+export const objectKeyFromPath = (path: string) => {
+  const prefix = "/media/";
+  if (!path.startsWith(prefix)) {
+    return null;
+  }
+
+  const encodedKey = path.slice(prefix.length);
+  if (!encodedKey) {
+    return null;
+  }
+
+  try {
+    const key = decodeURIComponent(encodedKey),
+      segments = key.split(/[\\/]/u);
+    return key &&
+      !key.startsWith("/") &&
+      !segments.some((segment) => segment === "." || segment === "..")
+      ? key
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 const app = new OpenAPIHono<AppEnv>(),
-  objectKeyFromPath = (path: string) => {
-    const prefix = "/media/";
-    if (!path.startsWith(prefix)) {
-      return null;
-    }
-    const key = path.slice(prefix.length);
-    return key && !key.includes("../") ? key : null;
-  },
   isPrivateTrackAsset = (asset: typeof trackAssets.$inferSelect) =>
     asset.purpose === "master" ||
     asset.purpose === "stem" ||
@@ -222,12 +238,16 @@ app.get("/*", async (c) => {
     c.executionCtx.waitUntil(clearMissingMediaReferences(objectKey));
     return c.json({ message: "Media not found." }, 404);
   }
-  const headers = new Headers({
-    // Auth-scoped guarded media: keep out of the shared CDN edge cache.
-    "Cache-Control": "private, max-age=0",
-    "Content-Length": String(object.size),
-  });
+  const headers = new Headers({ "Content-Length": String(object.size) });
   object.writeHttpMetadata(headers);
+  headers.set(
+    "Cache-Control",
+    objectKey.startsWith("profiles/")
+      ? "public, max-age=31536000, immutable"
+      : "private, max-age=0"
+  );
+  headers.set("ETag", object.httpEtag);
+  headers.set("Last-Modified", object.uploaded.toUTCString());
   return new Response(object.body, { headers });
 });
 

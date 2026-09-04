@@ -8,6 +8,9 @@ describe("public response cache policy", () => {
     "https://api.mysoundkit.com/v1/videos?region=all",
     "https://api.mysoundkit.com/v1/projects/public?region=all",
     "https://api.mysoundkit.com/v1/artists?region=all",
+    "https://api.mysoundkit.com/v1/artists/discover?region=all",
+    "https://api.mysoundkit.com/v1/artists/luna-eclipse",
+    "https://api.mysoundkit.com/v1/artists/luna-eclipse/media?section=feed",
     "https://api.mysoundkit.com/v1/discover/genres",
   ])("allows invariant public catalog reads", (url) => {
     expect(isPublicCacheRequest(new Request(url))).toBe(true);

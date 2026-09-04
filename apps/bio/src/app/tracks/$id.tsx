@@ -7,22 +7,25 @@ import {
   Check,
   Disc3,
   ExternalLink,
-  Headphones,
   Music,
   Pause,
   Play,
   Share2,
-  Youtube,
 } from "lucide-react";
 import React, { useState } from "react";
 
 import { useBioAudioPlayer } from "@/components/bio-audio-player";
 import {
+  AppleMusicIcon,
+  SpotifyIcon,
+  YoutubeIcon,
+} from "@/components/ui/brand-icons";
+import {
+  API_V1_URL,
   buildSoundKitWebUrl,
   isSafeExternalUrl,
   loadBioTrack,
   SOUNDKIT_BIO_URL,
-  toAbsoluteBioUrl,
 } from "@/lib/api";
 import type { BioTrack } from "@/lib/api";
 
@@ -34,11 +37,9 @@ export const Route = createFileRoute("/tracks/$id")({
         ? `${track.title} by ${track.artistName} — SoundKit.bio`
         : "Track Details — SoundKit.bio",
       description = track
-        ? `Listen to ${track.title} by ${track.artistName} on SoundKit and streaming platforms.`
-        : "Discover tracks on SoundKit.bio.",
-      image = toAbsoluteBioUrl(
-        track?.coverArtUrl || "/soundkit-social-card.png"
-      ),
+        ? `Listen to "${track.title}" by ${track.artistName} on SoundKit. Stream high-fidelity lossless audio, explore full credits, and support the artist directly.`
+        : "Discover and stream high-fidelity lossless audio, credits, and artist releases on SoundKit.bio.",
+      image = `${API_V1_URL}/tracks/${encodeURIComponent(params.id)}/og-image`,
       canonical = `${SOUNDKIT_BIO_URL}/tracks/${encodeURIComponent(params.id)}`;
 
     return {
@@ -92,7 +93,7 @@ function BioTrackDetailPage() {
     );
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 sm:py-10 space-y-8">
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 sm:py-10 space-y-8">
       {/* Back to Artist link */}
       <div>
         {track.artistUsername ? (
@@ -281,7 +282,7 @@ function BioTrackDetailPage() {
           SoundKit.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* SoundKit Full App */}
           <a
             className="flex items-center justify-between rounded-2xl border border-primary/30 bg-primary/10 p-4 hover:bg-primary/20 hover:border-primary/50 transition-all shadow-md group"
@@ -301,77 +302,73 @@ function BioTrackDetailPage() {
             <ExternalLink className="size-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
           </a>
 
-          {/* Spotify */}
-          <a
-            className="flex items-center justify-between rounded-2xl border border-border/50 bg-card/40 p-4 hover:border-[#1DB954]/50 hover:bg-[#1DB954]/10 transition-all shadow-md group"
-            href={
-              track.streamingLinks?.spotify &&
-              isSafeExternalUrl(track.streamingLinks.spotify)
-                ? track.streamingLinks.spotify
-                : `https://open.spotify.com/search/${encodeURIComponent(`${track.title} ${track.artistName}`)}`
-            }
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            <div className="flex items-center gap-3">
-              <Headphones className="size-5 text-[#1DB954]" />
-              <div>
-                <p className="font-bold text-sm text-foreground">Spotify</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Play on Spotify
-                </p>
+          {/* Spotify (only shown if uploaded by creator) */}
+          {track.streamingLinks?.spotify &&
+          isSafeExternalUrl(track.streamingLinks.spotify) ? (
+            <a
+              className="flex items-center justify-between rounded-2xl border border-border/50 bg-card/40 p-4 hover:border-[#1DB954]/50 hover:bg-[#1DB954]/10 transition-all shadow-md group"
+              href={track.streamingLinks.spotify}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <div className="flex items-center gap-3">
+                <SpotifyIcon className="size-5 text-[#1DB954]" />
+                <div>
+                  <p className="font-bold text-sm text-foreground">Spotify</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Play on Spotify
+                  </p>
+                </div>
               </div>
-            </div>
-            <ExternalLink className="size-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
-          </a>
+              <ExternalLink className="size-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+            </a>
+          ) : null}
 
-          {/* Apple Music */}
-          <a
-            className="flex items-center justify-between rounded-2xl border border-border/50 bg-card/40 p-4 hover:border-[#FC3C44]/50 hover:bg-[#FC3C44]/10 transition-all shadow-md group"
-            href={
-              track.streamingLinks?.appleMusic &&
-              isSafeExternalUrl(track.streamingLinks.appleMusic)
-                ? track.streamingLinks.appleMusic
-                : `https://music.apple.com/us/search?term=${encodeURIComponent(`${track.title} ${track.artistName}`)}`
-            }
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            <div className="flex items-center gap-3">
-              <Music className="size-5 text-[#FC3C44]" />
-              <div>
-                <p className="font-bold text-sm text-foreground">Apple Music</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Listen on Apple
-                </p>
+          {/* Apple Music (only shown if uploaded by creator) */}
+          {track.streamingLinks?.appleMusic &&
+          isSafeExternalUrl(track.streamingLinks.appleMusic) ? (
+            <a
+              className="flex items-center justify-between rounded-2xl border border-border/50 bg-card/40 p-4 hover:border-[#FC3C44]/50 hover:bg-[#FC3C44]/10 transition-all shadow-md group"
+              href={track.streamingLinks.appleMusic}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <div className="flex items-center gap-3">
+                <AppleMusicIcon className="size-5 text-[#FC3C44]" />
+                <div>
+                  <p className="font-bold text-sm text-foreground">
+                    Apple Music
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Listen on Apple
+                  </p>
+                </div>
               </div>
-            </div>
-            <ExternalLink className="size-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
-          </a>
+              <ExternalLink className="size-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+            </a>
+          ) : null}
 
-          {/* YouTube Music */}
-          <a
-            className="flex items-center justify-between rounded-2xl border border-border/50 bg-card/40 p-4 hover:border-[#FF0000]/50 hover:bg-[#FF0000]/10 transition-all shadow-md group"
-            href={
-              track.streamingLinks?.youtube &&
-              isSafeExternalUrl(track.streamingLinks.youtube)
-                ? track.streamingLinks.youtube
-                : `https://www.youtube.com/results?search_query=${encodeURIComponent(`${track.title} ${track.artistName}`)}`
-            }
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            <div className="flex items-center gap-3">
-              <Youtube className="size-5 text-[#FF0000]" />
-              <div>
-                <p className="font-bold text-sm text-foreground">YouTube</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Watch & Listen
-                </p>
+          {/* YouTube (only shown if uploaded by creator) */}
+          {track.streamingLinks?.youtube &&
+          isSafeExternalUrl(track.streamingLinks.youtube) ? (
+            <a
+              className="flex items-center justify-between rounded-2xl border border-border/50 bg-card/40 p-4 hover:border-[#FF0000]/50 hover:bg-[#FF0000]/10 transition-all shadow-md group"
+              href={track.streamingLinks.youtube}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <div className="flex items-center gap-3">
+                <YoutubeIcon className="size-5 text-[#FF0000]" />
+                <div>
+                  <p className="font-bold text-sm text-foreground">YouTube</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Watch &amp; Listen
+                  </p>
+                </div>
               </div>
-            </div>
-            <ExternalLink className="size-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
-          </a>
+              <ExternalLink className="size-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+            </a>
+          ) : null}
         </div>
       </section>
     </div>

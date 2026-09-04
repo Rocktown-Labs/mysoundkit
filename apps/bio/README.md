@@ -24,9 +24,8 @@ The `soundkit-bio` Alchemy Worker uses a production custom domain and
 pull-request-specific preview domains:
 
 - Production: `https://soundkit.bio`
-- Aliases: `https://www.soundkit.bio` and `https://bio.mysoundkit.com`
+- Alias: `https://www.soundkit.bio`
 - Pull requests: `https://bio-pr-<number>.mysoundkit.com`
 
-Alchemy provisions the production domain and retains the legacy alias for
-backward-compatible profile links. Set `SOUNDKIT_BIO_URL` only when overriding
-the generated origin in a local or preview environment.
+Alchemy provisions the production domain and alias for the SoundKit Bio platform.
+Set `SOUNDKIT_BIO_URL` only when overriding the generated origin in a local or preview environment.
