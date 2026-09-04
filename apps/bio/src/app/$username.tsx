@@ -718,7 +718,7 @@ function BioProfilePage() {
                         if (currentTrack?.id === track.id) {
                           togglePlay();
                         } else {
-                          playTrack(track, tracks);
+                          playTrack(track, [track]);
                         }
                       }}
                       track={track}
@@ -796,7 +796,7 @@ function BioProfilePage() {
                         if (currentTrack?.id === track.id) {
                           togglePlay();
                         } else {
-                          playTrack(track, media.featuredTracks);
+                          playTrack(track, [track]);
                         }
                       }}
                       track={track}
@@ -827,7 +827,7 @@ function BioProfilePage() {
                     if (currentTrack?.id === track.id) {
                       togglePlay();
                     } else {
-                      playTrack(track, tracks);
+                      playTrack(track, [track]);
                     }
                   }}
                   track={track}

@@ -95,7 +95,7 @@ function BioProjectDetailPage() {
       if (currentTrack?.id === track.id) {
         togglePlay();
       } else {
-        playTrack(track, project.tracks);
+        playTrack(track, [track]);
       }
     },
     handleShareClick = () => {
