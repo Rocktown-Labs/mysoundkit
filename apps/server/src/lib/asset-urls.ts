@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars */
 import type { projectAssets, trackAssets } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import type { InferSelectModel } from "drizzle-orm";
@@ -49,6 +50,9 @@ export const objectUrlFromMetadata = (metadata: unknown) => {
   return typeof url === "string" ? url : null;
 };
 
+const encodeObjectKey = (objectKey: string) =>
+  objectKey.split("/").map(encodeURIComponent).join("/");
+
 export const publicAssetUrlFromParts = ({
   metadata,
   objectKey,
@@ -56,7 +60,7 @@ export const publicAssetUrlFromParts = ({
   const baseUrl = mediaBaseUrl();
 
   if (baseUrl && objectKey) {
-    return `${baseUrl}/${objectKey}`;
+    return `${baseUrl}/${encodeObjectKey(objectKey)}`;
   }
 
   return objectUrlFromMetadata(metadata);
@@ -74,7 +78,7 @@ export const publicProfileAssetUrl = ({
 }) => {
   const baseUrl = mediaBaseUrl();
   return baseUrl && objectKey
-    ? `${baseUrl}/${objectKey}`
+    ? `${baseUrl}/${encodeObjectKey(objectKey)}`
     : (fallbackUrl ?? null);
 };
 
@@ -87,5 +91,7 @@ export const publicProjectAssetUrl = (
 
   const baseUrl = mediaBaseUrl();
 
-  return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
+  return baseUrl && asset.objectKey
+    ? `${baseUrl}/${encodeObjectKey(asset.objectKey)}`
+    : null;
 };

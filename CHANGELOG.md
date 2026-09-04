@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added region-ranked Bio artist discovery with cursor pagination, on-demand profile media loading, immutable public profile-media caching, and explicit image dimensions/lazy loading.
 - Added SVGL authentic brand icons (`SpotifyIcon`, `AppleMusicIcon`, `YoutubeIcon`, `InstagramIcon`, `TikTokIcon`, `TwitterIcon`) for platform and social links on Bio profiles, tracks, and projects.
 - Added dynamic 1200x630 Track OpenGraph SVG card generation endpoint (`/v1/tracks/:trackId/og-image` and `/v1/tracks/og-image`) with creator branding, genre tags, and waveform graphics.
 - Added social link-in-bio platform referral breakdown (Instagram, TikTok, X, YouTube, Direct) to the Bio dashboard overview, relocating regional listener discovery to `/dashboard/analytics`.
@@ -22,10 +23,13 @@
 
 - Updated live battle share messaging across the dashboard and explore rooms to `"Watch {artist/producer1} battle {artist/producer2} live on SoundKit Premium"`.
 - Aligned SoundKit Bio meta tags and share copy across `$username.tsx`, `projects/$id.tsx`, `videos/$id.tsx`, and `live/$id.tsx` to possessive phrasing (`Check out {name}'s SoundKit bio`) and platform attribution (`Stream ... on SoundKit`), clarifying that `soundkit.bio` is an accessory to the main web app.
-- Added `www.soundkit.bio` as an additional production alias for SoundKit Bio while retaining the canonical `soundkit.bio` links and legacy `bio.mysoundkit.com` alias.
+- Standardized Bio domain to `soundkit.bio` (with `www.soundkit.bio` alias), removing legacy `bio.mysoundkit.com` references.
 
 ### Fixed
 
+- Fixed artist profile `Share` button positioning by nesting it cleanly within the right-aligned action flex column, eliminating absolute overlap with `Full Profile`.
+- Fixed mobile navigation tabs obstruction on Bio dashboard by dynamically adjusting tab offset and scroll padding when the bottom audio player is active.
+- Fixed Bio dashboard traffic breakdown by connecting real playback discovery sources (`loadBioAnalyticsSources`), removing placeholder dummy data, and providing an authentic zero-state link copy CTA.
 - Added responsive Bio navigation with a full-width mobile search row, mobile-safe autocomplete, centered artist profile hero content, and direct dashboard routing for claimed artist accounts.
 - Added full multi-step artist onboarding (credentials, creator roles, eligibility, handle availability check, genre, streaming/social links, rights attestation, and plan selection) to `apps/bio`, completing into an empty artist dashboard that directs creators to finalize setup on SoundKit Web.
 - Added full multi-step fan onboarding (credentials, handle, location, favorite genres, plan selection) to `apps/bio`, completing into the home exploration route.

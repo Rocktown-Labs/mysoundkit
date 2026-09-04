@@ -41,6 +41,7 @@ export interface BioArtist {
   links?: Record<string, string | undefined>;
   location: string;
   name: string;
+  rank?: number | null;
   state?: string | null;
   trackCount?: number;
   username: string;
@@ -114,6 +115,12 @@ export interface BioMedia {
   credits: BioCredit[];
   featuredProjects: BioProject[];
   featuredTracks: BioTrack[];
+  hasMore?: {
+    credits: boolean;
+    projects: boolean;
+    tracks: boolean;
+    videos: boolean;
+  };
   projects: BioProject[];
   tracks: BioTrack[];
   videos: BioVideo[];
@@ -276,9 +283,16 @@ export interface BioArtistSearchResult {
   id: string;
   location?: string;
   name: string;
+  rank?: number | null;
   username: string;
   verified: boolean;
   weeklyPlays?: number;
+}
+
+export interface BioArtistDiscoveryPage {
+  artists: BioArtistSearchResult[];
+  hasMore: boolean;
+  nextCursor: string | null;
 }
 
 const safeExternalUrl = (value: string | null): string | null => {
@@ -392,6 +406,7 @@ const safeExternalUrl = (value: string | null): string | null => {
         stringValue(value.displayName) ??
         stringValue(value.stageName) ??
         "SoundKit Artist",
+      rank: numberValue(value.rank),
       state: stringValue(value.state),
       trackCount:
         numberValue(value.trackCount) ?? numberValue(value.track_count) ?? 0,
@@ -550,14 +565,6 @@ const safeExternalUrl = (value: string | null): string | null => {
       title: stringValue(value.title) ?? "Live Session",
       viewerCount: numberValue(value.viewerCount) ?? 0,
     };
-  },
-  emptyMedia: BioMedia = {
-    credits: [],
-    featuredProjects: [],
-    featuredTracks: [],
-    projects: [],
-    tracks: [],
-    videos: [],
   };
 
 const fetchBio = async (
@@ -586,6 +593,7 @@ const normalizeArtistSearchResult = (
     id: artist.id,
     location: artist.location,
     name: artist.name,
+    rank: artist.rank,
     username: artist.username,
     verified: artist.verified,
     weeklyPlays: artist.weeklyPlays,
@@ -603,21 +611,75 @@ const normalizeMediaList = <T>(
       })
     : [];
 
+const normalizeProfileMedia = (value: unknown, artist: BioArtist): BioMedia => {
+  const rawRecord = isRecord(value) ? value : null,
+    normalizeCredit = (entry: unknown): BioCredit | null => {
+      if (!isRecord(entry)) {
+        return null;
+      }
+
+      const id = stringValue(entry.id) ?? stringValue(entry.contentId);
+      if (!id) {
+        return null;
+      }
+
+      const role = stringValue(entry.role);
+      if (role !== "producer" && role !== "engineer" && role !== "songwriter") {
+        return null;
+      }
+
+      return {
+        contentId: stringValue(entry.contentId) ?? id,
+        contentType: entry.contentType === "project" ? "project" : "track",
+        coverArtUrl: apiMediaUrl(stringValue(entry.coverArtUrl)),
+        id,
+        ownerName: stringValue(entry.ownerName) ?? "SoundKit Artist",
+        ownerUsername: stringValue(entry.ownerUsername) ?? "",
+        projectType: projectTypeFrom(entry.projectType),
+        role,
+        slug: stringValue(entry.slug) ?? stringValue(entry.contentId) ?? id,
+        title: stringValue(entry.title) ?? "Untitled Release",
+      };
+    },
+    rawHasMore =
+      rawRecord && isRecord(rawRecord.hasMore)
+        ? {
+            credits: rawRecord.hasMore.credits === true,
+            projects: rawRecord.hasMore.projects === true,
+            tracks: rawRecord.hasMore.tracks === true,
+            videos: rawRecord.hasMore.videos === true,
+          }
+        : undefined;
+
+  return {
+    credits: normalizeMediaList(rawRecord?.credits, normalizeCredit),
+    featuredProjects: normalizeMediaList(rawRecord?.featuredProjects, (entry) =>
+      normalizeProject(entry, artist.name, artist.username)
+    ),
+    featuredTracks: normalizeMediaList(rawRecord?.featuredTracks, (entry) =>
+      normalizeTrack(entry, artist.name, artist.username)
+    ),
+    hasMore: rawHasMore,
+    projects: normalizeMediaList(rawRecord?.projects, (entry) =>
+      normalizeProject(entry, artist.name, artist.username)
+    ),
+    tracks: normalizeMediaList(rawRecord?.tracks, (entry) =>
+      normalizeTrack(entry, artist.name, artist.username)
+    ),
+    videos: normalizeMediaList(rawRecord?.videos, normalizeVideo),
+  };
+};
+
 export const loadBioProfile = async (
   username: string
 ): Promise<BioProfile | null> => {
   const encodedUsername = encodeURIComponent(username),
-    [artistResponse, mediaResponse, liveResponse] = await Promise.all([
-      fetchBio(`${API_V1_URL}/artists/${encodedUsername}`, {
+    artistResponse = await fetchBio(
+      `${API_V1_URL}/artists/${encodedUsername}`,
+      {
         headers: { Accept: "application/json" },
-      }),
-      fetchBio(`${API_V1_URL}/artists/${encodedUsername}/media`, {
-        headers: { Accept: "application/json" },
-      }),
-      fetchBio(`${API_V1_URL}/live/experiences/public`, {
-        headers: { Accept: "application/json" },
-      }),
-    ]),
+      }
+    ),
     artistData = await readJson(artistResponse),
     artistRecord =
       isRecord(artistData) && isRecord(artistData.artist)
@@ -629,71 +691,49 @@ export const loadBioProfile = async (
     return null;
   }
 
-  const rawMedia = await readJson(mediaResponse),
-    rawLive = await readJson(liveResponse),
+  const [mediaResponse, liveResponse] = await Promise.all([
+      fetchBio(`${API_V1_URL}/artists/${encodedUsername}/media?section=feed`, {
+        headers: { Accept: "application/json" },
+      }),
+      fetchBio(
+        `${API_V1_URL}/live/experiences/public?creatorUsername=${encodeURIComponent(artist.username)}`,
+        { headers: { Accept: "application/json" } }
+      ),
+    ]),
+    [rawMedia, rawLive] = await Promise.all([
+      readJson(mediaResponse),
+      readJson(liveResponse),
+    ]),
     liveExperiences = Array.isArray(rawLive) ? rawLive : [],
     live =
-      liveExperiences.map(normalizeLiveStream).find((experience, index) => {
-        const rawExperience = liveExperiences[index];
-        return (
-          experience?.status === "live" &&
-          isRecord(rawExperience) &&
-          (rawExperience.creatorUserId === artist.id ||
-            experience.creatorUsername === artist.username)
-        );
-      }) ?? null,
-    rawRecord = isRecord(rawMedia) ? rawMedia : null,
-    normalizeCredit = (value: unknown): BioCredit | null => {
-      if (!isRecord(value)) {
-        return null;
-      }
-
-      const id = stringValue(value.id) ?? stringValue(value.contentId);
-      if (!id) {
-        return null;
-      }
-
-      const role = stringValue(value.role);
-      if (role !== "producer" && role !== "engineer" && role !== "songwriter") {
-        return null;
-      }
-
-      const contentType = value.contentType === "project" ? "project" : "track";
-      return {
-        contentId: stringValue(value.contentId) ?? id,
-        contentType,
-        coverArtUrl: apiMediaUrl(stringValue(value.coverArtUrl)),
-        id,
-        ownerName: stringValue(value.ownerName) ?? "SoundKit Artist",
-        ownerUsername: stringValue(value.ownerUsername) ?? "",
-        projectType: projectTypeFrom(value.projectType),
-        role,
-        slug: stringValue(value.slug) ?? stringValue(value.contentId) ?? id,
-        title: stringValue(value.title) ?? "Untitled Release",
-      };
-    },
-    media: BioMedia = rawRecord
-      ? {
-          credits: normalizeMediaList(rawRecord.credits, normalizeCredit),
-          featuredProjects: normalizeMediaList(
-            rawRecord.featuredProjects,
-            (entry) => normalizeProject(entry, artist.name, artist.username)
-          ),
-          featuredTracks: normalizeMediaList(
-            rawRecord.featuredTracks,
-            (entry) => normalizeTrack(entry, artist.name, artist.username)
-          ),
-          projects: normalizeMediaList(rawRecord.projects, (entry) =>
-            normalizeProject(entry, artist.name, artist.username)
-          ),
-          tracks: normalizeMediaList(rawRecord.tracks, (entry) =>
-            normalizeTrack(entry, artist.name, artist.username)
-          ),
-          videos: normalizeMediaList(rawRecord.videos, normalizeVideo),
-        }
-      : emptyMedia;
+      liveExperiences
+        .map(normalizeLiveStream)
+        .find((experience) =>
+          Boolean(experience && experience.status === "live")
+        ) ?? null,
+    media = normalizeProfileMedia(rawMedia, artist);
 
   return { artist, live, media };
+};
+
+export const loadBioMediaSection = async (
+  username: string,
+  artist: BioArtist,
+  section: Exclude<
+    keyof BioMedia,
+    "hasMore" | "featuredProjects" | "featuredTracks"
+  >
+): Promise<BioMedia | null> => {
+  const response = await fetchBio(
+    `${API_V1_URL}/artists/${encodeURIComponent(username)}/media?section=${encodeURIComponent(section)}`,
+    { headers: { Accept: "application/json" } }
+  );
+
+  if (!response?.ok) {
+    return null;
+  }
+
+  return normalizeProfileMedia(await readJson(response), artist);
 };
 
 export const loadBioTrack = async (
@@ -764,6 +804,45 @@ export const loadRegionArtists = async (
   }
 
   return [];
+};
+
+export const loadArtistDiscoveryPage = async ({
+  cursor,
+  limit = 12,
+  region = "us-arkansas",
+  regionType = "north-america",
+}: {
+  cursor?: string | null;
+  limit?: number;
+  region?: string;
+  regionType?: "north-america" | "global";
+}): Promise<BioArtistDiscoveryPage> => {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    region,
+    regionType,
+  });
+  if (cursor) {
+    params.set("cursor", cursor);
+  }
+
+  const response = await fetchBio(
+    `${API_V1_URL}/artists/discover?${params.toString()}`,
+    { headers: { Accept: "application/json" } }
+  );
+  if (!response?.ok) {
+    throw new Error(`Could not load artists (${response?.status ?? 0}).`);
+  }
+
+  const data = await readJson(response),
+    record = isRecord(data) ? data : null,
+    artists = normalizeMediaList(record?.artists, normalizeArtistSearchResult);
+
+  return {
+    artists,
+    hasMore: record?.hasMore === true,
+    nextCursor: stringValue(record?.nextCursor),
+  };
 };
 
 export const isSafeExternalUrl = (value: string | undefined) =>

@@ -15,7 +15,7 @@ import {
 import React, { useEffect, useState } from "react";
 
 import { BioMap } from "@/components/bio-map";
-import { getCurrentSessionUser, loadRegionArtists } from "@/lib/api";
+import { getCurrentSessionUser, loadArtistDiscoveryPage } from "@/lib/api";
 import type { BioArtistSearchResult } from "@/lib/api";
 import { exploreRegionSlug, regionTypeForMapScope } from "@/lib/explore-region";
 import type { MapScope } from "@/lib/map-scopes";
@@ -65,9 +65,13 @@ function BioHomePage() {
               ? "all"
               : mapScope,
           regionType = regionTypeForMapScope(mapScope),
-          list = await loadRegionArtists(apiRegion, regionType);
+          page = await loadArtistDiscoveryPage({
+            limit: 12,
+            region: apiRegion,
+            regionType,
+          });
         if (!isCancelled) {
-          setArtists(list);
+          setArtists(page.artists);
           setLoadError(null);
         }
       } catch {
@@ -106,7 +110,15 @@ function BioHomePage() {
     resetToGlobal = () => {
       setMapScope("global");
       setSelectedRegion("");
-    };
+    },
+    discoveryRegion = selectedRegion
+      ? mapScope === "usa"
+        ? `us-${exploreRegionSlug(selectedRegion)}`
+        : exploreRegionSlug(selectedRegion)
+      : mapScope === "global"
+        ? "all"
+        : mapScope,
+    discoveryRegionType = regionTypeForMapScope(mapScope);
 
   return (
     <div className="mx-auto min-w-0 w-full max-w-7xl overflow-x-clip px-4 py-6 sm:px-6 sm:py-10 space-y-10 sm:space-y-14">
@@ -198,9 +210,22 @@ function BioHomePage() {
             </h3>
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            {artists.length > 0 ? `${artists.length} artists found` : ""}
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-muted-foreground">
+              {artists.length > 0 ? "Top 12" : ""}
+            </p>
+            <Link
+              className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+              search={{
+                region: discoveryRegion,
+                regionType: discoveryRegionType,
+              }}
+              to="/artists"
+            >
+              View all
+              <ArrowRight className="size-3.5" />
+            </Link>
+          </div>
         </div>
 
         {loadError ? (
@@ -242,7 +267,11 @@ function BioHomePage() {
                       <img
                         alt={artist.name}
                         className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        decoding="async"
+                        height={48}
+                        loading="lazy"
                         src={artist.avatarUrl}
+                        width={48}
                       />
                     ) : (
                       <div className="flex size-full items-center justify-center font-bold text-sm text-primary">

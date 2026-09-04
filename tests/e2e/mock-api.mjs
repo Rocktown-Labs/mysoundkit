@@ -1605,6 +1605,26 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (url.pathname === "/v1/artists/discover") {
+      const requestedCursor = url.searchParams.get("cursor"),
+        start = requestedCursor ? 1 : 0,
+        artists = mockArtists.slice(start, start + 12).map((artist, index) => ({
+          ...artist,
+          rank: start + index + 1,
+        }));
+      json(
+        response,
+        200,
+        {
+          artists,
+          hasMore: start + artists.length < mockArtists.length,
+          nextCursor: null,
+        },
+        webOrigin
+      );
+      return;
+    }
+
     const artistDetailMatch = url.pathname.match(/^\/v1\/artists\/([^/]+)$/);
     if (artistDetailMatch) {
       const artist =

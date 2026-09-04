@@ -54,7 +54,7 @@ const SITE_HOST = isProduction
     : `media-${app.stage}.mysoundkit.com`,
   SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`,
   BIO_HOST = isProduction ? "soundkit.bio" : `bio-${app.stage}.mysoundkit.com`,
-  BIO_ALIAS_HOSTS = ["bio.mysoundkit.com", "www.soundkit.bio"],
+  BIO_ALIAS_HOSTS = ["www.soundkit.bio"],
   BIO_URL = (() => {
     if (app.local) {
       return "http://localhost:3002";
@@ -142,7 +142,6 @@ const SITE_HOST = isProduction
             "http://localhost:3001",
             "https://*.mysoundkit.com",
             "https://mysoundkit.com",
-            "https://bio.mysoundkit.com",
             "https://soundkit.bio",
             "https://www.soundkit.bio",
           ],

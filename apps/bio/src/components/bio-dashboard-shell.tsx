@@ -5,6 +5,7 @@ import { BarChart3, Home, LayoutDashboard, WalletCards } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
+import { useBioAudioPlayer } from "@/components/bio-audio-player";
 import { BioSearchBar } from "@/components/bio-search-bar";
 import { getCurrentSessionUser } from "@/lib/api";
 import type { BioCurrentUser } from "@/lib/api";
@@ -63,7 +64,8 @@ function DashboardNavigation({ mobile = false }: { mobile?: boolean }) {
 }
 
 export function BioDashboardShell({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<BioCurrentUser | null>(null),
+  const { currentTrack } = useBioAudioPlayer(),
+    [currentUser, setCurrentUser] = useState<BioCurrentUser | null>(null),
     bioHref = currentUser?.username ? `/${currentUser.username}` : "/";
 
   useEffect(() => {
@@ -146,10 +148,18 @@ export function BioDashboardShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <div className="min-w-0 flex-1 pb-36 lg:pb-12">{children}</div>
+        <div
+          className={`min-w-0 flex-1 ${currentTrack ? "pb-56" : "pb-36"} lg:pb-12`}
+        >
+          {children}
+        </div>
       </div>
 
-      <div className="bio-dashboard-mobile-tabs fixed inset-x-3 bottom-3 z-40 mx-auto max-w-md rounded-2xl border border-border/60 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl lg:hidden">
+      <div
+        className={`bio-dashboard-mobile-tabs fixed inset-x-3 z-50 mx-auto max-w-md rounded-2xl border border-border/60 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl transition-all duration-300 lg:hidden ${
+          currentTrack ? "bottom-[5.5rem]" : "bottom-3"
+        }`}
+      >
         <DashboardNavigation mobile />
       </div>
     </div>

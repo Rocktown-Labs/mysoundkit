@@ -63,6 +63,32 @@ describe("SoundKit Worker API", () => {
     expect(body.info.title).toBe("SoundKit API");
   });
 
+  it("returns bounded cursor-paginated artist discovery results", async () => {
+    const response = await SELF.fetch(
+        "http://soundkit.test/v1/artists/discover?region=us-arkansas&limit=12"
+      ),
+      body = await readJson<{
+        artists: { rank: number | null }[];
+        hasMore: boolean;
+        nextCursor: string | null;
+      }>(response);
+
+    expect(response.status).toBe(200);
+    expect(body.artists.length).toBeLessThanOrEqual(12);
+    expect(body.artists.every((artist) => artist.rank !== undefined)).toBe(
+      true
+    );
+    expect(typeof body.hasMore).toBe("boolean");
+  });
+
+  it("rejects malformed artist discovery cursors", async () => {
+    const response = await SELF.fetch(
+      "http://soundkit.test/v1/artists/discover?cursor=not-a-cursor"
+    );
+
+    expect(response.status).toBe(400);
+  });
+
   it("requires authentication to create a tip", async () => {
     const response = await SELF.fetch("http://soundkit.test/v1/payments/tips", {
       body: JSON.stringify({
@@ -177,17 +203,17 @@ describe("SoundKit Worker API", () => {
     );
   });
 
-  it("allows the legacy bio origin for credentialed auth requests", async () => {
+  it("allows the www.soundkit.bio origin for credentialed auth requests", async () => {
     const response = await SELF.fetch("http://soundkit.test/auth/session", {
       headers: {
         "access-control-request-method": "GET",
-        origin: "https://bio.mysoundkit.com",
+        origin: "https://www.soundkit.bio",
       },
       method: "OPTIONS",
     });
 
     expect(response.headers.get("access-control-allow-origin")).toBe(
-      "https://bio.mysoundkit.com"
+      "https://www.soundkit.bio"
     );
     expect(response.headers.get("access-control-allow-credentials")).toBe(
       "true"

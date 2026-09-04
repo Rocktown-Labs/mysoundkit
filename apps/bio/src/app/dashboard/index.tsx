@@ -14,6 +14,7 @@ import {
   Link2,
   LoaderCircle,
   Music,
+  Share2,
   Sparkles,
   UserRound,
 } from "lucide-react";
@@ -30,12 +31,14 @@ import {
   buildSoundKitWebUrl,
   getCurrentSessionUser,
   loadBioAnalyticsOverview,
+  loadBioAnalyticsSources,
   loadBioArtistEarnings,
   loadBioTips,
   toBioShareUrl,
 } from "@/lib/api";
 import type {
   BioAnalyticsOverview,
+  BioAnalyticsSources,
   BioArtistEarnings,
   BioCurrentUser,
   BioTipsOverview,
@@ -48,11 +51,44 @@ export const Route = createFileRoute("/dashboard/")({
 const formatDollars = (amountCents: number) =>
   `$${(amountCents / 100).toFixed(2)}`;
 
+const getSourceMeta = (st: string, label: string) => {
+  const lower = `${st} ${label}`.toLowerCase();
+  if (lower.includes("instagram")) {
+    return { barColor: "bg-[#E4405F]", icon: InstagramIcon };
+  }
+  if (lower.includes("tiktok")) {
+    return { barColor: "bg-[#25F4EE]", icon: TikTokIcon };
+  }
+  if (
+    lower.includes("twitter") ||
+    lower.includes(" x ") ||
+    lower.startsWith("x ")
+  ) {
+    return { barColor: "bg-zinc-200", icon: TwitterIcon };
+  }
+  if (lower.includes("youtube")) {
+    return { barColor: "bg-[#FF0000]", icon: YoutubeIcon };
+  }
+  if (st === "share" || lower.includes("share")) {
+    return { barColor: "bg-emerald-400", icon: Share2 };
+  }
+  if (st === "artist_profile") {
+    return { barColor: "bg-primary", icon: UserRound };
+  }
+  if (st === "external_deep_link" || lower.includes("link")) {
+    return { barColor: "bg-purple-400", icon: Link2 };
+  }
+  return { barColor: "bg-blue-400", icon: Globe };
+};
+
 function BioArtistDashboard() {
   const [currentUser, setCurrentUser] = useState<BioCurrentUser | null>(null);
   const [analytics, setAnalytics] = useState<BioAnalyticsOverview | null>(null);
   const [earnings, setEarnings] = useState<BioArtistEarnings | null>(null);
   const [tips, setTips] = useState<BioTipsOverview | null>(null);
+  const [sourcesData, setSourcesData] = useState<BioAnalyticsSources | null>(
+    null
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -74,15 +110,18 @@ function BioArtistDashboard() {
         }
 
         setIsDataLoading(true);
-        const [overview, artistEarnings, tipOverview] = await Promise.all([
-          loadBioAnalyticsOverview(),
-          loadBioArtistEarnings(),
-          loadBioTips(),
-        ]);
+        const [overview, artistEarnings, tipOverview, sources] =
+          await Promise.all([
+            loadBioAnalyticsOverview(),
+            loadBioArtistEarnings(),
+            loadBioTips(),
+            loadBioAnalyticsSources(),
+          ]);
         if (!cancelled) {
           setAnalytics(overview);
           setEarnings(artistEarnings);
           setTips(tipOverview);
+          setSourcesData(sources);
         }
       } catch (error) {
         if (!cancelled) {
@@ -116,57 +155,27 @@ function BioArtistDashboard() {
         setTimeout(() => setCopied(false), 2200);
       }
     },
+    sources = sourcesData?.sources,
     platformBreakdown = useMemo(() => {
-      const totalPlays = analytics?.totalPlays ?? 0;
-      const baseCount = Math.max(totalPlays, 1);
-      return [
-        {
-          badge: "Primary Channel",
-          barColor: "bg-[#E4405F]",
-          count: Math.max(1, Math.round(baseCount * 0.42)),
-          handle: `@${username}`,
-          icon: InstagramIcon,
-          name: "Instagram Bio",
-          share: 42,
-        },
-        {
-          badge: null,
-          barColor: "bg-[#25F4EE]",
-          count: Math.max(1, Math.round(baseCount * 0.28)),
-          handle: `@${username}`,
-          icon: TikTokIcon,
-          name: "TikTok Bio",
-          share: 28,
-        },
-        {
-          badge: null,
-          barColor: "bg-zinc-200",
-          count: Math.max(1, Math.round(baseCount * 0.14)),
-          handle: `@${username}`,
-          icon: TwitterIcon,
-          name: "X / Twitter",
-          share: 14,
-        },
-        {
-          badge: null,
-          barColor: "bg-[#FF0000]",
-          count: Math.max(1, Math.round(baseCount * 0.09)),
-          handle: "Video Description",
-          icon: YoutubeIcon,
-          name: "YouTube Music",
-          share: 9,
-        },
-        {
-          badge: null,
-          barColor: "bg-emerald-400",
-          count: Math.max(1, Math.round(baseCount * 0.07)),
-          handle: "Direct / Messaging",
-          icon: Link2,
-          name: "Direct & Messaging",
-          share: 7,
-        },
-      ];
-    }, [analytics?.totalPlays, username]);
+      if (!sources || sources.length === 0) {
+        return [];
+      }
+      return sources.map((source, index) => {
+        const meta = getSourceMeta(source.sourceType, source.label);
+        return {
+          badge: index === 0 && source.percentage >= 25 ? "Top Source" : null,
+          barColor: meta.barColor,
+          count: source.count,
+          handle:
+            source.sourceType === "artist_profile"
+              ? `@${username}`
+              : source.label,
+          icon: meta.icon,
+          name: source.label,
+          share: source.percentage,
+        };
+      });
+    }, [sources, username]);
 
   if (isLoading) {
     return (
@@ -354,54 +363,89 @@ function BioArtistDashboard() {
           </div>
 
           <div className="space-y-3.5">
-            {platformBreakdown.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div
-                  className="rounded-2xl border border-border/40 bg-white/[0.03] p-4 transition-colors hover:bg-white/[0.05]"
-                  key={item.name}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/5 border border-border/40 text-foreground">
-                        <Icon className="size-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-sm text-foreground truncate">
-                            {item.name}
-                          </p>
-                          {item.badge ? (
-                            <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
-                              {item.badge}
-                            </span>
-                          ) : null}
+            {platformBreakdown.length > 0 ? (
+              platformBreakdown.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    className="rounded-2xl border border-border/40 bg-white/[0.03] p-4 transition-colors hover:bg-white/[0.05]"
+                    key={item.name}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/5 border border-border/40 text-foreground">
+                          <Icon className="size-4" />
                         </div>
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {item.handle}
-                        </p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-sm text-foreground truncate">
+                              {item.name}
+                            </p>
+                            {item.badge ? (
+                              <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                                {item.badge}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {item.handle}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="font-mono text-xs font-bold text-foreground">
+                          {item.count.toLocaleString()}{" "}
+                          {item.count === 1 ? "play" : "plays"}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground ml-1.5">
+                          ({item.share}%)
+                        </span>
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <span className="font-mono text-xs font-bold text-foreground">
-                        {item.count.toLocaleString()} visits
-                      </span>
-                      <span className="text-[11px] text-muted-foreground ml-1.5">
-                        ({item.share}%)
-                      </span>
+                    <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/5">
+                      <div
+                        className={`h-full rounded-full ${item.barColor} transition-all duration-500`}
+                        style={{ width: `${item.share}%` }}
+                      />
                     </div>
                   </div>
-
-                  <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/5">
-                    <div
-                      className={`h-full rounded-full ${item.barColor} transition-all duration-500`}
-                      style={{ width: `${item.share}%` }}
-                    />
-                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border/60 bg-white/[0.02] p-8 text-center">
+                <div className="mx-auto flex size-12 items-center justify-center rounded-2xl border border-border/40 bg-white/5 text-muted-foreground">
+                  <Globe className="size-6" />
                 </div>
-              );
-            })}
+                <h3 className="mt-3 text-sm font-semibold text-foreground">
+                  No referral traffic recorded yet
+                </h3>
+                <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
+                  Share your SoundKit Bio URL on social platforms and link
+                  aggregators to start tracking referral sources and plays.
+                </p>
+                <div className="mt-4 flex justify-center">
+                  <button
+                    className="inline-flex items-center gap-2 rounded-xl border border-border/60 bg-card/60 px-3.5 py-1.5 text-xs font-semibold text-foreground shadow-sm transition-all hover:border-primary/40 hover:bg-card"
+                    onClick={copyBioLink}
+                    type="button"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="size-3.5 text-emerald-400" />
+                        <span>Copied Bio Link</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="size-3.5" />
+                        <span>Copy Bio Link to Share</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Bio Optimization Pro-Tip Banner */}

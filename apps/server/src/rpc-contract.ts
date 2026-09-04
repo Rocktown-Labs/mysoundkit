@@ -44,6 +44,7 @@ import {
   openVerseQuerySchema,
   playbackProgressBodySchema,
   platformInviteBodySchema,
+  artistDiscoveryQuerySchema,
   artistRankingQuerySchema,
   profileUpdateBodySchema,
   publicExploreQuerySchema,
@@ -80,6 +81,7 @@ import type {
   analyticsSourcesSchema,
   analyticsTimeseriesSchema,
   analyticsTracksResponseSchema,
+  artistDiscoveryPageSchema,
   artistEarningsOverviewSchema,
   backfillTrackDurationsResponseSchema,
   trackDurationBackfillStatusSchema,
@@ -492,6 +494,16 @@ export const rpcContract = new Hono()
   )
   .post("/v1/billing/portal", jsonValidator(billingPortalBodySchema), (c) =>
     c.json({} as z.infer<typeof billingPortalResponseSchema>)
+  )
+  .get(
+    "/v1/artists/discover",
+    validator("query", (value) => artistDiscoveryQuerySchema.parse(value)),
+    (c) =>
+      c.json({
+        artists: [] as z.infer<typeof artistSummarySchema>[],
+        hasMore: false,
+        nextCursor: null,
+      } as z.infer<typeof artistDiscoveryPageSchema>)
   )
   .get(
     "/v1/artists/",

@@ -1,4 +1,4 @@
-/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo, unicorn/no-negated-condition, eslint/no-negated-condition, react/preserve-manual-memoization */
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo, react/set-state-in-effect, no-void, unicorn/no-negated-condition, eslint/no-negated-condition, react/preserve-manual-memoization */
 "use client";
 
 import {
@@ -46,12 +46,14 @@ import {
   SOUNDKIT_WEB_URL,
   STRIPE_PUBLISHABLE_KEY,
   isSafeExternalUrl,
+  loadBioMediaSection,
   loadBioProfile,
   toAbsoluteBioUrl,
   toBioShareUrl,
 } from "@/lib/api";
 import type {
   BioArtist,
+  BioMedia,
   BioProfile,
   BioProject,
   BioTrack,
@@ -132,6 +134,32 @@ export const Route = createFileRoute("/$username")({
 });
 
 type TabType = "feed" | "tracks" | "projects" | "videos" | "credits" | "live";
+type LoadableTab = Exclude<TabType, "feed" | "live">;
+
+const tabToMediaSection: Record<LoadableTab, LoadableTab> = {
+  credits: "credits",
+  projects: "projects",
+  tracks: "tracks",
+  videos: "videos",
+};
+
+const mergeMediaSection = (
+  current: BioMedia,
+  next: BioMedia,
+  section: LoadableTab
+): BioMedia => ({
+  ...current,
+  [section]: next[section],
+  hasMore: {
+    ...(current.hasMore ?? {
+      credits: false,
+      projects: false,
+      tracks: false,
+      videos: false,
+    }),
+    [section]: next.hasMore?.[section] ?? false,
+  },
+});
 
 function BioProfilePage() {
   const { username } = Route.useParams(),
@@ -142,6 +170,14 @@ function BioProfilePage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [isTipOpen, setIsTipOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("feed");
+  const [loadedMedia, setLoadedMedia] = useState<BioMedia | null>(
+    profile?.media ?? null
+  );
+  const [mediaLoadingTab, setMediaLoadingTab] = useState<LoadableTab | null>(
+    null
+  );
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const loadedSectionsRef = useRef(new Set<LoadableTab>());
   const authPopupRef = useRef<Window | null>(null);
 
   const { currentTrack, isPlaying, playTrack, togglePlay } =
@@ -206,6 +242,13 @@ function BioProfilePage() {
   };
 
   useEffect(() => {
+    loadedSectionsRef.current.clear();
+    setLoadedMedia(profile?.media ?? null);
+    setActiveTab("feed");
+    setMediaError(null);
+  }, [profile]);
+
+  useEffect(() => {
     const handleMessage = (event: MessageEvent<unknown>) => {
       if (
         event.origin !== SOUNDKIT_WEB_ORIGIN ||
@@ -232,7 +275,7 @@ function BioProfilePage() {
   }, []);
 
   const artist = profile?.artist;
-  const media = profile?.media;
+  const media = loadedMedia ?? profile?.media;
   const tracks = useMemo(() => {
     if (!media) {
       return [];
@@ -248,22 +291,30 @@ function BioProfilePage() {
     if (!media) {
       return tabs;
     }
-    if (tracks.length > 0) {
-      tabs.push({ count: tracks.length, id: "tracks", label: "Tracks" });
-    }
-    if (media.projects.length > 0) {
+    if (tracks.length > 0 || media.hasMore?.tracks) {
       tabs.push({
-        count: media.projects.length,
+        count: media.hasMore?.tracks ? undefined : tracks.length,
+        id: "tracks",
+        label: "Tracks",
+      });
+    }
+    if (media.projects.length > 0 || media.hasMore?.projects) {
+      tabs.push({
+        count: media.hasMore?.projects ? undefined : media.projects.length,
         id: "projects",
         label: "Projects",
       });
     }
-    if (media.videos.length > 0) {
-      tabs.push({ count: media.videos.length, id: "videos", label: "Videos" });
-    }
-    if (media.credits.length > 0) {
+    if (media.videos.length > 0 || media.hasMore?.videos) {
       tabs.push({
-        count: media.credits.length,
+        count: media.hasMore?.videos ? undefined : media.videos.length,
+        id: "videos",
+        label: "Videos",
+      });
+    }
+    if (media.credits.length > 0 || media.hasMore?.credits) {
+      tabs.push({
+        count: media.hasMore?.credits ? undefined : media.credits.length,
         id: "credits",
         label: "Credits",
       });
@@ -283,6 +334,34 @@ function BioProfilePage() {
     artist.username
   );
 
+  const handleTabChange = async (tab: TabType) => {
+    setActiveTab(tab);
+    if (
+      tab === "feed" ||
+      tab === "live" ||
+      loadedSectionsRef.current.has(tab)
+    ) {
+      return;
+    }
+
+    setMediaLoadingTab(tab);
+    setMediaError(null);
+    const nextMedia = await loadBioMediaSection(
+      username,
+      artist,
+      tabToMediaSection[tab]
+    );
+    if (nextMedia) {
+      loadedSectionsRef.current.add(tab);
+      setLoadedMedia((current) =>
+        current ? mergeMediaSection(current, nextMedia, tab) : current
+      );
+    } else {
+      setMediaError("We could not load this section. Please try again.");
+    }
+    setMediaLoadingTab(null);
+  };
+
   return (
     <div className="mx-auto min-w-0 w-full max-w-7xl overflow-x-clip px-4 py-4 sm:px-6 lg:px-8 sm:py-8 space-y-6 sm:space-y-8">
       {/* Cover Banner */}
@@ -291,7 +370,11 @@ function BioProfilePage() {
           <img
             alt="Cover"
             className="size-full object-cover"
+            decoding="async"
+            fetchPriority="high"
+            height={240}
             src={artist.coverImageUrl}
+            width={1200}
           />
         </div>
       ) : (
@@ -300,26 +383,6 @@ function BioProfilePage() {
 
       {/* Condensed Profile Card */}
       <div className="relative z-10 -mt-8 overflow-hidden rounded-3xl border border-border/40 bg-card/60 p-5 text-center shadow-xl backdrop-blur-xl sm:-mt-20 sm:p-7 sm:text-left md:p-8">
-        {/* Right-aligned Share button */}
-        <button
-          aria-label="Share bio"
-          className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-white/5 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/10 hover:border-primary/40 transition-all backdrop-blur-md"
-          onClick={handleShareClick}
-          type="button"
-        >
-          {copiedLink ? (
-            <>
-              <Check className="size-3.5 text-primary" />
-              <span className="text-primary font-bold">Copied!</span>
-            </>
-          ) : (
-            <>
-              <Share2 className="size-3.5" />
-              <span>Share</span>
-            </>
-          )}
-        </button>
-
         <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
           {/* Circular Avatar */}
           <div className="relative shrink-0">
@@ -328,7 +391,10 @@ function BioProfilePage() {
                 <img
                   alt={artist.name}
                   className="size-full object-cover"
+                  decoding="async"
+                  height={128}
                   src={artist.avatarUrl}
+                  width={128}
                 />
               ) : (
                 <div className="flex size-full items-center justify-center font-bold text-2xl sm:text-4xl text-primary font-playfair">
@@ -370,48 +436,71 @@ function BioProfilePage() {
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 pt-1 sm:justify-end sm:pt-0">
+              {/* Actions & Utilities Column */}
+              <div className="flex shrink-0 flex-col items-center gap-2 pt-1 sm:items-end sm:pt-0">
+                {/* Right-aligned Share button */}
                 <button
-                  className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs sm:text-sm font-bold shadow transition-all ${
-                    isFollowing
-                      ? "border border-primary bg-primary/15 text-primary"
-                      : "bg-primary text-primary-foreground hover:opacity-90 active:scale-95"
-                  }`}
-                  onClick={handleFollowClick}
+                  aria-label="Share bio"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-white/5 px-3 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/10 hover:border-primary/40 transition-all"
+                  onClick={handleShareClick}
                   type="button"
                 >
-                  {isFollowing ? (
+                  {copiedLink ? (
                     <>
-                      <UserCheck className="size-3.5" />
-                      <span>Following</span>
+                      <Check className="size-3 text-primary" />
+                      <span className="text-primary font-bold">Copied!</span>
                     </>
                   ) : (
                     <>
-                      <UserPlus className="size-3.5" />
-                      <span>Follow</span>
+                      <Share2 className="size-3" />
+                      <span>Share</span>
                     </>
                   )}
                 </button>
 
-                <button
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-white/5 px-4 py-1.5 text-xs sm:text-sm font-semibold text-foreground hover:bg-white/10 hover:border-primary/40 transition-all active:scale-95"
-                  onClick={handleTipClick}
-                  type="button"
-                >
-                  <HandCoins className="size-3.5 text-primary" />
-                  <span>Tip</span>
-                </button>
+                {/* Primary Action Buttons */}
+                <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+                  <button
+                    className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs sm:text-sm font-bold shadow transition-all ${
+                      isFollowing
+                        ? "border border-primary bg-primary/15 text-primary"
+                        : "bg-primary text-primary-foreground hover:opacity-90 active:scale-95"
+                    }`}
+                    onClick={handleFollowClick}
+                    type="button"
+                  >
+                    {isFollowing ? (
+                      <>
+                        <UserCheck className="size-3.5" />
+                        <span>Following</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="size-3.5" />
+                        <span>Follow</span>
+                      </>
+                    )}
+                  </button>
 
-                <a
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
-                  href={soundKitArtistUrl}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                >
-                  <span>Full Profile</span>
-                  <ExternalLink className="size-3" />
-                </a>
+                  <button
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-white/5 px-4 py-1.5 text-xs sm:text-sm font-semibold text-foreground hover:bg-white/10 hover:border-primary/40 transition-all active:scale-95"
+                    onClick={handleTipClick}
+                    type="button"
+                  >
+                    <HandCoins className="size-3.5 text-primary" />
+                    <span>Tip</span>
+                  </button>
+
+                  <a
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
+                    href={soundKitArtistUrl}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    <span>Full Profile</span>
+                    <ExternalLink className="size-3" />
+                  </a>
+                </div>
               </div>
             </div>
 
@@ -559,7 +648,7 @@ function BioProfilePage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => void handleTabChange(tab.id)}
             type="button"
           >
             {tab.id === "live" ? (
@@ -580,6 +669,21 @@ function BioProfilePage() {
 
       {/* Tab Content Panes */}
       <div className="pt-2">
+        {mediaLoadingTab === activeTab ? (
+          <div
+            aria-live="polite"
+            className="mb-4 flex items-center gap-2 text-sm text-muted-foreground"
+          >
+            <LoaderCircle className="size-4 animate-spin" />
+            Loading {activeTab}...
+          </div>
+        ) : null}
+        {mediaError && mediaLoadingTab === null ? (
+          <p className="mb-4 text-sm text-destructive" role="alert">
+            {mediaError}
+          </p>
+        ) : null}
+
         {/* Feed Tab: Mirrored web layout (Top 6 tracks, projects preview, videos preview, featured on) */}
         {activeTab === "feed" && (
           <div className="space-y-10">
@@ -590,13 +694,13 @@ function BioProfilePage() {
                   <h3 className="font-playfair text-xl sm:text-2xl font-medium text-foreground">
                     Tracks
                   </h3>
-                  {tracks.length > 6 ? (
+                  {tracks.length > 6 || media.hasMore?.tracks ? (
                     <button
                       className="text-xs font-semibold text-primary hover:underline"
-                      onClick={() => setActiveTab("tracks")}
+                      onClick={() => void handleTabChange("tracks")}
                       type="button"
                     >
-                      View all ({tracks.length})
+                      View all
                     </button>
                   ) : null}
                 </div>
@@ -631,13 +735,13 @@ function BioProfilePage() {
                   <h3 className="font-playfair text-xl sm:text-2xl font-medium text-foreground">
                     Projects
                   </h3>
-                  {media.projects.length > 4 ? (
+                  {media.projects.length > 4 || media.hasMore?.projects ? (
                     <button
                       className="text-xs font-semibold text-primary hover:underline"
-                      onClick={() => setActiveTab("projects")}
+                      onClick={() => void handleTabChange("projects")}
                       type="button"
                     >
-                      View all ({media.projects.length})
+                      View all
                     </button>
                   ) : null}
                 </div>
@@ -657,13 +761,13 @@ function BioProfilePage() {
                   <h3 className="font-playfair text-xl sm:text-2xl font-medium text-foreground">
                     Videos
                   </h3>
-                  {media.videos.length > 2 ? (
+                  {media.videos.length > 2 || media.hasMore?.videos ? (
                     <button
                       className="text-xs font-semibold text-primary hover:underline"
-                      onClick={() => setActiveTab("videos")}
+                      onClick={() => void handleTabChange("videos")}
                       type="button"
                     >
-                      View all ({media.videos.length})
+                      View all
                     </button>
                   ) : null}
                 </div>
@@ -778,7 +882,11 @@ function BioProfilePage() {
                       <img
                         alt={credit.title}
                         className="size-full object-cover"
+                        decoding="async"
+                        height={48}
+                        loading="lazy"
                         src={credit.coverArtUrl}
+                        width={48}
                       />
                     ) : (
                       <Music className="size-5 m-3.5 text-muted-foreground" />
@@ -862,7 +970,11 @@ function BioTrackCard({
           <img
             alt={track.title}
             className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+            decoding="async"
+            height={400}
+            loading="lazy"
             src={track.coverArtUrl}
+            width={400}
           />
         ) : (
           <div className="flex size-full items-center justify-center">
@@ -923,7 +1035,11 @@ function BioProjectCard({ project }: { project: BioProject }) {
           <img
             alt={project.title}
             className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+            decoding="async"
+            height={400}
+            loading="lazy"
             src={project.coverArtUrl}
+            width={400}
           />
         ) : (
           <div className="flex size-full items-center justify-center">
@@ -958,7 +1074,11 @@ function BioVideoCard({ video }: { video: BioVideo }) {
           <img
             alt={video.title}
             className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+            decoding="async"
+            height={360}
+            loading="lazy"
             src={video.thumbnailUrl}
+            width={640}
           />
         ) : (
           <div className="flex size-full items-center justify-center">
