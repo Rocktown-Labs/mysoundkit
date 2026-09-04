@@ -2,7 +2,12 @@
 
 import { Link } from "@tanstack/react-router";
 import { BarChart3, Home, LayoutDashboard, WalletCards } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+
+import { BioSearchBar } from "@/components/bio-search-bar";
+import { getCurrentSessionUser } from "@/lib/api";
+import type { BioCurrentUser } from "@/lib/api";
 
 const dashboardItems = [
   { icon: Home, label: "Home", to: "/dashboard" as const },
@@ -58,6 +63,29 @@ function DashboardNavigation({ mobile = false }: { mobile?: boolean }) {
 }
 
 export function BioDashboardShell({ children }: { children: ReactNode }) {
+  const [currentUser, setCurrentUser] = useState<BioCurrentUser | null>(null),
+    bioHref = currentUser?.username ? `/${currentUser.username}` : "/";
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchUser = async () => {
+      try {
+        const user = await getCurrentSessionUser();
+        if (!cancelled) {
+          setCurrentUser(user);
+        }
+      } catch {
+        if (!cancelled) {
+          setCurrentUser(null);
+        }
+      }
+    };
+    void fetchUser();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="bio-dashboard-shell relative flex min-h-screen w-full min-w-0">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border/50 bg-background lg:flex">
@@ -91,22 +119,31 @@ export function BioDashboardShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
         <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-border/50 bg-background/95 px-4 backdrop-blur-xl sm:px-6 lg:px-10">
-          <Link
-            aria-label="SoundKit Bio home"
-            className="font-notable text-xs tracking-[0.18em] lg:hidden"
-            to="/"
-          >
-            SOUNDKIT<span className="text-primary">.BIO</span>
-          </Link>
-          <div className="hidden text-sm font-semibold text-foreground lg:block">
-            Creator studio
+          <div className="flex items-center gap-4">
+            <Link
+              aria-label="SoundKit Bio home"
+              className="font-notable text-xs tracking-[0.18em] lg:hidden"
+              to="/"
+            >
+              SOUNDKIT<span className="text-primary">.BIO</span>
+            </Link>
+            <div className="hidden text-sm font-semibold text-foreground lg:block">
+              Creator studio
+            </div>
           </div>
-          <Link
-            className="ml-auto inline-flex items-center gap-2 rounded-full border border-border/60 bg-white/5 px-3.5 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-            to="/"
-          >
-            <span>View Bio</span>
-          </Link>
+
+          <div className="hidden flex-1 max-w-sm mx-6 md:block">
+            <BioSearchBar className="w-full" />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Link
+              className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white/5 px-3.5 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+              to={bioHref}
+            >
+              <span>View Bio</span>
+            </Link>
+          </div>
         </header>
 
         <div className="min-w-0 flex-1 pb-36 lg:pb-12">{children}</div>

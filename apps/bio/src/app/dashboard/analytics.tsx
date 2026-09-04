@@ -5,20 +5,24 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   BarChart3,
+  Compass,
   ExternalLink,
   Globe,
   Headphones,
   LoaderCircle,
+  MapPin,
   Users,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
+import { BioMap } from "@/components/bio-map";
 import {
   buildSoundKitWebUrl,
   getCurrentSessionUser,
   loadBioAnalyticsOverview,
   loadBioAnalyticsSources,
   loadBioAnalyticsTimeseries,
+  loadRegionArtists,
 } from "@/lib/api";
 import type {
   BioAnalyticsOverview,
@@ -26,6 +30,8 @@ import type {
   BioAnalyticsTimeseries,
   BioCurrentUser,
 } from "@/lib/api";
+import { exploreRegionSlug, regionTypeForMapScope } from "@/lib/explore-region";
+import type { MapScope } from "@/lib/map-scopes";
 
 export const Route = createFileRoute("/dashboard/analytics")({
   component: BioAnalyticsPage,
@@ -40,6 +46,51 @@ function BioAnalyticsPage() {
   const [sources, setSources] = useState<BioAnalyticsSources | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [mapScope, setMapScope] = useState<MapScope>("usa");
+  const [selectedRegion, setSelectedRegion] = useState("Arkansas");
+  const [regionalArtists, setRegionalArtists] = useState<
+    { id: string; name: string; username: string }[]
+  >([]);
+  const [isRegionLoading, setIsRegionLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadArtists = async () => {
+      setIsRegionLoading(true);
+      try {
+        const slug = exploreRegionSlug(selectedRegion),
+          apiRegion = selectedRegion
+            ? mapScope === "usa"
+              ? `us-${slug}`
+              : slug
+            : mapScope === "global"
+              ? "all"
+              : mapScope,
+          artists = await loadRegionArtists(
+            apiRegion,
+            regionTypeForMapScope(mapScope)
+          );
+        if (!cancelled) {
+          setRegionalArtists(
+            artists.map(({ id, name, username }) => ({ id, name, username }))
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setRegionalArtists([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsRegionLoading(false);
+        }
+      }
+    };
+
+    void loadArtists();
+    return () => {
+      cancelled = true;
+    };
+  }, [mapScope, selectedRegion]);
 
   useEffect(() => {
     let cancelled = false;
@@ -242,6 +293,77 @@ function BioAnalyticsPage() {
         ) : (
           <EmptyData message="Discovery sources will appear after your first verified plays." />
         )}
+      </section>
+
+      <section className="min-w-0 space-y-5 rounded-3xl border border-border/50 bg-card/40 p-5 shadow-md backdrop-blur-xl sm:p-8">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary">
+              <Compass className="size-4" />
+              <span>Bio audience map</span>
+            </div>
+            <h2 className="mt-1 font-playfair text-2xl font-medium text-foreground sm:text-3xl">
+              Where your listeners find you
+            </h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+              Explore the regional discovery corridors connected to your
+              SoundKit Bio.
+            </p>
+          </div>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {selectedRegion || "Global"}
+          </span>
+        </div>
+
+        <BioMap
+          mapScope={mapScope}
+          onRegionSelect={setSelectedRegion}
+          onScopeChange={(scope) => {
+            setMapScope(scope);
+            setSelectedRegion(
+              scope === "usa" ? "Arkansas" : scope === "canada" ? "Ontario" : ""
+            );
+          }}
+          selectedRegion={selectedRegion}
+        />
+
+        <div className="rounded-2xl border border-border/40 bg-white/[0.03] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              {selectedRegion
+                ? `Artists in ${selectedRegion}`
+                : "Artists in this view"}
+            </h3>
+            {isRegionLoading ? (
+              <LoaderCircle className="size-4 animate-spin text-primary" />
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                {regionalArtists.length} found
+              </span>
+            )}
+          </div>
+          {regionalArtists.length > 0 ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {regionalArtists.slice(0, 6).map((artist) => (
+                <Link
+                  className="flex min-w-0 items-center gap-2 rounded-xl border border-border/40 px-3 py-2 text-xs transition-colors hover:border-primary/40 hover:bg-white/5"
+                  key={artist.id}
+                  params={{ username: artist.username }}
+                  to="/$username"
+                >
+                  <MapPin className="size-3 shrink-0 text-primary" />
+                  <span className="truncate font-semibold text-foreground">
+                    {artist.name}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          ) : isRegionLoading ? null : (
+            <p className="mt-3 text-xs text-muted-foreground">
+              No artists are listed in this region yet.
+            </p>
+          )}
+        </div>
       </section>
     </div>
   );

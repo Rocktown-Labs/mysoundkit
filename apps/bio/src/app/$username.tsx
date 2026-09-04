@@ -13,8 +13,6 @@ import {
   ChevronRight,
   ExternalLink,
   HandCoins,
-  Headphones,
-  Instagram,
   Layers,
   Link2,
   LoaderCircle,
@@ -28,13 +26,19 @@ import {
   UserPlus,
   Video,
   X,
-  Twitter,
-  Youtube,
 } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { useBioAudioPlayer } from "@/components/bio-audio-player";
+import {
+  AppleMusicIcon,
+  InstagramIcon,
+  SpotifyIcon,
+  TikTokIcon,
+  TwitterIcon,
+  YoutubeIcon,
+} from "@/components/ui/brand-icons";
 import {
   API_V1_URL,
   buildSoundKitWebUrl,
@@ -280,7 +284,7 @@ function BioProfilePage() {
   );
 
   return (
-    <div className="mx-auto min-w-0 w-full max-w-5xl overflow-x-clip px-4 py-4 sm:px-6 sm:py-8 space-y-6 sm:space-y-8">
+    <div className="mx-auto min-w-0 w-full max-w-7xl overflow-x-clip px-4 py-4 sm:px-6 lg:px-8 sm:py-8 space-y-6 sm:space-y-8">
       {/* Cover Banner */}
       {artist.coverImageUrl ? (
         <div className="relative h-24 w-full overflow-hidden rounded-3xl border border-border/40 shadow-md sm:h-48 md:h-56">
@@ -296,6 +300,26 @@ function BioProfilePage() {
 
       {/* Condensed Profile Card */}
       <div className="relative z-10 -mt-8 overflow-hidden rounded-3xl border border-border/40 bg-card/60 p-5 text-center shadow-xl backdrop-blur-xl sm:-mt-20 sm:p-7 sm:text-left md:p-8">
+        {/* Right-aligned Share button */}
+        <button
+          aria-label="Share bio"
+          className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-white/5 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/10 hover:border-primary/40 transition-all backdrop-blur-md"
+          onClick={handleShareClick}
+          type="button"
+        >
+          {copiedLink ? (
+            <>
+              <Check className="size-3.5 text-primary" />
+              <span className="text-primary font-bold">Copied!</span>
+            </>
+          ) : (
+            <>
+              <Share2 className="size-3.5" />
+              <span>Share</span>
+            </>
+          )}
+        </button>
+
         <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
           {/* Circular Avatar */}
           <div className="relative shrink-0">
@@ -379,25 +403,6 @@ function BioProfilePage() {
                   <span>Tip</span>
                 </button>
 
-                <button
-                  aria-label="Share bio"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-white/5 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all"
-                  onClick={handleShareClick}
-                  type="button"
-                >
-                  {copiedLink ? (
-                    <>
-                      <Check className="size-3.5 text-primary" />
-                      <span className="text-primary font-bold">Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Share2 className="size-3.5" />
-                      <span className="hidden sm:inline">Share</span>
-                    </>
-                  )}
-                </button>
-
                 <a
                   className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
                   href={soundKitArtistUrl}
@@ -457,7 +462,7 @@ function BioProfilePage() {
                     rel="noopener noreferrer"
                     target="_blank"
                   >
-                    <Headphones className="size-3.5 sm:size-4" />
+                    <SpotifyIcon className="size-3.5 sm:size-4" />
                   </a>
                 ) : null}
 
@@ -470,7 +475,7 @@ function BioProfilePage() {
                     rel="noopener noreferrer"
                     target="_blank"
                   >
-                    <Music className="size-3.5 sm:size-4" />
+                    <AppleMusicIcon className="size-3.5 sm:size-4" />
                   </a>
                 ) : null}
 
@@ -483,7 +488,7 @@ function BioProfilePage() {
                     rel="noopener noreferrer"
                     target="_blank"
                   >
-                    <Youtube className="size-3.5 sm:size-4" />
+                    <YoutubeIcon className="size-3.5 sm:size-4" />
                   </a>
                 ) : null}
 
@@ -496,7 +501,7 @@ function BioProfilePage() {
                     rel="noopener noreferrer"
                     target="_blank"
                   >
-                    <Instagram className="size-3.5 sm:size-4" />
+                    <InstagramIcon className="size-3.5 sm:size-4" />
                   </a>
                 ) : null}
 
@@ -509,7 +514,20 @@ function BioProfilePage() {
                     rel="noopener noreferrer"
                     target="_blank"
                   >
-                    <Twitter className="size-3.5 sm:size-4" />
+                    <TwitterIcon className="size-3.5 sm:size-4" />
+                  </a>
+                ) : null}
+
+                {artist.links.tiktok &&
+                isSafeExternalUrl(artist.links.tiktok) ? (
+                  <a
+                    aria-label="TikTok"
+                    className="flex size-7 sm:size-8 items-center justify-center rounded-full border border-border/50 bg-white/5 text-muted-foreground hover:bg-white/20 hover:text-foreground hover:border-white/40 transition-all"
+                    href={artist.links.tiktok}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    <TikTokIcon className="size-3.5 sm:size-4" />
                   </a>
                 ) : null}
 
@@ -584,7 +602,7 @@ function BioProfilePage() {
                 </div>
 
                 <div
-                  className="flex flex-wrap justify-center gap-3 md:justify-start md:gap-4"
+                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4"
                   data-testid="artist-track-grid"
                 >
                   {tracks.slice(0, 6).map((track) => (
@@ -624,7 +642,7 @@ function BioProfilePage() {
                   ) : null}
                 </div>
 
-                <div className="flex flex-wrap justify-center gap-3 md:justify-start md:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                   {media.projects.slice(0, 4).map((project) => (
                     <BioProjectCard key={project.id} project={project} />
                   ))}
@@ -650,7 +668,7 @@ function BioProfilePage() {
                   ) : null}
                 </div>
 
-                <div className="flex flex-wrap justify-start gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {media.videos.slice(0, 2).map((video) => (
                     <BioVideoCard key={video.id} video={video} />
                   ))}
@@ -664,7 +682,7 @@ function BioProfilePage() {
                 <h3 className="font-playfair text-xl sm:text-2xl font-medium text-foreground">
                   Also Featured On
                 </h3>
-                <div className="flex flex-wrap justify-center gap-3 md:justify-start md:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
                   {media.featuredTracks.slice(0, 6).map((track) => (
                     <BioTrackCard
                       currentTrackId={currentTrack?.id}
@@ -693,7 +711,7 @@ function BioProfilePage() {
               All Tracks ({tracks.length})
             </h3>
             <div
-              className="flex flex-wrap justify-center gap-3 md:justify-start md:gap-4"
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4"
               data-testid="artist-track-grid"
             >
               {tracks.map((track) => (
@@ -721,7 +739,7 @@ function BioProfilePage() {
             <h3 className="font-playfair text-2xl font-medium text-foreground">
               Projects ({media.projects.length})
             </h3>
-            <div className="flex flex-wrap justify-center gap-3 md:justify-start md:gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {media.projects.map((project) => (
                 <BioProjectCard key={project.id} project={project} />
               ))}
@@ -735,7 +753,7 @@ function BioProfilePage() {
             <h3 className="font-playfair text-2xl font-medium text-foreground">
               Videos ({media.videos.length})
             </h3>
-            <div className="flex flex-wrap justify-start gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {media.videos.map((video) => (
                 <BioVideoCard key={video.id} video={video} />
               ))}
@@ -835,7 +853,7 @@ function BioTrackCard({
 
   return (
     <article
-      className="group relative flex w-[calc((100%-1.5rem)/3)] sm:w-[calc((100%-1.5rem)/3)] md:w-[180px] lg:w-[200px] flex-col min-w-0 cursor-pointer"
+      className="group relative flex w-full flex-col min-w-0 cursor-pointer"
       data-testid="track-card"
     >
       {/* Frameless Artwork with play button overlay */}
@@ -896,7 +914,7 @@ function BioTrackCard({
 function BioProjectCard({ project }: { project: BioProject }) {
   return (
     <Link
-      className="group w-[calc((100%-0.75rem)/2)] max-w-[260px] md:w-[calc((100%-1.5rem)/3)] lg:w-[calc((100%-2.25rem)/4)] flex flex-col min-w-0"
+      className="group w-full flex flex-col min-w-0"
       params={{ id: project.id }}
       to="/projects/$id"
     >
@@ -931,7 +949,7 @@ function BioProjectCard({ project }: { project: BioProject }) {
 function BioVideoCard({ video }: { video: BioVideo }) {
   return (
     <Link
-      className="group w-full md:w-[calc((100%-1rem)/2)] flex flex-col min-w-0"
+      className="group w-full flex flex-col min-w-0"
       params={{ id: video.id }}
       to="/videos/$id"
     >
