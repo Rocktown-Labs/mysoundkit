@@ -1,0 +1,48 @@
+name: Inspect Bio DNS
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+
+jobs:
+  inspect:
+    name: Inspect Bio DNS
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Inspect Cloudflare records and worker domains
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+
+          auth_header="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          zone_json=$(curl --fail --silent --show-error \
+            -H "$auth_header" \
+            "https://api.cloudflare.com/client/v4/zones?name=soundkit.bio&status=active")
+          zone_id=$(jq -r '.result[0].id // empty' <<< "$zone_json")
+          if [ -z "$zone_id" ]; then
+            echo "No active soundkit.bio zone found."
+            exit 1
+          fi
+
+          echo "DNS records:"
+          for hostname in soundkit.bio www.soundkit.bio bio.mysoundkit.com; do
+            curl --fail --silent --show-error \
+              -H "$auth_header" \
+              "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=$hostname&per_page=100" \
+              | jq -c --arg hostname "$hostname" '.result[] | {hostname: $hostname, id, type, name, content, proxied, ttl}'
+          done
+
+          echo "Worker custom domains:"
+          curl --fail --silent --show-error \
+            -H "$auth_header" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains?per_page=100" \
+            | jq -c '.result[] | select(.hostname == "soundkit.bio" or .hostname == "www.soundkit.bio" or .hostname == "bio.mysoundkit.com") | {id, hostname, zone_id, service, environment}'
