@@ -114,14 +114,17 @@ const app = new OpenAPIHono<AppEnv>({
   ],
   hasEnvValue = (key: string) =>
     Boolean((env as unknown as Record<string, unknown>)[key]),
-  bioOrigin =
+  bioOrigins = [
     (env as unknown as Record<string, string | undefined>)[
       "SOUNDKIT_BIO_URL"
-    ]?.trim() || "https://bio.mysoundkit.com",
+    ]?.trim() || "https://soundkit.bio",
+    "https://bio.mysoundkit.com",
+    "https://www.soundkit.bio",
+  ],
   isAllowedCorsOrigin = (origin: string) =>
     origin === env.CORS_ORIGIN ||
     origin === env.BETTER_AUTH_URL ||
-    origin === bioOrigin ||
+    bioOrigins.includes(origin) ||
     allowedCorsOriginPatterns.some((pattern) => pattern.test(origin)),
   checkDatabaseHealth = async () => {
     if (!isDatabaseConfigured()) {

@@ -275,6 +275,7 @@ jobs:
     outputs:
       web_url: ${{ steps.urls.outputs.web_url }}
       api_url: ${{ steps.urls.outputs.api_url }}
+      bio_url: ${{ steps.urls.outputs.bio_url }}
     steps:
       - name: Bootstrap repository
         env:
@@ -352,10 +353,13 @@ jobs:
         run: |
           WEB_URL="https://soundkit-web-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
           API_URL="https://api-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
+          BIO_URL="https://bio-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
           echo "web_url=$WEB_URL" >> "$GITHUB_OUTPUT"
           echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
+          echo "bio_url=$BIO_URL" >> "$GITHUB_OUTPUT"
           echo "### SoundKit preview" >> "$GITHUB_STEP_SUMMARY"
           echo "- Web: $WEB_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Bio: $BIO_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- API: $API_URL" >> "$GITHUB_STEP_SUMMARY"
 
   preview-browser:
@@ -389,8 +393,9 @@ jobs:
 
       - name: Wait for preview deployment readiness
         run: |
-          echo "Waiting for preview web and API endpoints to be ready..."
+          echo "Waiting for preview web, Bio, and API endpoints to be ready..."
           WEB_READY=false
+          BIO_READY=false
           API_READY=false
           MAX_ATTEMPTS=20
           SLEEP_SECONDS=4
@@ -418,7 +423,17 @@ jobs:
               fi
             fi
 
-            if [ "$API_READY" = true ] && [ "$WEB_READY" = true ]; then
+            if [ "$BIO_READY" = false ]; then
+              if curl --fail --silent --show-error \
+                --connect-timeout "$CONNECT_TIMEOUT_SECONDS" \
+                --max-time "$REQUEST_TIMEOUT_SECONDS" \
+                "$PLAYWRIGHT_BIO_URL" > /dev/null; then
+                echo "Bio is ready ($PLAYWRIGHT_BIO_URL)"
+                BIO_READY=true
+              fi
+            fi
+
+            if [ "$API_READY" = true ] && [ "$WEB_READY" = true ] && [ "$BIO_READY" = true ]; then
               echo "Preview deployment is ready!"
               exit 0
             fi
@@ -436,9 +451,13 @@ jobs:
           if [ "$WEB_READY" = false ]; then
             echo "Web endpoint failed readiness: ${PLAYWRIGHT_BASE_URL}"
           fi
+          if [ "$BIO_READY" = false ]; then
+            echo "Bio endpoint failed readiness: ${PLAYWRIGHT_BIO_URL}"
+          fi
           exit 1
         env:
           PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.web_url }}
+          PLAYWRIGHT_BIO_URL: ${{ needs.preview.outputs.bio_url }}
           PLAYWRIGHT_API_URL: ${{ needs.preview.outputs.api_url }}
 
       - name: Run preview browser smoke tests
@@ -446,6 +465,7 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.web_url }}
           PLAYWRIGHT_API_URL: ${{ needs.preview.outputs.api_url }}
+          PLAYWRIGHT_BIO_URL: ${{ needs.preview.outputs.bio_url }}
           SOUNDKIT_E2E_WEB_URL: ${{ needs.preview.outputs.web_url }}
           SOUNDKIT_E2E_API_URL: ${{ needs.preview.outputs.api_url }}
 

@@ -12,10 +12,9 @@ export const SOUNDKIT_WEB_URL = trimTrailingSlash(
 );
 export const SOUNDKIT_BIO_URL = trimTrailingSlash(
   import.meta.env.VITE_SOUNDKIT_BIO_URL ||
-    (import.meta.env.DEV
-      ? "http://localhost:3002"
-      : "https://bio.mysoundkit.com")
+    (import.meta.env.DEV ? "http://localhost:3002" : "https://soundkit.bio")
 );
+export const SOUNDKIT_BIO_SHARE_URL = "https://soundkit.bio";
 export const STRIPE_PUBLISHABLE_KEY =
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "";
 
@@ -26,6 +25,9 @@ export const toAbsoluteBioUrl = (value: string) => {
     return value;
   }
 };
+
+export const toBioShareUrl = (username: string) =>
+  `${SOUNDKIT_BIO_SHARE_URL}/${encodeURIComponent(username)}`;
 
 export interface BioArtist {
   avatarUrl?: string | null;
@@ -198,6 +200,17 @@ export interface BioTipsOverview {
   tips: BioTip[];
   totalTipCount: number;
   totalTipsCents: number;
+}
+
+export interface BioRecentTrack {
+  artistName: string;
+  artistUsername?: string | null;
+  coverArtUrl?: string | null;
+  duration: string;
+  id: string;
+  lastPlayedAt: string;
+  title: string;
+  timesPlayed: number;
 }
 
 export interface BioSellerStatus {
@@ -937,6 +950,11 @@ export const setBioAuthToken = (token: string): void => {
   }
 };
 
+export const getBioAuthHeaders = (): Record<string, string> => {
+  const token = getBioAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 export const clearBioAuthToken = (): void => {
   if (typeof window === "undefined") {
     return;
@@ -1055,6 +1073,41 @@ const nonNegativeInteger = (value: unknown): number =>
       totalQualifiedStreams: nonNegativeInteger(data.totalQualifiedStreams),
       uniqueListeners: nonNegativeInteger(data.uniqueListeners),
     };
+  },
+  normalizeBioRecentTracks = (value: unknown): BioRecentTrack[] => {
+    let rawItems: unknown[] = [];
+    if (Array.isArray(value)) {
+      rawItems = value;
+    } else if (isRecord(value) && Array.isArray(value.items)) {
+      rawItems = value.items;
+    }
+
+    return rawItems.flatMap((item) => {
+      if (!isRecord(item)) {
+        return [];
+      }
+
+      const artistName = stringValue(item.artist),
+        id = stringValue(item.id),
+        lastPlayedAt = stringValue(item.lastPlayed),
+        title = stringValue(item.title);
+      if (!(artistName && id && lastPlayedAt && title)) {
+        return [];
+      }
+
+      return [
+        {
+          artistName,
+          artistUsername: stringValue(item.artistSlug),
+          coverArtUrl: apiMediaUrl(stringValue(item.cover)),
+          duration: stringValue(item.duration) ?? "0:00",
+          id,
+          lastPlayedAt,
+          timesPlayed: nonNegativeInteger(item.timesPlayed),
+          title,
+        },
+      ];
+    });
   },
   normalizeAnalyticsTimeseries = (value: unknown): BioAnalyticsTimeseries => {
     const data = isRecord(value) ? value : {},
@@ -1193,7 +1246,9 @@ const nonNegativeInteger = (value: unknown): number =>
 
 export const loadBioAnalyticsOverview =
   async (): Promise<BioAnalyticsOverview> =>
-    normalizeAnalyticsOverview(await fetchBioJson("/analytics/overview"));
+    normalizeAnalyticsOverview(
+      await fetchBioJson("/analytics/overview?scope=bio")
+    );
 
 export const loadBioAnalyticsTimeseries = async (
   metric: "plays" | "qualified_streams" | "unique_listeners" = "plays",
@@ -1201,12 +1256,15 @@ export const loadBioAnalyticsTimeseries = async (
 ): Promise<BioAnalyticsTimeseries> =>
   normalizeAnalyticsTimeseries(
     await fetchBioJson(
-      `/analytics/timeseries?metric=${encodeURIComponent(metric)}&range=${encodeURIComponent(range)}`
+      `/analytics/timeseries?metric=${encodeURIComponent(metric)}&range=${encodeURIComponent(range)}&scope=bio`
     )
   );
 
 export const loadBioAnalyticsSources = async (): Promise<BioAnalyticsSources> =>
-  normalizeAnalyticsSources(await fetchBioJson("/analytics/sources"));
+  normalizeAnalyticsSources(await fetchBioJson("/analytics/sources?scope=bio"));
+
+export const loadBioRecentTracks = async (): Promise<BioRecentTrack[]> =>
+  normalizeBioRecentTracks(await fetchBioJson("/library/recent"));
 
 export const loadBioArtistEarnings = async (): Promise<BioArtistEarnings> =>
   normalizeArtistEarnings(await fetchBioJson("/analytics/earnings"));

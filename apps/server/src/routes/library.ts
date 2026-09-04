@@ -7,11 +7,10 @@ import {
   playlists,
   playlistTracks,
   purchases,
-  recentPlays,
   trackAssets,
   tracks,
 } from "@soundkit/db/schema/app";
-import { and, count, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
@@ -202,10 +201,16 @@ app.openapi(
             .where(eq(purchases.buyerUserId, user.id)),
           db
             .select({
-              value: sql<number>`count(distinct ${recentPlays.trackId})::int`,
+              value: sql<number>`count(distinct ${playbackSessions.trackId})::int`,
             })
-            .from(recentPlays)
-            .where(eq(recentPlays.userId, user.id)),
+            .from(playbackSessions)
+            .where(
+              and(
+                eq(playbackSessions.userId, user.id),
+                eq(playbackSessions.riskStatus, "clear"),
+                gte(playbackSessions.playedSeconds, 30)
+              )
+            ),
           db
             .select({ value: count() })
             .from(librarySaves)
@@ -307,50 +312,57 @@ app.openapi(
     }
 
     if (!isDatabaseConfigured()) {
-      return c.json(
-        sampleTracks.map((track, index) => ({
-          artist: track.artistName,
-          artistSlug: fallbackArtistSlug,
-          cover: track.coverArtUrl ?? fallbackCover,
-          duration: track.duration,
-          id: track.id,
-          lastPlayed: new Date(
-            Date.now() - index * 60 * 60 * 1000
-          ).toISOString(),
-          timesPlayed: Math.max(1, 24 - index * 6),
-          title: track.title,
-        })),
-        HttpStatusCodes.OK
-      );
+      return c.json([], HttpStatusCodes.OK);
     }
 
     const db = createDb(),
       rows = await db
         .select({
-          lastPlayedAt: recentPlays.lastPlayedAt,
-          playCount: recentPlays.playCount,
+          session: playbackSessions,
           track: tracks,
         })
-        .from(recentPlays)
-        .innerJoin(tracks, eq(tracks.id, recentPlays.trackId))
-        .where(eq(recentPlays.userId, user.id))
-        .orderBy(desc(recentPlays.lastPlayedAt))
-        .limit(100),
-      recentRowsByTrackId = new Map<string, (typeof rows)[number]>();
+        .from(playbackSessions)
+        .innerJoin(tracks, eq(tracks.id, playbackSessions.trackId))
+        .where(
+          and(
+            eq(playbackSessions.userId, user.id),
+            eq(playbackSessions.riskStatus, "clear"),
+            gte(playbackSessions.playedSeconds, 30)
+          )
+        )
+        .orderBy(desc(playbackSessions.startedAt))
+        .limit(500),
+      recentRowsByTrackId = new Map<
+        string,
+        {
+          lastPlayedAt: Date;
+          playCount: number;
+          track: (typeof rows)[number]["track"];
+        }
+      >();
+
     for (const row of rows) {
-      const existing = recentRowsByTrackId.get(row.track.id);
+      const lastPlayedAt =
+          row.session.endedAt ??
+          row.session.lastHeartbeatAt ??
+          row.session.startedAt,
+        existing = recentRowsByTrackId.get(row.track.id);
       if (!existing) {
-        recentRowsByTrackId.set(row.track.id, row);
+        recentRowsByTrackId.set(row.track.id, {
+          lastPlayedAt,
+          playCount: 1,
+          track: row.track,
+        });
         continue;
       }
 
       recentRowsByTrackId.set(row.track.id, {
-        ...existing,
         lastPlayedAt:
-          row.lastPlayedAt > existing.lastPlayedAt
-            ? row.lastPlayedAt
+          lastPlayedAt > existing.lastPlayedAt
+            ? lastPlayedAt
             : existing.lastPlayedAt,
-        playCount: existing.playCount + row.playCount,
+        playCount: existing.playCount + 1,
+        track: existing.track,
       });
     }
 

@@ -2416,7 +2416,11 @@ export const useAnalyticsTimeseriesQuery = (
 ) =>
   useQuery({
     queryFn: async (): Promise<AnalyticsTimeseries> =>
-      rpcJson(await analyticsTimeseriesGet({ query: { metric, range } })),
+      rpcJson(
+        await analyticsTimeseriesGet({
+          query: { metric, range, scope: "platform" },
+        })
+      ),
     queryKey: ["analytics", "timeseries", metric, range],
   });
 

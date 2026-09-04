@@ -7,11 +7,13 @@
 - Added dynamic branded Battle Open Graph SVG generator endpoints (`/v1/battles/:battleId/og-image` and `/v1/battles/og-image`) featuring SoundKit Premium branding, dual-producer avatar rendering with fallback badges, fiery VS emblem, and high-converting battle headlines.
 - Added public battle SEO endpoint (`/v1/battles/:battleId/public`) and client loader (`loadPublicBattleSeo`) with dynamic SSR Open Graph/Twitter meta tags and BroadcastEvent structured schema on `/live/battles/:id`.
 - Added authenticated Bio dashboard adapters for real analytics, earnings, seller status, and fan-tip data, plus a server-backed artist tip history endpoint at `/v1/payments/tips`.
+- Added the responsive Bio creator studio with shared desktop/mobile navigation, canonical `https://soundkit.bio/{username}` links, Bio-scoped analytics, profile playback telemetry, and authenticated Recently Played history.
 
 ### Changed
 
 - Updated live battle share messaging across the dashboard and explore rooms to `"Watch {artist/producer1} battle {artist/producer2} live on SoundKit Premium"`.
 - Aligned SoundKit Bio meta tags and share copy across `$username.tsx`, `projects/$id.tsx`, `videos/$id.tsx`, and `live/$id.tsx` to possessive phrasing (`Check out {name}'s SoundKit bio`) and platform attribution (`Stream ... on SoundKit`), clarifying that `soundkit.bio` is an accessory to the main web app.
+- Added `www.soundkit.bio` as an additional production alias for SoundKit Bio while retaining the canonical `soundkit.bio` links and legacy `bio.mysoundkit.com` alias.
 
 ### Fixed
 
@@ -101,7 +103,7 @@
 
 ### Changed
 
-- Changed the initial bio rollout to use `bio.mysoundkit.com` in production and `bio-pr-<number>.mysoundkit.com` for pull requests; `soundkit.bio` remains a later custom-domain cutover.
+- Changed Bio production to use the `soundkit.bio` custom domain while retaining `bio.mysoundkit.com` as a legacy alias; pull requests continue using `bio-pr-<number>.mysoundkit.com` previews.
 - Changed pull-request web previews to use the canonical `soundkit-web-pr-<number>.mysoundkit.com` hostname across Alchemy and CI output.
 
 ### Fixed

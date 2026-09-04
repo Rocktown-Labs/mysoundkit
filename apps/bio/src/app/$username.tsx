@@ -44,6 +44,7 @@ import {
   isSafeExternalUrl,
   loadBioProfile,
   toAbsoluteBioUrl,
+  toBioShareUrl,
 } from "@/lib/api";
 import type {
   BioArtist,
@@ -129,7 +130,8 @@ export const Route = createFileRoute("/$username")({
 type TabType = "feed" | "tracks" | "projects" | "videos" | "credits" | "live";
 
 function BioProfilePage() {
-  const profile = Route.useLoaderData() as BioProfile | null;
+  const { username } = Route.useParams(),
+    profile = Route.useLoaderData() as BioProfile | null;
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -179,7 +181,7 @@ function BioProfilePage() {
     if (typeof window === "undefined") {
       return;
     }
-    const shareUrl = window.location.href;
+    const shareUrl = toBioShareUrl(username);
     const artistName = artist?.name || "this artist";
     const shareTitle = `Check out ${formatPossessive(artistName)} SoundKit bio`;
     if (navigator.share) {

@@ -13,6 +13,7 @@ import {
   subscriptionRewardAllocations,
   trackAssets,
   tracks,
+  userProfiles,
 } from "@soundkit/db/schema/app";
 import { tips, transactions } from "@soundkit/db/schema/payments";
 import {
@@ -48,6 +49,7 @@ import {
   analyticsLiveImpactSchema,
   analyticsLocationsSchema,
   analyticsOverviewSchema,
+  analyticsScopeQuerySchema,
   analyticsSourcesSchema,
   analyticsTimeseriesQuerySchema,
   analyticsTimeseriesSchema,
@@ -102,6 +104,59 @@ const app = new OpenAPIHono<AppEnv>(),
       start.setUTCFullYear(start.getUTCFullYear() - 1);
     }
     return start;
+  },
+  getArtistBioUsername = async ({
+    db,
+    userId,
+  }: {
+    db: ReturnType<typeof createDb>;
+    userId: string;
+  }) => {
+    const [profile] = await db
+      .select({ username: userProfiles.username })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, userId))
+      .limit(1);
+
+    return profile?.username ?? null;
+  },
+  bioPlaybackCondition = (
+    scope: "platform" | "bio",
+    username: string | null
+  ) => {
+    if (scope !== "bio") {
+      return sql`true`;
+    }
+    if (!username) {
+      return sql`false`;
+    }
+    return and(
+      eq(playbackSessions.sourceType, "artist_profile"),
+      eq(playbackSessions.sourceId, `bio:${username}`)
+    );
+  },
+  bioQualifiedStreamCondition = (
+    scope: "platform" | "bio",
+    username: string | null
+  ) => {
+    if (scope !== "bio") {
+      return sql`true`;
+    }
+    if (!username) {
+      return sql`false`;
+    }
+    return and(
+      eq(qualifiedStreams.sourceType, "artist_profile"),
+      eq(qualifiedStreams.sourceId, `bio:${username}`)
+    );
+  },
+  emptyAnalyticsOverview = {
+    estimatedEarningsCents: 0,
+    premiumSupporters: 0,
+    totalFollowers: 0,
+    totalPlays: 0,
+    totalQualifiedStreams: 0,
+    uniqueListeners: 0,
   };
 
 // 1. TOP KPI OVERVIEW
@@ -109,6 +164,7 @@ app.openapi(
   createRoute({
     method: "get",
     path: "/overview",
+    request: { query: analyticsScopeQuerySchema },
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
         analyticsOverviewSchema,
@@ -118,9 +174,13 @@ app.openapi(
     tags: ["Analytics"],
   }),
   async (c) => {
-    const user = c.get("user");
+    const user = c.get("user"),
+      { scope } = c.req.valid("query");
     if (!isDatabaseConfigured() || !isAuthenticatedUser(user)) {
-      return c.json(sampleAnalyticsOverview, HttpStatusCodes.OK);
+      return c.json(
+        scope === "bio" ? emptyAnalyticsOverview : sampleAnalyticsOverview,
+        HttpStatusCodes.OK
+      );
     }
 
     const db = createDb(),
@@ -133,10 +193,22 @@ app.openapi(
         db,
         organizationId,
         userId: user.id,
-      });
+      }),
+      bioUsername =
+        scope === "bio"
+          ? await getArtistBioUsername({ db, userId: user.id })
+          : null,
+      playbackSourceCondition = bioPlaybackCondition(scope, bioUsername),
+      qualifiedSourceCondition = bioQualifiedStreamCondition(
+        scope,
+        bioUsername
+      );
 
     if (trackIds.length === 0) {
-      return c.json(sampleAnalyticsOverview, HttpStatusCodes.OK);
+      return c.json(
+        scope === "bio" ? emptyAnalyticsOverview : sampleAnalyticsOverview,
+        HttpStatusCodes.OK
+      );
     }
 
     // 1. Verified Plays (30-second rule with short-track fallback)
@@ -147,7 +219,11 @@ app.openapi(
         })
         .from(playbackSessions)
         .where(
-          and(inArray(playbackSessions.trackId, trackIds), playConditionSql)
+          and(
+            inArray(playbackSessions.trackId, trackIds),
+            playConditionSql,
+            playbackSourceCondition
+          )
         ),
       // 2. Qualified Streams (Strictly status = 'qualified' and riskStatus = 'clear')
       [qualifiedResult] = await db
@@ -159,7 +235,8 @@ app.openapi(
           and(
             inArray(qualifiedStreams.trackId, trackIds),
             eq(qualifiedStreams.status, "qualified"),
-            eq(qualifiedStreams.riskStatus, "clear")
+            eq(qualifiedStreams.riskStatus, "clear"),
+            qualifiedSourceCondition
           )
         ),
       // 3. Followers
@@ -186,7 +263,8 @@ app.openapi(
             eq(
               qualifiedStreams.accountingPeriodId,
               subscriptionRewardAllocations.accountingPeriodId
-            )
+            ),
+            qualifiedSourceCondition
           )
         )
         .where(
@@ -286,7 +364,7 @@ app.openapi(
   }),
   async (c) => {
     const user = c.get("user"),
-      { metric, range } = c.req.valid("query");
+      { metric, range, scope } = c.req.valid("query");
 
     if (!isDatabaseConfigured() || !isAuthenticatedUser(user)) {
       return c.json(
@@ -311,6 +389,15 @@ app.openapi(
         organizationId,
         userId: user.id,
       }),
+      bioUsername =
+        scope === "bio"
+          ? await getArtistBioUsername({ db, userId: user.id })
+          : null,
+      playbackSourceCondition = bioPlaybackCondition(scope, bioUsername),
+      qualifiedSourceCondition = bioQualifiedStreamCondition(
+        scope,
+        bioUsername
+      ),
       now = new Date(),
       startDate = getRangeStartDate(range, now);
 
@@ -338,7 +425,7 @@ app.openapi(
         dateMap.set(key, 0);
       }
     } else {
-      const numDays = range === "7d" ? 7 : (range === "28d" ? 28 : 90);
+      const numDays = range === "7d" ? 7 : range === "28d" ? 28 : 90;
       for (let i = numDays - 1; i >= 0; i -= 1) {
         const d = new Date(now);
         d.setUTCDate(d.getUTCDate() - i);
@@ -360,7 +447,8 @@ app.openapi(
               inArray(qualifiedStreams.trackId, trackIds),
               eq(qualifiedStreams.status, "qualified"),
               eq(qualifiedStreams.riskStatus, "clear"),
-              gte(qualifiedStreams.qualifiedAt, startDate)
+              gte(qualifiedStreams.qualifiedAt, startDate),
+              qualifiedSourceCondition
             )
           )
           .groupBy(dateKey);
@@ -382,7 +470,8 @@ app.openapi(
             and(
               inArray(playbackSessions.trackId, trackIds),
               gte(playbackSessions.startedAt, startDate),
-              playConditionSql
+              playConditionSql,
+              playbackSourceCondition
             )
           )
           .groupBy(dateKey);
@@ -405,7 +494,8 @@ app.openapi(
             and(
               inArray(playbackSessions.trackId, trackIds),
               gte(playbackSessions.startedAt, startDate),
-              playConditionSql
+              playConditionSql,
+              playbackSourceCondition
             )
           )
           .groupBy(dateKey);
@@ -753,6 +843,7 @@ app.openapi(
   createRoute({
     method: "get",
     path: "/sources",
+    request: { query: analyticsScopeQuerySchema },
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
         analyticsSourcesSchema,
@@ -762,7 +853,8 @@ app.openapi(
     tags: ["Analytics"],
   }),
   async (c) => {
-    const user = c.get("user");
+    const user = c.get("user"),
+      { scope } = c.req.valid("query");
     if (!isDatabaseConfigured() || !isAuthenticatedUser(user)) {
       return c.json({ sources: [], total: 0 }, HttpStatusCodes.OK);
     }
@@ -777,7 +869,12 @@ app.openapi(
         db,
         organizationId,
         userId: user.id,
-      });
+      }),
+      bioUsername =
+        scope === "bio"
+          ? await getArtistBioUsername({ db, userId: user.id })
+          : null,
+      playbackSourceCondition = bioPlaybackCondition(scope, bioUsername);
 
     if (trackIds.length === 0) {
       return c.json({ sources: [], total: 0 }, HttpStatusCodes.OK);
@@ -790,7 +887,11 @@ app.openapi(
         })
         .from(playbackSessions)
         .where(
-          and(inArray(playbackSessions.trackId, trackIds), playConditionSql)
+          and(
+            inArray(playbackSessions.trackId, trackIds),
+            playConditionSql,
+            playbackSourceCondition
+          )
         )
         .groupBy(playbackSessions.sourceType),
       total = rows.reduce((acc, r) => acc + Number(r.count), 0),

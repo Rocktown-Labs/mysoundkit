@@ -26,10 +26,18 @@ import React, {
 } from "react";
 import type { ReactNode } from "react";
 
-import { buildSoundKitWebUrl } from "@/lib/api";
+import { API_V1_URL, buildSoundKitWebUrl, getBioAuthHeaders } from "@/lib/api";
 import type { BioTrack } from "@/lib/api";
 
 const bioAudioPlayerStorageKey = "soundkit.bio.audio-player.v1";
+
+interface BioPlaybackTelemetry {
+  id: string;
+  lastReportedSeconds: number;
+  sessionToken: string;
+  thresholdReported: boolean;
+  trackId: string;
+}
 
 interface BioAudioPlayerContextValue {
   addToQueue: (track: BioTrack) => boolean;
@@ -75,11 +83,12 @@ const isStoredTrack = (value: unknown): value is BioTrack => {
 
   const track = value as Partial<BioTrack>;
   return (
-    typeof track.artistName === "string" &&
-    typeof track.duration === "string" &&
-    typeof track.id === "string" &&
-    typeof track.title === "string" &&
-    (typeof track.playbackUrl === "string" && track.playbackUrl.length > 0) ||
+    (typeof track.artistName === "string" &&
+      typeof track.duration === "string" &&
+      typeof track.id === "string" &&
+      typeof track.title === "string" &&
+      typeof track.playbackUrl === "string" &&
+      track.playbackUrl.length > 0) ||
     (typeof track.previewUrl === "string" && track.previewUrl.length > 0)
   );
 };
@@ -114,6 +123,7 @@ const readStoredPlayerState = () => {
 
 export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null),
+    playbackTelemetryRef = useRef<BioPlaybackTelemetry | null>(null),
     [currentTrack, setCurrentTrack] = useState<BioTrack | null>(null),
     [queue, setQueue] = useState<BioTrack[]>([]),
     [isPlaying, setIsPlaying] = useState(false),
@@ -129,6 +139,57 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
       }
       return currentTrack.playbackUrl || currentTrack.previewUrl || "";
     }, [currentTrack]),
+    sendPlaybackProgress = useCallback(
+      ({ ended = false }: { ended?: boolean } = {}) => {
+        const audio = audioRef.current,
+          telemetry = playbackTelemetryRef.current;
+        if (!(audio && telemetry)) {
+          return;
+        }
+
+        const playedSeconds = Math.max(0, Math.floor(audio.currentTime)),
+          durationSeconds = Math.ceil(audio.duration || 0),
+          thresholdReached =
+            playedSeconds >= 30 && !telemetry.thresholdReported;
+        if (
+          !(
+            ended ||
+            thresholdReached ||
+            playedSeconds - telemetry.lastReportedSeconds >= 10
+          )
+        ) {
+          return;
+        }
+
+        telemetry.lastReportedSeconds = playedSeconds;
+        telemetry.thresholdReported ||= thresholdReached;
+        void fetch(
+          `${API_V1_URL}/tracks/${encodeURIComponent(
+            telemetry.trackId
+          )}/playback-sessions/${encodeURIComponent(telemetry.id)}/${
+            ended ? "end" : "progress"
+          }`,
+          {
+            body: JSON.stringify({
+              durationSeconds:
+                durationSeconds > 0 ? durationSeconds : undefined,
+              ended,
+              isMuted: audio.muted || audio.volume === 0,
+              playedSeconds,
+              sessionToken: telemetry.sessionToken,
+            }),
+            credentials: "include",
+            headers: {
+              ...getBioAuthHeaders(),
+              "Content-Type": "application/json",
+            },
+            keepalive: ended,
+            method: "POST",
+          }
+        ).catch(() => {});
+      },
+      []
+    ),
     playTrack = useCallback(
       (track: BioTrack, newQueue?: BioTrack[]) => {
         if (!track.playbackUrl && !track.previewUrl) {
@@ -301,6 +362,73 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [currentTrack, hasRestored, queue]);
 
+  useEffect(() => {
+    const trackId = currentTrack?.id;
+    if (!(trackId && activeSrc)) {
+      playbackTelemetryRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    playbackTelemetryRef.current = null;
+
+    const startPlaybackSession = async () => {
+      const sessionToken = crypto.randomUUID(),
+        response = await fetch(
+          `${API_V1_URL}/tracks/${encodeURIComponent(trackId)}/playback-sessions`,
+          {
+            body: JSON.stringify({
+              clientType: "web",
+              sessionToken,
+              sourceId: currentTrack.artistUsername
+                ? `bio:${currentTrack.artistUsername}`
+                : undefined,
+              sourceType: "artist_profile",
+            }),
+            credentials: "include",
+            headers: {
+              ...getBioAuthHeaders(),
+              "Content-Type": "application/json",
+            },
+            method: "POST",
+          }
+        );
+
+      if (!response.ok) {
+        return;
+      }
+
+      const payload: unknown = await response.json().catch(() => null);
+      if (
+        cancelled ||
+        !payload ||
+        typeof payload !== "object" ||
+        !("id" in payload && typeof payload.id === "string")
+      ) {
+        return;
+      }
+
+      playbackTelemetryRef.current = {
+        id: payload.id,
+        lastReportedSeconds: 0,
+        sessionToken:
+          "sessionToken" in payload && typeof payload.sessionToken === "string"
+            ? payload.sessionToken
+            : sessionToken,
+        thresholdReported: false,
+        trackId,
+      };
+    };
+
+    void startPlaybackSession().catch(() => {});
+
+    return () => {
+      cancelled = true;
+      sendPlaybackProgress({ ended: true });
+      playbackTelemetryRef.current = null;
+    };
+  }, [activeSrc, currentTrack, sendPlaybackProgress]);
+
   // Sync audio element with state changes
   useEffect(() => {
     const audio = audioRef.current;
@@ -414,12 +542,18 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
       {activeSrc ? (
         <audio
           onDurationChange={(e) => setDuration(e.currentTarget.duration || 0)}
-          onEnded={nextTrack}
+          onEnded={() => {
+            sendPlaybackProgress({ ended: true });
+            nextTrack();
+          }}
           onError={() => setIsPlaying(false)}
           onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
           onPause={() => setIsPlaying(false)}
           onPlay={() => setIsPlaying(true)}
-          onTimeUpdate={(e) => setProgress(e.currentTarget.currentTime || 0)}
+          onTimeUpdate={(e) => {
+            setProgress(e.currentTarget.currentTime || 0);
+            sendPlaybackProgress();
+          }}
           crossOrigin="use-credentials"
           preload="auto"
           ref={audioRef}

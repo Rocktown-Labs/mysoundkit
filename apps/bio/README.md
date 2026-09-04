@@ -1,6 +1,6 @@
 # SoundKit artist profiles
 
-Standalone TanStack Start artist-profile app for `bio.mysoundkit.com/{username}`.
+Standalone TanStack Start artist-profile app for `soundkit.bio/{username}`.
 
 ## Local development
 
@@ -20,12 +20,13 @@ cookie is assumed on the configured SoundKit web origin.
 
 ## Domain rollout
 
-The initial rollout is provisioned as the `soundkit-bio` Alchemy Worker on the
-existing `mysoundkit.com` zone:
+The `soundkit-bio` Alchemy Worker uses a production custom domain and
+pull-request-specific preview domains:
 
-- Production: `https://bio.mysoundkit.com`
+- Production: `https://soundkit.bio`
+- Aliases: `https://www.soundkit.bio` and `https://bio.mysoundkit.com`
 - Pull requests: `https://bio-pr-<number>.mysoundkit.com`
 
-The `soundkit.bio` custom domain can be attached later without changing the
-profile routes. Set `SOUNDKIT_BIO_URL` only when overriding the generated
-origin.
+Alchemy provisions the production domain and retains the legacy alias for
+backward-compatible profile links. Set `SOUNDKIT_BIO_URL` only when overriding
+the generated origin in a local or preview environment.
