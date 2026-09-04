@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 
 const apiBaseUrl =
     process.env.PLAYWRIGHT_API_URL ?? process.env.SOUNDKIT_E2E_API_URL,
+  bioBaseUrl =
+    process.env.PLAYWRIGHT_BIO_URL ?? process.env.SOUNDKIT_E2E_BIO_URL,
   publicRoutes = [
     { heading: /discover music/i, path: "/" },
     { heading: /live on soundkit/i, path: "/live" },
@@ -12,10 +14,13 @@ test("deployed preview serves healthy API and public browser routes", async ({
   page,
   request,
 }) => {
-  test.skip(
-    !apiBaseUrl,
-    "PLAYWRIGHT_API_URL or SOUNDKIT_E2E_API_URL is required for preview smoke tests."
-  );
+  if (!(apiBaseUrl && bioBaseUrl)) {
+    test.skip(
+      true,
+      "PLAYWRIGHT_API_URL and PLAYWRIGHT_BIO_URL are required for preview smoke tests."
+    );
+    return;
+  }
 
   const healthResponse = await request.get(`${apiBaseUrl}/health`);
   expect(healthResponse.ok()).toBe(true);
@@ -29,6 +34,13 @@ test("deployed preview serves healthy API and public browser routes", async ({
       page.getByRole("heading", { name: route.heading }).first()
     ).toBeVisible();
   }
+
+  const bioPage = await page.context().newPage();
+  await bioPage.goto(bioBaseUrl, { waitUntil: "domcontentloaded" });
+  await expect(bioPage).toHaveTitle(/SoundKit Bio/i);
+  await expect(
+    bioPage.getByRole("link", { name: "Claim Your Artist Bio" })
+  ).toBeVisible();
 
   await page.goto("/live/preview", { waitUntil: "domcontentloaded" });
   await expect(page.getByText("Live Experience Preview")).toBeVisible();

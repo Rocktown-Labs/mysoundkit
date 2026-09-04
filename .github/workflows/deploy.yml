@@ -276,6 +276,9 @@ jobs:
       web_url: ${{ steps.urls.outputs.web_url }}
       api_url: ${{ steps.urls.outputs.api_url }}
       bio_url: ${{ steps.urls.outputs.bio_url }}
+      ci_web_url: ${{ steps.urls.outputs.ci_web_url }}
+      ci_api_url: ${{ steps.urls.outputs.ci_api_url }}
+      ci_bio_url: ${{ steps.urls.outputs.ci_bio_url }}
     steps:
       - name: Bootstrap repository
         env:
@@ -354,9 +357,15 @@ jobs:
           WEB_URL="https://soundkit-web-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
           API_URL="https://api-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
           BIO_URL="https://bio-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
+          CI_WEB_URL="https://soundkit-web-pr-${{ github.event.pull_request.number }}.rocktown-labs.workers.dev"
+          CI_API_URL="https://soundkit-server-pr-${{ github.event.pull_request.number }}.rocktown-labs.workers.dev"
+          CI_BIO_URL="https://soundkit-bio-pr-${{ github.event.pull_request.number }}.rocktown-labs.workers.dev"
           echo "web_url=$WEB_URL" >> "$GITHUB_OUTPUT"
           echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
           echo "bio_url=$BIO_URL" >> "$GITHUB_OUTPUT"
+          echo "ci_web_url=$CI_WEB_URL" >> "$GITHUB_OUTPUT"
+          echo "ci_api_url=$CI_API_URL" >> "$GITHUB_OUTPUT"
+          echo "ci_bio_url=$CI_BIO_URL" >> "$GITHUB_OUTPUT"
           echo "### SoundKit preview" >> "$GITHUB_STEP_SUMMARY"
           echo "- Web: $WEB_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- Bio: $BIO_URL" >> "$GITHUB_STEP_SUMMARY"
@@ -438,7 +447,7 @@ jobs:
               exit 0
             fi
 
-            echo "Attempt $attempt/$MAX_ATTEMPTS: Waiting for endpoints (API: $API_READY, Web: $WEB_READY)..."
+            echo "Attempt $attempt/$MAX_ATTEMPTS: Waiting for endpoints (API: $API_READY, Web: $WEB_READY, Bio: $BIO_READY)..."
             if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
               sleep "$SLEEP_SECONDS"
             fi
@@ -456,18 +465,19 @@ jobs:
           fi
           exit 1
         env:
-          PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.web_url }}
-          PLAYWRIGHT_BIO_URL: ${{ needs.preview.outputs.bio_url }}
-          PLAYWRIGHT_API_URL: ${{ needs.preview.outputs.api_url }}
+          PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.ci_web_url }}
+          PLAYWRIGHT_BIO_URL: ${{ needs.preview.outputs.ci_bio_url }}
+          PLAYWRIGHT_API_URL: ${{ needs.preview.outputs.ci_api_url }}
 
       - name: Run preview browser smoke tests
         run: pnpm exec playwright test tests/e2e/preview-smoke.spec.ts
         env:
-          PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.web_url }}
-          PLAYWRIGHT_API_URL: ${{ needs.preview.outputs.api_url }}
-          PLAYWRIGHT_BIO_URL: ${{ needs.preview.outputs.bio_url }}
-          SOUNDKIT_E2E_WEB_URL: ${{ needs.preview.outputs.web_url }}
-          SOUNDKIT_E2E_API_URL: ${{ needs.preview.outputs.api_url }}
+          PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.ci_web_url }}
+          PLAYWRIGHT_API_URL: ${{ needs.preview.outputs.ci_api_url }}
+          PLAYWRIGHT_BIO_URL: ${{ needs.preview.outputs.ci_bio_url }}
+          SOUNDKIT_E2E_WEB_URL: ${{ needs.preview.outputs.ci_web_url }}
+          SOUNDKIT_E2E_API_URL: ${{ needs.preview.outputs.ci_api_url }}
+          SOUNDKIT_E2E_BIO_URL: ${{ needs.preview.outputs.ci_bio_url }}
 
       - name: Report Playwright failure artifacts
         if: failure()
