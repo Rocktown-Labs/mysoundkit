@@ -28,7 +28,7 @@ jobs:
           alchemy_access_token=$(jq -r '.access // empty' <<< "$ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON")
           alchemy_auth_header="Authorization: Bearer $alchemy_access_token"
           echo "Alchemy credential keys:"
-          jq -r 'keys | join(",")' <<< "$ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON"
+          jq -r '"scopes=" + ((.scopes // []) | join(","))' <<< "$ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON"
 
           echo "Worker custom domains:"
           curl --fail --silent --show-error \
