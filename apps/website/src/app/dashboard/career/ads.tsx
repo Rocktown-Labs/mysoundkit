@@ -72,6 +72,7 @@ import {
   useAdWalletQuery,
   useBillingCheckoutMutation,
   useCreateAdCampaignMutation,
+  useSubmitAdCampaignMutation,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 import type {
@@ -255,6 +256,39 @@ const targetOptions: readonly TargetOption[] = [
     type: "country",
   },
 ];
+
+function SubmitCampaignButton({ campaignId }: { campaignId: string }) {
+  const submit = useSubmitAdCampaignMutation(),
+    { toast } = useToast();
+  return (
+    <Button
+      size="sm"
+      disabled={submit.isPending}
+      onClick={() =>
+        submit.mutate(campaignId, {
+          onError: () => {
+            toast({
+              description: "Could not submit the campaign for review.",
+              title: "Submit failed",
+              variant: "destructive",
+            });
+          },
+          onSuccess: (campaign) => {
+            toast({
+              description:
+                campaign.status === "active"
+                  ? "Approved automatically — now serving."
+                  : "Sent for review — it will serve once approved.",
+              title: "Campaign submitted",
+            });
+          },
+        })
+      }
+    >
+      {submit.isPending ? "Submitting…" : "Submit for review"}
+    </Button>
+  );
+}
 
 function DashboardAdsPage() {
   const navigate = Route.useNavigate(),
@@ -464,6 +498,10 @@ function DashboardAdsPage() {
                           {c.metrics.clicks.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">
+                          {(c.status === "draft" ||
+                            c.status === "rejected") && (
+                            <SubmitCampaignButton campaignId={c.id} />
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"

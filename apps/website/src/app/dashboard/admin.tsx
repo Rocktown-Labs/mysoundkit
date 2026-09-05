@@ -979,7 +979,7 @@ function AdsPanel() {
         status,
       }: {
         campaignId: string;
-        status: "active" | "paused";
+        status: "active" | "paused" | "rejected";
       }) => {
         const response = await fetch(
           `${API_V1_URL}/ads/admin/campaigns/${encodeURIComponent(campaignId)}/status`,
@@ -1202,20 +1202,52 @@ function AdsPanel() {
                     {campaign.metrics.ctrPercent.toFixed(2)}%
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={updateStatus.isPending}
-                      onClick={() =>
-                        updateStatus.mutate({
-                          campaignId: campaign.id,
-                          status:
-                            campaign.status === "active" ? "paused" : "active",
-                        })
-                      }
-                    >
-                      Toggle Run Status
-                    </Button>
+                    {campaign.status === "pending_review" ? (
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          disabled={updateStatus.isPending}
+                          onClick={() =>
+                            updateStatus.mutate({
+                              campaignId: campaign.id,
+                              status: "active",
+                            })
+                          }
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={updateStatus.isPending}
+                          onClick={() =>
+                            updateStatus.mutate({
+                              campaignId: campaign.id,
+                              status: "rejected",
+                            })
+                          }
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={updateStatus.isPending}
+                        onClick={() =>
+                          updateStatus.mutate({
+                            campaignId: campaign.id,
+                            status:
+                              campaign.status === "active"
+                                ? "paused"
+                                : "active",
+                          })
+                        }
+                      >
+                        Toggle Run Status
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

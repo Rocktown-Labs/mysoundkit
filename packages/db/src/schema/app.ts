@@ -583,14 +583,17 @@ export const adImpressionStatusEnum = pgEnum("ad_impression_status", [
 ]);
 export const adCampaignStatusEnum = pgEnum("ad_campaign_status", [
   "draft",
+  "pending_review",
   "active",
   "paused",
+  "rejected",
   "exhausted_for_today",
   "expired",
 ]);
 export const adBillingTypeEnum = pgEnum("ad_billing_type", [
   "upfront_recurring",
   "prepaid_wallet",
+  "house",
 ]);
 export const adTargetTypeEnum = pgEnum("ad_target_type", ["state", "country"]);
 export const adCreativeFormatEnum = pgEnum("ad_creative_format", [
@@ -602,6 +605,16 @@ export const adPlacementEnum = pgEnum("ad_placement", [
   "audio_preroll",
   "video_preroll",
   "video_overlay",
+  "sponsored_queue",
+  "featured_rail",
+  "battle_boost",
+]);
+export const adEntityTypeEnum = pgEnum("ad_entity_type", [
+  "track",
+  "project",
+  "video",
+  "battle",
+  "stream",
 ]);
 export const payoutHoldStatusEnum = pgEnum("payout_hold_status", [
   "active",
@@ -3333,6 +3346,8 @@ export const adCampaigns = pgTable(
     dailyBudgetCents: integer("daily_budget_cents").default(500).notNull(),
     dailyImpressionCap: integer("daily_impression_cap").default(1000).notNull(),
     endDate: timestamp("end_date"),
+    entityId: text("entity_id"),
+    entityType: adEntityTypeEnum("entity_type"),
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     placement: adPlacementEnum("placement").default("audio_preroll").notNull(),

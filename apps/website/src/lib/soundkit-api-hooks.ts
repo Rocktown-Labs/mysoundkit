@@ -401,8 +401,23 @@ type BackfillTrackDurationsBody = InferRequestType<
 
 export type AdTargetType = "country" | "state";
 export type AdCreativeFormat = "audio" | "image" | "video";
-export type AdPlacement = "audio_preroll" | "video_overlay" | "video_preroll";
-export type AdBillingType = "prepaid_wallet" | "upfront_recurring";
+export type AdPlacement =
+  | "audio_preroll"
+  | "video_overlay"
+  | "video_preroll"
+  | "sponsored_queue"
+  | "featured_rail"
+  | "battle_boost";
+export type AdBillingType = "house" | "prepaid_wallet" | "upfront_recurring";
+export type AdEntityType = "battle" | "project" | "stream" | "track" | "video";
+export type AdCampaignStatus =
+  | "active"
+  | "draft"
+  | "exhausted_for_today"
+  | "expired"
+  | "paused"
+  | "pending_review"
+  | "rejected";
 
 export interface AdTarget {
   targetCode: string;
@@ -418,6 +433,8 @@ export interface AdCampaignSummary {
   dailyBudgetCents: number;
   dailyImpressionCap: number;
   endDate: string | null;
+  entityId: string | null;
+  entityType: AdEntityType | null;
   id: string;
   metrics: {
     clicks: number;
@@ -430,7 +447,7 @@ export interface AdCampaignSummary {
   name: string;
   placement: AdPlacement;
   startDate: string;
-  status: "active" | "draft" | "exhausted_for_today" | "expired" | "paused";
+  status: AdCampaignStatus;
   targets: AdTarget[];
 }
 
@@ -448,6 +465,8 @@ export interface CreateAdCampaignBody {
   dailyBudgetCents: number;
   dailyImpressionCap: number;
   endDate?: string;
+  entityId?: string;
+  entityType?: AdEntityType;
   name: string;
   placement: AdPlacement;
   startDate?: string;
@@ -605,12 +624,32 @@ export const useAdminAdCampaignsQuery = (enabled = true) =>
   });
 
 export const useCreateAdCampaignMutation = () => {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient(),
+   invalidateCampaigns = () =>
+    Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.adCampaigns,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.adAdminCampaigns,
+      }),
+    ]);
 
   return useMutation({
     mutationFn: async (body: CreateAdCampaignBody) =>
       fetchApiJson<AdCampaignSummary>("/ads/campaigns", {
         body: JSON.stringify(body),
+        method: "POST",
+      }),
+    onSuccess: invalidateCampaigns,
+  });
+};
+
+export const useSubmitAdCampaignMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (campaignId: string) =>
+      fetchApiJson<AdCampaignSummary>(`/ads/campaigns/${campaignId}/submit`, {
         method: "POST",
       }),
     onSuccess: () =>
