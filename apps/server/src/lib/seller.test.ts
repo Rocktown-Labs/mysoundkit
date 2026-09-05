@@ -1,6 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { serializeV1AccountStatus } from "./seller";
+import { isSellerReadyForTips, serializeV1AccountStatus } from "./seller";
+
+describe("isSellerReadyForTips", () => {
+  const baseSeller = {
+    chargesEnabled: true,
+    onboardingStatus: "enabled",
+    payoutsEnabled: true,
+  };
+
+  it("requires both charges and payouts to be enabled", () => {
+    expect(isSellerReadyForTips(baseSeller)).toBe(true);
+    expect(isSellerReadyForTips({ ...baseSeller, chargesEnabled: false })).toBe(
+      false
+    );
+    expect(isSellerReadyForTips({ ...baseSeller, payoutsEnabled: false })).toBe(
+      false
+    );
+  });
+
+  it("rejects accounts that have not completed onboarding", () => {
+    expect(
+      isSellerReadyForTips({ ...baseSeller, onboardingStatus: "pending" })
+    ).toBe(false);
+  });
+});
 
 describe("serializeV1AccountStatus", () => {
   it("marks a completed Express account as enabled", () => {

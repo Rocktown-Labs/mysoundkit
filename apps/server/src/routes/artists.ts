@@ -10,6 +10,7 @@ import {
   projectCollaborators,
   projectTracks,
   projects,
+  sellerAccounts,
   trackCollaborators,
   tracks,
   userProfiles,
@@ -578,6 +579,14 @@ app.openapi(
             avatarUrl: userProfiles.avatarUrl,
             battleCount: artistProfiles.battleCount,
             bio: userProfiles.bio,
+            canReceiveTips: sql<boolean>`exists (
+              select 1
+              from ${sellerAccounts}
+              where ${sellerAccounts.userId} = ${artistProfiles.userId}
+                and ${sellerAccounts.onboardingStatus} = 'enabled'
+                and ${sellerAccounts.chargesEnabled} = true
+                and ${sellerAccounts.payoutsEnabled} = true
+            )`,
             city: userProfiles.city,
             createdAt: artistProfiles.createdAt,
             displayName: userProfiles.displayName,
@@ -678,6 +687,7 @@ app.openapi(
             }),
             battleCount: artist.battleCount,
             bio: artist.bio,
+            canReceiveTips: Boolean(artist.canReceiveTips),
             coverImageUrl: publicProfileAssetUrl({
               fallbackUrl: artist.headerUrl,
               objectKey: artist.headerObjectKey,
@@ -707,7 +717,24 @@ app.openapi(
     const artist =
       sampleArtists.find((entry) => entry.username === username) ??
       sampleArtists[0];
-    return c.json(artist, HttpStatusCodes.OK);
+    if (!artist) {
+      return c.json(
+        {
+          canReceiveTips: false,
+          followers: 0,
+          genre: "Independent Artist",
+          id: "sample-artist",
+          location: "",
+          name: "SoundKit Artist",
+          roles: ["musician" as const],
+          username,
+          verified: false,
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    return c.json({ ...artist, canReceiveTips: false }, HttpStatusCodes.OK);
   }
 );
 

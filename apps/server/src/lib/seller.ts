@@ -79,6 +79,15 @@ interface StripeV1AccountResponse {
   };
 }
 
+export const isSellerReadyForTips = (seller: {
+  chargesEnabled: boolean;
+  onboardingStatus: string;
+  payoutsEnabled: boolean;
+}) =>
+  seller.onboardingStatus === "enabled" &&
+  seller.chargesEnabled &&
+  seller.payoutsEnabled;
+
 export const serializeV1AccountStatus = (account: StripeV1AccountResponse) => {
   const chargesEnabled = Boolean(account.charges_enabled),
     payoutsEnabled = Boolean(account.payouts_enabled),

@@ -34,6 +34,7 @@
 
 ### Fixed
 
+- Fixed Bio tip Checkout failures caused by Stripe Managed Payments conflicts and hide Tip actions until an artist has enabled charges, payouts, and completed onboarding.
 - Fixed artist profile `Share` button positioning by nesting it cleanly within the right-aligned action flex column, eliminating absolute overlap with `Full Profile`.
 - Fixed mobile navigation tabs obstruction on Bio dashboard by dynamically adjusting tab offset and scroll padding when the bottom audio player is active.
 - Removed irrelevant cross-artist queries (`loadRegionArtists`) from private creator analytics on SoundKit Bio, replacing them with the artist's own state audience breakdown and platform referrals.

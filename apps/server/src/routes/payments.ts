@@ -8,7 +8,6 @@ import {
   liveExperiences,
   orderItems,
   orders,
-  sellerAccounts,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
@@ -26,7 +25,7 @@ import {
   TIP_PLATFORM_FEE_BPS,
 } from "@/lib/fees";
 import { artistTipsOverviewSchema, messageResponseSchema } from "@/lib/schemas";
-import { refreshSellerAccount } from "@/lib/seller";
+import { isSellerReadyForTips, refreshSellerAccount } from "@/lib/seller";
 import {
   createDestinationCheckout,
   createEmbeddedTipCheckout,
@@ -168,21 +167,12 @@ const resolveTipEvent = async ({
     limit: z.coerce.number().int().positive().max(100).default(20),
   }),
   getEnabledSeller = async (userId: string) => {
-    await refreshSellerAccount({ organizationId: null, userId });
-    const db = createDb(),
-      [seller] = await db
-        .select()
-        .from(sellerAccounts)
-        .where(
-          and(
-            eq(sellerAccounts.userId, userId),
-            eq(sellerAccounts.onboardingStatus, "enabled"),
-            eq(sellerAccounts.chargesEnabled, true)
-          )
-        )
-        .limit(1);
+    const seller = await refreshSellerAccount({
+      organizationId: null,
+      userId,
+    });
 
-    return seller ?? null;
+    return seller && isSellerReadyForTips(seller) ? seller : null;
   };
 
 app.openapi(

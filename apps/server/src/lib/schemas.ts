@@ -474,6 +474,7 @@ export const artistSummarySchema = z.object({
   avatarUrl: z.string().nullable().optional(),
   battleCount: z.number().int().nonnegative().optional(),
   bio: z.string().nullable().optional(),
+  canReceiveTips: z.boolean().optional(),
   coverImageUrl: z.string().nullable().optional(),
   followers: z.number(),
   genre: z.string(),

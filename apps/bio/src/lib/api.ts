@@ -33,6 +33,7 @@ export interface BioArtist {
   avatarUrl?: string | null;
   battleCount?: number;
   bio?: string | null;
+  canReceiveTips: boolean;
   coverImageUrl?: string | null;
   followers: number;
   genre: string;
@@ -415,6 +416,7 @@ const safeExternalUrl = (value: string | null): string | null => {
       avatarUrl: apiMediaUrl(stringValue(value.avatarUrl)),
       battleCount: numberValue(value.battleCount) ?? 0,
       bio: stringValue(value.bio),
+      canReceiveTips: value.canReceiveTips === true,
       coverImageUrl: apiMediaUrl(
         stringValue(value.coverImageUrl) ?? stringValue(value.headerUrl)
       ),
