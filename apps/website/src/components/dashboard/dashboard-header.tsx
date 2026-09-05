@@ -29,57 +29,85 @@ const SEARCH_DEBOUNCE_MS = 250,
   resultLinkClassName =
     "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-primary/10 hover:text-primary focus:bg-primary/10";
 
-function SemanticResultLink({
-  entityId,
-  entityType,
-  onSelect,
-}: {
+interface SemanticResult {
+  artistName: string | null;
+  coverArtUrl: string | null;
   entityId: string;
-  entityType: "artist" | "lyrics" | "project" | "track" | "video";
+  entityType: "artist" | "project" | "track" | "video";
+  matchedVia: "lyrics" | "metadata";
+  score: number;
+  snippet: string | null;
+  state: string | null;
+  subtitle: string | null;
+  title: string;
+}
+
+function SemanticResultLink({
+  onSelect,
+  result,
+}: {
   onSelect: () => void;
+  result: SemanticResult;
 }) {
-  const label = `${entityType === "lyrics" ? "track lyrics" : entityType} · ${entityId.slice(0, 12)}`;
-  if (entityType === "track" || entityType === "lyrics") {
+  const body = (
+    <>
+      <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
+      <span className="min-w-0">
+        <span className="block truncate font-medium">
+          {result.title}
+          {result.artistName ? (
+            <span className="font-normal text-muted-foreground">
+              {` · ${result.artistName}`}
+            </span>
+          ) : null}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {result.matchedVia === "lyrics" && result.snippet
+            ? `“${result.snippet}”`
+            : [result.entityType, result.subtitle, result.state]
+                .filter(Boolean)
+                .join(" · ")}
+        </span>
+      </span>
+    </>
+  );
+  if (result.entityType === "track") {
     return (
       <Link
         className={resultLinkClassName}
         onClick={onSelect}
-        params={{ id: entityId }}
+        params={{ id: result.entityId }}
         to="/tracks/$id"
       >
-        <Sparkles className="size-4 text-primary" /> {label}
+        {body}
       </Link>
     );
   }
-  if (entityType === "project") {
+  if (result.entityType === "project") {
     return (
       <Link
         className={resultLinkClassName}
         onClick={onSelect}
-        params={{ id: entityId }}
+        params={{ id: result.entityId }}
         to="/projects/$id"
       >
-        <Sparkles className="size-4 text-primary" /> {label}
+        {body}
       </Link>
     );
   }
-  if (entityType === "video") {
+  if (result.entityType === "video") {
     return (
       <Link
         className={resultLinkClassName}
         onClick={onSelect}
-        params={{ id: entityId }}
+        params={{ id: result.entityId }}
         to="/videos/$id"
       >
-        <Sparkles className="size-4 text-primary" /> {label}
+        {body}
       </Link>
     );
   }
-  return (
-    <div className={resultLinkClassName}>
-      <Sparkles className="size-4 text-primary" /> {label}
-    </div>
-  );
+  return <div className={resultLinkClassName}>{body}</div>;
 }
 
 export function DashboardHeader() {
@@ -457,10 +485,9 @@ function DashboardHeaderContent() {
                   </div>
                   {semanticResults.map((result) => (
                     <SemanticResultLink
-                      entityId={result.entityId}
-                      entityType={result.entityType}
                       key={`${result.entityType}-${result.entityId}`}
                       onSelect={() => setSearchValue("")}
+                      result={result}
                     />
                   ))}
                 </div>

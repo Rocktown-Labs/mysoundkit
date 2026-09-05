@@ -226,14 +226,25 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
     followerCount: z.number().int().nonnegative(),
   }),
   sellerAccountSessionSchema = z.object({ clientSecret: z.string() }),
-  embeddingBackfillSchema = z.object({ indexed: z.number().int() }),
+  embeddingBackfillSchema = z.object({
+    indexed: z.number().int(),
+    skipped: z.number().int(),
+  }),
   embeddingStatusSchema = z.object({
     byEntityType: z.record(z.string(), z.number()),
     total: z.number(),
   }),
   semanticSearchResultSchema = z.object({
+    artistName: z.string().nullable(),
+    coverArtUrl: z.string().nullable(),
     entityId: z.string(),
-    entityType: z.enum(["artist", "lyrics", "project", "track", "video"]),
+    entityType: z.enum(["artist", "project", "track", "video"]),
+    matchedVia: z.enum(["lyrics", "metadata"]),
+    score: z.number(),
+    snippet: z.string().nullable(),
+    state: z.string().nullable(),
+    subtitle: z.string().nullable(),
+    title: z.string(),
   }),
   diagnosticCheckSchema = z.object({
     detail: z.string(),
@@ -1382,7 +1393,13 @@ export const rpcContract = new Hono()
   .get(
     "/v1/search/semantic",
     validator("query", (value) =>
-      z.object({ limit: z.string().optional(), q: z.string() }).parse(value)
+      z
+        .object({
+          limit: z.string().optional(),
+          q: z.string(),
+          threshold: z.string().optional(),
+        })
+        .parse(value)
     ),
     (c) => c.json([] as z.infer<typeof semanticSearchResultSchema>[])
   )

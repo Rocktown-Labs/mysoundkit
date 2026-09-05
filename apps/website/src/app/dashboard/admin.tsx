@@ -29,8 +29,8 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { AudioDiagnosticsPanel } from "@/components/admin/audio-diagnostics-panel";
-import { AdCreativeUploader } from '@/components/ads/ad-creative-uploader';
-import type { AdSlotKind } from '@/components/ads/ad-creative-uploader';
+import { AdCreativeUploader } from "@/components/ads/ad-creative-uploader";
+import type { AdSlotKind } from "@/components/ads/ad-creative-uploader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -316,7 +316,23 @@ function PlatformOperationsPanel() {
           </div>
           <Button
             disabled={backfillEmbeddings.isPending}
-            onClick={() => backfillEmbeddings.mutate(100)}
+            onClick={() =>
+              backfillEmbeddings.mutate(100, {
+                onError: () => {
+                  toast({
+                    description: "The embedding backfill failed to run.",
+                    title: "Backfill failed",
+                    variant: "destructive",
+                  });
+                },
+                onSuccess: (result) => {
+                  toast({
+                    description: `${result.indexed} indexed · ${result.skipped} unchanged skipped.`,
+                    title: "Backfill complete",
+                  });
+                },
+              })
+            }
           >
             <RefreshCw
               className={cn(

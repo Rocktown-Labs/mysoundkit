@@ -16,7 +16,6 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { publicProjectAssetUrl } from "@/lib/asset-urls";
-import { searchSemanticEntities } from "@/lib/audio-processing";
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import { sampleArtists, sampleProjects, sampleTracks } from "@/lib/sample-data";
@@ -24,20 +23,25 @@ import {
   publicSearchQuerySchema,
   publicSearchResultSchema,
 } from "@/lib/schemas";
+import {
+  hydrateSemanticResults,
+  searchSemanticEntities,
+} from "@/lib/semantic-search";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
 
 app.get("/semantic", async (c) => {
   const q = c.req.query("q")?.trim() ?? "",
-    limit = Number(c.req.query("limit") ?? 12);
-  return c.json(
-    await searchSemanticEntities({
+    limit = Number(c.req.query("limit") ?? 12),
+    threshold = Number(c.req.query("threshold") ?? ""),
+    matches = await searchSemanticEntities({
       limit: Number.isFinite(limit) ? limit : 12,
+      maxDistance:
+        Number.isFinite(threshold) && threshold > 0 ? threshold : undefined,
       text: q,
-    }),
-    HttpStatusCodes.OK
-  );
+    });
+  return c.json(await hydrateSemanticResults(matches), HttpStatusCodes.OK);
 });
 
 const normalizeState = (state: string | undefined) => {
