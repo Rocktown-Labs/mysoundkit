@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added a SoundKit Bio launch email with personalized `https://soundkit.bio/{username}` links, first-playable-track delivery, and a matching share card on the main artist dashboard home.
 - Added an admin Audio Diagnostics lab (`/dashboard/admin` → Audio tab): select up to 25 library tracks, run playback-resolution, derivative loudness/true-peak, normalization-gain, and master-headroom tests as a background job with progress polling, per-track pass/warn/fail evidence, and an in-app completion alert.
 - Added music-player recovery: same-track reload guard (re-setting an identical stream no longer restarts playback) and a media-error listener that retries once before surfacing a failure toast.
 - Added `media_playback_asset_resolved` logging to the guarded playback route so normalized-derivative vs legacy-fallback playback share is quantifiable.

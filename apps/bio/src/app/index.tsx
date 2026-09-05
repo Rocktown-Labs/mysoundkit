@@ -139,15 +139,15 @@ function BioHomePage() {
 
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2 sm:justify-start">
               <Link
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-2.5 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:scale-105 hover:opacity-90 active:scale-95 sm:w-auto sm:text-sm"
+                className="inline-flex min-h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-full bg-primary px-7 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-[opacity,transform] hover:scale-[1.02] hover:opacity-90 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto"
                 to="/signup/artist"
               >
                 <span>Claim Your Artist Bio</span>
-                <ArrowRight className="size-4" />
+                <ArrowRight aria-hidden="true" className="size-4" />
               </Link>
 
               <Link
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border/60 bg-white/5 px-5 py-2.5 text-xs font-semibold text-foreground/90 transition-all hover:bg-white/10 hover:text-foreground sm:w-auto sm:text-sm"
+                className="inline-flex min-h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-full border border-border/60 bg-white/5 px-6 py-3 text-sm font-semibold text-foreground/90 transition-[background-color,border-color,color] hover:border-border hover:bg-white/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto"
                 to="/signup/fan"
               >
                 <span>Join as Fan</span>
@@ -178,11 +178,11 @@ function BioHomePage() {
           <div className="flex items-center gap-2">
             {selectedRegion ? (
               <button
-                className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card/80 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-card hover:text-foreground transition-all shadow-sm"
+                className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-border/60 bg-card/80 px-4 py-2 text-xs font-semibold text-muted-foreground shadow-sm transition-[background-color,border-color,color] hover:border-border hover:bg-card hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 onClick={resetToGlobal}
                 type="button"
               >
-                <RotateCcw className="size-3.5" />
+                <RotateCcw aria-hidden="true" className="size-3.5" />
                 <span>Reset to Global View</span>
               </button>
             ) : null}
@@ -232,7 +232,7 @@ function BioHomePage() {
           <div className="rounded-3xl border border-destructive/30 bg-destructive/10 p-12 text-center space-y-4">
             <p className="text-sm text-destructive">{loadError}</p>
             <button
-              className="inline-flex items-center gap-2 rounded-full border border-destructive/40 px-5 py-2 text-xs font-bold text-destructive hover:bg-destructive/10 transition-colors"
+              className="inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-full border border-destructive/40 px-5 py-2.5 text-xs font-bold text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               onClick={() => setRetryCount((count) => count + 1)}
               type="button"
             >
@@ -331,7 +331,7 @@ function BioHomePage() {
               </p>
             </div>
             <Link
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow-md hover:opacity-90 transition-opacity"
+              className="inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               to="/signup/artist"
             >
               <span>Claim Your Artist Profile</span>

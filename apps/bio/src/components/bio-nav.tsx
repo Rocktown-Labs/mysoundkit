@@ -110,36 +110,39 @@ export function BioNav() {
         <div className="flex shrink-0 sm:w-56 items-center justify-end gap-2 sm:gap-3">
           {currentUser?.accountType === "artist" ? (
             <Link
-              className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-all"
+              className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary transition-[background-color,border-color] hover:border-primary/60 hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               to="/dashboard"
             >
-              <LayoutDashboard className="size-3.5" />
+              <LayoutDashboard aria-hidden="true" className="size-3.5" />
               <span>Dashboard</span>
             </Link>
           ) : currentUser ? (
             <a
-              className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-all"
+              className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary transition-[background-color,border-color] hover:border-primary/60 hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               href={buildSoundKitWebUrl("/dashboard")}
             >
-              <LayoutDashboard className="size-3.5" />
+              <LayoutDashboard aria-hidden="true" className="size-3.5" />
               <span>Dashboard</span>
             </a>
           ) : (
             <>
               <button
-                className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-white/5 px-3 py-1.5 text-xs font-semibold text-foreground/85 hover:border-primary/40 hover:text-foreground transition-all"
+                className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-border/40 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground/85 transition-[border-color,color] hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 onClick={handleSignIn}
                 type="button"
               >
-                <LogIn className="size-3.5 text-primary" />
+                <LogIn aria-hidden="true" className="size-3.5 text-primary" />
                 <span>Sign In</span>
               </button>
 
               <Link
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-white/5 px-3.5 py-1.5 text-xs font-semibold text-foreground/85 hover:border-primary/40 hover:text-foreground transition-all"
+                className="hidden min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-border/40 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground/85 transition-[border-color,color] hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:inline-flex"
                 to="/signup/artist"
               >
-                <Sparkles className="size-3.5 text-primary" />
+                <Sparkles
+                  aria-hidden="true"
+                  className="size-3.5 text-primary"
+                />
                 <span>Claim Account</span>
               </Link>
             </>

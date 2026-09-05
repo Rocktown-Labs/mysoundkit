@@ -19,6 +19,7 @@ import { and, eq, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { notify } from "@/lib/notifications";
 import {
+  notifyBioLinkAvailable,
   notifyTrackLive,
   notifyTrackMediaReady,
 } from "@/lib/track-notifications";
@@ -271,6 +272,7 @@ export const handleTrackMediaReady = async ({
   }
 
   await notifyTrackMediaReady({ emailQueue, trackId });
+  await notifyBioLinkAvailable({ emailQueue, trackId });
 
   const releaseIsDue =
       !track.releaseAt || track.releaseAt.getTime() <= Date.now(),

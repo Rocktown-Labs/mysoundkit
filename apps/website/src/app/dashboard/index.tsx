@@ -1,5 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BadgeCheck, FolderOpen, Music, Sparkles, Users } from "lucide-react";
+import {
+  BadgeCheck,
+  Check,
+  Copy,
+  ExternalLink,
+  FolderOpen,
+  Music,
+  Share2,
+  Sparkles,
+  Users,
+} from "lucide-react";
+import { useState } from "react";
 
 import { PremiumActivationCard } from "@/components/billing/premium-activation-card";
 import { ProjectsOverview } from "@/components/dashboard/projects-overview";
@@ -121,6 +132,10 @@ function DashboardPage() {
         </div>
       </div>
 
+      {meQuery.data?.user.accountType === "artist" ? (
+        <BioLinkCard username={meQuery.data.user.username} />
+      ) : null}
+
       {/* Stats Cards */}
       <StatsGrid stats={dashboardStats} />
 
@@ -146,6 +161,110 @@ function DashboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function BioLinkCard({ username }: { username: string }) {
+  const [copied, setCopied] = useState(false),
+    [shared, setShared] = useState(false),
+    bioUrl = `https://soundkit.bio/${encodeURIComponent(username)}`,
+    copyBioLink = async () => {
+      try {
+        await navigator.clipboard.writeText(bioUrl);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2200);
+      } catch {
+        setCopied(false);
+      }
+    },
+    shareBioLink = async () => {
+      if (typeof navigator.share === "function") {
+        try {
+          await navigator.share({
+            title: "My SoundKit Bio",
+            url: bioUrl,
+          });
+          setShared(true);
+          window.setTimeout(() => setShared(false), 2200);
+          return;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return;
+          }
+        }
+      }
+
+      await copyBioLink();
+    };
+
+  return (
+    <section className="space-y-4 rounded-3xl border border-border/50 bg-card/40 p-6 shadow-md backdrop-blur-xl sm:p-8">
+      <div>
+        <h2 className="font-semibold text-base text-foreground">
+          Your Official Bio Link
+        </h2>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Paste this link in your Instagram, TikTok, and X profiles.
+        </p>
+      </div>
+
+      <div className="flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+        <a
+          className="min-w-0 flex-1 overflow-hidden rounded-2xl border border-border/60 bg-white/5 px-4 py-3 font-mono text-xs text-primary transition-colors hover:border-primary/50 sm:text-sm"
+          href={bioUrl}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          <span className="block truncate">{bioUrl}</span>
+        </a>
+        <button
+          aria-label={copied ? "Bio link copied" : "Copy Bio link"}
+          className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-white/10 px-6 font-semibold text-xs text-foreground transition-colors hover:bg-white/15"
+          onClick={copyBioLink}
+          type="button"
+        >
+          {copied ? (
+            <>
+              <Check aria-hidden="true" className="size-4 text-primary" />
+              <span className="font-bold text-primary">Copied!</span>
+            </>
+          ) : (
+            <>
+              <Copy aria-hidden="true" className="size-4" />
+              <span>Copy Link</span>
+            </>
+          )}
+        </button>
+        <button
+          aria-label={shared ? "Bio link shared" : "Share Bio link"}
+          className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-5 font-semibold text-xs text-primary transition-colors hover:border-primary/50 hover:bg-primary/20"
+          onClick={shareBioLink}
+          type="button"
+        >
+          {shared ? (
+            <>
+              <Check aria-hidden="true" className="size-4" />
+              <span className="font-bold">Shared!</span>
+            </>
+          ) : (
+            <>
+              <Share2 aria-hidden="true" className="size-4" />
+              <span>Share Link</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      <a
+        className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+        href={bioUrl}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        <span>View your Bio link</span>
+        <ExternalLink aria-hidden="true" className="size-3.5" />
+      </a>
+    </section>
   );
 }
 
