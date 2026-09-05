@@ -226,14 +226,26 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
     followerCount: z.number().int().nonnegative(),
   }),
   sellerAccountSessionSchema = z.object({ clientSecret: z.string() }),
-  embeddingBackfillSchema = z.object({ indexed: z.number().int() }),
+  embeddingBackfillSchema = z.object({
+    indexed: z.number().int(),
+    skipped: z.number().int(),
+  }),
   embeddingStatusSchema = z.object({
     byEntityType: z.record(z.string(), z.number()),
     total: z.number(),
   }),
   semanticSearchResultSchema = z.object({
+    artistName: z.string().nullable(),
+    coverArtUrl: z.string().nullable(),
     entityId: z.string(),
-    entityType: z.enum(["artist", "lyrics", "project", "track", "video"]),
+    entityType: z.enum(["artist", "project", "track", "video"]),
+    geoTier: z.enum(["local", "neighbor", "national"]),
+    matchedVia: z.enum(["lyrics", "metadata"]),
+    score: z.number(),
+    snippet: z.string().nullable(),
+    state: z.string().nullable(),
+    subtitle: z.string().nullable(),
+    title: z.string(),
   }),
   diagnosticCheckSchema = z.object({
     detail: z.string(),
@@ -1204,6 +1216,27 @@ export const rpcContract = new Hono()
     ),
     (c) => c.json({} as z.infer<typeof embeddingBackfillSchema>)
   )
+  .post(
+    "/v1/admin/embeddings/audio-spike",
+    jsonValidator(genericJsonBodySchema),
+    (c) =>
+      c.json(
+        {} as {
+          model: string;
+          probes: {
+            query: string;
+            topTracks: { similarity: number; title: string; trackId: string }[];
+          }[];
+          skipped: { reason: string; title: string; trackId: string }[];
+          tested: { bytes: number; title: string; trackId: string }[];
+        }
+      )
+  )
+  .post(
+    "/v1/admin/embeddings/audio-index",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as { results: { status: string; trackId: string }[] })
+  )
   .get("/v1/ads/admin/campaigns", genericQueryValidator, (c) =>
     c.json([] as Record<string, unknown>[])
   )
@@ -1382,7 +1415,16 @@ export const rpcContract = new Hono()
   .get(
     "/v1/search/semantic",
     validator("query", (value) =>
-      z.object({ limit: z.string().optional(), q: z.string() }).parse(value)
+      z
+        .object({
+          fuse: z.string().optional(),
+          limit: z.string().optional(),
+          q: z.string(),
+          scope: z.string().optional(),
+          state: z.string().optional(),
+          threshold: z.string().optional(),
+        })
+        .parse(value)
     ),
     (c) => c.json([] as z.infer<typeof semanticSearchResultSchema>[])
   )

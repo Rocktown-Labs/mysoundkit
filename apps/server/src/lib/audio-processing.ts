@@ -15,7 +15,7 @@ import {
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import { embed } from "ai";
-import { and, asc, count, eq, ne, sql } from "drizzle-orm";
+import { and, count, eq, ne } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import type { TrackEnrichmentWorkflowPayload } from "@/lib/media-pipeline";
@@ -456,50 +456,82 @@ const fetchAudioFileForOpenAi = async (sourceUrl: string) => {
       return null;
     }
   },
-  embeddingModelName = () =>
+  embeddingModelName = (): string =>
     getEnvValue("GOOGLE_EMBEDDING_MODEL")
       .replace(/^google\//u, "")
       .trim() || DEFAULT_EMBEDDING_MODEL;
 
+export { embeddingModelName };
+
 export const backfillSearchEmbeddings = async (limit = 100) => {
   if (!isDatabaseConfigured()) {
-    return { indexed: 0 };
+    return { indexed: 0, skipped: 0 };
   }
 
+  // Dynamic import avoids a module cycle: semantic-search builds on
+  // the embedding primitives in this file.
+  const { getTrackIndexText, indexTrackLyrics } =
+    await import("@/lib/semantic-search");
   const db = createDb(),
     cappedLimit = Math.min(Math.max(limit, 1), 500);
-  let indexed = 0;
+  let indexed = 0,
+    skipped = 0;
+  const tally = (status: SaveEmbeddingStatus) => {
+    if (status === "inserted") {
+      indexed += 1;
+    } else {
+      skipped += 1;
+    }
+  };
   const trackRows = await db.select().from(tracks).limit(cappedLimit);
   for (const row of trackRows) {
-    await indexSearchEntity({
-      entityId: row.id,
-      entityType: "track",
-      organizationId: row.organizationId,
-      text: [row.title, row.description, row.musicalKey]
-        .filter(Boolean)
-        .join("\n"),
+    tally(
+      await indexSearchEntity({
+        entityId: row.id,
+        entityType: "track",
+        organizationId: row.organizationId,
+        text: await getTrackIndexText(db, row),
+      })
+    );
+  }
+  // Lyrics backfill: join lyrics to their tracks for org + track mapping.
+  // The textHash gate inside saveEmbedding makes reruns cheap.
+  const lyricRows = await db
+    .select({ lyrics: trackLyrics, track: tracks })
+    .from(trackLyrics)
+    .innerJoin(tracks, eq(tracks.id, trackLyrics.trackId))
+    .limit(cappedLimit);
+  for (const row of lyricRows) {
+    const counts = await indexTrackLyrics({
+      lyricsId: row.lyrics.id,
+      organizationId: row.track.organizationId,
+      text: row.lyrics.text,
+      trackId: row.track.id,
     });
-    indexed += 1;
+    indexed += counts.inserted;
+    skipped += counts.skipped;
   }
   const projectRows = await db.select().from(projects).limit(cappedLimit);
   for (const row of projectRows) {
-    await indexSearchEntity({
-      entityId: row.id,
-      entityType: "project",
-      organizationId: row.organizationId,
-      text: [row.title, row.description].filter(Boolean).join("\n"),
-    });
-    indexed += 1;
+    tally(
+      await indexSearchEntity({
+        entityId: row.id,
+        entityType: "project",
+        organizationId: row.organizationId,
+        text: [row.title, row.description].filter(Boolean).join("\n"),
+      })
+    );
   }
   const videoRows = await db.select().from(videos).limit(cappedLimit);
   for (const row of videoRows) {
-    await indexSearchEntity({
-      entityId: row.id,
-      entityType: "video",
-      organizationId: null,
-      text: [row.title, row.description].filter(Boolean).join("\n"),
-    });
-    indexed += 1;
+    tally(
+      await indexSearchEntity({
+        entityId: row.id,
+        entityType: "video",
+        organizationId: null,
+        text: [row.title, row.description].filter(Boolean).join("\n"),
+      })
+    );
   }
   const artistRows = await db
     .select({ profile: artistProfiles, profileDetails: userProfiles })
@@ -507,23 +539,24 @@ export const backfillSearchEmbeddings = async (limit = 100) => {
     .innerJoin(userProfiles, eq(userProfiles.userId, artistProfiles.userId))
     .limit(cappedLimit);
   for (const row of artistRows) {
-    await indexSearchEntity({
-      entityId: row.profile.userId,
-      entityType: "artist",
-      organizationId: row.profile.primaryOrganizationId,
-      text: [
-        row.profile.stageName,
-        row.profileDetails.username,
-        row.profileDetails.city,
-        row.profileDetails.state,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    });
-    indexed += 1;
+    tally(
+      await indexSearchEntity({
+        entityId: row.profile.userId,
+        entityType: "artist",
+        organizationId: row.profile.primaryOrganizationId,
+        text: [
+          row.profile.stageName,
+          row.profileDetails.username,
+          row.profileDetails.city,
+          row.profileDetails.state,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      })
+    );
   }
 
-  return { indexed };
+  return { indexed, skipped };
 };
 
 export const loadEmbeddingStatus = async () => {
@@ -543,126 +576,118 @@ export const loadEmbeddingStatus = async () => {
   };
 };
 
-export const searchSemanticEntities = async ({
-  limit = 12,
-  text,
-}: {
-  limit?: number;
-  text: string;
-}) => {
-  if (
-    !isDatabaseConfigured() ||
-    !text.trim() ||
-    !getEnvValue("GOOGLE_GENERATIVE_AI_API_KEY")
-  ) {
-    return [];
+export type SaveEmbeddingStatus = "failed" | "inserted" | "skipped";
+
+export const normalizeEmbeddingVector = (values: number[]): number[] => {
+  if (values.length >= DEFAULT_EMBEDDING_DIMENSIONS) {
+    // Slicing is valid for Matryoshka-style models (leading dims carry
+    // the most signal). Padding is not: zero-fill corrupts cosine
+    // geometry, so short vectors fail loud instead of storing garbage.
+    return values.slice(0, DEFAULT_EMBEDDING_DIMENSIONS);
   }
-
-  const result = await embed({
-      model: google.embedding(embeddingModelName()),
-      value: text,
-    }),
-    embedding =
-      result.embedding.length >= DEFAULT_EMBEDDING_DIMENSIONS
-        ? result.embedding.slice(0, DEFAULT_EMBEDDING_DIMENSIONS)
-        : [
-            ...result.embedding,
-            ...Array.from(
-              {
-                length: DEFAULT_EMBEDDING_DIMENSIONS - result.embedding.length,
-              },
-              () => 0
-            ),
-          ],
-    vector = `[${embedding.join(",")}]`;
-  return createDb()
-    .select({
-      entityId: searchEmbeddings.entityId,
-      entityType: searchEmbeddings.entityType,
-    })
-    .from(searchEmbeddings)
-    .orderBy(asc(sql`${searchEmbeddings.embedding} <=> ${vector}::vector`))
-    .limit(Math.min(limit, 50));
+  throw new Error(
+    `Embedding model returned ${values.length} dimensions, expected at least ${DEFAULT_EMBEDDING_DIMENSIONS}.`
+  );
 };
 
-export const indexSearchEntity = async ({
+export const indexSearchEntity = ({
   entityId,
   entityType,
+  metadata,
   organizationId,
   text,
 }: {
   entityId: string;
   entityType: "artist" | "lyrics" | "project" | "track" | "video";
+  metadata?: Record<string, unknown>;
   organizationId: null | string;
   text: string;
-}) => {
-  await saveEmbedding({ entityId, entityType, organizationId, text });
-};
+}): Promise<SaveEmbeddingStatus> =>
+  saveEmbedding({ entityId, entityType, metadata, organizationId, text });
 
-const saveEmbedding = async ({
+export const saveEmbedding = async ({
   entityId,
   entityType,
+  metadata,
   organizationId,
   text,
 }: {
   entityId: string;
   entityType: "artist" | "lyrics" | "project" | "track" | "video";
+  metadata?: Record<string, unknown>;
   organizationId: null | string;
   text: string;
-}) => {
+}): Promise<SaveEmbeddingStatus> => {
   if (!text.trim() || !getEnvValue("GOOGLE_GENERATIVE_AI_API_KEY")) {
-    return;
+    return "skipped";
   }
 
-  const model = embeddingModelName(),
-    result = await embed({
-      model: google.embedding(model),
-      value: text,
-    }),
-    embedding: number[] =
-      result.embedding.length >= DEFAULT_EMBEDDING_DIMENSIONS
-        ? result.embedding.slice(0, DEFAULT_EMBEDDING_DIMENSIONS)
-        : [
-            ...result.embedding,
-            ...Array.from(
-              {
-                length: DEFAULT_EMBEDDING_DIMENSIONS - result.embedding.length,
-              },
-              () => 0
-            ),
-          ],
-    textHash = await sha256(text),
-    db = createDb();
+  try {
+    const model = embeddingModelName(),
+      textHash = await sha256(text),
+      db = createDb(),
+      [existing] = await db
+        .select({ textHash: searchEmbeddings.textHash })
+        .from(searchEmbeddings)
+        .where(
+          and(
+            eq(searchEmbeddings.entityType, entityType),
+            eq(searchEmbeddings.entityId, entityId),
+            eq(searchEmbeddings.model, model)
+          )
+        )
+        .limit(1);
+    if (existing && existing.textHash === textHash) {
+      return "skipped";
+    }
 
-  await db
-    .insert(searchEmbeddings)
-    .values({
-      dimensions: DEFAULT_EMBEDDING_DIMENSIONS,
-      embedding,
-      entityId,
-      entityType,
-      id: crypto.randomUUID(),
-      model,
-      organizationId,
-      textHash,
-      textSnapshot: text,
-    })
-    .onConflictDoUpdate({
-      set: {
+    const result = await embed({
+        model: google.embedding(model),
+        value: text,
+      }),
+      embedding = normalizeEmbeddingVector(result.embedding);
+
+    await db
+      .insert(searchEmbeddings)
+      .values({
+        dimensions: DEFAULT_EMBEDDING_DIMENSIONS,
         embedding,
-        indexedAt: new Date(),
+        entityId,
+        entityType,
+        id: crypto.randomUUID(),
+        metadata: metadata ?? null,
+        model,
+        organizationId,
         textHash,
         textSnapshot: text,
-      },
-      target: [
-        searchEmbeddings.entityType,
-        searchEmbeddings.entityId,
-        searchEmbeddings.model,
-      ],
+      })
+      .onConflictDoUpdate({
+        set: {
+          embedding,
+          indexedAt: new Date(),
+          metadata: metadata ?? null,
+          textHash,
+          textSnapshot: text,
+        },
+        target: [
+          searchEmbeddings.entityType,
+          searchEmbeddings.entityId,
+          searchEmbeddings.model,
+        ],
+      });
+    return "inserted";
+  } catch (error) {
+    // Indexing must never break the request that triggered it.
+    console.warn("Search embedding skipped", {
+      entityId,
+      entityType,
+      error: error instanceof Error ? error.message : String(error),
     });
+    return "failed";
+  }
 };
 
-export const saveStemSplitOutput = async ({
+export const saveStemSplitOutput = ({
   assetId,
   job,
   output,
@@ -687,7 +712,7 @@ export const saveStemSplitOutput = async ({
   });
 };
 
-export const transcribeStemSplitVocals = async ({
+export const transcribeStemSplitVocals = ({
   trackId,
   vocalsAssetId,
 }: {
@@ -731,26 +756,61 @@ export const finalizeTrackEnrichment = async ({
     .where(eq(tracks.id, trackId))
     .limit(1);
   if (track) {
-    const trackSearchText = [
-      track.title,
-      track.description,
-      track.musicalKey,
-      track.bpm ? `BPM ${track.bpm}` : null,
-    ]
-      .filter(Boolean)
-      .join("\n");
+    // Dynamic import avoids a module cycle: semantic-search builds on
+    // the embedding primitives in this file.
+    const { getTrackIndexText, indexTrackLyrics } =
+      await import("@/lib/semantic-search");
     await saveEmbedding({
       entityId: track.id,
       entityType: "track",
       organizationId: track.organizationId,
-      text: trackSearchText,
+      text: await getTrackIndexText(db, track),
     });
     if (lyrics) {
-      await saveEmbedding({
-        entityId: lyrics.id,
-        entityType: "lyrics",
+      await indexTrackLyrics({
+        lyricsId: lyrics.id,
         organizationId: track.organizationId,
         text: lyrics.text,
+        trackId: track.id,
+      });
+    }
+    // Audio-native vectors: enabled in deployed env via
+    // AUDIO_EMBEDDINGS_ENABLED; failures never break enrichment.
+    try {
+      const audioEmbeddings = await import("@/lib/audio-embeddings");
+      if (audioEmbeddings.audioEmbeddingsEnabled()) {
+        const { resolveTrackAssetFromRows } =
+            await import("@/lib/track-asset-resolver"),
+          bucket = getMediaBucket(),
+          assets = await db
+            .select()
+            .from(trackAssets)
+            .where(eq(trackAssets.trackId, track.id)),
+          streaming = resolveTrackAssetFromRows({
+            allowLegacyFallback: false,
+            assets: assets.filter((asset) => asset.isCurrent),
+            purpose: "streaming",
+            trackId: track.id,
+          });
+        if (bucket && streaming?.objectKey) {
+          const object = await bucket.get(streaming.objectKey);
+          if (object) {
+            const bytes = await object.arrayBuffer();
+            if (bytes.byteLength <= 8 * 1024 * 1024) {
+              await audioEmbeddings.indexTrackAudio({
+                audioBytes: bytes,
+                mimeType: "audio/mp4",
+                organizationId: track.organizationId,
+                trackId: track.id,
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Track audio embedding skipped", {
+        error: error instanceof Error ? error.message : String(error),
+        trackId: track.id,
       });
     }
   }

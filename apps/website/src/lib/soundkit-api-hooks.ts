@@ -24,6 +24,8 @@ const meGet = apiClient.v1.me.index.$get,
   adminFinanceSummaryGet = apiClient.v1.admin.finance.summary.$get,
   adminEmbeddingStatusGet = apiClient.v1.admin.embeddings.status.$get,
   adminEmbeddingBackfillPost = apiClient.v1.admin.embeddings.backfill.$post,
+  adminAudioSpikePost = apiClient.v1.admin.embeddings["audio-spike"].$post,
+  adminAudioIndexPost = apiClient.v1.admin.embeddings["audio-index"].$post,
   adminDiagnosticTestsGet = apiClient.v1.admin["audio-diagnostics"].tests.$get,
   adminDiagnosticJobsGet = apiClient.v1.admin["audio-diagnostics"].jobs.$get,
   adminDiagnosticJobCreatePost =
@@ -627,15 +629,15 @@ export const useAdminAdCampaignsQuery = (enabled = true) =>
 
 export const useCreateAdCampaignMutation = () => {
   const queryClient = useQueryClient(),
-   invalidateCampaigns = () =>
-    Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adCampaigns,
-      }),
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.adAdminCampaigns,
-      }),
-    ]);
+    invalidateCampaigns = () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adCampaigns,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.adAdminCampaigns,
+        }),
+      ]);
 
   return useMutation({
     mutationFn: async (body: CreateAdCampaignBody) =>
@@ -708,6 +710,34 @@ export const useAdminEmbeddingBackfillMutation = () => {
       rpcJson(
         await adminEmbeddingBackfillPost({ query: { limit: `${limit}` } })
       ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "embeddings", "status"],
+      }),
+  });
+};
+
+export interface AudioSpikeReport {
+  model: string;
+  probes: {
+    query: string;
+    topTracks: { similarity: number; title: string; trackId: string }[];
+  }[];
+  skipped: { reason: string; title: string; trackId: string }[];
+  tested: { bytes: number; title: string; trackId: string }[];
+}
+
+export const useAdminAudioSpikeMutation = () =>
+  useMutation({
+    mutationFn: async (body: { probes: string[]; trackIds: string[] }) =>
+      rpcJson(await adminAudioSpikePost({ json: body })),
+  });
+
+export const useAdminAudioIndexMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { trackIds: string[] }) =>
+      rpcJson(await adminAudioIndexPost({ json: body })),
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: ["admin", "embeddings", "status"],
@@ -1332,12 +1362,36 @@ export const useSearchQuery = (query: SearchQuery) =>
     queryKey: soundkitQueryKeys.search(query),
   });
 
-export const useSemanticSearchQuery = (q: string, enabled = true) =>
+export interface SemanticSearchOptions {
+  scope?: "all" | "state";
+  state?: string;
+}
+
+export const useSemanticSearchQuery = (
+  q: string,
+  enabled = true,
+  options: SemanticSearchOptions = {}
+) =>
   useQuery({
     enabled: enabled && q.trim().length >= 3,
     queryFn: async () =>
-      rpcJson(await semanticSearchGet({ query: { limit: "6", q: q.trim() } })),
-    queryKey: ["search", "semantic", q.trim()],
+      rpcJson(
+        await semanticSearchGet({
+          query: {
+            limit: "8",
+            q: q.trim(),
+            ...(options.state ? { state: options.state } : {}),
+            ...(options.scope ? { scope: options.scope } : {}),
+          },
+        })
+      ),
+    queryKey: [
+      "search",
+      "semantic",
+      q.trim(),
+      options.state ?? "",
+      options.scope ?? "",
+    ],
   });
 
 export const useTracksQuery = (

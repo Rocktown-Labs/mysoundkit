@@ -428,6 +428,13 @@
       "when": 1788621974314,
       "tag": "0060_wakeful_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1788633492913,
+      "tag": "0061_semantic_hnsw",
+      "breakpoints": true
     }
   ]
 }
