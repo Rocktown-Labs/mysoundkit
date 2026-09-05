@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { PromoteTrackCard } from "@/components/ads/promote-track-card";
 import { WorldAndUSAMap } from "@/components/explore/world-and-usa-map";
 import type { MapScope } from "@/components/explore/world-and-usa-map";
 import {
@@ -40,6 +41,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -72,6 +74,7 @@ import {
   useAdWalletQuery,
   useBillingCheckoutMutation,
   useCreateAdCampaignMutation,
+  useSubmitAdCampaignMutation,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 import type {
@@ -256,6 +259,39 @@ const targetOptions: readonly TargetOption[] = [
   },
 ];
 
+function SubmitCampaignButton({ campaignId }: { campaignId: string }) {
+  const submit = useSubmitAdCampaignMutation(),
+    { toast } = useToast();
+  return (
+    <Button
+      size="sm"
+      disabled={submit.isPending}
+      onClick={() =>
+        submit.mutate(campaignId, {
+          onError: () => {
+            toast({
+              description: "Could not submit the campaign for review.",
+              title: "Submit failed",
+              variant: "destructive",
+            });
+          },
+          onSuccess: (campaign) => {
+            toast({
+              description:
+                campaign.status === "active"
+                  ? "Approved automatically — now serving."
+                  : "Sent for review — it will serve once approved.",
+              title: "Campaign submitted",
+            });
+          },
+        })
+      }
+    >
+      {submit.isPending ? "Submitting…" : "Submit for review"}
+    </Button>
+  );
+}
+
 function DashboardAdsPage() {
   const navigate = Route.useNavigate(),
     search = Route.useSearch(),
@@ -331,6 +367,7 @@ function DashboardAdsPage() {
 
         {/* Tab 1: Active Campaigns */}
         <TabsContent value="campaigns" className="mt-6 space-y-6">
+          <PromoteTrackCard />
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="pb-2">
@@ -464,6 +501,10 @@ function DashboardAdsPage() {
                           {c.metrics.clicks.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">
+                          {(c.status === "draft" ||
+                            c.status === "rejected") && (
+                            <SubmitCampaignButton campaignId={c.id} />
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
@@ -715,6 +756,7 @@ function AccordionBuilderForm({
     [mapScope, setMapScope] = useState<MapScope>("north-america"),
     [selectedCodes, setSelectedCodes] = useState<string[]>(["US-AR"]),
     [billingType, setBillingType] = useState<AdBillingType>("prepaid_wallet"),
+    [allowConquest, setAllowConquest] = useState(false),
     [budgetDollars, setBudgetDollars] = useState(50),
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
@@ -785,6 +827,7 @@ function AccordionBuilderForm({
       });
 
       onCreate({
+        allowConquest,
         billingType,
         clickthroughUrl: destinationUrl,
         creativeFormat: format,
@@ -1095,6 +1138,24 @@ function AccordionBuilderForm({
                   />
                 </div>
               </div>
+              <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+                <Checkbox
+                  checked={allowConquest}
+                  onCheckedChange={(checked) =>
+                    setAllowConquest(checked === true)
+                  }
+                />
+                <span>
+                  <span className="block text-sm font-medium">
+                    Allow rivalry placement
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    Off by default: your promo stays off same-genre
+                    artists&apos; tracks. Turn on for battle-style conquest
+                    marketing.
+                  </span>
+                </span>
+              </label>
 
               <Button
                 type="button"

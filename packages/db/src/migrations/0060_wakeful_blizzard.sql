@@ -1,0 +1,1 @@
+ALTER TABLE "ad_campaigns" ADD COLUMN "allow_conquest" boolean DEFAULT false NOT NULL;
