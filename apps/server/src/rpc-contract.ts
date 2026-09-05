@@ -1222,6 +1222,9 @@ export const rpcContract = new Hono()
   .post("/v1/ads/campaigns/:campaignId/submit", (c) =>
     c.json({} as Record<string, unknown>)
   )
+  .post("/v1/ads/battle-audio", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>)
+  )
   .get("/v1/ads/serve", genericQueryValidator, (c) =>
     c.json({} as Record<string, unknown>)
   )

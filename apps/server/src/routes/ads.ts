@@ -4,15 +4,26 @@ import {
   adCampaigns,
   adCampaignTargets,
   adMetricDaily,
+  tracks,
   userWallets,
+  videos,
 } from "@soundkit/db/schema/app";
 import { and, desc, eq, gt, inArray, lte, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
-import { hydrateBattleAdContext } from "@/lib/ad-serving";
+import {
+  buildBattlePromoCopy,
+  fairnessExclusionFor,
+  hydrateBattleAdContext,
+} from "@/lib/ad-serving";
 import { isAdminUser } from "@/lib/admin";
+import { mediaBaseUrl } from "@/lib/asset-urls";
+import {
+  battleSpotCopyFor,
+  renderBattleAudioSpot,
+} from "@/lib/battle-ad-audio";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
@@ -65,6 +76,7 @@ const app = new OpenAPIHono<AppEnv>(),
   }),
   createCampaignBodySchema = z
     .object({
+      allowConquest: z.boolean().default(false),
       billingType: adBillingTypeSchema.default("prepaid_wallet"),
       clickthroughUrl: z.url(),
       creativeFormat: adCreativeFormatSchema.default("audio"),
@@ -94,10 +106,12 @@ const app = new OpenAPIHono<AppEnv>(),
     creativeFormat: adCreativeFormatSchema,
     creativeImageUrl: z.url().optional(),
     creativeUrl: z.url(),
+    endDate: z.string().datetime().optional(),
     name: z.string().trim().min(1).max(120),
     placement: adPlacementSchema,
   }),
   adCampaignSchema = z.object({
+    allowConquest: z.boolean(),
     billingType: adBillingTypeSchema,
     clickthroughUrl: z.string(),
     creativeFormat: adCreativeFormatSchema,
@@ -142,6 +156,7 @@ const app = new OpenAPIHono<AppEnv>(),
             artistB: z.string().nullable(),
             battleId: z.string(),
             genre: z.string().nullable(),
+            promoCopy: z.string(),
             queueSize: z.number().int(),
             startsAt: z.string().nullable(),
             status: z.string(),
@@ -235,6 +250,7 @@ const app = new OpenAPIHono<AppEnv>(),
       );
 
     return {
+      allowConquest: campaign.allowConquest,
       billingType: campaign.billingType,
       clickthroughUrl: campaign.clickthroughUrl,
       creativeFormat: campaign.creativeFormat,
@@ -397,6 +413,7 @@ app.openapi(
       .insert(adCampaigns)
       .values({
         advertiserId: user.id,
+        allowConquest: body.allowConquest,
         billingType: body.billingType,
         clickthroughUrl: body.clickthroughUrl,
         creativeFormat: body.creativeFormat,
@@ -563,6 +580,7 @@ app.openapi(
         creativeUrl: body.creativeUrl,
         dailyBudgetCents: 0,
         dailyImpressionCap: 100_000,
+        endDate: body.endDate ? new Date(body.endDate) : null,
         id: campaignId,
         name: body.name,
         placement: body.placement,
@@ -692,6 +710,94 @@ app.openapi(
 
 app.openapi(
   createRoute({
+    method: "post",
+    path: "/battle-audio",
+    request: {
+      body: jsonContentRequired(
+        z.object({ battleId: z.string().min(1) }),
+        "Battle audio spot payload"
+      ),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.object({
+          battleId: z.string(),
+          cacheHit: z.boolean(),
+          copy: z.string(),
+          creativeUrl: z.string().nullable(),
+          objectKey: z.string(),
+        }),
+        "Rendered battle audio spot"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Admin required"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Battle not found"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Spot rendering unavailable"
+      ),
+    },
+    tags: ["Ads"],
+  }),
+  async (c) => {
+    if (!isAdminUser(c.get("user"))) {
+      return c.json(
+        { message: "Admin access is required." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+    const { battleId } = c.req.valid("json"),
+      prepared = await battleSpotCopyFor(battleId);
+    if (!prepared) {
+      return c.json(
+        { message: "Battle not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    const bindings = c.env as AppEnv["Bindings"],
+      bucket = bindings.MEDIA_BUCKET,
+      openaiKey =
+        (bindings as unknown as Record<string, string | undefined>)
+          .OPENAI_API_KEY ?? "",
+      baseUrl = mediaBaseUrl();
+    if (!(bucket && openaiKey && baseUrl)) {
+      return c.json(
+        { message: "Battle spot rendering is not configured." },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+    try {
+      return c.json(
+        await renderBattleAudioSpot({
+          battleId,
+          bucket,
+          copy: prepared.copy,
+          mediaBaseUrl: baseUrl,
+          openaiKey,
+        }),
+        HttpStatusCodes.OK
+      );
+    } catch (error) {
+      return c.json(
+        {
+          message:
+            error instanceof Error
+              ? error.message
+              : "Battle spot rendering failed.",
+        },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+  }
+);
+
+app.openapi(
+  createRoute({
     method: "get",
     path: "/serve",
     request: {
@@ -790,7 +896,69 @@ app.openapi(
         ({ campaign, metrics }) =>
           (metrics?.impressionsCount ?? 0) < campaign.dailyImpressionCap
       ),
-      selected = qualified[0]?.campaign;
+      // Fairness: resolve the playback context (whose content is playing)
+      // and each promo's entity genre, then drop self-serves and
+      // non-waived same-genre conquest. Page-level separation (artist
+      // pages) is enforced by surfaces requesting neutral inventory.
+      [contextTrack] = query.trackId
+        ? await db
+            .select({
+              genreId: tracks.genreId,
+              ownerUserId: tracks.ownerUserId,
+            })
+            .from(tracks)
+            .where(eq(tracks.id, query.trackId))
+            .limit(1)
+        : [],
+      [contextVideo] =
+        !query.trackId && query.videoId
+          ? await db
+              .select({
+                genreId: videos.genreId,
+                ownerUserId: videos.ownerUserId,
+              })
+              .from(videos)
+              .where(eq(videos.id, query.videoId))
+              .limit(1)
+          : [],
+      contextOwnerId =
+        contextTrack?.ownerUserId ?? contextVideo?.ownerUserId ?? null,
+      contextGenreId = contextTrack?.genreId ?? contextVideo?.genreId ?? null,
+      promoTrackIds = [
+        ...new Set(
+          qualified
+            .filter(
+              ({ campaign }) =>
+                campaign.entityType === "track" && campaign.entityId
+            )
+            .map(({ campaign }) => campaign.entityId as string)
+        ),
+      ],
+      promoTrackRows =
+        promoTrackIds.length > 0
+          ? await db
+              .select({ genreId: tracks.genreId, id: tracks.id })
+              .from(tracks)
+              .where(inArray(tracks.id, promoTrackIds))
+          : [],
+      promoGenreByTrackId = new Map(
+        promoTrackRows.map((row) => [row.id, row.genreId])
+      ),
+      eligible = qualified.filter(
+        ({ campaign }) =>
+          fairnessExclusionFor(
+            {
+              advertiserId: campaign.advertiserId,
+              allowConquest: campaign.allowConquest,
+              entityGenreId:
+                campaign.entityType === "track" && campaign.entityId
+                  ? (promoGenreByTrackId.get(campaign.entityId) ?? null)
+                  : null,
+            },
+            { contextGenreId, contextOwnerId }
+          ) === null
+      ),
+      selected = eligible[0]?.campaign;
 
     if (!selected) {
       return c.body(null, HttpStatusCodes.NO_CONTENT);
@@ -813,6 +981,14 @@ app.openapi(
                 artistB: battle.artistB,
                 battleId: battle.battleId,
                 genre: battle.genre,
+                promoCopy: buildBattlePromoCopy({
+                  artistA: battle.artistA,
+                  artistB: battle.artistB,
+                  genre: battle.genre,
+                  status: battle.status,
+                  timingLabel: battle.timingLabel,
+                  title: battle.title,
+                }),
                 queueSize: battle.queueSize,
                 startsAt: battle.startsAt,
                 status: battle.status,

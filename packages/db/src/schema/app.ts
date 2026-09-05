@@ -3333,6 +3333,7 @@ export const adCampaigns = pgTable(
     advertiserId: text("advertiser_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    allowConquest: boolean("allow_conquest").default(false).notNull(),
     billingType: adBillingTypeEnum("billing_type")
       .default("prepaid_wallet")
       .notNull(),

@@ -2,9 +2,43 @@
 
 import { describe, expect, it } from "vitest";
 
-import { describeBattleTiming } from "./ad-serving";
+import {
+  describeBattleTiming,
+  buildBattlePromoCopy,
+  fairnessExclusionFor,
+} from "./ad-serving";
 
 const at = (iso: string) => new Date(iso);
+
+describe("buildBattlePromoCopy", () => {
+  it("builds the uniform matchup line with genre lead and timing", () => {
+    expect(
+      buildBattlePromoCopy({
+        artistA: "Nova Reign",
+        artistB: "Kasino",
+        genre: "Hip-Hop",
+        status: "scheduled",
+        timingLabel: "Friday 9:00 PM ET",
+        title: "Summer Clash",
+      })
+    ).toBe(
+      "If you like Hip-Hop, you'll love this matchup — Nova Reign vs Kasino. Friday 9:00 PM ET. Don't miss it."
+    );
+  });
+
+  it("handles live battles and missing artists", () => {
+    expect(
+      buildBattlePromoCopy({
+        artistA: null,
+        artistB: null,
+        genre: null,
+        status: "live",
+        timingLabel: "Live now",
+        title: "Midnight Rumble",
+      })
+    ).toBe("Midnight Rumble. It's live right now. Get in and vote.");
+  });
+});
 
 describe("describeBattleTiming", () => {
   it("labels live and finished battles", () => {
@@ -70,5 +104,49 @@ describe("describeBattleTiming", () => {
         status: "scheduled",
       })
     ).toBe("Starting soon");
+  });
+});
+
+describe("fairnessExclusionFor", () => {
+  const campaign = {
+    advertiserId: "artist-b",
+    allowConquest: false,
+    entityGenreId: "genre-phonk",
+  };
+  it("excludes an artist's own promo on their content", () => {
+    expect(
+      fairnessExclusionFor(campaign, {
+        contextGenreId: "genre-other",
+        contextOwnerId: "artist-b",
+      })
+    ).toBe("self");
+  });
+  it("excludes same-genre conquest unless waived", () => {
+    expect(
+      fairnessExclusionFor(campaign, {
+        contextGenreId: "genre-phonk",
+        contextOwnerId: "artist-a",
+      })
+    ).toBe("conquest");
+    expect(
+      fairnessExclusionFor(
+        { ...campaign, allowConquest: true },
+        { contextGenreId: "genre-phonk", contextOwnerId: "artist-a" }
+      )
+    ).toBeNull();
+  });
+  it("allows cross-genre and ownerless contexts", () => {
+    expect(
+      fairnessExclusionFor(campaign, {
+        contextGenreId: "genre-country",
+        contextOwnerId: "artist-a",
+      })
+    ).toBeNull();
+    expect(
+      fairnessExclusionFor(campaign, {
+        contextGenreId: null,
+        contextOwnerId: null,
+      })
+    ).toBeNull();
   });
 });

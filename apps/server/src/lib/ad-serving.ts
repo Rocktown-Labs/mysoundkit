@@ -83,6 +83,43 @@ export const describeBattleTiming = ({
   return `${startsAt.toLocaleDateString("en-US", { day: "numeric", month: "short", timeZone: ET_TIME_ZONE })} ${timeLabel}`;
 };
 
+export interface BattlePromoCopyInput {
+  artistA: string | null;
+  artistB: string | null;
+  genre: string | null;
+  status: string;
+  timingLabel: string;
+  title: string;
+}
+
+/**
+ * Uniform battle promo copy with variable slots. Pure — worker-tested.
+ * Template voice is fixed; only facts vary. AI variants layer on top.
+ */
+export const buildBattlePromoCopy = ({
+  artistA,
+  artistB,
+  genre,
+  status,
+  timingLabel,
+  title,
+}: BattlePromoCopyInput): string => {
+  const matchup =
+      artistA && artistB
+        ? `${artistA} vs ${artistB}`
+        : (artistA ?? artistB ?? title),
+    genreLead = genre
+      ? `If you like ${genre}, you'll love this matchup — `
+      : "",
+    whenText =
+      status === "live"
+        ? "It's live right now. Get in and vote."
+        : (status === "completed" || status === "archived"
+          ? "Catch the replay and see who took it."
+          : `${timingLabel}. Don't miss it.`);
+  return `${genreLead}${matchup}. ${whenText}`;
+};
+
 export const hydrateBattleAdContext = async (
   battleId: string,
   now = new Date()
@@ -156,4 +193,46 @@ export const hydrateBattleAdContext = async (
     title: battle.title,
     visibility: battle.visibility,
   };
+};
+
+export type FairnessExclusion = "conquest" | "self" | null;
+
+export interface FairnessCampaign {
+  advertiserId: string;
+  allowConquest: boolean;
+  entityGenreId: string | null;
+}
+
+export interface FairnessContext {
+  contextGenreId: string | null;
+  contextOwnerId: string | null;
+}
+
+/**
+ * Fairness rules for promo placement. Pure — worker-tested.
+ * - self: never serve an artist's promo on their own content.
+ * - conquest: same-genre track promos stay off a rival's content unless
+ *   the advertiser explicitly waived protection (rivalry marketing).
+ * Page-level separation (artist pages) is enforced by surfaces only
+ * requesting neutral inventory there.
+ */
+export const fairnessExclusionFor = (
+  campaign: FairnessCampaign,
+  context: FairnessContext
+): FairnessExclusion => {
+  if (
+    context.contextOwnerId &&
+    campaign.advertiserId === context.contextOwnerId
+  ) {
+    return "self";
+  }
+  if (
+    !campaign.allowConquest &&
+    campaign.entityGenreId &&
+    context.contextGenreId &&
+    campaign.entityGenreId === context.contextGenreId
+  ) {
+    return "conquest";
+  }
+  return null;
 };

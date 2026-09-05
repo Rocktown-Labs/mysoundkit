@@ -29,6 +29,8 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { AudioDiagnosticsPanel } from "@/components/admin/audio-diagnostics-panel";
+import { AdCreativeUploader } from '@/components/ads/ad-creative-uploader';
+import type { AdSlotKind } from '@/components/ads/ad-creative-uploader';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -929,6 +931,8 @@ function AdsPanel() {
       "audio_preroll" | "video_overlay" | "video_preroll"
     >("video_overlay"),
     [previewUrl, setPreviewUrl] = useState(""),
+    [dealEndsAt, setDealEndsAt] = useState(""),
+    [readyCreative, setReadyCreative] = useState<File | null>(null),
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
@@ -949,6 +953,9 @@ function AdsPanel() {
             creativeImageUrl:
               creativeFormat === "image" ? creativeUrl : undefined,
             creativeUrl,
+            endDate: dealEndsAt
+              ? new Date(dealEndsAt).toISOString()
+              : undefined,
             name,
             placement,
           }),
@@ -964,6 +971,8 @@ function AdsPanel() {
         setName("");
         setCreativeUrl("");
         setPreviewUrl("");
+        setDealEndsAt("");
+        setReadyCreative(null);
         await queryClient.invalidateQueries({
           queryKey: ["ads", "admin", "campaigns"],
         });
@@ -1083,29 +1092,13 @@ function AdsPanel() {
                 <option value="video_preroll">Video pre-roll</option>
               </select>
             </div>
-            <Input
-              accept="audio/*,image/*,video/*"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (!file) {
-                  return;
-                }
-                const maxBytes = file.type.startsWith("image/")
-                  ? 10 * 1024 * 1024
-                  : 100 * 1024 * 1024;
-                if (file.size > maxBytes) {
-                  toast({
-                    description:
-                      "Images must be under 10 MB; audio and video must be under 100 MB.",
-                    title: "Creative too large",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                setPreviewUrl(URL.createObjectURL(file));
-                const nextFormat = file.type.startsWith("audio/")
+            <AdCreativeUploader
+              onFileReady={(readyFile) => {
+                setReadyCreative(readyFile);
+                setPreviewUrl(URL.createObjectURL(readyFile));
+                const nextFormat = readyFile.type.startsWith("audio/")
                   ? "audio"
-                  : file.type.startsWith("video/")
+                  : readyFile.type.startsWith("video/")
                     ? "video"
                     : "image";
                 setCreativeFormat(nextFormat);
@@ -1116,9 +1109,15 @@ function AdsPanel() {
                       ? "video_preroll"
                       : "video_overlay"
                 );
-                void upload([file]);
+                void upload([readyFile]);
               }}
-              type="file"
+              slot={
+                (creativeFormat === "audio"
+                  ? "audio"
+                  : creativeFormat === "video"
+                    ? "video"
+                    : "image") satisfies AdSlotKind
+              }
             />
             <Button
               disabled={
@@ -1129,6 +1128,20 @@ function AdsPanel() {
               <Plus className="mr-2 size-4" />
               {isUploading ? "Uploading…" : "Create House Ad"}
             </Button>
+            <div className="space-y-2">
+              <Label htmlFor="house-ad-deal-ends">Deal ends (optional)</Label>
+              <Input
+                id="house-ad-deal-ends"
+                onChange={(event) => setDealEndsAt(event.target.value)}
+                type="datetime-local"
+                value={dealEndsAt}
+              />
+            </div>
+            {readyCreative && (
+              <p className="text-xs text-muted-foreground">
+                Ready to upload: {readyCreative.name}
+              </p>
+            )}
           </div>
           <div className="flex min-h-48 items-center justify-center overflow-hidden rounded-lg border bg-background">
             {previewUrl ? (

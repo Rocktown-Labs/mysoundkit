@@ -425,6 +425,7 @@ export interface AdTarget {
 }
 
 export interface AdCampaignSummary {
+  allowConquest: boolean;
   billingType: AdBillingType;
   clickthroughUrl: string;
   creativeFormat: AdCreativeFormat;
@@ -457,6 +458,7 @@ export interface AdWalletSummary {
 }
 
 export interface CreateAdCampaignBody {
+  allowConquest: boolean;
   billingType: AdBillingType;
   clickthroughUrl: string;
   creativeFormat: AdCreativeFormat;

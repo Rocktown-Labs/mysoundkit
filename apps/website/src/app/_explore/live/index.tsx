@@ -2,6 +2,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarClock, Trophy, Zap } from "lucide-react";
 
+import { BattleBoostCard } from "@/components/ads/battle-boost-card";
 import { BattleCard } from "@/components/explore/battle-card";
 import {
   ExploreCollectionGrid,
@@ -293,6 +294,8 @@ function LiveHubPage() {
           community.
         </p>
       </section>
+
+      <BattleBoostCard />
 
       <div className="hidden lg:block">
         <LiveCollectionFilters

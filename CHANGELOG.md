@@ -5,6 +5,7 @@
 ### Added
 
 - Added ads Slice 1: `house` billing with wallet-free backfill serving, campaign submit-for-review flow (entity-targeted campaigns auto-approve, uploads go to admin review with approve/reject), entity-targeted campaigns (track/project/video/battle/stream) with `sponsored_queue`, `featured_rail`, and `battle_boost` placements, and premium-aware battle hydration on serve (`requiresPremium` + upgrade URL + timing labels).
+- Added ads Slices 2–5: battle spots (uniform promo copy, OpenAI TTS audio renders cached in R2, `BattleBoostCard` with Watch now / Save-for-later queue actions / premium upgrade CTA on live + upcoming pages), creation studio (`AdCreativeUploader` with duration validation + inline MediaBunny trim, 2-click `PromoteTrackCard`), subscription deal windows on house ads (`endDate`), and the fairness engine (self-exclusion + waivable same-genre conquest protection + rivalry toggle).
 
 - Added a SoundKit Bio launch email with personalized `https://soundkit.bio/{username}` links, first-playable-track delivery, and a matching share card on the main artist dashboard home.
 - Added an admin Audio Diagnostics lab (`/dashboard/admin` → Audio tab): select up to 25 library tracks, run playback-resolution, derivative loudness/true-peak, normalization-gain, and master-headroom tests as a background job with progress polling, per-track pass/warn/fail evidence, and an in-app completion alert.
