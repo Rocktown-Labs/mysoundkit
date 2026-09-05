@@ -39,6 +39,8 @@ export interface TransactionalNotificationEmailProps {
   body: string;
   ctaLabel: string;
   eyebrow: string;
+  footerLinkHref?: string;
+  footerLinkLabel?: string;
   footerNote: string;
   heading: string;
   links?: {
@@ -59,6 +61,8 @@ export function TransactionalNotificationEmail({
   body,
   ctaLabel,
   eyebrow,
+  footerLinkHref = actionUrl,
+  footerLinkLabel = "SoundKit artist dashboard",
   footerNote,
   heading,
   links = noLinks,
@@ -234,10 +238,10 @@ export function TransactionalNotificationEmail({
               }}
             >
               <Link
-                href={actionUrl}
+                href={footerLinkHref}
                 style={{ color: brandPurple, textDecoration: "none" }}
               >
-                SoundKit artist dashboard
+                {footerLinkLabel}
               </Link>
             </Text>
           </Section>
@@ -281,23 +285,23 @@ const getBattleOutcomeCopy = ({
     return {
       body: quit
         ? `You quit “${battleTitle}” before the match was complete. Your battle participation has been recorded, and no rating was changed.`
-        : explicitForfeit
+        : (explicitForfeit
           ? `We heard the news: you forfeited “${battleTitle}”. On SoundKit, stepping away from an active match is recorded as ducking the smoke. No rating was changed.`
-          : `We heard the news: you were marked as the artist who ducked “${battleTitle}” because you did not show up in the waiting room. No rating was changed. If this was a mistake, contact SoundKit support.`,
+          : `We heard the news: you were marked as the artist who ducked “${battleTitle}” because you did not show up in the waiting room. No rating was changed. If this was a mistake, contact SoundKit support.`),
       ctaLabel: "Open artist battles",
       eyebrow: quit
         ? "Battle quit"
-        : explicitForfeit
+        : (explicitForfeit
           ? "Battle forfeit"
-          : "Battle no-show",
+          : "Battle no-show"),
       footerNote:
         "You are receiving this because an outcome was recorded for a battle involving your SoundKit artist account.",
       heading: quit ? "You quit the battle" : "You Ducked the Smoke",
       previewText: quit
         ? `You quit ${battleTitle}.`
-        : explicitForfeit
+        : (explicitForfeit
           ? `Your forfeit ended ${battleTitle}.`
-          : `You were marked as ducking ${battleTitle}.`,
+          : `You were marked as ducking ${battleTitle}.`),
     };
   }
 
@@ -477,4 +481,66 @@ export async function renderTransactionalNotificationEmail(
     ]);
 
   return { html, subject: options.subject, text };
+}
+
+export interface BioLinkLaunchEmailProps {
+  artistName: string;
+  assetBaseUrl: string;
+  dashboardUrl: string;
+  username: string;
+}
+
+export function BioLinkLaunchEmail({
+  artistName,
+  assetBaseUrl,
+  dashboardUrl,
+  username,
+}: BioLinkLaunchEmailProps) {
+  const bioUrl = `https://soundkit.bio/${encodeURIComponent(username)}`;
+
+  return (
+    <TransactionalNotificationEmail
+      actionUrl={bioUrl}
+      assetBaseUrl={assetBaseUrl}
+      body="Your official SoundKit Bio link is ready. Share one link that brings fans straight to your music, projects, videos, and more."
+      ctaLabel="View my Bio link"
+      eyebrow="SoundKit Bio"
+      footerLinkHref={dashboardUrl}
+      footerNote="You are receiving this because you have a SoundKit artist account."
+      heading="Your Bio link is ready"
+      links={[
+        {
+          description:
+            "Add this link to Instagram, TikTok, X, and anywhere your fans find you.",
+          href: bioUrl,
+          label: bioUrl,
+        },
+        {
+          description:
+            "Manage your profile and copy the link from your dashboard.",
+          href: dashboardUrl,
+          label: "Open your SoundKit dashboard",
+        },
+      ]}
+      previewText={`Your SoundKit Bio link is ready to share: ${bioUrl}`}
+      recipientName={artistName}
+    />
+  );
+}
+
+export interface RenderBioLinkLaunchEmailOptions extends BioLinkLaunchEmailProps {
+  subject: string;
+}
+
+export async function renderBioLinkLaunchEmail(
+  options: RenderBioLinkLaunchEmailOptions
+) {
+  const { subject, ...props } = options,
+    element = <BioLinkLaunchEmail {...props} />,
+    [html, text] = await Promise.all([
+      render(element),
+      render(element, { plainText: true }),
+    ]);
+
+  return { html, subject, text };
 }

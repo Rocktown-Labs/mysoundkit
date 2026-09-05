@@ -15,7 +15,9 @@ import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { enqueueTransactionalEmail } from "@/lib/email-delivery";
 import { notify } from "@/lib/notifications";
 
-const trackDashboardLink = (trackId: string) => `/dashboard/tracks/${trackId}`,
+const bioLinkForUsername = (username: string) =>
+    `https://soundkit.bio/${encodeURIComponent(username)}`,
+  trackDashboardLink = (trackId: string) => `/dashboard/tracks/${trackId}`,
   loadTrackForNotification = async (trackId: string) => {
     if (!isDatabaseConfigured()) {
       return null;
@@ -24,6 +26,7 @@ const trackDashboardLink = (trackId: string) => `/dashboard/tracks/${trackId}`,
     const db = createDb(),
       [track] = await db
         .select({
+          accountType: userProfiles.accountType,
           email: authUser.email,
           id: tracks.id,
           name: authUser.name,
@@ -100,6 +103,64 @@ export const notifyTrackMediaReady = async ({
         username: track.username,
       }),
       template: "track_ready",
+      userId: track.ownerUserId,
+    });
+  }
+
+  return {
+    notified: Boolean(notification),
+    reason: notification ? ("created" as const) : ("existing" as const),
+  };
+};
+
+export const notifyBioLinkAvailable = async ({
+  emailQueue,
+  trackId,
+}: {
+  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
+  trackId: string;
+}) => {
+  const track = await loadTrackForNotification(trackId);
+
+  if (
+    !(track?.ownerUserId && track.username && track.accountType === "artist")
+  ) {
+    return { notified: false, reason: "track_not_found" as const };
+  }
+
+  const bioLink = bioLinkForUsername(track.username),
+    [notification] = await createDb()
+      .insert(userNotifications)
+      .values({
+        id: `bio_link_available:${track.ownerUserId}`,
+        link: bioLink,
+        message: "Your SoundKit Bio link is ready to share with your fans.",
+        title: "Your Bio link is ready",
+        type: "bio_link_available",
+        userId: track.ownerUserId,
+      })
+      .onConflictDoNothing()
+      .returning({ id: userNotifications.id });
+
+  if (
+    notification &&
+    (await shouldSendTrackProcessingEmail(track.ownerUserId))
+  ) {
+    await enqueueTransactionalEmail({
+      actionPath: bioLink,
+      idempotencyKey: `bio-link-available/${track.ownerUserId}`,
+      payload: {
+        bioUsername: track.username,
+        subject: "Your SoundKit Bio link is ready",
+      },
+      queue: emailQueue,
+      recipientEmail: track.email,
+      recipientName: getPreferredRecipientName({
+        email: track.email,
+        name: track.name,
+        username: track.username,
+      }),
+      template: "bio_link_available",
       userId: track.ownerUserId,
     });
   }
