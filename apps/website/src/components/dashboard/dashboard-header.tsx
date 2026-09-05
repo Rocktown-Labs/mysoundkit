@@ -27,13 +27,69 @@ import {
 
 const SEARCH_DEBOUNCE_MS = 250,
   resultLinkClassName =
-    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-primary/10 hover:text-primary focus:bg-primary/10";
+    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-primary/10 hover:text-primary focus:bg-primary/10",
+  GEO_STATE_OPTIONS: { label: string; value: string }[] = [
+    { label: "Nationwide", value: "" },
+    { label: "Near me", value: "near" },
+    { label: "Alabama", value: "AL" },
+    { label: "Alaska", value: "AK" },
+    { label: "Arizona", value: "AZ" },
+    { label: "Arkansas", value: "AR" },
+    { label: "California", value: "CA" },
+    { label: "Colorado", value: "CO" },
+    { label: "Connecticut", value: "CT" },
+    { label: "Delaware", value: "DE" },
+    { label: "District of Columbia", value: "DC" },
+    { label: "Florida", value: "FL" },
+    { label: "Georgia", value: "GA" },
+    { label: "Hawaii", value: "HI" },
+    { label: "Idaho", value: "ID" },
+    { label: "Illinois", value: "IL" },
+    { label: "Indiana", value: "IN" },
+    { label: "Iowa", value: "IA" },
+    { label: "Kansas", value: "KS" },
+    { label: "Kentucky", value: "KY" },
+    { label: "Louisiana", value: "LA" },
+    { label: "Maine", value: "ME" },
+    { label: "Maryland", value: "MD" },
+    { label: "Massachusetts", value: "MA" },
+    { label: "Michigan", value: "MI" },
+    { label: "Minnesota", value: "MN" },
+    { label: "Mississippi", value: "MS" },
+    { label: "Missouri", value: "MO" },
+    { label: "Montana", value: "MT" },
+    { label: "Nebraska", value: "NE" },
+    { label: "Nevada", value: "NV" },
+    { label: "New Hampshire", value: "NH" },
+    { label: "New Jersey", value: "NJ" },
+    { label: "New Mexico", value: "NM" },
+    { label: "New York", value: "NY" },
+    { label: "North Carolina", value: "NC" },
+    { label: "North Dakota", value: "ND" },
+    { label: "Ohio", value: "OH" },
+    { label: "Oklahoma", value: "OK" },
+    { label: "Oregon", value: "OR" },
+    { label: "Pennsylvania", value: "PA" },
+    { label: "Rhode Island", value: "RI" },
+    { label: "South Carolina", value: "SC" },
+    { label: "South Dakota", value: "SD" },
+    { label: "Tennessee", value: "TN" },
+    { label: "Texas", value: "TX" },
+    { label: "Utah", value: "UT" },
+    { label: "Vermont", value: "VT" },
+    { label: "Virginia", value: "VA" },
+    { label: "Washington", value: "WA" },
+    { label: "West Virginia", value: "WV" },
+    { label: "Wisconsin", value: "WI" },
+    { label: "Wyoming", value: "WY" },
+  ];
 
 interface SemanticResult {
   artistName: string | null;
   coverArtUrl: string | null;
   entityId: string;
   entityType: "artist" | "project" | "track" | "video";
+  geoTier: "local" | "neighbor" | "national";
   matchedVia: "lyrics" | "metadata";
   score: number;
   snippet: string | null;
@@ -122,13 +178,20 @@ export function DashboardHeader() {
 
 function DashboardHeaderContent() {
   const [searchValue, setSearchValue] = useState(""),
+    [geoState, setGeoState] = useState(""),
     [debouncedSearchValue, setDebouncedSearchValue] = useState(""),
     searchInputRef = useRef<HTMLInputElement>(null),
     trimmedSearchValue = debouncedSearchValue.trim(),
     isNaturalLanguage = (() => {
       const words = trimmedSearchValue.split(/\s+/).filter(Boolean);
       return words.length >= 3 && trimmedSearchValue.length >= 12;
-    })();
+    })(),
+    geoSearchOptions =
+      geoState === ""
+        ? {}
+        : (geoState === "near"
+          ? { scope: "all" as const }
+          : { scope: "state" as const, state: geoState });
 
   useHotkey("Mod+K", (event) => {
     event.preventDefault();
@@ -147,9 +210,16 @@ function DashboardHeaderContent() {
     }),
     semanticQuery = useSemanticSearchQuery(
       trimmedSearchValue,
-      isNaturalLanguage
+      isNaturalLanguage,
+      geoSearchOptions
     ),
     semanticResults = semanticQuery.data ?? [],
+    localResults = semanticResults.filter(
+      (result) => result.geoTier === "local"
+    ),
+    nationalResults = semanticResults.filter(
+      (result) => result.geoTier !== "local"
+    ),
     results = searchQuery.data,
     resultCount =
       (results?.artists.length ?? 0) +
@@ -480,16 +550,53 @@ function DashboardHeaderContent() {
               )}
               {isNaturalLanguage && semanticResults.length > 0 ? (
                 <div className="mt-2 border-t pt-2">
-                  <div className="flex items-center gap-2 px-3 py-1 font-semibold text-[11px] text-primary tracking-widest">
-                    <Sparkles className="size-3" /> AI MATCHES
+                  <div className="flex items-center justify-between gap-2 px-3 py-1">
+                    <span className="flex items-center gap-2 font-semibold text-[11px] text-primary tracking-widest">
+                      <Sparkles className="size-3" /> AI MATCHES
+                    </span>
+                    <select
+                      aria-label="Search region"
+                      className="h-7 rounded-md border bg-background px-1 text-[11px]"
+                      onChange={(event) => setGeoState(event.target.value)}
+                      value={geoState}
+                    >
+                      {GEO_STATE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  {semanticResults.map((result) => (
-                    <SemanticResultLink
-                      key={`${result.entityType}-${result.entityId}`}
-                      onSelect={() => setSearchValue("")}
-                      result={result}
-                    />
-                  ))}
+                  {localResults.length > 0 ? (
+                    <>
+                      <div className="px-3 py-1 text-[10px] font-semibold tracking-widest text-muted-foreground">
+                        NEAR YOU
+                      </div>
+                      {localResults.map((result) => (
+                        <SemanticResultLink
+                          key={`${result.entityType}-${result.entityId}`}
+                          onSelect={() => setSearchValue("")}
+                          result={result}
+                        />
+                      ))}
+                    </>
+                  ) : null}
+                  {nationalResults.length > 0 ? (
+                    <>
+                      {localResults.length > 0 ? (
+                        <div className="px-3 py-1 text-[10px] font-semibold tracking-widest text-muted-foreground">
+                          NATIONWIDE
+                        </div>
+                      ) : null}
+                      {nationalResults.map((result) => (
+                        <SemanticResultLink
+                          key={`${result.entityType}-${result.entityId}`}
+                          onSelect={() => setSearchValue("")}
+                          result={result}
+                        />
+                      ))}
+                    </>
+                  ) : null}
                 </div>
               ) : null}
             </div>

@@ -77,6 +77,8 @@ import { authClient } from "@/lib/auth-client";
 import {
   useAdminAccessQuery,
   useAdminAdCampaignsQuery,
+  useAdminAudioIndexMutation,
+  useAdminAudioSpikeMutation,
   useAdminEmbeddingBackfillMutation,
   useAdminEmbeddingStatusQuery,
   useAdminFinanceSummaryQuery,
@@ -87,6 +89,7 @@ import {
   useSyncStripePlansMutation,
   useTrackDurationBackfillStatusQuery,
 } from "@/lib/soundkit-api-hooks";
+import type { AudioSpikeReport } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dashboard/admin")({
@@ -265,7 +268,51 @@ function PlatformOperationsPanel() {
   const financeQuery = useAdminFinanceSummaryQuery(),
     embeddingsQuery = useAdminEmbeddingStatusQuery(),
     backfillEmbeddings = useAdminEmbeddingBackfillMutation(),
-    embeddingCounts = embeddingsQuery.data?.byEntityType ?? {};
+    audioSpike = useAdminAudioSpikeMutation(),
+    audioIndex = useAdminAudioIndexMutation(),
+    embeddingCounts = embeddingsQuery.data?.byEntityType ?? {},
+    [spikeTracks, setSpikeTracks] = useState(""),
+    [spikeProbes, setSpikeProbes] = useState("summer, dark, anthemic"),
+    [spikeReport, setSpikeReport] = useState<AudioSpikeReport | null>(null),
+    runSpike = () => {
+      const trackIds = spikeTracks
+          .split(/[\n,]/u)
+          .map((part) => part.trim())
+          .filter(Boolean),
+        probes = spikeProbes
+          .split(/[\n,]/u)
+          .map((part) => part.trim())
+          .filter(Boolean);
+      if (trackIds.length === 0 || probes.length === 0) {
+        toast({
+          description: "Add track IDs and at least one probe word.",
+          title: "Spike needs input",
+          variant: "destructive",
+        });
+        return;
+      }
+      setSpikeReport(null);
+      audioSpike.mutate(
+        { probes, trackIds },
+        {
+          onError: () => {
+            toast({
+              description:
+                "The audio spike failed — check the model id and API key.",
+              title: "Spike failed",
+              variant: "destructive",
+            });
+          },
+          onSuccess: (report) => {
+            setSpikeReport(report);
+            toast({
+              description: `${report.tested.length} tracks tested · ${report.skipped.length} skipped. Judge whether text queries land on the right tracks.`,
+              title: "Spike complete",
+            });
+          },
+        }
+      );
+    };
 
   return (
     <div className="grid gap-6 xl:grid-cols-2">
@@ -345,6 +392,113 @@ function PlatformOperationsPanel() {
               ? "Indexing catalog…"
               : "Backfill 100 per type"}
           </Button>
+          <div className="space-y-3 rounded-md border p-3">
+            <div>
+              <p className="text-sm font-medium">Audio cross-modal spike</p>
+              <p className="text-xs text-muted-foreground">
+                Embed up to 5 tracks&apos; audio and rank them per probe word.
+                If text queries land on the right tracks, the shared-space bet
+                is real — then index audio vectors and try ?fuse=0.3 on semantic
+                search.
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="spike-tracks">
+                  Track IDs (comma separated)
+                </Label>
+                <Input
+                  id="spike-tracks"
+                  onChange={(event) => setSpikeTracks(event.target.value)}
+                  placeholder="track_abc, track_def"
+                  value={spikeTracks}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="spike-probes">Probe words</Label>
+                <Input
+                  id="spike-probes"
+                  onChange={(event) => setSpikeProbes(event.target.value)}
+                  value={spikeProbes}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                disabled={audioSpike.isPending}
+                onClick={runSpike}
+                size="sm"
+                variant="outline"
+              >
+                {audioSpike.isPending ? "Testing…" : "Run spike"}
+              </Button>
+              <Button
+                disabled={
+                  audioIndex.isPending || spikeTracks.trim().length === 0
+                }
+                onClick={() =>
+                  audioIndex.mutate(
+                    {
+                      trackIds: spikeTracks
+                        .split(/[\n,]/u)
+                        .map((part) => part.trim())
+                        .filter(Boolean),
+                    },
+                    {
+                      onError: () => {
+                        toast({
+                          description: "Audio indexing failed.",
+                          title: "Index failed",
+                          variant: "destructive",
+                        });
+                      },
+                      onSuccess: (result) => {
+                        const done = result.results.filter(
+                          (entry) => entry.status === "inserted"
+                        ).length;
+                        toast({
+                          description: `${done} audio vectors stored. Try semantic search with ?fuse=0.3.`,
+                          title: "Audio indexed",
+                        });
+                      },
+                    }
+                  )
+                }
+                size="sm"
+                variant="outline"
+              >
+                {audioIndex.isPending ? "Indexing…" : "Index audio vectors"}
+              </Button>
+            </div>
+            {spikeReport && (
+              <div className="space-y-2 text-sm">
+                <p className="text-xs text-muted-foreground">
+                  Model {spikeReport.model} · {spikeReport.tested.length} tested
+                  {spikeReport.skipped.length > 0
+                    ? ` · skipped: ${spikeReport.skipped.map((entry) => `${entry.title} (${entry.reason})`).join("; ")}`
+                    : ""}
+                </p>
+                {spikeReport.probes.map((probe) => (
+                  <div key={probe.query}>
+                    <p className="font-medium">“{probe.query}”</p>
+                    {probe.topTracks.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No tracks ranked.
+                      </p>
+                    ) : (
+                      <ol className="list-decimal pl-5 text-xs">
+                        {probe.topTracks.map((hit) => (
+                          <li key={hit.trackId}>
+                            {hit.title} — {(hit.similarity * 100).toFixed(1)}%
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

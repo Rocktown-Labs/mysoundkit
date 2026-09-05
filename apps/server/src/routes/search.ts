@@ -16,8 +16,16 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { publicProjectAssetUrl } from "@/lib/asset-urls";
+import { fuseRankings, searchAudioEntities } from "@/lib/audio-embeddings";
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
 import { canonicalGenreName } from "@/lib/genre-catalog";
+import {
+  applyGeoScope,
+  implicitScopeFromHeaders,
+  normalizeStateCode,
+  parseSearchQuery,
+} from "@/lib/geo-search";
+import type { GeoScope } from "@/lib/geo-search";
 import { sampleArtists, sampleProjects, sampleTracks } from "@/lib/sample-data";
 import {
   publicSearchQuerySchema,
@@ -27,21 +35,149 @@ import {
   hydrateSemanticResults,
   searchSemanticEntities,
 } from "@/lib/semantic-search";
+import type { RolledUpMatch } from "@/lib/semantic-search";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
 
+const matchKeyOf = (match: RolledUpMatch): string =>
+  `${match.entityType}:${match.entityId}`;
+
+interface SemanticGeoParams {
+  boostStates: string[];
+  parsedEntityTypes: ("artist" | "project" | "track" | "video")[] | undefined;
+  poolLimit: number;
+  queryText: string;
+  scope: GeoScope;
+  scopeStates: string[];
+}
+
+/**
+ * Explicit ?state wins; NL-parsed states next; CDN header region is a
+ * boost-only signal, never a filter.
+ */
+const resolveSemanticGeoParams = ({
+  headers,
+  limit,
+  q,
+  scopeParam,
+  stateParam,
+}: {
+  headers: Headers;
+  limit: number;
+  q: string;
+  scopeParam: string | undefined;
+  stateParam: string | undefined;
+}): SemanticGeoParams => {
+  const parsed = parseSearchQuery(q),
+    explicitStates = (stateParam ?? "")
+      .split(",")
+      .map((part) => normalizeStateCode(part))
+      .filter((code): code is string => Boolean(code)),
+    scope: GeoScope = scopeParam === "state" ? "state" : "all",
+    scopeStates =
+      explicitStates.length > 0 ? explicitStates : (parsed?.states ?? []),
+    boostStates =
+      scopeStates.length > 0 ? scopeStates : implicitScopeFromHeaders(headers),
+    geoActive = scopeStates.length > 0 || boostStates.length > 0;
+  return {
+    boostStates,
+    parsedEntityTypes: parsed?.entityTypes,
+    poolLimit: Math.min(limit * (geoActive ? 4 : 1), 50),
+    queryText: parsed?.vectorText ?? q,
+    scope,
+    scopeStates,
+  };
+};
+
+/**
+ * Blend text evidence with stored audio vectors. Audio-only hits join
+ * as track matches with derived distances so thresholding stays
+ * comparable. No stored audio vectors = text ranking unchanged.
+ */
+const fuseWithAudio = async ({
+  fuseWeight,
+  matches,
+  maxDistance,
+  text,
+}: {
+  fuseWeight: number;
+  matches: RolledUpMatch[];
+  maxDistance: number | undefined;
+  text: string;
+}): Promise<RolledUpMatch[]> => {
+  const audioHits = await searchAudioEntities({ limit: 50, text });
+  if (audioHits.length === 0) {
+    return matches;
+  }
+  const fused = fuseRankings({
+      audio: audioHits.map((hit) => ({
+        id: `track:${hit.entityId}`,
+        similarity: Math.max(-1, Math.min(1, 1 - hit.distance / 2)),
+      })),
+      audioWeight: fuseWeight,
+      text: matches.map((match) => ({
+        id: matchKeyOf(match),
+        score: Math.max(0, Math.min(1, 1 - match.distance / 2)),
+      })),
+    }),
+    byKey = new Map(matches.map((match) => [matchKeyOf(match), match]));
+  const combined = fused.map((entry) => {
+    const existing = byKey.get(entry.id);
+    if (existing) {
+      return existing;
+    }
+    const [, trackId] = entry.id.split(":");
+    return {
+      distance: (1 - (entry.audioScore ?? 0)) * 2,
+      entityId: trackId ?? entry.id,
+      entityType: "track" as const,
+      matchedVia: "metadata" as const,
+      snippet: null,
+    };
+  });
+  return maxDistance === undefined
+    ? combined
+    : combined.filter((match) => match.distance <= maxDistance);
+};
+
 app.get("/semantic", async (c) => {
   const q = c.req.query("q")?.trim() ?? "",
-    limit = Number(c.req.query("limit") ?? 12),
+    rawLimit = Number(c.req.query("limit") ?? 12),
+    limit = Number.isFinite(rawLimit) ? Math.max(rawLimit, 1) : 12,
     threshold = Number(c.req.query("threshold") ?? ""),
+    maxDistance =
+      Number.isFinite(threshold) && threshold > 0 ? threshold : undefined,
+    geo = resolveSemanticGeoParams({
+      headers: c.req.raw.headers,
+      limit,
+      q,
+      scopeParam: c.req.query("scope"),
+      stateParam: c.req.query("state"),
+    }),
     matches = await searchSemanticEntities({
-      limit: Number.isFinite(limit) ? limit : 12,
-      maxDistance:
-        Number.isFinite(threshold) && threshold > 0 ? threshold : undefined,
-      text: q,
-    });
-  return c.json(await hydrateSemanticResults(matches), HttpStatusCodes.OK);
+      entityTypes: geo.parsedEntityTypes,
+      limit: geo.poolLimit,
+      maxDistance,
+      text: geo.queryText,
+    }),
+    fuseWeight = Math.max(0, Math.min(1, Number(c.req.query("fuse") ?? 0))),
+    fusedMatches: RolledUpMatch[] =
+      fuseWeight > 0
+        ? await fuseWithAudio({
+            fuseWeight,
+            matches,
+            maxDistance,
+            text: geo.queryText,
+          })
+        : matches,
+    hydrated = await hydrateSemanticResults(fusedMatches),
+    scoped = applyGeoScope(
+      hydrated,
+      geo.scope,
+      geo.scopeStates.length > 0 ? geo.scopeStates : geo.boostStates
+    );
+  return c.json(scoped.slice(0, limit), HttpStatusCodes.OK);
 });
 
 const normalizeState = (state: string | undefined) => {

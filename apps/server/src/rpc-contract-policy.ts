@@ -50,6 +50,8 @@ export const additionalClientRpcOperations = [
   "GET /v1/live/rooms/queue",
   "GET /v1/search/semantic",
   "POST /v1/admin/embeddings/backfill",
+  "POST /v1/admin/embeddings/audio-spike",
+  "POST /v1/admin/embeddings/audio-index",
   "POST /v1/admin/finance/payments/coupons",
   "POST /v1/admin/finance/payments/grant-premium",
   "POST /v1/live/cloudflare-stream",

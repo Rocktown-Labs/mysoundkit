@@ -39,11 +39,12 @@ describe("chunkLyricSections", () => {
   });
 
   it("hard-splits oversized sections and caps total chunks", () => {
-    const longSection = Array.from(
-      { length: 60 },
-      (_, index) => `Line number ${index} with enough words to add weight`
-    ).join("\n"),
-     chunks = chunkLyricSections(longSection);
+    const chunks = chunkLyricSections(
+      Array.from(
+        { length: 60 },
+        (_, index) => `Line number ${index} with enough words to add weight`
+      ).join("\n")
+    );
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks.length).toBeLessThanOrEqual(32);
     for (const chunk of chunks) {

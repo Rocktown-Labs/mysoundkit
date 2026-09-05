@@ -36,6 +36,12 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { isAdminUser } from "@/lib/admin";
 import {
+  AUDIO_SPIKE_MAX_PROBES,
+  AUDIO_SPIKE_MAX_TRACKS,
+  indexTrackAudio,
+  runAudioSpike,
+} from "@/lib/audio-embeddings";
+import {
   backfillSearchEmbeddings,
   loadEmbeddingStatus,
 } from "@/lib/audio-processing";
@@ -62,6 +68,7 @@ import {
   trackDurationBackfillStatusQuerySchema,
   trackDurationBackfillStatusSchema,
 } from "@/lib/schemas";
+import { resolveTrackAssetFromRows } from "@/lib/track-asset-resolver";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
@@ -463,6 +470,119 @@ app.get("/embeddings/status", async (c) => {
     );
   }
   return c.json(await loadEmbeddingStatus(), HttpStatusCodes.OK);
+});
+
+app.post("/embeddings/audio-spike", async (c) => {
+  if (!isAdminUser(c.get("user"))) {
+    return c.json(
+      { message: "Admin access is required." },
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+  const body = (await c.req.json().catch(() => null)) as {
+      probes?: string[];
+      trackIds?: string[];
+    } | null,
+    bucket = (c.env as AppEnv["Bindings"]).MEDIA_BUCKET;
+  if (!bucket) {
+    return c.json(
+      { message: "Media storage is unavailable." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+  try {
+    return c.json(
+      await runAudioSpike({
+        bucket,
+        probeQueries: (body?.probes ?? []).slice(0, AUDIO_SPIKE_MAX_PROBES),
+        trackIds: (body?.trackIds ?? []).slice(0, AUDIO_SPIKE_MAX_TRACKS),
+      }),
+      HttpStatusCodes.OK
+    );
+  } catch (error) {
+    return c.json(
+      {
+        message: error instanceof Error ? error.message : "Audio spike failed.",
+      },
+      HttpStatusCodes.BAD_REQUEST
+    );
+  }
+});
+
+app.post("/embeddings/audio-index", async (c) => {
+  if (!isAdminUser(c.get("user"))) {
+    return c.json(
+      { message: "Admin access is required." },
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+  const body = (await c.req.json().catch(() => null)) as {
+      trackIds?: string[];
+    } | null,
+    bucket = (c.env as AppEnv["Bindings"]).MEDIA_BUCKET;
+  if (!bucket) {
+    return c.json(
+      { message: "Media storage is unavailable." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+  if (!isDatabaseConfigured()) {
+    return c.json(
+      { message: "Database is not configured." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+  const db = createDb(),
+    rawIds = body?.trackIds ?? [],
+    ids = [...new Set(rawIds)].slice(0, AUDIO_SPIKE_MAX_TRACKS),
+    results: { status: string; trackId: string }[] = [];
+  for (const trackId of ids) {
+    try {
+      const [track] = await db
+        .select()
+        .from(tracks)
+        .where(eq(tracks.id, trackId))
+        .limit(1);
+      if (!track) {
+        results.push({ status: "missing", trackId });
+        continue;
+      }
+      const assets = await db
+          .select()
+          .from(trackAssets)
+          .where(eq(trackAssets.trackId, trackId)),
+        streaming = resolveTrackAssetFromRows({
+          allowLegacyFallback: false,
+          assets: assets.filter((asset) => asset.isCurrent),
+          purpose: "streaming",
+          trackId,
+        });
+      if (!streaming?.objectKey) {
+        results.push({ status: "no-derivative", trackId });
+        continue;
+      }
+      const object = await bucket.get(streaming.objectKey);
+      if (!object) {
+        results.push({ status: "missing-object", trackId });
+        continue;
+      }
+      const bytes = await object.arrayBuffer();
+      if (bytes.byteLength > 8 * 1024 * 1024) {
+        results.push({ status: "too-large", trackId });
+        continue;
+      }
+      const indexed = await indexTrackAudio({
+        audioBytes: bytes,
+        mimeType: "audio/mp4",
+        organizationId: track.organizationId,
+        trackId,
+      });
+      results.push({ status: indexed.status, trackId });
+    } catch {
+      results.push({ status: "failed", trackId });
+    }
+  }
+  return c.json({ results }, HttpStatusCodes.OK);
 });
 
 const emptyOverview = () => ({

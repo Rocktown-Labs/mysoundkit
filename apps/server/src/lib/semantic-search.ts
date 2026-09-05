@@ -1,5 +1,5 @@
 import { google } from "@ai-sdk/google";
-/* eslint-disable one-var, sort-vars */
+/* eslint-disable one-var, sort-vars, complexity, unicorn/max-nested-calls */
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
@@ -16,8 +16,13 @@ import { env } from "@soundkit/env/server";
 import { embed } from "ai";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
-import { embeddingModelName, indexSearchEntity, normalizeEmbeddingVector } from '@/lib/audio-processing';
-import type { SaveEmbeddingStatus } from '@/lib/audio-processing';
+import {
+  embeddingModelName,
+  indexSearchEntity,
+  normalizeEmbeddingVector,
+} from "@/lib/audio-processing";
+import type { SaveEmbeddingStatus } from "@/lib/audio-processing";
+import type { GeoTier } from "@/lib/geo-search";
 
 export const SEMANTIC_DEFAULT_MAX_DISTANCE = 0.8,
   SEMANTIC_MAX_LIMIT = 50,
@@ -60,6 +65,7 @@ export interface HydratedSemanticResult {
   coverArtUrl: string | null;
   entityId: string;
   entityType: Exclude<SemanticEntityType, "lyrics">;
+  geoTier: GeoTier;
   matchedVia: "lyrics" | "metadata";
   score: number;
   snippet: string | null;
@@ -426,16 +432,19 @@ interface HydrationLookups {
 }
 
 interface HydrationRows {
-  artistRows: { profile: typeof artistProfiles.$inferSelect; user: typeof userProfiles.$inferSelect }[];
+  artistRows: {
+    profile: typeof artistProfiles.$inferSelect;
+    user: typeof userProfiles.$inferSelect;
+  }[];
   projectRows: (typeof projects.$inferSelect)[];
   trackRows: (typeof tracks.$inferSelect)[];
   videoRows: (typeof videos.$inferSelect)[];
 }
 
 const idsFor = (
-  matches: RolledUpMatch[],
-  entityType: RolledUpMatch["entityType"]
-): string[] =>
+    matches: RolledUpMatch[],
+    entityType: RolledUpMatch["entityType"]
+  ): string[] =>
     matches
       .filter((match) => match.entityType === entityType)
       .map((match) => match.entityId),
@@ -569,6 +578,7 @@ const idsFor = (
       coverArtUrl: lookups.trackCoverById.get(row.id) ?? null,
       entityId: row.id,
       entityType: "track",
+      geoTier: "national",
       matchedVia: match.matchedVia,
       score: similarityOf(match.distance),
       snippet: match.snippet,
@@ -593,6 +603,7 @@ const idsFor = (
       coverArtUrl: lookups.projectCoverById.get(row.id) ?? null,
       entityId: row.id,
       entityType: "project",
+      geoTier: "national",
       matchedVia: match.matchedVia,
       score: similarityOf(match.distance),
       snippet: match.snippet,
@@ -615,6 +626,7 @@ const idsFor = (
       coverArtUrl: row.thumbnailUrl,
       entityId: row.id,
       entityType: "video",
+      geoTier: "national",
       matchedVia: match.matchedVia,
       score: similarityOf(match.distance),
       snippet: match.snippet,
@@ -635,13 +647,13 @@ const idsFor = (
       coverArtUrl: row.user.avatarUrl,
       entityId: row.profile.userId,
       entityType: "artist",
+      geoTier: "national",
       matchedVia: match.matchedVia,
       score: similarityOf(match.distance),
       snippet: null,
       state: row.user.state,
       subtitle: row.user.username,
-      title:
-        row.profile.stageName ?? row.user.displayName ?? row.user.username,
+      title: row.profile.stageName ?? row.user.displayName ?? row.user.username,
     };
   };
 

@@ -590,7 +590,7 @@ export const normalizeEmbeddingVector = (values: number[]): number[] => {
   );
 };
 
-export const indexSearchEntity = async ({
+export const indexSearchEntity = ({
   entityId,
   entityType,
   metadata,
@@ -687,7 +687,7 @@ export const saveEmbedding = async ({
   }
 };
 
-export const saveStemSplitOutput = async ({
+export const saveStemSplitOutput = ({
   assetId,
   job,
   output,
@@ -712,7 +712,7 @@ export const saveStemSplitOutput = async ({
   });
 };
 
-export const transcribeStemSplitVocals = async ({
+export const transcribeStemSplitVocals = ({
   trackId,
   vocalsAssetId,
 }: {
@@ -771,6 +771,46 @@ export const finalizeTrackEnrichment = async ({
         lyricsId: lyrics.id,
         organizationId: track.organizationId,
         text: lyrics.text,
+        trackId: track.id,
+      });
+    }
+    // Audio-native vectors: gated until the spike validates cross-modal
+    // quality. AUDIO_EMBEDDINGS_ENABLED defaults off; failures never
+    // break enrichment.
+    try {
+      const audioEmbeddings = await import("@/lib/audio-embeddings");
+      if (audioEmbeddings.audioEmbeddingsEnabled()) {
+        const { resolveTrackAssetFromRows } =
+            await import("@/lib/track-asset-resolver"),
+          bucket = getMediaBucket(),
+          assets = await db
+            .select()
+            .from(trackAssets)
+            .where(eq(trackAssets.trackId, track.id)),
+          streaming = resolveTrackAssetFromRows({
+            allowLegacyFallback: false,
+            assets: assets.filter((asset) => asset.isCurrent),
+            purpose: "streaming",
+            trackId: track.id,
+          });
+        if (bucket && streaming?.objectKey) {
+          const object = await bucket.get(streaming.objectKey);
+          if (object) {
+            const bytes = await object.arrayBuffer();
+            if (bytes.byteLength <= 8 * 1024 * 1024) {
+              await audioEmbeddings.indexTrackAudio({
+                audioBytes: bytes,
+                mimeType: "audio/mp4",
+                organizationId: track.organizationId,
+                trackId: track.id,
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Track audio embedding skipped", {
+        error: error instanceof Error ? error.message : String(error),
         trackId: track.id,
       });
     }
