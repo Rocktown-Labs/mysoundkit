@@ -774,9 +774,8 @@ export const finalizeTrackEnrichment = async ({
         trackId: track.id,
       });
     }
-    // Audio-native vectors: gated until the spike validates cross-modal
-    // quality. AUDIO_EMBEDDINGS_ENABLED defaults off; failures never
-    // break enrichment.
+    // Audio-native vectors: enabled in deployed env via
+    // AUDIO_EMBEDDINGS_ENABLED; failures never break enrichment.
     try {
       const audioEmbeddings = await import("@/lib/audio-embeddings");
       if (audioEmbeddings.audioEmbeddingsEnabled()) {

@@ -2,6 +2,7 @@
 import { google } from "@ai-sdk/google";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { searchEmbeddings, trackAssets, tracks } from "@soundkit/db/schema/app";
+import { env } from "@soundkit/env/server";
 import { embed } from "ai";
 import { and, asc, eq, sql } from "drizzle-orm";
 
@@ -17,7 +18,8 @@ export const AUDIO_EMBEDDING_MODEL_SUFFIX = ":audio",
   AUDIO_SPIKE_MAX_BYTES = 8 * 1024 * 1024,
   AUDIO_FUSION_DEFAULT_WEIGHT = 0.3;
 
-const getEnvValue = (key: string): string => (process.env[key] ?? "").trim();
+const getEnvValue = (key: string): string =>
+  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
 
 export const audioEmbeddingModel = (): string =>
   getEnvValue("GOOGLE_AUDIO_EMBEDDING_MODEL") || "gemini-embedding-002";

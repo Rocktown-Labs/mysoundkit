@@ -422,6 +422,7 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("CLOUDFLARE_STREAM_CUSTOMER_CODE"),
     ...optionalEnvBinding("CLOUDFLARE_STREAM_WEBHOOK_SECRET"),
     SOUNDKIT_ALLOW_MOCK_REALTIME: isPullRequestPreview ? "true" : "false",
+    AUDIO_EMBEDDINGS_ENABLED: "true",
     DATABASE_URL: requiredSecret(
       alchemy.secret.env.DATABASE_URL,
       "DATABASE_URL"
