@@ -421,6 +421,7 @@ describe("public profile schemas", () => {
       avatarUrl: "https://media.soundkit.test/profiles/cg/avatar.jpg",
       battleCount: 4,
       bio: "Making records in Little Rock.",
+      canReceiveTips: true,
       coverImageUrl: "https://media.soundkit.test/profiles/cg/header.jpg",
       followers: 1200,
       genre: "Hip-Hop",

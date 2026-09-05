@@ -256,6 +256,16 @@ describe("SoundKit Worker API", () => {
     );
   });
 
+  it("hides tips when the sample artist is not payout-ready", async () => {
+    const response = await SELF.fetch(
+        "http://soundkit.test/v1/artists/luna-eclipse"
+      ),
+      body = await readJson<{ canReceiveTips: boolean }>(response);
+
+    expect(response.status).toBe(200);
+    expect(body.canReceiveTips).toBe(false);
+  });
+
   it("returns discovery and catalog read models when storage is not configured", async () => {
     const [
       genresResponse,

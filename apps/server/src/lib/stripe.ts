@@ -407,6 +407,7 @@ interface CreateCheckoutSessionInput {
   destinationAccountId?: string;
   embedded?: boolean;
   lineItems: CheckoutLineItem[];
+  managedPaymentsEnabled?: boolean;
   metadata: Record<string, string>;
   returnUrl?: string;
   successUrl?: string;
@@ -420,6 +421,7 @@ export const buildCheckoutSessionParams = ({
   destinationAccountId,
   embedded = false,
   lineItems,
+  managedPaymentsEnabled,
   metadata,
   returnUrl,
   successUrl,
@@ -441,6 +443,14 @@ export const buildCheckoutSessionParams = ({
   } else {
     appendValue(params, "success_url", successUrl);
     appendValue(params, "cancel_url", cancelUrl);
+  }
+
+  if (destinationAccountId || managedPaymentsEnabled !== undefined) {
+    appendValue(
+      params,
+      "managed_payments[enabled]",
+      destinationAccountId ? false : managedPaymentsEnabled
+    );
   }
 
   if (destinationAccountId) {
@@ -550,6 +560,7 @@ export const createEmbeddedTipCheckout = ({
     destinationAccountId,
     embedded: true,
     lineItems,
+    managedPaymentsEnabled: false,
     metadata,
     returnUrl,
     transferGroup: metadata.transactionId,
@@ -629,6 +640,7 @@ export const createConnectedSubscriptionCheckout = ({
   appendValue(params, "success_url", successUrl);
   appendValue(params, "cancel_url", cancelUrl);
   appendValue(params, "customer_email", customerEmail);
+  appendValue(params, "managed_payments[enabled]", false);
   appendValue(
     params,
     "subscription_data[application_fee_percent]",

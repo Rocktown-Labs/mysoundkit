@@ -50,6 +50,7 @@ describe("Stripe Checkout parameters", () => {
     expect(params.get("payment_intent_data[application_fee_amount]")).toBe(
       "100"
     );
+    expect(params.get("managed_payments[enabled]")).toBe("false");
     expect(params.get("success_url")).toBe("https://soundkit.test/success");
     expect(params.get("ui_mode")).toBeNull();
   });
@@ -73,10 +74,30 @@ describe("Stripe Checkout parameters", () => {
 
     expect(params.get("ui_mode")).toBe("embedded");
     expect(params.get("return_url")).toBe("https://soundkit.test/live");
+    expect(params.get("managed_payments[enabled]")).toBe("false");
     expect(params.get("success_url")).toBeNull();
     expect(params.get("payment_intent_data[transfer_data][destination]")).toBe(
       "acct_artist"
     );
+  });
+
+  it("can explicitly disable Managed Payments for platform tip charges", () => {
+    const params = buildCheckoutSessionParams({
+      embedded: true,
+      lineItems: [
+        {
+          currency: "USD",
+          name: "Battle tip",
+          priceCents: 1000,
+          quantity: 1,
+        },
+      ],
+      managedPaymentsEnabled: false,
+      metadata: { transactionId: "transaction_123" },
+      returnUrl: "https://soundkit.test/live",
+    });
+
+    expect(params.get("managed_payments[enabled]")).toBe("false");
   });
 });
 

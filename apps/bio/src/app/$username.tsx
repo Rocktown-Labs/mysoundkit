@@ -202,6 +202,10 @@ function BioProfilePage() {
   };
 
   const handleTipClick = () => {
+    if (profile?.artist.canReceiveTips !== true) {
+      return;
+    }
+
     if (authToken) {
       setIsTipOpen(true);
       return;
@@ -267,12 +271,14 @@ function BioProfilePage() {
 
       setAuthToken(event.data.token);
       setAuthMessage("Signed in successfully with SoundKit.");
-      setIsTipOpen(true);
+      if (profile?.artist.canReceiveTips === true) {
+        setIsTipOpen(true);
+      }
     };
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, []);
+  }, [profile?.artist.canReceiveTips]);
 
   const artist = profile?.artist;
   const media = loadedMedia ?? profile?.media;
@@ -482,14 +488,16 @@ function BioProfilePage() {
                     )}
                   </button>
 
-                  <button
-                    className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-white/5 px-4 py-1.5 text-xs sm:text-sm font-semibold text-foreground hover:bg-white/10 hover:border-primary/40 transition-all active:scale-95"
-                    onClick={handleTipClick}
-                    type="button"
-                  >
-                    <HandCoins className="size-3.5 text-primary" />
-                    <span>Tip</span>
-                  </button>
+                  {artist.canReceiveTips ? (
+                    <button
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-white/5 px-4 py-1.5 text-xs sm:text-sm font-semibold text-foreground hover:bg-white/10 hover:border-primary/40 transition-all active:scale-95"
+                      onClick={handleTipClick}
+                      type="button"
+                    >
+                      <HandCoins className="size-3.5 text-primary" />
+                      <span>Tip</span>
+                    </button>
+                  ) : null}
 
                   <a
                     className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
@@ -940,7 +948,7 @@ function BioProfilePage() {
         authToken={authToken}
         onOpenChange={setIsTipOpen}
         onReauthenticate={() => beginAuthHandoff("tip")}
-        open={isTipOpen}
+        open={isTipOpen && artist.canReceiveTips}
       />
     </div>
   );
