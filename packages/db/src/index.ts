@@ -52,10 +52,13 @@ const createPool = () => {
   }
 
   if (!pool) {
+    // Hyperdrive already pools origin connections. Keep this application pool
+    // reusable as well; rotating a client after every query causes high-query
+    // fan-out endpoints to churn through connections and starve unrelated
+    // requests while they wait for a new Hyperdrive client.
     pool = new Pool({
       connectionString,
       max: 10,
-      maxUses: 1,
     });
   }
 

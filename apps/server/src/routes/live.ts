@@ -125,6 +125,7 @@ import {
 } from "@/lib/live-stream";
 import { notify } from "@/lib/notifications";
 import { profileRegionCondition } from "@/lib/public-explore";
+import { withRetry } from "@/lib/retry";
 import {
   battleBotActionBodySchema,
   battleDispositionBodySchema,
@@ -179,30 +180,32 @@ app.get("/experiences/public", async (c) => {
     ].filter((condition): condition is NonNullable<typeof condition> =>
       Boolean(condition)
     ),
-    experiences = await db
-      .select({
-        creatorAvatar: userProfiles.avatarUrl,
-        creatorName: userProfiles.displayName,
-        creatorUserId: liveExperiences.createdByUserId,
-        creatorUsername: userProfiles.username,
-        endsAt: liveExperiences.endsAt,
-        genre: liveExperiences.genre,
-        id: liveExperiences.id,
-        ingestStatus: liveExperiences.ingestStatus,
-        kind: liveExperiences.kind,
-        source: liveExperiences.source,
-        startsAt: liveExperiences.startsAt,
-        status: liveExperiences.status,
-        title: liveExperiences.title,
-        viewerCount: liveExperiences.viewerCount,
-      })
-      .from(liveExperiences)
-      .leftJoin(
-        userProfiles,
-        eq(userProfiles.userId, liveExperiences.createdByUserId)
-      )
-      .where(and(...conditions))
-      .orderBy(asc(liveExperiences.startsAt)),
+    experiences = await withRetry("list public live experiences", () =>
+      db
+        .select({
+          creatorAvatar: userProfiles.avatarUrl,
+          creatorName: userProfiles.displayName,
+          creatorUserId: liveExperiences.createdByUserId,
+          creatorUsername: userProfiles.username,
+          endsAt: liveExperiences.endsAt,
+          genre: liveExperiences.genre,
+          id: liveExperiences.id,
+          ingestStatus: liveExperiences.ingestStatus,
+          kind: liveExperiences.kind,
+          source: liveExperiences.source,
+          startsAt: liveExperiences.startsAt,
+          status: liveExperiences.status,
+          title: liveExperiences.title,
+          viewerCount: liveExperiences.viewerCount,
+        })
+        .from(liveExperiences)
+        .leftJoin(
+          userProfiles,
+          eq(userProfiles.userId, liveExperiences.createdByUserId)
+        )
+        .where(and(...conditions))
+        .orderBy(asc(liveExperiences.startsAt))
+    ),
     synchronizedExperiences = await Promise.all(
       experiences.map(async (experience) => {
         if (!(experience.kind === "stream" && experience.source === "obs")) {
@@ -4004,47 +4007,51 @@ app.get("/rooms/queue", async (c) => {
   }
 
   const db = createDb(),
-    [rows, participatingRows] = await Promise.all([
-      db
-        .select({
-          battleId: battleQueueEntries.battleId,
-          startsAt: battles.startsAt,
-          status: battles.status,
-          title: battles.title,
-        })
-        .from(battleQueueEntries)
-        .innerJoin(battles, eq(battles.id, battleQueueEntries.battleId))
-        .where(
-          and(
-            eq(battleQueueEntries.userId, user.id),
-            or(
-              eq(battleQueueEntries.status, "queued"),
-              eq(battleQueueEntries.status, "conflict")
+    [rows, participatingRows] = await withRetry(
+      "load live room queue",
+      () =>
+        Promise.all([
+          db
+            .select({
+              battleId: battleQueueEntries.battleId,
+              startsAt: battles.startsAt,
+              status: battles.status,
+              title: battles.title,
+            })
+            .from(battleQueueEntries)
+            .innerJoin(battles, eq(battles.id, battleQueueEntries.battleId))
+            .where(
+              and(
+                eq(battleQueueEntries.userId, user.id),
+                or(
+                  eq(battleQueueEntries.status, "queued"),
+                  eq(battleQueueEntries.status, "conflict")
+                )
+              )
             )
-          )
-        )
-        .orderBy(asc(battles.startsAt)),
-      db
-        .select({
-          battleId: battles.id,
-          challengerArtistUserId: battles.challengerArtistUserId,
-          opponentArtistUserId: battles.opponentArtistUserId,
-          startsAt: battles.startsAt,
-          status: battles.status,
-          title: battles.title,
-        })
-        .from(battles)
-        .where(
-          and(
-            eq(battles.status, "live"),
-            or(
-              eq(battles.challengerArtistUserId, user.id),
-              eq(battles.opponentArtistUserId, user.id)
+            .orderBy(asc(battles.startsAt)),
+          db
+            .select({
+              battleId: battles.id,
+              challengerArtistUserId: battles.challengerArtistUserId,
+              opponentArtistUserId: battles.opponentArtistUserId,
+              startsAt: battles.startsAt,
+              status: battles.status,
+              title: battles.title,
+            })
+            .from(battles)
+            .where(
+              and(
+                eq(battles.status, "live"),
+                or(
+                  eq(battles.challengerArtistUserId, user.id),
+                  eq(battles.opponentArtistUserId, user.id)
+                )
+              )
             )
-          )
-        )
-        .orderBy(asc(battles.startsAt)),
-    ]);
+            .orderBy(asc(battles.startsAt)),
+        ])
+    );
 
   return c.json(
     {

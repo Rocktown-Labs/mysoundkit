@@ -598,7 +598,7 @@ app.openapi(
 
       for (const row of rows) {
         summaries.push({
-          ...(await buildTrackSummary(row.track)),
+          ...(await buildTrackSummary(row.track, row.playCount ?? 0)),
           plays: row.playCount ?? 0,
           regionSlug: regionSlugFromUser(row.state) ?? null,
         });

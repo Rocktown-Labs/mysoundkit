@@ -1267,7 +1267,10 @@ export const projectTracks = pgTable(
       .notNull()
       .references(() => tracks.id, { onDelete: "cascade" }),
   },
-  (table) => [primaryKey({ columns: [table.projectId, table.trackId] })]
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.trackId] }),
+    index("project_tracks_track_id_idx").on(table.trackId),
+  ]
 );
 
 export const projectAssets = pgTable(
@@ -1304,6 +1307,13 @@ export const projectAssets = pgTable(
     version: integer("version").default(1).notNull(),
   },
   (table) => [
+    index("project_assets_cover_lookup_idx").on(
+      table.projectId,
+      table.assetKind,
+      table.isCurrent,
+      table.status,
+      table.updatedAt
+    ),
     index("project_assets_project_id_idx").on(table.projectId),
     uniqueIndex("project_assets_export_identity_idx").on(
       table.projectId,
@@ -2352,8 +2362,18 @@ export const battles = pgTable(
     }),
   },
   (table) => [
+    index("battles_challenger_status_starts_at_idx").on(
+      table.challengerArtistUserId,
+      table.status,
+      table.startsAt
+    ),
     index("battles_external_battle_id_idx").on(table.externalBattleId),
     index("battles_genre_id_idx").on(table.genreId),
+    index("battles_opponent_status_starts_at_idx").on(
+      table.opponentArtistUserId,
+      table.status,
+      table.startsAt
+    ),
   ]
 );
 
@@ -2567,6 +2587,11 @@ export const liveExperiences = pgTable(
     visibility: text("visibility").default("public").notNull(),
   },
   (table) => [
+    index("live_experiences_visibility_status_starts_at_idx").on(
+      table.visibility,
+      table.status,
+      table.startsAt
+    ),
     uniqueIndex("live_experiences_meeting_id_idx").on(table.meetingId),
     index("live_experiences_creator_idx").on(table.createdByUserId),
   ]
