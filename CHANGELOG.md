@@ -42,6 +42,7 @@
 
 ### Fixed
 
+- Fixed production database query starvation by reusing Hyperdrive clients instead of rotating the pool client after every query, retrying transient wrapped database errors, and indexing live queue, live discovery, project-cover, and track-project lookups.
 - Fixed Bio tip Checkout failures caused by Stripe Managed Payments conflicts and hide Tip actions until an artist has enabled charges, payouts, and completed onboarding.
 - Fixed artist profile `Share` button positioning by nesting it cleanly within the right-aligned action flex column, eliminating absolute overlap with `Full Profile`.
 - Fixed mobile navigation tabs obstruction on Bio dashboard by dynamically adjusting tab offset and scroll padding when the bottom audio player is active.

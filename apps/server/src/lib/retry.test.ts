@@ -9,6 +9,15 @@ describe("retry utilities", () => {
     expect(isRetryableError({ status: 400 })).toBe(false);
   });
 
+  it("classifies transient causes wrapped by database errors as retryable", () => {
+    const cause = Object.assign(new Error("connection reset"), {
+        code: "ECONNRESET",
+      }),
+      error = Object.assign(new Error("Failed query"), { cause });
+
+    expect(isRetryableError(error)).toBe(true);
+  });
+
   it("retries retryable failures before returning success", async () => {
     const operation = vi
       .fn<() => Promise<string>>()

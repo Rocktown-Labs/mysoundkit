@@ -74,12 +74,20 @@ const DEFAULT_BASE_DELAY_MS = 100,
     status === 429 ||
     status >= 500;
 
-export const isRetryableError = (error: unknown) => {
+const isRetryableErrorInternal = (
+  error: unknown,
+  seen: Set<object>
+): boolean => {
   if (error instanceof Response) {
     return isRetryableStatus(error.status);
   }
 
   if (error && typeof error === "object") {
+    if (seen.has(error)) {
+      return false;
+    }
+    seen.add(error);
+
     const maybeStatus = "status" in error ? Number(error.status) : Number.NaN;
 
     if (Number.isFinite(maybeStatus) && isRetryableStatus(maybeStatus)) {
@@ -91,7 +99,21 @@ export const isRetryableError = (error: unknown) => {
         ? error.code.toLowerCase()
         : "";
 
-    if (["40001", "40p01", "53300", "57p01", "57p03"].includes(maybeCode)) {
+    if (
+      [
+        "40001",
+        "40p01",
+        "53300",
+        "57p01",
+        "57p03",
+        "econnreset",
+        "etimedout",
+      ].includes(maybeCode)
+    ) {
+      return true;
+    }
+
+    if ("cause" in error && isRetryableErrorInternal(error.cause, seen)) {
       return true;
     }
   }
@@ -101,6 +123,9 @@ export const isRetryableError = (error: unknown) => {
 
   return TRANSIENT_ERROR_PATTERNS.some((pattern) => message.includes(pattern));
 };
+
+export const isRetryableError = (error: unknown) =>
+  isRetryableErrorInternal(error, new Set());
 
 export const withTimeout = async <T>(
   label: string,

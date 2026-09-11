@@ -29,6 +29,7 @@ import { getDatabaseSchemaCapabilities } from "@/lib/database-schema-capabilitie
 import type { SoundKitDatabase } from "@/lib/database-schema-capabilities";
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import { regionSlugFromUser } from "@/lib/public-explore";
+import { withRetry } from "@/lib/retry";
 import {
   resolveTrackAssetFromRows,
   resolveTrackCoverAssetFromRows,
@@ -215,14 +216,38 @@ export const findPublicProjectCoverForTrack = async ({
 }): Promise<ProjectAssetRow | null> => {
   const capabilities = await getDatabaseSchemaCapabilities(db);
   if (capabilities.projectAssetVersioning) {
-    const rows = await db
-      .select({
-        asset: {
-          ...projectAssetColumns,
-          isCurrent: projectAssets.isCurrent,
-          version: projectAssets.version,
-        },
-      })
+    const rows = await withRetry("find public project cover", () =>
+      db
+        .select({
+          asset: {
+            ...projectAssetColumns,
+            isCurrent: projectAssets.isCurrent,
+            version: projectAssets.version,
+          },
+        })
+        .from(projectTracks)
+        .innerJoin(projects, eq(projects.id, projectTracks.projectId))
+        .innerJoin(
+          projectAssets,
+          and(
+            eq(projectAssets.projectId, projectTracks.projectId),
+            eq(projectAssets.assetKind, "cover_art"),
+            eq(projectAssets.isCurrent, true),
+            inArray(projectAssets.status, ["uploaded", "ready"])
+          )
+        )
+        .where(
+          and(eq(projectTracks.trackId, trackId), eq(projects.isPublic, true))
+        )
+        .orderBy(sql`${projectAssets.updatedAt} desc`)
+        .limit(1)
+    );
+    return rows[0] ? normalizeProjectAsset(rows[0].asset) : null;
+  }
+
+  const rows = await withRetry("find public project cover", () =>
+    db
+      .select({ asset: projectAssetColumns })
       .from(projectTracks)
       .innerJoin(projects, eq(projects.id, projectTracks.projectId))
       .innerJoin(
@@ -230,7 +255,6 @@ export const findPublicProjectCoverForTrack = async ({
         and(
           eq(projectAssets.projectId, projectTracks.projectId),
           eq(projectAssets.assetKind, "cover_art"),
-          eq(projectAssets.isCurrent, true),
           inArray(projectAssets.status, ["uploaded", "ready"])
         )
       )
@@ -238,25 +262,8 @@ export const findPublicProjectCoverForTrack = async ({
         and(eq(projectTracks.trackId, trackId), eq(projects.isPublic, true))
       )
       .orderBy(sql`${projectAssets.updatedAt} desc`)
-      .limit(1);
-    return rows[0] ? normalizeProjectAsset(rows[0].asset) : null;
-  }
-
-  const rows = await db
-    .select({ asset: projectAssetColumns })
-    .from(projectTracks)
-    .innerJoin(projects, eq(projects.id, projectTracks.projectId))
-    .innerJoin(
-      projectAssets,
-      and(
-        eq(projectAssets.projectId, projectTracks.projectId),
-        eq(projectAssets.assetKind, "cover_art"),
-        inArray(projectAssets.status, ["uploaded", "ready"])
-      )
-    )
-    .where(and(eq(projectTracks.trackId, trackId), eq(projects.isPublic, true)))
-    .orderBy(sql`${projectAssets.updatedAt} desc`)
-    .limit(1);
+      .limit(1)
+  );
   return rows[0] ? normalizeProjectAsset(rows[0].asset) : null;
 };
 

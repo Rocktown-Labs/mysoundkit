@@ -435,6 +435,13 @@
       "when": 1788633492913,
       "tag": "0061_semantic_hnsw",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1789131856442,
+      "tag": "0062_rapid_golden_guardian",
+      "breakpoints": true
     }
   ]
 }
