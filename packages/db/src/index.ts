@@ -1,3 +1,6 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
+/* eslint-disable one-var */
 import { env } from "@soundkit/env/server";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -20,8 +23,16 @@ const schema = {
   ...referralsSchema,
 };
 
-let db: ReturnType<typeof drizzle> | null = null,
-  pool: Pool | null = null;
+type Database = ReturnType<typeof drizzle>;
+
+interface DatabaseScope {
+  db: Database | null;
+  pool: Pool | null;
+}
+
+const databaseScopeStorage = new AsyncLocalStorage<DatabaseScope>();
+let fallbackDb: Database | null = null,
+  fallbackPool: Pool | null = null;
 
 const getConnectionString = () => {
   if (env.HYPERDRIVE?.connectionString) {
@@ -45,32 +56,85 @@ const getConnectionString = () => {
 export const isDatabaseConfigured = () => getConnectionString().length > 0;
 
 const createPool = () => {
-  const connectionString = getConnectionString();
+    const connectionString = getConnectionString();
 
-  if (!connectionString) {
-    throw new Error("DATABASE_URL is not configured");
-  }
+    if (!connectionString) {
+      throw new Error("DATABASE_URL is not configured");
+    }
 
-  if (!pool) {
-    // Hyperdrive already pools origin connections. Keep this application pool
-    // reusable as well; rotating a client after every query causes high-query
-    // fan-out endpoints to churn through connections and starve unrelated
-    // requests while they wait for a new Hyperdrive client.
-    pool = new Pool({
+    return new Pool({
       connectionString,
+      connectionTimeoutMillis: 5000,
+      idleTimeoutMillis: 5000,
       max: 10,
+      query_timeout: 15_000,
+      statement_timeout: 12_000,
     });
-  }
+  },
+  createScopedDb = (scope: DatabaseScope) => {
+    if (!scope.pool) {
+      scope.pool = createPool();
+    }
 
-  return pool;
-};
+    if (!scope.db) {
+      scope.db = drizzle({ client: scope.pool, schema });
+    }
+
+    return scope.db;
+  };
 
 export const createDb = () => {
-  if (!db) {
-    db = drizzle({ client: createPool(), schema });
+  const scope = databaseScopeStorage.getStore();
+  if (scope) {
+    return createScopedDb(scope);
   }
 
-  return db;
+  // Node scripts and database-backed tests do not have a Worker event scope.
+  // Retain their historical singleton behavior while production handlers use
+  // runWithDatabaseScope to prevent cross-request I/O reuse.
+  if (!fallbackPool) {
+    fallbackPool = createPool();
+  }
+
+  if (!fallbackDb) {
+    fallbackDb = drizzle({ client: fallbackPool, schema });
+  }
+
+  return fallbackDb;
+};
+
+interface DatabaseScopeOptions {
+  cleanupBarrier?: () => Promise<unknown>;
+  deferCleanup?: (cleanup: Promise<void>) => void;
+}
+
+export const runWithDatabaseScope = async <T>(
+  operation: () => Promise<T>,
+  options: DatabaseScopeOptions = {}
+): Promise<T> => {
+  const existingScope = databaseScopeStorage.getStore();
+  if (existingScope) {
+    return await operation();
+  }
+
+  const scope: DatabaseScope = { db: null, pool: null };
+
+  return databaseScopeStorage.run(scope, async () => {
+    try {
+      return await operation();
+    } finally {
+      const cleanup = async () => {
+        await options.cleanupBarrier?.();
+        await scope.pool?.end();
+      };
+
+      if (options.deferCleanup) {
+        options.deferCleanup(cleanup());
+      } else {
+        await cleanup();
+      }
+    }
+  });
 };
 
 export const tryCreateDb = () => {

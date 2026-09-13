@@ -3,7 +3,11 @@ import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { sentry } from "@sentry/hono/cloudflare";
 import { createAuth } from "@soundkit/auth";
-import { createDb, isDatabaseConfigured } from "@soundkit/db";
+import {
+  createDb,
+  isDatabaseConfigured,
+  runWithDatabaseScope,
+} from "@soundkit/db";
 import { env } from "@soundkit/env/server";
 import { sql } from "drizzle-orm";
 import { cors } from "hono/cors";
@@ -314,73 +318,107 @@ const buildMonthlyDigestJobs = (
 
 export type { AppType } from "./rpc-contract";
 
+const trackBackgroundTasks = (
+  executionContext: ExecutionContext,
+  backgroundTasks: Set<Promise<unknown>>
+): ExecutionContext =>
+  new Proxy(executionContext, {
+    get: (target, property) => {
+      if (property === "waitUntil") {
+        return (promise: Promise<unknown>) => {
+          backgroundTasks.add(promise);
+          target.waitUntil(promise);
+        };
+      }
+
+      const value = Reflect.get(target, property);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+
 export default {
-  fetch: (request, workerEnv, executionContext) =>
-    app.fetch(request, workerEnv, executionContext),
-  queue: (batch, workerEnv) => {
-    if (batch.queue.includes(LIVE_NOTIFICATION_QUEUE_NAME)) {
-      return handleLiveNotificationQueue(
-        batch as unknown as MessageBatch<LiveNotificationQueueMessage>,
-        workerEnv.EMAIL_DELIVERY_QUEUE
+  fetch: async (request, workerEnv, executionContext) => {
+    const backgroundTasks = new Set<Promise<unknown>>(),
+      trackedExecutionContext = trackBackgroundTasks(
+        executionContext,
+        backgroundTasks
       );
-    }
 
-    if (batch.queue.includes(NOTIFICATION_QUEUE_NAME)) {
-      return handleNotificationQueue(
-        batch as unknown as MessageBatch<NotificationQueueMessage>,
-        workerEnv.EMAIL_DELIVERY_QUEUE
-      );
-    }
-
-    if (isTrackDurationBackfillQueueName(batch.queue)) {
-      return handleTrackDurationBackfillQueue(
-        batch as unknown as MessageBatch<DurationBackfillQueueMessage>
-      );
-    }
-
-    return handleEmailDeliveryQueue(
-      batch as unknown as MessageBatch<EmailDeliveryQueueMessage>
+    return await runWithDatabaseScope(
+      async () => await app.fetch(request, workerEnv, trackedExecutionContext),
+      {
+        cleanupBarrier: () => Promise.allSettled(backgroundTasks),
+        deferCleanup: (cleanup) => executionContext.waitUntil(cleanup),
+      }
     );
   },
+  queue: async (batch, workerEnv) =>
+    await runWithDatabaseScope(async () => {
+      if (batch.queue.includes(LIVE_NOTIFICATION_QUEUE_NAME)) {
+        return await handleLiveNotificationQueue(
+          batch as unknown as MessageBatch<LiveNotificationQueueMessage>,
+          workerEnv.EMAIL_DELIVERY_QUEUE
+        );
+      }
+
+      if (batch.queue.includes(NOTIFICATION_QUEUE_NAME)) {
+        return await handleNotificationQueue(
+          batch as unknown as MessageBatch<NotificationQueueMessage>,
+          workerEnv.EMAIL_DELIVERY_QUEUE
+        );
+      }
+
+      if (isTrackDurationBackfillQueueName(batch.queue)) {
+        return await handleTrackDurationBackfillQueue(
+          batch as unknown as MessageBatch<DurationBackfillQueueMessage>
+        );
+      }
+
+      return await handleEmailDeliveryQueue(
+        batch as unknown as MessageBatch<EmailDeliveryQueueMessage>
+      );
+    }),
   scheduled: (_controller, workerEnv, executionContext) => {
     const now = new Date();
 
     executionContext.waitUntil(
-      Promise.allSettled([
-        runBattleServiceSweep({
-          battleDirectory: workerEnv.BATTLE_DIRECTORY,
-          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
-        }),
-        runCollaborationProposalSweep(),
-        runOpenVerseSweep({
-          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
-        }),
-        runCreatorRewardsSettlement({
-          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
-        }),
-        // Digests send on their send-day only (weekly = Monday UTC covering
-        // Mon-Sun with Sunday as day 7; monthly = first three days of the
-        // month covering the prior month). Period-anchored idempotency keys
-        // keep the 5-minute schedule from double-sending within a day.
-        ...buildWeeklyDigestJobs(workerEnv, now),
-        ...buildMonthlyDigestJobs(workerEnv, now),
-        runCheckoutReconciliation(),
-        runOrphanedUploadSweep({ bucket: workerEnv.MEDIA_BUCKET }),
-        scheduleDuePayoutRuns({
-          workflow: workerEnv.PAYOUT_RUN_WORKFLOW,
-        }),
-        publishDueLiveRecordings(),
-        enqueueLegacyMediaBackfill({
-          batchSize: 25,
-          bucket: workerEnv.MEDIA_BUCKET,
-          workflow: workerEnv.MEDIA_PROCESSING_WORKFLOW,
-        }),
-        sendDueOnboardingReminders(),
-        retryDueEmailDeliveries({ queue: workerEnv.EMAIL_DELIVERY_QUEUE }),
-        publishDueTrackReleases({
-          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
-        }),
-      ])
+      runWithDatabaseScope(async () => {
+        await Promise.allSettled([
+          runBattleServiceSweep({
+            battleDirectory: workerEnv.BATTLE_DIRECTORY,
+            emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+          }),
+          runCollaborationProposalSweep(),
+          runOpenVerseSweep({
+            emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+          }),
+          runCreatorRewardsSettlement({
+            emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+          }),
+          // Digests send on their send-day only (weekly = Monday UTC covering
+          // Mon-Sun with Sunday as day 7; monthly = first three days of the
+          // month covering the prior month). Period-anchored idempotency keys
+          // keep the 5-minute schedule from double-sending within a day.
+          ...buildWeeklyDigestJobs(workerEnv, now),
+          ...buildMonthlyDigestJobs(workerEnv, now),
+          runCheckoutReconciliation(),
+          runOrphanedUploadSweep({ bucket: workerEnv.MEDIA_BUCKET }),
+          scheduleDuePayoutRuns({
+            workflow: workerEnv.PAYOUT_RUN_WORKFLOW,
+          }),
+          publishDueLiveRecordings(),
+          enqueueLegacyMediaBackfill({
+            batchSize: 25,
+            bucket: workerEnv.MEDIA_BUCKET,
+            workflow: workerEnv.MEDIA_PROCESSING_WORKFLOW,
+          }),
+          sendDueOnboardingReminders(),
+          retryDueEmailDeliveries({ queue: workerEnv.EMAIL_DELIVERY_QUEUE }),
+          publishDueTrackReleases({
+            emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+          }),
+        ]);
+      })
     );
   },
 } satisfies ExportedHandler<AppEnv["Bindings"]>;
