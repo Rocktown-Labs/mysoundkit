@@ -10,6 +10,8 @@ import {
   demucsTargetKeys,
   finalizeTrackEnrichment,
   findCurrentDemucsStems,
+  isCurrentEnrichmentSource,
+  markTrackLyricsFailed,
   saveDemucsStemAsset,
   transcribeDemucsVocals,
 } from "@/lib/audio-processing";
@@ -128,6 +130,7 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
               workflowInstanceId: event.instanceId,
               workflowType: "track_enrichment",
             });
+            await markTrackLyricsFailed(payload.trackId);
             logError({
               error: masterCheck.message,
               errorCode: masterCheck.errorCode,
@@ -221,14 +224,16 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
 
       const targets = demucsTargetKeys({
           pipelineVersion: payload.pipelineVersion,
+          sourceAssetId: payload.sourceAssetId,
           trackId: payload.trackId,
         }),
         jobId = `demucs:${payload.sourceAssetId}:v${payload.pipelineVersion}`;
 
-      let vocalsAssetId: string | null =
-        existingStems.vocals && existingStems.instrumental
-          ? existingStems.vocals.id
-          : null;
+      let previewObjectKey: string | null = targets.previewKey,
+        vocalsAssetId: string | null =
+          existingStems.vocals && existingStems.instrumental
+            ? existingStems.vocals.id
+            : null;
       if (vocalsAssetId) {
         await step.do("record stem reuse", async () => {
           await updateMediaProcessingJob({
@@ -258,36 +263,62 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
             const result = await separator.separate({
               sourceObjectKey: payload.objectKey,
               targetInstrumentalKey: targets.instrumentalKey,
+              targetPreviewKey: targets.previewKey,
               targetVocalsKey: targets.vocalsKey,
             });
             return {
               instrumental: result.instrumental,
+              preview: result.preview ?? null,
               vocals: result.vocals,
             };
           }
         );
 
-        const { vocalsAssetId: separatedVocalsAssetId } = await step.do(
-          "register stem assets",
-          async () => {
-            const vocals = await saveDemucsStemAsset({
-              assetKind: "vocal_stem",
-              pipelineVersion: payload.pipelineVersion,
-              separation: separation.vocals,
-              sourceAssetId: payload.sourceAssetId,
-              trackId: payload.trackId,
-            });
-            await saveDemucsStemAsset({
-              assetKind: "instrumental",
-              pipelineVersion: payload.pipelineVersion,
-              separation: separation.instrumental,
-              sourceAssetId: payload.sourceAssetId,
-              trackId: payload.trackId,
-            });
-            return { vocalsAssetId: vocals?.id ?? null };
+        const registered = await step.do("register stem assets", async () => {
+          // A newer master may have settled during the long separation:
+          // never promote stale stems (or their lyrics) to current.
+          if (!(await isCurrentEnrichmentSource(payload.sourceAssetId))) {
+            return { stale: true as const, vocalsAssetId: null };
           }
-        );
+          const vocals = await saveDemucsStemAsset({
+            assetKind: "vocal_stem",
+            pipelineVersion: payload.pipelineVersion,
+            separation: separation.vocals,
+            sourceAssetId: payload.sourceAssetId,
+            trackId: payload.trackId,
+          });
+          await saveDemucsStemAsset({
+            assetKind: "instrumental",
+            pipelineVersion: payload.pipelineVersion,
+            separation: separation.instrumental,
+            sourceAssetId: payload.sourceAssetId,
+            trackId: payload.trackId,
+          });
+          return { stale: false as const, vocalsAssetId: vocals?.id ?? null };
+        });
+        const { stale, vocalsAssetId: separatedVocalsAssetId } = registered;
+        if (stale) {
+          await step.do("record superseded enrichment", async () => {
+            await updateMediaProcessingJob({
+              completedAt: new Date(),
+              currentStage: "skipped",
+              output: { reason: "superseded_master" },
+              progressPercent: 100,
+              status: "ready",
+              workflowInstanceId: event.instanceId,
+              workflowType: "track_enrichment",
+            });
+            logInfo({
+              event: "track_enrichment_skipped_superseded",
+              sourceAssetId: payload.sourceAssetId,
+              trackId: payload.trackId,
+              workflowInstanceId: event.instanceId,
+            });
+          });
+          return { reason: "superseded_master", status: "skipped" };
+        }
         vocalsAssetId = separatedVocalsAssetId;
+        previewObjectKey = separation.preview?.objectKey ?? targets.previewKey;
       }
 
       const lyrics = await step.do(
@@ -301,6 +332,7 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
             ai: (this.env as unknown as { AI?: Ai }).AI,
             assetId: vocalsAssetId,
             bucket: this.env.MEDIA_BUCKET,
+            previewObjectKey,
             trackId: payload.trackId,
           });
           return revision ? { id: revision.id, text: revision.text } : null;
@@ -355,6 +387,7 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
           workflowInstanceId: event.instanceId,
           workflowType: "track_enrichment",
         });
+        await markTrackLyricsFailed(payload.trackId);
         logError({
           error: error instanceof Error ? error.message : "Enrichment failed.",
           event: "track_enrichment_failed",

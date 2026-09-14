@@ -1165,9 +1165,11 @@ function TrackDetailPage() {
           <LyricsWorkspace
             initialLyrics={trackQueryData.lyrics}
             initialRevision={trackQueryData.lyricsRevision}
-            instrumentalReady={assets.some(
-              (asset) => asset.assetKind === "instrumental"
-            )}
+            instrumentalReady={
+              "instrumentalReady" in trackQueryData
+                ? Boolean(trackQueryData.instrumentalReady)
+                : assets.some((asset) => asset.assetKind === "instrumental")
+            }
             isTranscribing={isTranscribing}
             lyricsStatus={
               "lyricsStatus" in trackQueryData
@@ -1177,7 +1179,11 @@ function TrackDetailPage() {
             masterAssetExists={Boolean(masterAsset)}
             onRefetchTrack={() => trackQuery.refetch()}
             onTranscribe={handleTranscribe}
-            stemReady={assets.some((asset) => asset.assetKind === "vocal_stem")}
+            stemReady={
+              "stemReady" in trackQueryData
+                ? Boolean(trackQueryData.stemReady)
+                : assets.some((asset) => asset.assetKind === "vocal_stem")
+            }
             trackId={trackQueryData.id}
           />
         </TabsContent>

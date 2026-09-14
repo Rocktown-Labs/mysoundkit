@@ -5,6 +5,11 @@ INTERNAL_R2_ORIGIN = "http://soundkit-r2.internal"
 VOCALS_STEM_NAME = "vocals"
 INSTRUMENTAL_STEM_NAME = "no_vocals"
 MP3_BITRATE = "320k"
+# Transcription proxy: 16 kHz mono is all Whisper needs (it resamples
+# internally), so lyrics for a full song fit one Workers AI call.
+PREVIEW_SAMPLE_RATE = "16000"
+PREVIEW_CHANNELS = "1"
+PREVIEW_BITRATE = "64k"
 
 
 def is_valid_object_key(value):
@@ -53,6 +58,24 @@ def build_ffmpeg_mp3_command(wav_path, mp3_path):
     ]
 
 
+def build_ffmpeg_preview_command(wav_path, preview_path):
+    return [
+        "ffmpeg",
+        "-y",
+        "-i",
+        wav_path,
+        "-ar",
+        PREVIEW_SAMPLE_RATE,
+        "-ac",
+        PREVIEW_CHANNELS,
+        "-codec:a",
+        "libmp3lame",
+        "-b:a",
+        PREVIEW_BITRATE,
+        preview_path,
+    ]
+
+
 def object_url(object_key):
     from urllib.parse import quote
 
@@ -60,12 +83,13 @@ def object_url(object_key):
 
 
 def check_separate_payload(body):
-    """Return (source, vocals, instrumental) or raise ValueError."""
+    """Return (source, vocals, instrumental, preview_or_None) or raise."""
     if not isinstance(body, dict):
         raise ValueError("Request body must be a JSON object.")
     source = body.get("sourceObjectKey")
     vocals = body.get("targetVocalsKey")
     instrumental = body.get("targetInstrumentalKey")
+    preview = body.get("targetPreviewKey")
     for label, value in (
         ("sourceObjectKey", source),
         ("targetVocalsKey", vocals),
@@ -73,4 +97,6 @@ def check_separate_payload(body):
     ):
         if not is_valid_object_key(value):
             raise ValueError(f"{label} is invalid.")
-    return source, vocals, instrumental
+    if preview is not None and not is_valid_object_key(preview):
+        raise ValueError("targetPreviewKey is invalid.")
+    return source, vocals, instrumental, preview

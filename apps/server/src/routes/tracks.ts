@@ -40,6 +40,7 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { playConditionSql } from "@/lib/analytics-helpers";
 import { guardedTrackPlaybackUrl, publicAssetUrl } from "@/lib/asset-urls";
+import { isTrackEnrichmentCurrent } from "@/lib/audio-processing";
 import {
   resolveDownloadAccess,
   resolveListeningAccess,
@@ -460,7 +461,30 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
     }
 
     const db = createDb(),
-      stemJobId = `stem:${masterAsset.id}:v${ENRICHMENT_PIPELINE_VERSION}`;
+      stemJobId = `stem:${masterAsset.id}:v${ENRICHMENT_PIPELINE_VERSION}`,
+      [existingJob] = await db
+        .select()
+        .from(trackStemJobs)
+        .where(eq(trackStemJobs.inputAssetId, masterAsset.id))
+        .limit(1);
+    // A completed job row only proves a run finished: lyrics are current
+    // only with both v2 stems plus machine lyrics from this exact master
+    // (or approved lyrics). Anything else must rerun instead of reporting
+    // "already current".
+    if (
+      existingJob?.status === "completed" &&
+      (await isTrackEnrichmentCurrent({
+        pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
+        sourceAssetId: masterAsset.id,
+        trackId,
+      }))
+    ) {
+      return {
+        jobId: existingJob.id,
+        message: "Track enrichment is already current.",
+        status: "completed" as const,
+      };
+    }
     await withRetry("ensure current stem job", () =>
       db
         .insert(trackStemJobs)
@@ -490,9 +514,6 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
     if (!job) {
       throw new Error("Unable to create track enrichment job.");
     }
-    // A completed job row only proves stems finished: transcription may have
-    // failed (lyricsStatus failed / no machine lyrics), in which case the
-    // Lyrics tab retry must rerun Workers AI against the reusable stems.
     const [machineLyrics] = await db
       .select({ id: trackLyrics.id })
       .from(trackLyrics)
@@ -503,13 +524,6 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
         )
       )
       .limit(1);
-    if (job.status === "completed" && machineLyrics) {
-      return {
-        jobId: job.id,
-        message: "Track enrichment is already current.",
-        status: "completed" as const,
-      };
-    }
 
     await withRetry("mark lyrics generating", () =>
       db

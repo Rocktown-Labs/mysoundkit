@@ -15,6 +15,7 @@ const CONTAINER_BOOT_TIMEOUT_MS = 60_000,
   }),
   separateResponseSchema = z.object({
     instrumental: stemOutputSchema,
+    preview: stemOutputSchema.optional(),
     vocals: stemOutputSchema,
   });
 
@@ -23,6 +24,7 @@ export type StemSeparateResult = z.infer<typeof separateResponseSchema>;
 export interface SeparateStemsInput {
   sourceObjectKey: string;
   targetInstrumentalKey: string;
+  targetPreviewKey?: string;
   targetVocalsKey: string;
   /** Stable per-track name so retries land on the same container. */
   workflowInstanceId: string;
@@ -47,9 +49,14 @@ export class ContainerStemSeparator {
   public async separate(
     input: Omit<SeparateStemsInput, "workflowInstanceId">
   ): Promise<StemSeparateResult> {
+    const targetObjectKeys = [
+      input.targetVocalsKey,
+      input.targetInstrumentalKey,
+      ...(input.targetPreviewKey ? [input.targetPreviewKey] : []),
+    ];
     await this.container.configureJob({
       sourceObjectKey: input.sourceObjectKey,
-      targetObjectKeys: [input.targetVocalsKey, input.targetInstrumentalKey],
+      targetObjectKeys,
     });
     let response: Response;
     try {
@@ -58,6 +65,7 @@ export class ContainerStemSeparator {
           body: JSON.stringify({
             sourceObjectKey: input.sourceObjectKey,
             targetInstrumentalKey: input.targetInstrumentalKey,
+            targetPreviewKey: input.targetPreviewKey,
             targetVocalsKey: input.targetVocalsKey,
           }),
           headers: { "content-type": "application/json" },
@@ -97,7 +105,9 @@ export class ContainerStemSeparator {
     }
     if (
       parsed.data.vocals.objectKey !== input.targetVocalsKey ||
-      parsed.data.instrumental.objectKey !== input.targetInstrumentalKey
+      parsed.data.instrumental.objectKey !== input.targetInstrumentalKey ||
+      (input.targetPreviewKey &&
+        parsed.data.preview?.objectKey !== input.targetPreviewKey)
     ) {
       throw new Error("Stem separator returned unexpected object keys.");
     }

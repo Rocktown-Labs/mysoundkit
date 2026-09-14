@@ -13,7 +13,7 @@ import {
   tracks,
   userProfiles,
 } from "@soundkit/db/schema/app";
-import { and, desc, eq, ilike, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, lt, ne, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -1427,7 +1427,21 @@ app.openapi(
         status: "queued",
         trackId: listing.trackId,
       })
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        set: {
+          outputFormat: "MP3",
+          outputType: "BOTH",
+          status: "queued",
+          updatedAt: new Date(),
+        },
+        target: [trackStemJobs.inputAssetId],
+      });
+    await db
+      .update(tracks)
+      .set({ lyricsStatus: "generating", updatedAt: new Date() })
+      .where(
+        and(eq(tracks.id, listing.trackId), ne(tracks.lyricsStatus, "approved"))
+      );
     try {
       const enrichment = await ensureTrackEnrichmentWorkflow({
         payload: {

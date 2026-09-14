@@ -19,6 +19,7 @@ from separator import (
     VOCALS_STEM_NAME,
     build_demucs_command,
     build_ffmpeg_mp3_command,
+    build_ffmpeg_preview_command,
     check_separate_payload,
     object_url,
 )
@@ -68,15 +69,24 @@ def _upload(local_path, object_key, content_type="audio/mpeg"):
 
 
 def _run(cmd, timeout):
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError(
+            f"Command timed out after {timeout}s ({' '.join(cmd[:4])}): {error}"
+        ) from error
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout or "")[-2000:]
         raise RuntimeError(f"Command failed ({' '.join(cmd[:4])}): {detail}")
     return proc
 
 
-def separate(source_key, vocals_key, instrumental_key):
-    """Download master, run Demucs, transcode + upload vocals/instrumental mp3s."""
+def separate(source_key, vocals_key, instrumental_key, preview_key=None):
+    """Download master, run Demucs, transcode + upload vocals/instrumental.
+
+    When preview_key is given, also uploads a 16 kHz mono transcription
+    proxy of the vocals so lyrics fit one Workers AI call.
+    """
     workdir = tempfile.mkdtemp(prefix="stemsep-")
     try:
         input_path = os.path.join(workdir, "input")
@@ -110,13 +120,28 @@ def separate(source_key, vocals_key, instrumental_key):
         )
         vocals_bytes = _upload(vocals_mp3, vocals_key)
         instrumental_bytes = _upload(instrumental_mp3, instrumental_key)
-        return {
+        result = {
             "vocals": {"objectKey": vocals_key, "sizeBytes": vocals_bytes},
             "instrumental": {
                 "objectKey": instrumental_key,
                 "sizeBytes": instrumental_bytes,
             },
         }
+        if preview_key:
+            preview_mp3 = os.path.join(workdir, "vocals-preview.mp3")
+            _run(
+                build_ffmpeg_preview_command(
+                    os.path.join(stem_dir, f"{VOCALS_STEM_NAME}.wav"),
+                    preview_mp3,
+                ),
+                FFMPEG_TIMEOUT_SECONDS,
+            )
+            preview_bytes = _upload(preview_mp3, preview_key)
+            result["preview"] = {
+                "objectKey": preview_key,
+                "sizeBytes": preview_bytes,
+            }
+        return result
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 
@@ -153,14 +178,20 @@ class Handler(BaseHTTPRequestHandler):
         try:
             try:
                 body = self._read_json()
-                source, vocals, instrumental = check_separate_payload(body)
+                source, vocals, instrumental, preview = check_separate_payload(
+                    body
+                )
             except ValueError as error:
                 _json(self, 400, {"message": str(error)})
                 return
             try:
-                result = separate(source, vocals, instrumental)
+                result = separate(source, vocals, instrumental, preview)
             except RuntimeError as error:
                 _json(self, 500, {"message": str(error)[:2000]})
+                return
+            except BrokenPipeError:
+                # Client went away mid-response; job result is lost but the
+                # Workflow step will time out and surface a retryable error.
                 return
             _json(self, 200, result)
         finally:

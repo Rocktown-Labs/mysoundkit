@@ -24,6 +24,7 @@ import type {
 import {
   ensureMediaProcessingWorkflowBatch,
   ensureTrackEnrichmentWorkflowBatch,
+  restartStuckEnrichmentInstances,
 } from "./media-processing-jobs";
 
 const MAX_BACKFILL_BATCH_SIZE = 100,
@@ -235,9 +236,14 @@ export const enqueueLyricsEnrichmentBackfill = async ({
   batchSize?: number;
   ownerUserId?: string;
   workflow: null | Workflow<TrackEnrichmentWorkflowPayload> | undefined;
-}) => {
+}): Promise<{
+  created: number;
+  requested: number;
+  restarted: number;
+  scanned: number;
+}> => {
   if (!isDatabaseConfigured()) {
-    return { created: 0, requested: 0, scanned: 0 };
+    return { created: 0, requested: 0, restarted: 0, scanned: 0 };
   }
 
   const db = createDb(),
@@ -339,20 +345,29 @@ export const enqueueLyricsEnrichmentBackfill = async ({
     trackId: master.trackId,
   }));
   if (payloads.length === 0) {
-    return { created: 0, requested: 0, scanned: masters.length };
+    return { created: 0, requested: 0, restarted: 0, scanned: masters.length };
   }
   const result = await ensureTrackEnrichmentWorkflowBatch({
-    payloads,
-    workflow,
-  });
+      payloads,
+      workflow,
+    }),
+    // createBatch skips existing ids: restart errored/terminated runs and
+    // completed runs whose outputs are still missing (eligible by
+    // construction above).
+    restarted = await restartStuckEnrichmentInstances({
+      includeComplete: true,
+      payloads,
+      workflow,
+    });
   logInfo({
     created: result.created,
     event: "lyrics_enrichment_backfill_started",
     ownerUserId: ownerUserId ?? "all",
     requested: result.requested,
+    restarted: restarted.length,
     scanned: masters.length,
   });
-  return { ...result, scanned: masters.length };
+  return { ...result, restarted: restarted.length, scanned: masters.length };
 };
 
 /** @deprecated Renamed to enqueueLyricsEnrichmentBackfill (#257). */

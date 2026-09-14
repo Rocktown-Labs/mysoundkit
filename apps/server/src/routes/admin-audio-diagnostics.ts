@@ -3,6 +3,7 @@ import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   audioDiagnosticJobs,
+  mediaProcessingJobs,
   trackAssets,
   trackStemJobs,
   tracks,
@@ -26,12 +27,12 @@ import {
   enqueueLyricsEnrichmentBackfill,
   findEnrichedSourceIds,
 } from "@/lib/media-backfill";
-import {
-  ENRICHMENT_PIPELINE_VERSION,
-  trackEnrichmentWorkflowInstanceId,
-} from "@/lib/media-pipeline";
+import { ENRICHMENT_PIPELINE_VERSION } from "@/lib/media-pipeline";
 import type { TrackEnrichmentWorkflowPayload } from "@/lib/media-pipeline";
-import { ensureTrackEnrichmentWorkflowBatch } from "@/lib/media-processing-jobs";
+import {
+  ensureTrackEnrichmentWorkflowBatch,
+  restartStuckEnrichmentInstances,
+} from "@/lib/media-processing-jobs";
 import { ContainerMediaProcessor } from "@/lib/media-processor";
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
@@ -275,6 +276,7 @@ const syncLyricsStemsBodySchema = z.object({
   }),
   syncLyricsStemsResponseSchema = z.object({
     queuedCount: z.number().int(),
+    skippedCount: z.number().int(),
     trackIds: z.string().array(),
   });
 
@@ -318,7 +320,8 @@ app.openapi(
       });
       return c.json(
         {
-          queuedCount: result.created,
+          queuedCount: result.created + result.restarted,
+          skippedCount: 0,
           trackIds: [],
         },
         HttpStatusCodes.ACCEPTED
@@ -326,7 +329,10 @@ app.openapi(
     }
 
     if (!isDatabaseConfigured()) {
-      return c.json({ queuedCount: 0, trackIds: [] }, HttpStatusCodes.ACCEPTED);
+      return c.json(
+        { queuedCount: 0, skippedCount: 0, trackIds: [] },
+        HttpStatusCodes.ACCEPTED
+      );
     }
     const db = createDb(),
       masters = await db
@@ -360,7 +366,33 @@ app.openapi(
         : masters.filter(
             (master) => !enrichedExplicitSources.has(master.sourceAssetId)
           );
-    for (const master of targets) {
+    // Never overlap a running/queued enrichment for the same source: the
+    // two runs would race on output objects, assets, and final lyrics.
+    const activeExplicitSources = new Set<string>();
+    if (targets.length > 0) {
+      const activeRows = await db
+        .select({ sourceAssetId: mediaProcessingJobs.sourceAssetId })
+        .from(mediaProcessingJobs)
+        .where(
+          and(
+            inArray(
+              mediaProcessingJobs.sourceAssetId,
+              targets.map((master) => master.sourceAssetId)
+            ),
+            eq(mediaProcessingJobs.workflowType, "track_enrichment"),
+            inArray(mediaProcessingJobs.status, ["queued", "running"])
+          )
+        );
+      for (const row of activeRows) {
+        if (row.sourceAssetId) {
+          activeExplicitSources.add(row.sourceAssetId);
+        }
+      }
+    }
+    const runnable = targets.filter(
+      (master) => !activeExplicitSources.has(master.sourceAssetId)
+    );
+    for (const master of runnable) {
       await db
         .insert(trackStemJobs)
         .values({
@@ -381,7 +413,7 @@ app.openapi(
           target: [trackStemJobs.inputAssetId],
         });
     }
-    const payloads = targets
+    const payloads = runnable
         .filter((master) => master.objectKey)
         .map((master): TrackEnrichmentWorkflowPayload => ({
           objectKey: master.objectKey as string,
@@ -393,34 +425,20 @@ app.openapi(
       result = await ensureTrackEnrichmentWorkflowBatch({
         payloads,
         workflow,
+      }),
+      // createBatch skips existing ids: restart errored/terminated runs and
+      // completed runs whose outputs are still missing (missing-only targets
+      // qualify by construction; force targets always do).
+      restarted = await restartStuckEnrichmentInstances({
+        includeComplete: true,
+        payloads,
+        workflow,
       });
-    // createBatch skips existing ids: restart errored/terminated runs (and,
-    // on force, completed ones) so selected tracks are actually repaired.
-    let restarted = 0;
-    if (workflow) {
-      for (const payload of payloads) {
-        try {
-          const instance = await workflow.get(
-              trackEnrichmentWorkflowInstanceId(payload)
-            ),
-            state = await instance.status();
-          if (
-            state.status === "errored" ||
-            state.status === "terminated" ||
-            (force && state.status === "complete")
-          ) {
-            await instance.restart();
-            restarted += 1;
-          }
-        } catch {
-          // Missing instances are already handled by createBatch.
-        }
-      }
-    }
     return c.json(
       {
-        queuedCount: result.created + restarted,
-        trackIds: targets.map((master) => master.trackId),
+        queuedCount: result.created + restarted.length,
+        skippedCount: targets.length - runnable.length,
+        trackIds: runnable.map((master) => master.trackId),
       },
       HttpStatusCodes.ACCEPTED
     );

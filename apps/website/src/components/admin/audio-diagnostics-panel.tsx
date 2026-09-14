@@ -217,11 +217,20 @@ export function AudioDiagnosticsPanel() {
                     });
                   },
                   onSuccess: (result) => {
-                    toast({
-                      description:
+                    const skipped =
+                        "skippedCount" in result &&
+                        typeof result.skippedCount === "number"
+                          ? result.skippedCount
+                          : 0,
+                      detail =
                         selected.length > 0
                           ? `Queued ${result.queuedCount} selected track${result.queuedCount === 1 ? "" : "s"}.`
-                          : `Queued ${result.queuedCount} tracks missing lyrics or stems.`,
+                          : `Queued ${result.queuedCount} tracks missing lyrics or stems.`;
+                    toast({
+                      description:
+                        skipped > 0
+                          ? `${detail} ${skipped} skipped (already running).`
+                          : detail,
                       title: "Sync queued",
                     });
                   },

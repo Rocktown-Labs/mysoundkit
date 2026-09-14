@@ -1212,7 +1212,11 @@ export const rpcContract = new Hono()
   .post(
     "/v1/admin/audio-diagnostics/sync-lyrics-stems",
     jsonValidator(genericJsonBodySchema),
-    (c) => c.json({} as { queuedCount: number; trackIds: string[] }, 202)
+    (c) =>
+      c.json(
+        {} as { queuedCount: number; skippedCount: number; trackIds: string[] },
+        202
+      )
   )
   .post(
     "/v1/admin/embeddings/backfill",
