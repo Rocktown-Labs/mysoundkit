@@ -21,7 +21,7 @@ catalog:
   zod: ^4.1.13
   "@types/node": ^22.13.14
   "@cloudflare/workers-types": ^4.20251213.0
-  better-auth: 1.5.5
+  better-auth: 1.7.4
   ai: ^6.0.3
   alchemy: ^0.90.0
   wrangler: ^4.77.0
@@ -32,7 +32,15 @@ catalog:
   "@tanstack/react-form": ^1.28.0
   "@ai-sdk/react": ^3.0.3
   "@types/react-dom": ^19.2.3
-  "@better-auth/expo": 1.5.5
+  "@better-auth/expo": 1.7.4
+
+overrides:
+  "@hono/node-server": ^1.19.15
+  "@vitest/mocker": ^4.1.11
+  fast-xml-parser: ^5.11.1
+  hono: ^4.13.7
+  next: ^16.3.3
+  vitest: ^4.1.11
 
 minimumReleaseAgeExclude:
   - electron@44.1.1

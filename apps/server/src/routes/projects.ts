@@ -37,6 +37,7 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 import { indexSearchEntity } from "@/lib/audio-processing";
 import {
   buildProjectDetail,
+  buildProjectSummaries,
   buildProjectSummary,
   ownedProjectWhere,
 } from "@/lib/dashboard-mappers";
@@ -262,11 +263,7 @@ app.openapi(
         .where(projectVisibilityWhere)
         .orderBy(desc(projects.updatedAt))
         .limit(100),
-      summaries = [];
-
-    for (const row of rows) {
-      summaries.push(await buildProjectSummary(row));
-    }
+      summaries = await buildProjectSummaries(rows);
 
     return c.json(summaries, HttpStatusCodes.OK);
   }
@@ -338,15 +335,9 @@ app.openapi(
         .where(and(...publicProjectConditions))
         .orderBy(projectOrderBy(query.sort))
         .limit(100),
-      summaries = [];
-
-    for (const { project } of rows) {
-      const summary = await buildProjectSummary(project);
-
-      if (projectMatchesExploreFilters(summary, query, true)) {
-        summaries.push(summary);
-      }
-    }
+      summaries = (
+        await buildProjectSummaries(rows.map(({ project }) => project))
+      ).filter((summary) => projectMatchesExploreFilters(summary, query, true));
 
     return c.json(summaries.slice(0, query.limit), HttpStatusCodes.OK);
   }

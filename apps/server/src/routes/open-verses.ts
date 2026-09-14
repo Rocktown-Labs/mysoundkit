@@ -20,7 +20,7 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { isAdminUser } from "@/lib/admin";
 import { publicAssetUrl } from "@/lib/asset-urls";
-import { buildTrackSummary } from "@/lib/dashboard-mappers";
+import { buildTrackSummaries } from "@/lib/dashboard-mappers";
 import { getDisplayNameForUser } from "@/lib/email-events";
 import {
   isAuthenticatedSession,
@@ -198,17 +198,23 @@ const app = new OpenAPIHono<AppEnv>(),
         .orderBy(desc(openVerseListings.createdAt))
         .limit(query.limit + 1),
       pageRows = rows.slice(0, query.limit),
+      trackSummaries = await buildTrackSummaries(
+        pageRows.map((row) => ({ row: row.track }))
+      ),
       items = [];
 
-    for (const row of pageRows) {
-      const trackSummary = await buildTrackSummary(row.track),
-        [clipAsset] = row.previewAssetId
-          ? await db
-              .select()
-              .from(trackAssets)
-              .where(eq(trackAssets.id, row.previewAssetId))
-              .limit(1)
-          : [];
+    for (const [index, row] of pageRows.entries()) {
+      const trackSummary = trackSummaries[index];
+      if (!trackSummary) {
+        continue;
+      }
+      const [clipAsset] = row.previewAssetId
+        ? await db
+            .select()
+            .from(trackAssets)
+            .where(eq(trackAssets.id, row.previewAssetId))
+            .limit(1)
+        : [];
       items.push({
         accessMode: row.accessMode,
         artistName: row.artistName ?? "SoundKit Artist",

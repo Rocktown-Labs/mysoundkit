@@ -14,7 +14,10 @@ import { and, count, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
-import { buildTrackSummary } from "@/lib/dashboard-mappers";
+import {
+  buildTrackSummaries,
+  buildTrackSummary,
+} from "@/lib/dashboard-mappers";
 import { unauthorizedMessage } from "@/lib/entitlements";
 import {
   fallbackArtistSlug,
@@ -41,30 +44,6 @@ import {
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
-  toRecentTrack = async ({
-    lastPlayedAt,
-    playCount,
-    track,
-  }: {
-    lastPlayedAt: Date;
-    playCount: number;
-    track: typeof tracks.$inferSelect;
-  }) => {
-    const summary = await buildTrackSummary(track);
-
-    return {
-      artist: summary.artistName,
-      artistSlug: summary.artistUsername ?? fallbackArtistSlug,
-      cover: summary.coverArtUrl ?? fallbackCover,
-      duration: summary.duration,
-      id: summary.id,
-      lastPlayed: lastPlayedAt.toISOString(),
-      regionSlug: summary.regionSlug ?? null,
-      slug: summary.slug,
-      timesPlayed: playCount,
-      title: summary.title,
-    };
-  },
   toSavedTrack = async ({
     savedAt,
     track,
@@ -369,15 +348,30 @@ app.openapi(
     const dedupedRows = [...recentRowsByTrackId.values()].toSorted(
         (a, b) => b.lastPlayedAt.getTime() - a.lastPlayedAt.getTime()
       ),
-      items = await Promise.all(
-        dedupedRows.map((row) =>
-          toRecentTrack({
-            lastPlayedAt: row.lastPlayedAt,
-            playCount: row.playCount,
-            track: row.track,
-          })
-        )
-      );
+      summaries = await buildTrackSummaries(
+        dedupedRows.map(({ track }) => ({ row: track }))
+      ),
+      items = dedupedRows
+        .map((row, index) => {
+          const summary = summaries[index];
+          if (!summary) {
+            return null;
+          }
+
+          return {
+            artist: summary.artistName,
+            artistSlug: summary.artistUsername ?? fallbackArtistSlug,
+            cover: summary.coverArtUrl ?? fallbackCover,
+            duration: summary.duration,
+            id: summary.id,
+            lastPlayed: row.lastPlayedAt.toISOString(),
+            regionSlug: summary.regionSlug ?? null,
+            slug: summary.slug,
+            timesPlayed: row.playCount,
+            title: summary.title,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
 
     return c.json(items, HttpStatusCodes.OK);
   }
@@ -506,9 +500,16 @@ app.openapi(
     const dedupedRows = [...watchedRowsBySource.values()].toSorted(
         (a, b) => b.session.startedAt.getTime() - a.session.startedAt.getTime()
       ),
-      items = await Promise.all(
-        dedupedRows.map(async (row) => {
-          const summary = await buildTrackSummary(row.track);
+      summaries = await buildTrackSummaries(
+        dedupedRows.map(({ track }) => ({ row: track }))
+      ),
+      items = dedupedRows
+        .map((row, index) => {
+          const summary = summaries[index];
+          if (!summary) {
+            return null;
+          }
+
           return {
             creator: summary.artistName,
             creatorSlug: summary.artistUsername ?? fallbackArtistSlug,
@@ -522,7 +523,7 @@ app.openapi(
             watchedAt: row.session.startedAt.toISOString(),
           };
         })
-      );
+        .filter((item): item is NonNullable<typeof item> => item !== null);
 
     return c.json(items, HttpStatusCodes.OK);
   }

@@ -422,6 +422,7 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("CLOUDFLARE_STREAM_CUSTOMER_CODE"),
     ...optionalEnvBinding("CLOUDFLARE_STREAM_WEBHOOK_SECRET"),
     SOUNDKIT_ALLOW_MOCK_REALTIME: isPullRequestPreview ? "true" : "false",
+    SOUNDKIT_SCHEDULED_JOBS_ENABLED: isProduction ? "true" : "false",
     AUDIO_EMBEDDINGS_ENABLED: "true",
     DATABASE_URL: requiredSecret(
       alchemy.secret.env.DATABASE_URL,
@@ -509,7 +510,10 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID"),
   },
   compatibility: "node",
-  crons: ["*/5 * * * *"],
+  // Scheduled jobs are production-only. Preview Workers share production
+  // backing services, so registering this trigger would create production
+  // side effects from an isolated preview deployment.
+  crons: isProduction ? ["*/5 * * * *"] : [],
   cwd: "../../apps/server",
   dev: {
     port: 3000,
