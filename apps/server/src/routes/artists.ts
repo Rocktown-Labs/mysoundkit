@@ -36,8 +36,8 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 import { playConditionSql } from "@/lib/analytics-helpers";
 import { publicProfileAssetUrl } from "@/lib/asset-urls";
 import {
-  buildProjectSummary,
-  buildTrackSummary,
+  buildProjectSummaries,
+  buildTrackSummaries,
 } from "@/lib/dashboard-mappers";
 import { isAuthenticatedUser } from "@/lib/entitlements";
 import { canonicalGenreName } from "@/lib/genre-catalog";
@@ -1053,38 +1053,39 @@ app.openapi(
         creativeTrackSummaries,
         creativeProjectSummaries,
       ] = await Promise.all([
-        Promise.all(
+        buildTrackSummaries(
           (section === "feed"
             ? ownedTrackRows.slice(0, feedTrackLimit)
             : ownedTrackRows
-          ).map((row) => buildTrackSummary(row))
+          ).map((row) => ({ row }))
         ),
-        Promise.all(
-          (section === "feed"
+        buildProjectSummaries(
+          section === "feed"
             ? ownedProjectRows.slice(0, feedProjectLimit)
             : ownedProjectRows
-          ).map((row) => buildProjectSummary(row))
         ),
-        Promise.all(
-          [...featuredTrackById.values()].map((row) => buildTrackSummary(row))
+        buildTrackSummaries(
+          [...featuredTrackById.values()].map((row) => ({ row }))
         ),
-        Promise.all(
-          [...featuredProjectById.values()].map((row) =>
-            buildProjectSummary(row)
-          )
-        ),
-        Promise.all(
-          creativeTrackRows.map(async (row) => ({
-            role: row.role as CreativeCreditRole,
-            summary: await buildTrackSummary(row.track),
-          }))
-        ),
-        Promise.all(
-          creativeProjectRows.map(async (row) => ({
-            role: row.role as CreativeCreditRole,
-            summary: await buildProjectSummary(row.project),
-          }))
-        ),
+        buildProjectSummaries([...featuredProjectById.values()]),
+        (async () => {
+          const summaries = await buildTrackSummaries(
+            creativeTrackRows.map(({ track }) => ({ row: track }))
+          );
+          return summaries.map((summary, index) => ({
+            role: creativeTrackRows[index]?.role as CreativeCreditRole,
+            summary,
+          }));
+        })(),
+        (async () => {
+          const summaries = await buildProjectSummaries(
+            creativeProjectRows.map(({ project }) => project)
+          );
+          return summaries.map((summary, index) => ({
+            role: creativeProjectRows[index]?.role as CreativeCreditRole,
+            summary,
+          }));
+        })(),
       ]),
       artistName = capitalizeWords(
         artist.stageName ?? artist.displayName ?? artist.name
