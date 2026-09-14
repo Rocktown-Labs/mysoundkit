@@ -13,6 +13,7 @@ import {
   trackCollaborators,
   mediaProcessingJobs,
   trackAssets,
+  trackStemJobs,
   tracks,
   userFollows,
   userProfiles,
@@ -50,12 +51,14 @@ import {
 } from "@/lib/entitlements";
 import { ensureGenreId } from "@/lib/genre-persistence";
 import {
+  ENRICHMENT_PIPELINE_VERSION,
   MEDIA_PIPELINE_VERSION,
   PROJECT_EXPORT_PIPELINE_VERSION,
 } from "@/lib/media-pipeline";
 import {
   ensureMediaProcessingWorkflow,
   ensureProjectExportWorkflow,
+  ensureTrackEnrichmentWorkflow,
 } from "@/lib/media-processing-jobs";
 import { notify } from "@/lib/notifications";
 import {
@@ -2114,6 +2117,51 @@ app.openapi(
       logError({
         error: error instanceof Error ? error.message : String(error),
         event: "project_track_media_workflow_launch_failed",
+        projectId,
+        sourceAssetId: masterAssetId,
+        trackId,
+      });
+    }
+
+    // Project uploads with new files get the same Demucs + lyrics
+    // enrichment as direct track uploads (no premium gate).
+    try {
+      await db
+        .insert(trackStemJobs)
+        .values({
+          id: `stem:${masterAssetId}:v${ENRICHMENT_PIPELINE_VERSION}`,
+          inputAssetId: masterAssetId,
+          outputFormat: "MP3",
+          outputType: "BOTH",
+          status: "queued",
+          trackId,
+        })
+        .onConflictDoUpdate({
+          set: {
+            outputFormat: "MP3",
+            outputType: "BOTH",
+            status: "queued",
+            updatedAt: new Date(),
+          },
+          target: [trackStemJobs.inputAssetId],
+        });
+      await db
+        .update(tracks)
+        .set({ lyricsStatus: "generating", updatedAt: new Date() })
+        .where(eq(tracks.id, trackId));
+      await ensureTrackEnrichmentWorkflow({
+        payload: {
+          objectKey: body.sourceObjectKey,
+          pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
+          sourceAssetId: masterAssetId,
+          trackId,
+        },
+        workflow: c.env.TRACK_ENRICHMENT_WORKFLOW,
+      });
+    } catch (error) {
+      logError({
+        error: error instanceof Error ? error.message : String(error),
+        event: "project_track_enrichment_workflow_launch_failed",
         projectId,
         sourceAssetId: masterAssetId,
         trackId,

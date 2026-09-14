@@ -15,7 +15,7 @@ import {
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import { embed } from "ai";
-import { and, count, eq, ne } from "drizzle-orm";
+import { and, count, eq, inArray, ne } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import type { TrackEnrichmentWorkflowPayload } from "@/lib/media-pipeline";
@@ -32,6 +32,10 @@ const DEFAULT_EMBEDDING_DIMENSIONS = 1536,
   // 3-minute vocal stems at 320k mp3 are ~7MB; longer tracks truncate with
   // metadata truncated:true (byte-chunked transcription is a follow-up).
   MAX_WORKERS_AI_AUDIO_BYTES = 8 * 1024 * 1024,
+  // Sequential transcription chunks per vocal stem (~3.5 min each at 320k).
+  MAX_TRANSCRIPTION_CHUNKS = 4,
+  // Our Demucs container encodes CBR 320k MP3: 320_000 bits/s = 40_000 B/s.
+  DEMUCS_MP3_BYTES_PER_SECOND = 40_000,
   LYRIC_LINE_BREAK_SECONDS = 1.2,
   MAX_LYRIC_LINE_CHARACTERS = 64,
   MAX_WORDS_PER_LYRIC_LINE = 9;
@@ -147,6 +151,10 @@ const saveStemAsset = async ({
   }) => {
     // Demucs stems are uploaded straight into R2 by the container, so there
     // is nothing to copy — just register (or refresh) the asset row.
+    // Every current row for this track/kind/purpose is cleared first: the
+    // partial unique index on (track, purpose, kind) rejects a second
+    // current row, so re-runs and pipeline upgrades must not leave the
+    // previous version current.
     const bucketName = getEnvValue("UPLOAD_BUCKET_NAME") || "soundkit-media",
       db = createDb(),
       [sourceAsset] = await db
@@ -163,8 +171,7 @@ const saveStemAsset = async ({
           eq(trackAssets.trackId, trackId),
           eq(trackAssets.assetKind, assetKind),
           eq(trackAssets.purpose, "stem"),
-          eq(trackAssets.isCurrent, true),
-          ne(trackAssets.sourceAssetId, sourceAssetId)
+          eq(trackAssets.isCurrent, true)
         )
       );
 
@@ -364,7 +371,7 @@ const vttTimestampToSeconds = (value: string): number | null => {
 export const buildTimedLyricLinesFromVtt = (vtt: string): TimedLyricLine[] => {
   const lines: TimedLyricLine[] = [],
     cuePattern =
-      /(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})\s*\n([\s\S]*?)(?=\n\n|\n*$)/gu;
+      /((?:\d+:)?\d{2}:\d{2}\.\d{3})\s*-->\s*((?:\d+:)?\d{2}:\d{2}\.\d{3})\s*\r?\n([\s\S]*?)(?=\r?\n\r?\n|\r?\n*$)/gu;
   let match: RegExpExecArray | null;
   match = cuePattern.exec(vtt);
   while (match !== null) {
@@ -400,36 +407,24 @@ const bytesToBase64 = (bytes: Uint8Array): string => {
     }
     return btoa(binary);
   },
-  transcribeAudioWithCloudflareWorkersAi = async ({
+  // Workers AI Whisper input is a base64 audio string (see
+  // Ai_Cf_Openai_Whisper_Large_V3_Turbo_Input.audio in
+  // @cloudflare/workers-types), not a byte array.
+  transcribeAudioChunkWithCloudflareWorkersAi = async ({
     ai,
     audioBytes,
   }: {
-    ai: Ai | null | undefined;
-    audioBytes: ArrayBuffer;
-  }): Promise<WorkersAiTranscriptionResponse | null> => {
-    if (!ai) {
-      return null;
-    }
-    // Workers AI Whisper takes a base64 audio payload (NOT a byte array).
-    const bytes = new Uint8Array(audioBytes),
-      truncated = bytes.byteLength > MAX_WORKERS_AI_AUDIO_BYTES,
-      payloadBytes = truncated
-        ? bytes.slice(0, MAX_WORKERS_AI_AUDIO_BYTES)
-        : bytes;
-    if (truncated) {
-      console.warn("Vocal stem truncated for Workers AI transcription", {
-        originalBytes: bytes.byteLength,
-      });
-    }
+    ai: Ai;
+    audioBytes: Uint8Array;
+  }): Promise<WorkersAiTranscriptionResponse> => {
     const response = (await ai.run(WORKERS_AI_WHISPER_MODEL, {
-      audio: bytesToBase64(payloadBytes),
+      audio: bytesToBase64(audioBytes),
       beam_size: 5,
       compression_ratio_threshold: 2.4,
       condition_on_previous_text: false,
       hallucination_silence_threshold: 2,
       initial_prompt:
         "Transcribe song vocals as lyrics. Preserve line-friendly punctuation and avoid adding section labels that are not sung.",
-      language: "en",
       log_prob_threshold: -1,
       no_speech_threshold: 0.6,
       task: "transcribe",
@@ -438,6 +433,116 @@ const bytesToBase64 = (bytes: Uint8Array): string => {
     return {
       ...response,
       text: typeof response.text === "string" ? response.text : "",
+    };
+  },
+  // Long vocal stems are transcribed in sequential bounded R2 range reads so
+  // Worker memory never holds more than one chunk and no song is cut to a
+  // prefix. Chunk start offsets are estimated from our deterministic CBR 320k
+  // Demucs output; word timings shift by that estimate.
+  transcribeVocalStemWithCloudflareWorkersAi = async ({
+    ai,
+    bucket,
+    objectKey,
+  }: {
+    ai: Ai;
+    bucket: R2Bucket;
+    objectKey: string;
+  }): Promise<{
+    detectedLanguage: string | null;
+    duration: number | null;
+    text: string;
+    timedLines: TimedLyricLine[];
+    truncated: boolean;
+    wordCount: number | null;
+  }> => {
+    const head = await bucket.head(objectKey);
+    if (!head) {
+      throw new Error("Vocal stem object is missing from R2.");
+    }
+    const totalBytes = head.size,
+      chunkCount = Math.min(
+        MAX_TRANSCRIPTION_CHUNKS,
+        Math.max(1, Math.ceil(totalBytes / MAX_WORKERS_AI_AUDIO_BYTES))
+      ),
+      truncated = totalBytes > chunkCount * MAX_WORKERS_AI_AUDIO_BYTES,
+      texts: string[] = [],
+      words: OpenAiTranscriptionWord[] = [];
+    let detectedLanguage: string | null = null,
+      duration: number | null = null,
+      fallbackVtt = "";
+    for (let index = 0; index < chunkCount; index += 1) {
+      const offset = index * MAX_WORKERS_AI_AUDIO_BYTES,
+        // eslint-disable-next-line no-await-in-loop
+        chunk = await bucket.get(objectKey, {
+          range: { length: MAX_WORKERS_AI_AUDIO_BYTES, offset },
+        });
+      if (!chunk) {
+        throw new Error(
+          `Vocal stem range read failed at byte ${offset} (chunk ${index + 1}/${chunkCount}).`
+        );
+      }
+      // eslint-disable-next-line no-await-in-loop
+      const result = await transcribeAudioChunkWithCloudflareWorkersAi({
+          ai,
+          audioBytes: new Uint8Array(await chunk.arrayBuffer()),
+        }),
+        offsetSeconds = offset / DEMUCS_MP3_BYTES_PER_SECOND;
+      if ((result.text ?? "").trim()) {
+        texts.push((result.text ?? "").trim());
+      }
+      detectedLanguage ??= result.transcription_info?.language ?? null;
+      duration ??= result.transcription_info?.duration ?? null;
+      for (const segment of result.segments ?? []) {
+        if (Array.isArray(segment.words) && segment.words.length > 0) {
+          for (const word of segment.words) {
+            words.push({
+              end:
+                typeof word.end === "number"
+                  ? word.end + offsetSeconds
+                  : undefined,
+              start:
+                typeof word.start === "number"
+                  ? word.start + offsetSeconds
+                  : undefined,
+              word: word.word,
+            });
+          }
+        } else if (
+          typeof segment.start === "number" &&
+          typeof segment.end === "number" &&
+          segment.text?.trim()
+        ) {
+          words.push({
+            end: segment.end + offsetSeconds,
+            start: segment.start + offsetSeconds,
+            word: segment.text.trim(),
+          });
+        }
+      }
+      if (!fallbackVtt && result.vtt) {
+        fallbackVtt = result.vtt;
+      }
+    }
+    if (truncated) {
+      console.warn("Vocal stem exceeds transcription chunk budget", {
+        objectKey,
+        totalBytes,
+      });
+    }
+    const text = texts.join(" ").trim(),
+      fromWords = buildTimedLyricLinesFromWords(words);
+    return {
+      detectedLanguage,
+      duration,
+      text,
+      timedLines:
+        fromWords.length > 0
+          ? fromWords
+          : fallbackVtt
+            ? buildTimedLyricLinesFromVtt(fallbackVtt)
+            : [],
+      truncated,
+      wordCount: words.length > 0 ? words.length : null,
     };
   },
   transcribeVocals = async ({
@@ -451,100 +556,77 @@ const bytesToBase64 = (bytes: Uint8Array): string => {
     bucket?: R2Bucket | null;
     trackId: string;
   }) => {
-    try {
-      const db = createDb(),
-        [existingLyrics] = await db
-          .select()
-          .from(trackLyrics)
-          .where(
-            and(
-              eq(trackLyrics.trackId, trackId),
-              eq(trackLyrics.sourceAssetId, assetId),
-              eq(trackLyrics.sourceType, "machine_transcription")
-            )
+    const db = createDb(),
+      [existingLyrics] = await db
+        .select()
+        .from(trackLyrics)
+        .where(
+          and(
+            eq(trackLyrics.trackId, trackId),
+            eq(trackLyrics.sourceAssetId, assetId),
+            eq(trackLyrics.sourceType, "machine_transcription")
           )
-          .limit(1);
-      if (existingLyrics) {
-        return existingLyrics;
-      }
-
-      const resolvedBucket = bucket ?? getMediaBucket();
-      if (!resolvedBucket) {
-        console.warn("Vocal stem lyric transcription skipped: no R2 bucket.");
-        return null;
-      }
-      const [vocalAsset] = await db
-        .select({
-          objectKey: trackAssets.objectKey,
-        })
-        .from(trackAssets)
-        .where(eq(trackAssets.id, assetId))
+        )
         .limit(1);
-      if (!vocalAsset?.objectKey) {
-        return null;
-      }
-      const object = await resolvedBucket.get(vocalAsset.objectKey);
-      if (!object) {
-        console.warn("Vocal stem lyric transcription skipped: stem missing.", {
-          assetId,
-          trackId,
-        });
-        return null;
-      }
-      const audioBytes = await object.arrayBuffer(),
-        result = await transcribeAudioWithCloudflareWorkersAi({
-          ai: ai ?? null,
-          audioBytes,
-        }),
-        text = result?.text?.trim() ?? "";
+    if (existingLyrics) {
+      return existingLyrics;
+    }
 
-      if (!text) {
-        return null;
-      }
-
-      const fromWords = buildTimedLyricLinesFromSegments(
-          result?.segments ?? []
-        ),
-        timedLines =
-          fromWords.length > 0
-            ? fromWords
-            : (result?.vtt
-              ? buildTimedLyricLinesFromVtt(result.vtt)
-              : []),
-        [lyrics] = await db
-          .insert(trackLyrics)
-          .values({
-            id: crypto.randomUUID(),
-            language: result?.transcription_info?.language ?? "en",
-            metadata: {
-              duration: result?.transcription_info?.duration ?? null,
-              durationAfterVad:
-                result?.transcription_info?.duration_after_vad ?? null,
-              language: result?.transcription_info?.language ?? null,
-              model: WORKERS_AI_WHISPER_MODEL,
-              provider: "cloudflare-workers-ai",
-              separationModel: DEMUCS_SEPARATION_MODEL,
-              timestampGranularity: "word",
-              truncated: audioBytes.byteLength > MAX_WORKERS_AI_AUDIO_BYTES,
-              wordCount: result?.word_count ?? null,
-            },
-            sourceAssetId: assetId,
-            sourceType: "machine_transcription",
-            status: "pending_review",
-            text,
-            timedLines: timedLines.length > 0 ? timedLines : null,
-            trackId,
-          })
-          .returning();
-
-      return lyrics ?? null;
-    } catch (error) {
-      console.warn("Vocal stem lyric transcription skipped", {
-        error: error instanceof Error ? error.message : String(error),
-        trackId,
-      });
+    const resolvedBucket = bucket ?? getMediaBucket();
+    if (!resolvedBucket) {
+      throw new Error("MEDIA_BUCKET is required for vocal transcription.");
+    }
+    if (!ai) {
+      throw new Error("Workers AI binding is required for transcription.");
+    }
+    const [vocalAsset] = await db
+      .select({
+        objectKey: trackAssets.objectKey,
+      })
+      .from(trackAssets)
+      .where(eq(trackAssets.id, assetId))
+      .limit(1);
+    if (!vocalAsset?.objectKey) {
       return null;
     }
+    // Provider/storage errors throw so the Workflow step retry policy reruns
+    // them; only "nothing to transcribe" resolves to null.
+    const result = await transcribeVocalStemWithCloudflareWorkersAi({
+        ai,
+        bucket: resolvedBucket,
+        objectKey: vocalAsset.objectKey,
+      }),
+      text = result.text.trim();
+
+    if (!text) {
+      return null;
+    }
+
+    const [lyrics] = await db
+      .insert(trackLyrics)
+      .values({
+        id: crypto.randomUUID(),
+        language: result.detectedLanguage ?? "en",
+        metadata: {
+          duration: result.duration,
+          language: result.detectedLanguage,
+          model: WORKERS_AI_WHISPER_MODEL,
+          provider: "cloudflare-workers-ai",
+          separationModel: DEMUCS_SEPARATION_MODEL,
+          timestampGranularity: "word",
+          truncated: result.truncated,
+          wordCount: result.wordCount,
+        },
+        sourceAssetId: assetId,
+        sourceType: "machine_transcription",
+        status: "pending_review",
+        text,
+        timedLines: result.timedLines.length > 0 ? result.timedLines : null,
+        trackId,
+      })
+      .returning();
+
+    return lyrics ?? null;
   },
   embeddingModelName = (): string =>
     getEnvValue("GOOGLE_EMBEDDING_MODEL")
@@ -802,7 +884,7 @@ export const saveDemucsStemAsset = ({
     trackId,
   });
 
-export const findCurrentDemucsVocalStem = async ({
+export const findCurrentDemucsStems = async ({
   pipelineVersion,
   sourceAssetId,
   trackId,
@@ -811,22 +893,34 @@ export const findCurrentDemucsVocalStem = async ({
   sourceAssetId: string;
   trackId: string;
 }) => {
-  const [asset] = await createDb()
-    .select({ id: trackAssets.id, objectKey: trackAssets.objectKey })
+  const rows = await createDb()
+    .select({
+      assetKind: trackAssets.assetKind,
+      id: trackAssets.id,
+      objectKey: trackAssets.objectKey,
+    })
     .from(trackAssets)
     .where(
       and(
         eq(trackAssets.trackId, trackId),
-        eq(trackAssets.assetKind, "vocal_stem"),
+        inArray(trackAssets.assetKind, ["vocal_stem", "instrumental"]),
         eq(trackAssets.purpose, "stem"),
         eq(trackAssets.isCurrent, true),
         eq(trackAssets.sourceAssetId, sourceAssetId),
         eq(trackAssets.processingVersion, pipelineVersion)
       )
-    )
-    .limit(1);
-  return asset ?? null;
+    );
+  const vocals = rows.find((row) => row.assetKind === "vocal_stem") ?? null,
+    instrumental = rows.find((row) => row.assetKind === "instrumental") ?? null;
+  return { instrumental, vocals };
 };
+
+/** @deprecated Use findCurrentDemucsStems (#257). */
+export const findCurrentDemucsVocalStem = async (args: {
+  pipelineVersion: number;
+  sourceAssetId: string;
+  trackId: string;
+}) => (await findCurrentDemucsStems(args)).vocals;
 
 /** @deprecated StemSplit was removed (#257). Always returns null. */
 export const saveStemSplitOutput = (_args: {

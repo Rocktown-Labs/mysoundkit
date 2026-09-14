@@ -5,9 +5,10 @@ import { z } from "zod";
 import type { StemSeparatorContainer } from "@/containers/stem-separator";
 
 const CONTAINER_BOOT_TIMEOUT_MS = 60_000,
-  // Demucs htdemucs on CPU takes ~1.5x track duration; a 10-minute master
-  // can need well over 10 minutes. The Workflow step timeout must exceed this.
-  SEPARATE_TIMEOUT_MS = 20 * 60_000,
+  // Demucs htdemucs on CPU takes ~1.5x track duration; the same request also
+  // downloads the master, runs two FFmpeg transcodes, and uploads both
+  // stems, so the budget covers the full end-to-end operation.
+  SEPARATE_TIMEOUT_MS = 28 * 60_000,
   stemOutputSchema = z.object({
     objectKey: z.string().min(1).max(1024),
     sizeBytes: z.number().int().positive(),

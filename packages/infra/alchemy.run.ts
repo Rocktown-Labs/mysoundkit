@@ -499,14 +499,10 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("SOUNDKIT_EMAIL_REPLY_TO"),
     SENTRY_DSN: SENTRY_SERVER_DSN,
     SENTRY_ENVIRONMENT,
-    STEMSPLIT_API_KEY: requiredSecret(
-      alchemy.secret.env.STEMSPLIT_API_KEY,
-      "STEMSPLIT_API_KEY"
-    ),
-    STEMSPLIT_WEBHOOK_SECRET: requiredSecret(
-      alchemy.secret.env.STEMSPLIT_WEBHOOK_SECRET,
-      "STEMSPLIT_WEBHOOK_SECRET"
-    ),
+    // Legacy StemSplit integration (removed #257): bindings stay optional so
+    // retired credentials are never required for deploys.
+    ...optionalEnvBinding("STEMSPLIT_API_KEY"),
+    ...optionalEnvBinding("STEMSPLIT_WEBHOOK_SECRET"),
     STRIPE_SECRET_KEY: requiredSecret(
       alchemy.secret.env.STRIPE_SECRET_KEY,
       "STRIPE_SECRET_KEY"

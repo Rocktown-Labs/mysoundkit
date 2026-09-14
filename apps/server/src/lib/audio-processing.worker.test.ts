@@ -82,4 +82,15 @@ describe("audio processing transcription helpers", () => {
       { endMs: 3200, startMs: 2300, text: "City lights" },
     ]);
   });
+
+  it("parses short MM:SS.mmm cues and CRLF line endings", () => {
+    const lines = buildTimedLyricLinesFromVtt(
+      "WEBVTT\r\n\r\n00:00.100 --> 00:01.200\r\nLate night drive\r\n\r\n01:02.300 --> 01:03.200\r\nCity lights\r\n"
+    );
+
+    expect(lines).toEqual([
+      { endMs: 1200, startMs: 100, text: "Late night drive" },
+      { endMs: 63200, startMs: 62300, text: "City lights" },
+    ]);
+  });
 });

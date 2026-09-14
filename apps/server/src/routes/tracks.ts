@@ -472,7 +472,15 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
           status: "queued",
           trackId,
         })
-        .onConflictDoNothing()
+        .onConflictDoUpdate({
+          set: {
+            outputFormat: "MP3",
+            outputType: "BOTH",
+            status: "queued",
+            updatedAt: new Date(),
+          },
+          target: [trackStemJobs.inputAssetId],
+        })
     );
     const [job] = await db
       .select()
@@ -482,7 +490,20 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
     if (!job) {
       throw new Error("Unable to create track enrichment job.");
     }
-    if (job.status === "completed") {
+    // A completed job row only proves stems finished: transcription may have
+    // failed (lyricsStatus failed / no machine lyrics), in which case the
+    // Lyrics tab retry must rerun Workers AI against the reusable stems.
+    const [machineLyrics] = await db
+      .select({ id: trackLyrics.id })
+      .from(trackLyrics)
+      .where(
+        and(
+          eq(trackLyrics.trackId, trackId),
+          eq(trackLyrics.sourceType, "machine_transcription")
+        )
+      )
+      .limit(1);
+    if (job.status === "completed" && machineLyrics) {
       return {
         jobId: job.id,
         message: "Track enrichment is already current.",
@@ -509,6 +530,23 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
       },
       workflow: getTrackEnrichmentWorkflow(),
     });
+    if (!machineLyrics && ensured.workflowStatus === "complete") {
+      // A prior run finished without lyrics (transcription returned empty);
+      // restart the completed instance so the retry actually reruns.
+      try {
+        const binding = getTrackEnrichmentWorkflow();
+        if (binding) {
+          await (await binding.get(ensured.workflowInstanceId)).restart();
+        }
+      } catch (error) {
+        logError({
+          error: error instanceof Error ? error.message : String(error),
+          event: "enrichment_lyrics_retry_restart_failed",
+          sourceAssetId: masterAsset.id,
+          trackId,
+        });
+      }
+    }
     await withRetry("save enrichment workflow instance id", () =>
       db
         .update(trackStemJobs)
@@ -2866,9 +2904,11 @@ app.openapi(
       .where(
         and(
           eq(trackAssets.trackId, trackId),
-          eq(trackAssets.assetKind, "master")
+          eq(trackAssets.assetKind, "master"),
+          eq(trackAssets.isCurrent, true)
         )
       )
+      .orderBy(desc(trackAssets.updatedAt))
       .limit(1);
 
     if (!masterAsset) {

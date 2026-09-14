@@ -5,6 +5,7 @@ import {
   mediaProcessingJobs,
   openVerseListings,
   trackAssets,
+  trackLyrics,
   trackStemJobs,
   tracks,
 } from "@soundkit/db/schema/app";
@@ -28,6 +29,73 @@ import {
 const MAX_BACKFILL_BATCH_SIZE = 100,
   boundedBatchSize = (value: number) =>
     Math.min(Math.max(Math.trunc(value), 1), MAX_BACKFILL_BATCH_SIZE);
+
+/**
+ * Source asset ids whose enrichment outputs actually exist: current v2 stems
+ * for the exact source plus machine lyrics cut from its vocal stem. Shared
+ * by the quiet backfill and the admin sync endpoint so both agree on what
+ * "missing" means (legacy job rows are ignored).
+ */
+export const findEnrichedSourceIds = async ({
+  sourceAssetIds,
+  trackIds,
+}: {
+  sourceAssetIds: string[];
+  trackIds: string[];
+}): Promise<Set<string>> => {
+  if (sourceAssetIds.length === 0 || trackIds.length === 0) {
+    return new Set();
+  }
+  const db = createDb(),
+    [stemRows, lyricRows] = await Promise.all([
+      db
+        .select({
+          assetKind: trackAssets.assetKind,
+          id: trackAssets.id,
+          sourceAssetId: trackAssets.sourceAssetId,
+        })
+        .from(trackAssets)
+        .where(
+          and(
+            inArray(trackAssets.sourceAssetId, sourceAssetIds),
+            eq(trackAssets.purpose, "stem"),
+            eq(trackAssets.isCurrent, true),
+            eq(trackAssets.processingVersion, ENRICHMENT_PIPELINE_VERSION),
+            inArray(trackAssets.assetKind, ["vocal_stem", "instrumental"])
+          )
+        ),
+      db
+        .select({ sourceAssetId: trackLyrics.sourceAssetId })
+        .from(trackLyrics)
+        .where(
+          and(
+            inArray(trackLyrics.trackId, trackIds),
+            eq(trackLyrics.sourceType, "machine_transcription")
+          )
+        ),
+    ]),
+    vocalBySource = new Map(
+      stemRows
+        .filter((row) => row.assetKind === "vocal_stem" && row.sourceAssetId)
+        .map((row) => [row.sourceAssetId as string, row.id])
+    ),
+    instrumentalSources = new Set(
+      stemRows
+        .filter((row) => row.assetKind === "instrumental" && row.sourceAssetId)
+        .map((row) => row.sourceAssetId)
+    ),
+    lyricVocalIds = new Set(
+      lyricRows.map((row) => row.sourceAssetId).filter(Boolean)
+    );
+  return new Set(
+    [...vocalBySource.entries()]
+      .filter(
+        ([sourceId, vocalId]) =>
+          instrumentalSources.has(sourceId) && lyricVocalIds.has(vocalId)
+      )
+      .map(([sourceId]) => sourceId)
+  );
+};
 
 export const enqueueLegacyMediaBackfill = async ({
   batchSize = 50,
@@ -195,7 +263,7 @@ export const enqueueLyricsEnrichmentBackfill = async ({
       .limit(limit * 3),
     trackIds = masters.map((master) => master.trackId),
     sourceAssetIds = masters.map((master) => master.sourceAssetId),
-    [unfinishedRows, completedRows, activeRows] = masters.length
+    [unfinishedRows, enrichedSourceIds, activeRows] = masters.length
       ? await Promise.all([
           db
             .select({ trackId: openVerseListings.trackId })
@@ -210,15 +278,8 @@ export const enqueueLyricsEnrichmentBackfill = async ({
                 ])
               )
             ),
-          db
-            .select({ sourceAssetId: trackStemJobs.inputAssetId })
-            .from(trackStemJobs)
-            .where(
-              and(
-                inArray(trackStemJobs.inputAssetId, sourceAssetIds),
-                eq(trackStemJobs.status, "completed")
-              )
-            ),
+          // Eligibility comes from real outputs, not the legacy job table.
+          findEnrichedSourceIds({ sourceAssetIds, trackIds }),
           db
             .select({ sourceAssetId: mediaProcessingJobs.sourceAssetId })
             .from(mediaProcessingJobs)
@@ -226,19 +287,14 @@ export const enqueueLyricsEnrichmentBackfill = async ({
               and(
                 inArray(mediaProcessingJobs.sourceAssetId, sourceAssetIds),
                 eq(mediaProcessingJobs.workflowType, "track_enrichment"),
-                // Failed enrichment stays failed: it costs third-party spend
-                // and is only ever launched by explicit user action now.
-                inArray(mediaProcessingJobs.status, [
-                  "queued",
-                  "running",
-                  "failed",
-                ])
+                // Queued/running runs still block; failed runs are eligible
+                // again (in-house retries are cheap and reuse stems).
+                inArray(mediaProcessingJobs.status, ["queued", "running"])
               )
             ),
         ])
-      : [[], [], []],
+      : [[], new Set<string>(), []],
     unfinishedTrackIds = new Set(unfinishedRows.map((row) => row.trackId)),
-    completedSourceIds = new Set(completedRows.map((row) => row.sourceAssetId)),
     activeSourceIds = new Set(
       activeRows.map((row) => row.sourceAssetId).filter(Boolean)
     ),
@@ -246,7 +302,7 @@ export const enqueueLyricsEnrichmentBackfill = async ({
       .filter(
         (master) =>
           !unfinishedTrackIds.has(master.trackId) &&
-          !completedSourceIds.has(master.sourceAssetId) &&
+          !enrichedSourceIds.has(master.sourceAssetId) &&
           !activeSourceIds.has(master.sourceAssetId)
       )
       .slice(0, limit);
@@ -262,7 +318,17 @@ export const enqueueLyricsEnrichmentBackfill = async ({
         status: "queued",
         trackId: master.trackId,
       })
-      .onConflictDoNothing();
+      // inputAssetId is unique: legacy v1 rows are refreshed in place so the
+      // v2 pipeline version is tracked on assets, not the job id.
+      .onConflictDoUpdate({
+        set: {
+          outputFormat: "MP3",
+          outputType: "BOTH",
+          status: "queued",
+          updatedAt: new Date(),
+        },
+        target: [trackStemJobs.inputAssetId],
+      });
   }
   const payloads = eligible.map((master): TrackEnrichmentWorkflowPayload => ({
     objectKey: master.objectKey!,

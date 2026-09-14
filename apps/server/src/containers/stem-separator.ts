@@ -31,9 +31,10 @@ const validObjectKey = (value: string) =>
 
 export class StemSeparatorContainer extends Container<Env> {
   defaultPort = 8080;
-  // Demucs CPU separation of a 3-minute track takes minutes; keep the
-  // container alive across the Workflow step instead of sleeping mid-job.
-  sleepAfter = "10m";
+  // Demucs CPU separation of a 3-minute track takes minutes and the full
+  // end-to-end request (download + separate + 2x transcode + uploads) can
+  // approach 30 minutes; the container must outlive the Workflow step.
+  sleepAfter = "30m";
   enableInternet = false;
   allowedHosts = [INTERNAL_R2_HOST];
   pingEndpoint = "/health";

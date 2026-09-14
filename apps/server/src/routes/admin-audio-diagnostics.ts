@@ -22,8 +22,14 @@ import {
   listDiagnosticJobs,
   processDiagnosticJob,
 } from "@/lib/audio-diagnostics";
-import { enqueueLyricsEnrichmentBackfill } from "@/lib/media-backfill";
-import { ENRICHMENT_PIPELINE_VERSION } from "@/lib/media-pipeline";
+import {
+  enqueueLyricsEnrichmentBackfill,
+  findEnrichedSourceIds,
+} from "@/lib/media-backfill";
+import {
+  ENRICHMENT_PIPELINE_VERSION,
+  trackEnrichmentWorkflowInstanceId,
+} from "@/lib/media-pipeline";
 import type { TrackEnrichmentWorkflowPayload } from "@/lib/media-pipeline";
 import { ensureTrackEnrichmentWorkflowBatch } from "@/lib/media-processing-jobs";
 import { ContainerMediaProcessor } from "@/lib/media-processor";
@@ -341,8 +347,20 @@ app.openapi(
             isNull(tracks.deletedAt)
           )
         )
-        .limit(100);
-    for (const master of masters) {
+        .limit(100),
+      masterSourceIds = masters.map((master) => master.sourceAssetId),
+      masterTrackIds = [...new Set(masters.map((master) => master.trackId))],
+      enrichedExplicitSources = await findEnrichedSourceIds({
+        sourceAssetIds: masterSourceIds,
+        trackIds: masterTrackIds,
+      }),
+      force = body.missingOnly === false,
+      targets = force
+        ? masters
+        : masters.filter(
+            (master) => !enrichedExplicitSources.has(master.sourceAssetId)
+          );
+    for (const master of targets) {
       await db
         .insert(trackStemJobs)
         .values({
@@ -353,9 +371,17 @@ app.openapi(
           status: "queued",
           trackId: master.trackId,
         })
-        .onConflictDoNothing();
+        .onConflictDoUpdate({
+          set: {
+            outputFormat: "MP3",
+            outputType: "BOTH",
+            status: "queued",
+            updatedAt: new Date(),
+          },
+          target: [trackStemJobs.inputAssetId],
+        });
     }
-    const payloads = masters
+    const payloads = targets
         .filter((master) => master.objectKey)
         .map((master): TrackEnrichmentWorkflowPayload => ({
           objectKey: master.objectKey as string,
@@ -368,10 +394,33 @@ app.openapi(
         payloads,
         workflow,
       });
+    // createBatch skips existing ids: restart errored/terminated runs (and,
+    // on force, completed ones) so selected tracks are actually repaired.
+    let restarted = 0;
+    if (workflow) {
+      for (const payload of payloads) {
+        try {
+          const instance = await workflow.get(
+              trackEnrichmentWorkflowInstanceId(payload)
+            ),
+            state = await instance.status();
+          if (
+            state.status === "errored" ||
+            state.status === "terminated" ||
+            (force && state.status === "complete")
+          ) {
+            await instance.restart();
+            restarted += 1;
+          }
+        } catch {
+          // Missing instances are already handled by createBatch.
+        }
+      }
+    }
     return c.json(
       {
-        queuedCount: result.created,
-        trackIds: masters.map((master) => master.trackId),
+        queuedCount: result.created + restarted,
+        trackIds: targets.map((master) => master.trackId),
       },
       HttpStatusCodes.ACCEPTED
     );

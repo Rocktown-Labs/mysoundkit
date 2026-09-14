@@ -9,7 +9,7 @@ import type { StemSeparatorContainer } from "@/containers/stem-separator";
 import {
   demucsTargetKeys,
   finalizeTrackEnrichment,
-  findCurrentDemucsVocalStem,
+  findCurrentDemucsStems,
   saveDemucsStemAsset,
   transcribeDemucsVocals,
 } from "@/lib/audio-processing";
@@ -32,9 +32,9 @@ const separationStepConfig = {
       delay: "1 second" as const,
       limit: 0,
     },
-    // htdemucs on CPU runs ~1.5x track duration; a 10-minute master can need
-    // 15+ minutes plus container boot.
-    timeout: "25 minutes" as const,
+    // htdemucs on CPU runs ~1.5x track duration plus download, two FFmpeg
+    // transcodes, and uploads inside the same container request.
+    timeout: "30 minutes" as const,
   },
   transcriptionStepConfig = {
     retries: {
@@ -204,13 +204,15 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
         });
       });
 
-      // Smart retry: a current vocal stem for this exact source means Demucs
-      // already ran — reuse it and only re-run transcription.
-      const existingVocals = await step.do(
-        "check existing vocal stem",
+      // Smart retry: current stems for this exact source mean Demucs already
+      // ran — reuse them and only re-run transcription. Both assets are
+      // required: the registration step writes them separately, so a vocal
+      // alone does not prove separation finished.
+      const existingStems = await step.do(
+        "check existing stem assets",
         jobStateStepConfig,
         () =>
-          findCurrentDemucsVocalStem({
+          findCurrentDemucsStems({
             pipelineVersion: payload.pipelineVersion,
             sourceAssetId: payload.sourceAssetId,
             trackId: payload.trackId,
@@ -223,7 +225,10 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
         }),
         jobId = `demucs:${payload.sourceAssetId}:v${payload.pipelineVersion}`;
 
-      let vocalsAssetId: string | null = existingVocals?.id ?? null;
+      let vocalsAssetId: string | null =
+        existingStems.vocals && existingStems.instrumental
+          ? existingStems.vocals.id
+          : null;
       if (vocalsAssetId) {
         await step.do("record stem reuse", async () => {
           await updateMediaProcessingJob({

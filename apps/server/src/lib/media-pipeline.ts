@@ -145,11 +145,12 @@ export const mediaProcessingWorkflowInstanceId = ({
 
 export const trackEnrichmentWorkflowInstanceId = ({
   pipelineVersion,
+  quiet,
   sourceAssetId,
   trackId,
 }: TrackEnrichmentWorkflowPayload): string =>
   assertWorkflowInstanceId(
-    `enrich_${trackId}_${sourceAssetId}_v${pipelineVersion}`
+    `enrich_${trackId}_${sourceAssetId}_v${pipelineVersion}${quiet ? "_quiet" : ""}`
   );
 
 export const projectExportWorkflowInstanceId = ({
