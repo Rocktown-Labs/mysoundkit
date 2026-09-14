@@ -407,7 +407,7 @@ app.openapi(
           if (
             state.status === "errored" ||
             state.status === "terminated" ||
-            (force && state.status === "complete")
+            state.status === "complete"
           ) {
             await instance.restart();
             restarted += 1;
