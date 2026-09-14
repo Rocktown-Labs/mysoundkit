@@ -12,7 +12,6 @@ import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
 import { logInfo } from "@/middleware/structured-logging";
 
-import { resolveEntitlements } from "./entitlements";
 import {
   ENRICHMENT_PIPELINE_VERSION,
   MEDIA_PIPELINE_VERSION,
@@ -160,23 +159,16 @@ export const enqueueLegacyMediaBackfill = async ({
   return { ...result, scanned: masters.length };
 };
 
-export const enqueuePremiumEnrichmentBackfill = async ({
+export const enqueueLyricsEnrichmentBackfill = async ({
   batchSize = 25,
   ownerUserId,
   workflow,
 }: {
   batchSize?: number;
-  ownerUserId: string;
+  ownerUserId?: string;
   workflow: null | Workflow<TrackEnrichmentWorkflowPayload> | undefined;
 }) => {
   if (!isDatabaseConfigured()) {
-    return { created: 0, requested: 0, scanned: 0 };
-  }
-  const entitlements = await resolveEntitlements({
-    session: null,
-    user: { id: ownerUserId },
-  });
-  if (!entitlements.isPremium) {
     return { created: 0, requested: 0, scanned: 0 };
   }
 
@@ -192,11 +184,12 @@ export const enqueuePremiumEnrichmentBackfill = async ({
       .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
       .where(
         and(
-          eq(tracks.ownerUserId, ownerUserId),
+          ownerUserId ? eq(tracks.ownerUserId, ownerUserId) : undefined,
           eq(trackAssets.assetKind, "master"),
           eq(trackAssets.isCurrent, true),
           isNotNull(trackAssets.objectKey),
-          inArray(trackAssets.status, ["uploaded", "ready"])
+          inArray(trackAssets.status, ["uploaded", "ready"]),
+          isNull(tracks.deletedAt)
         )
       )
       .limit(limit * 3),
@@ -274,6 +267,8 @@ export const enqueuePremiumEnrichmentBackfill = async ({
   const payloads = eligible.map((master): TrackEnrichmentWorkflowPayload => ({
     objectKey: master.objectKey!,
     pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
+    // Backfill stays silent: no lyric-ready notifications at 1am.
+    quiet: true,
     sourceAssetId: master.sourceAssetId,
     trackId: master.trackId,
   }));
@@ -286,10 +281,13 @@ export const enqueuePremiumEnrichmentBackfill = async ({
   });
   logInfo({
     created: result.created,
-    event: "premium_enrichment_backfill_started",
-    ownerUserId,
+    event: "lyrics_enrichment_backfill_started",
+    ownerUserId: ownerUserId ?? "all",
     requested: result.requested,
     scanned: masters.length,
   });
   return { ...result, scanned: masters.length };
 };
+
+/** @deprecated Renamed to enqueueLyricsEnrichmentBackfill (#257). */
+export const enqueuePremiumEnrichmentBackfill = enqueueLyricsEnrichmentBackfill;

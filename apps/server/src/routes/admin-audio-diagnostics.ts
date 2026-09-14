@@ -1,8 +1,13 @@
 /* eslint-disable one-var, sort-vars */
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { audioDiagnosticJobs } from "@soundkit/db/schema/app";
-import { eq } from "drizzle-orm";
+import {
+  audioDiagnosticJobs,
+  trackAssets,
+  trackStemJobs,
+  tracks,
+} from "@soundkit/db/schema/app";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -17,6 +22,10 @@ import {
   listDiagnosticJobs,
   processDiagnosticJob,
 } from "@/lib/audio-diagnostics";
+import { enqueueLyricsEnrichmentBackfill } from "@/lib/media-backfill";
+import { ENRICHMENT_PIPELINE_VERSION } from "@/lib/media-pipeline";
+import type { TrackEnrichmentWorkflowPayload } from "@/lib/media-pipeline";
+import { ensureTrackEnrichmentWorkflowBatch } from "@/lib/media-processing-jobs";
 import { ContainerMediaProcessor } from "@/lib/media-processor";
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
@@ -250,6 +259,122 @@ app.openapi(
       kickJobProcessing(jobId, c.env as AppEnv["Bindings"], c.executionCtx);
     }
     return c.json(serializeJob(job), HttpStatusCodes.OK);
+  }
+);
+
+const syncLyricsStemsBodySchema = z.object({
+    limit: z.number().int().min(1).max(100).optional(),
+    missingOnly: z.boolean().optional(),
+    trackIds: z.string().array().min(1).max(100).optional(),
+  }),
+  syncLyricsStemsResponseSchema = z.object({
+    queuedCount: z.number().int(),
+    trackIds: z.string().array(),
+  });
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/audio-diagnostics/sync-lyrics-stems",
+    request: {
+      body: jsonContentRequired(
+        syncLyricsStemsBodySchema,
+        "Lyrics/stems backfill payload"
+      ),
+    },
+    responses: {
+      [HttpStatusCodes.ACCEPTED]: jsonContent(
+        syncLyricsStemsResponseSchema,
+        "Backfill queued (quiet: no lyric notifications)"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Admin required"
+      ),
+    },
+    tags: ["Admin"],
+  }),
+  async (c) => {
+    if (!isAdminUser(c.get("user"))) {
+      return c.json(
+        { message: "Admin access is required." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+    const body = c.req.valid("json"),
+      workflow = (c.env as AppEnv["Bindings"]).TRACK_ENRICHMENT_WORKFLOW;
+
+    // No explicit IDs: sweep masters missing enrichment (quiet backfill).
+    if (!body.trackIds || body.trackIds.length === 0) {
+      const result = await enqueueLyricsEnrichmentBackfill({
+        batchSize: body.limit ?? 25,
+        workflow,
+      });
+      return c.json(
+        {
+          queuedCount: result.created,
+          trackIds: [],
+        },
+        HttpStatusCodes.ACCEPTED
+      );
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json({ queuedCount: 0, trackIds: [] }, HttpStatusCodes.ACCEPTED);
+    }
+    const db = createDb(),
+      masters = await db
+        .select({
+          objectKey: trackAssets.objectKey,
+          sourceAssetId: trackAssets.id,
+          trackId: trackAssets.trackId,
+        })
+        .from(trackAssets)
+        .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
+        .where(
+          and(
+            inArray(trackAssets.trackId, [...new Set(body.trackIds)]),
+            eq(trackAssets.assetKind, "master"),
+            eq(trackAssets.isCurrent, true),
+            isNotNull(trackAssets.objectKey),
+            inArray(trackAssets.status, ["uploaded", "ready"]),
+            isNull(tracks.deletedAt)
+          )
+        )
+        .limit(100);
+    for (const master of masters) {
+      await db
+        .insert(trackStemJobs)
+        .values({
+          id: `stem:${master.sourceAssetId}:v${ENRICHMENT_PIPELINE_VERSION}`,
+          inputAssetId: master.sourceAssetId,
+          outputFormat: "MP3",
+          outputType: "BOTH",
+          status: "queued",
+          trackId: master.trackId,
+        })
+        .onConflictDoNothing();
+    }
+    const payloads = masters
+        .filter((master) => master.objectKey)
+        .map((master): TrackEnrichmentWorkflowPayload => ({
+          objectKey: master.objectKey as string,
+          pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
+          quiet: true,
+          sourceAssetId: master.sourceAssetId,
+          trackId: master.trackId,
+        })),
+      result = await ensureTrackEnrichmentWorkflowBatch({
+        payloads,
+        workflow,
+      });
+    return c.json(
+      {
+        queuedCount: result.created,
+        trackIds: masters.map((master) => master.trackId),
+      },
+      HttpStatusCodes.ACCEPTED
+    );
   }
 );
 

@@ -32,6 +32,8 @@ const meGet = apiClient.v1.me.index.$get,
     apiClient.v1.admin["audio-diagnostics"].jobs.$post,
   adminDiagnosticJobGet =
     apiClient.v1.admin["audio-diagnostics"].jobs[":jobId"].$get,
+  adminSyncLyricsStemsPost =
+    apiClient.v1.admin["audio-diagnostics"]["sync-lyrics-stems"].$post,
   adminImportStripePlanPost =
     apiClient.v1.admin.finance.payments["import-plan"].$post,
   adminOverviewGet = apiClient.v1.admin.overview.$get,
@@ -786,6 +788,15 @@ export const useCreateDiagnosticJobMutation = () => {
       }),
   });
 };
+
+export const useAdminSyncLyricsStemsMutation = () =>
+  useMutation({
+    mutationFn: async (body: {
+      limit?: number;
+      missingOnly?: boolean;
+      trackIds?: string[];
+    }) => rpcJson(await adminSyncLyricsStemsPost({ json: body })),
+  });
 
 export const useImportStripePlanMutation = () => {
   const queryClient = useQueryClient();

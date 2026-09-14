@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added in-house stem separation + lyric transcription (#257): Demucs `htdemucs` vocals/instrumental separation in a zero-internet Cloudflare Container (`apps/stem-separator`, `standard-3`) and Cloudflare Workers AI transcription (`@cf/openai/whisper-large-v3-turbo`, single model for all tracks) with segment-word flattening plus VTT fallback into timed lyric lines. Enrichment auto-queues on every track settle/finalize (no premium gate), project new-track uploads flow through the same track path, backfill and admin sync (`POST /v1/admin/audio-diagnostics/sync-lyrics-stems`) run quiet with no lyric notifications, the Lyrics tab shows model/stem badges with smart retry (reuses existing vocal stems), and StemSplit submission/polling/webhook processing was removed (route kept as a deprecated no-op).
+
 - Added song-first semantic search (P0+P1 of #242): chunked lyric embeddings with max-to-song rollup and matched-snippet evidence, enriched track index text (artist/genre/tempo/key), hash-gated reindexing, lyrics backfill coverage, scored + threshold-gated results, visibility-scoped hydration (titles/covers/artists/snippets), and a rendered AI Matches UI replacing raw ID slugs.
 - Added geo-powered semantic search (P2 of #242): `state`/`scope` params, deterministic NL query parsing (states + entity intent with graceful fallback), concentric local/neighbor/national ranking with boosts, header-region implicit scope, and a region picker with Near-you/Nationwide grouped AI Matches.
 - Added vector hardening (P3 of #242): explicit `vector` extension plus HNSW cosine index on `search_embeddings` (migration `0061`, additive).

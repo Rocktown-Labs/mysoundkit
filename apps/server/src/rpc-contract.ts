@@ -1210,6 +1210,11 @@ export const rpcContract = new Hono()
     c.json({} as z.infer<typeof diagnosticJobSchema>)
   )
   .post(
+    "/v1/admin/audio-diagnostics/sync-lyrics-stems",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as { queuedCount: number; trackIds: string[] }, 202)
+  )
+  .post(
     "/v1/admin/embeddings/backfill",
     validator("query", (value) =>
       z.object({ limit: z.string().optional() }).parse(value)

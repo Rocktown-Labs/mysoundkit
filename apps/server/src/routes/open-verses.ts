@@ -25,7 +25,6 @@ import { getDisplayNameForUser } from "@/lib/email-events";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
-  resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import {
@@ -1416,48 +1415,41 @@ app.openapi(
       });
     }
 
-    const entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(c.get("session"))
-        ? c.get("session")
-        : null,
-      user,
-    });
-    if (entitlements.isPremium) {
-      const stemJobId = `stem:${finalMaster.id}:v${ENRICHMENT_PIPELINE_VERSION}`;
-      await db
-        .insert(trackStemJobs)
-        .values({
-          id: stemJobId,
-          inputAssetId: finalMaster.id,
-          outputFormat: "MP3",
-          outputType: "BOTH",
-          status: "queued",
-          trackId: listing.trackId,
-        })
-        .onConflictDoNothing();
-      try {
-        const enrichment = await ensureTrackEnrichmentWorkflow({
-          payload: {
-            objectKey: finalMaster.objectKey,
-            pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
-            sourceAssetId: finalMaster.id,
-            trackId: listing.trackId,
-          },
-          workflow: c.env.TRACK_ENRICHMENT_WORKFLOW,
-        });
-        await db
-          .update(trackStemJobs)
-          .set({ workflowInstanceId: enrichment.workflowInstanceId })
-          .where(eq(trackStemJobs.inputAssetId, finalMaster.id));
-      } catch (error) {
-        logError({
-          error: error instanceof Error ? error.message : String(error),
-          event: "open_verse_final_enrichment_workflow_launch_failed",
-          listingId,
+    // Enrichment runs for every final master (no premium gate).
+    const stemJobId = `stem:${finalMaster.id}:v${ENRICHMENT_PIPELINE_VERSION}`;
+    await db
+      .insert(trackStemJobs)
+      .values({
+        id: stemJobId,
+        inputAssetId: finalMaster.id,
+        outputFormat: "MP3",
+        outputType: "BOTH",
+        status: "queued",
+        trackId: listing.trackId,
+      })
+      .onConflictDoNothing();
+    try {
+      const enrichment = await ensureTrackEnrichmentWorkflow({
+        payload: {
+          objectKey: finalMaster.objectKey,
+          pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
           sourceAssetId: finalMaster.id,
           trackId: listing.trackId,
-        });
-      }
+        },
+        workflow: c.env.TRACK_ENRICHMENT_WORKFLOW,
+      });
+      await db
+        .update(trackStemJobs)
+        .set({ workflowInstanceId: enrichment.workflowInstanceId })
+        .where(eq(trackStemJobs.inputAssetId, finalMaster.id));
+    } catch (error) {
+      logError({
+        error: error instanceof Error ? error.message : String(error),
+        event: "open_verse_final_enrichment_workflow_launch_failed",
+        listingId,
+        sourceAssetId: finalMaster.id,
+        trackId: listing.trackId,
+      });
     }
 
     return c.json(

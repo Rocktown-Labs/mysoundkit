@@ -2,7 +2,7 @@
 import { z } from "zod";
 
 export const MEDIA_PIPELINE_VERSION = 5;
-export const ENRICHMENT_PIPELINE_VERSION = 1;
+export const ENRICHMENT_PIPELINE_VERSION = 2;
 export const PROJECT_EXPORT_PIPELINE_VERSION = 1;
 export const WORKFLOW_INSTANCE_ID_MAX_LENGTH = 100;
 
@@ -85,7 +85,10 @@ export const mediaProcessingWorkflowPayloadSchema = z
     }
   });
 
-export const trackEnrichmentWorkflowPayloadSchema = trackSourceSchema;
+export const trackEnrichmentWorkflowPayloadSchema = trackSourceSchema.extend({
+  // Backfill/admin runs set quiet so lyric-ready notifications stay silent.
+  quiet: z.boolean().optional(),
+});
 
 export const projectExportWorkflowPayloadSchema = z.object({
   exportVersion: pipelineVersionSchema,

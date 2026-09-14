@@ -3,6 +3,7 @@ import alchemy from "alchemy";
 import {
   AccountId,
   AccountApiToken,
+  Ai,
   AnalyticsEngineDataset,
   Container,
   DurableObjectNamespace,
@@ -237,6 +238,22 @@ const SITE_HOST = isProduction
       logs: { enabled: true },
     },
   }),
+  stemSeparator = await Container("stem-separator", {
+    adopt: shouldAdoptRemoteResources,
+    build: {
+      context: "../../apps/stem-separator",
+      dockerfile: "Dockerfile",
+      platform: "linux/amd64",
+    },
+    className: "StemSeparatorContainer",
+    instanceType: "standard-3",
+    maxInstances: 10,
+    name: resourceName("soundkit-stem-separator"),
+    observability: {
+      logs: { enabled: true },
+    },
+  }),
+  workersAi = Ai(),
   emailDeliveryDeadLetterQueue = await Queue("email-delivery-dlq", {
     adopt: shouldAdoptRemoteResources,
     name: resourceName("soundkit-email-delivery-dlq"),
@@ -407,6 +424,7 @@ export const bio = await TanStackStart("bio", {
 export const server = await Worker("server", {
   adopt: isProduction,
   bindings: {
+    AI: workersAi,
     BETTER_AUTH_SECRET: requiredSecret(
       alchemy.secret.env.BETTER_AUTH_SECRET,
       "BETTER_AUTH_SECRET"
@@ -446,6 +464,7 @@ export const server = await Worker("server", {
     MEDIA_CANONICAL_URL: MEDIA_URL,
     MEDIA_PROCESSING_WORKFLOW: mediaProcessingWorkflow,
     MEDIA_PROCESSOR: mediaProcessor,
+    STEM_SEPARATOR: stemSeparator,
     MEDIA_RETENTION_WORKFLOW: mediaRetentionWorkflow,
     PURCHASE_FULFILLMENT_WORKFLOW: purchaseFulfillmentWorkflow,
     PAYOUT_RUN_WORKFLOW: payoutRunWorkflow,

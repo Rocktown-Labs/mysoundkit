@@ -1,0 +1,8 @@
+{
+  "name": "@soundkit/stem-separator",
+  "private": true,
+  "scripts": {
+    "test": "python3 -m unittest discover -s src -p \"test_*.py\"",
+    "check-types": "python3 -m py_compile src/server.py src/separator.py"
+  }
+}

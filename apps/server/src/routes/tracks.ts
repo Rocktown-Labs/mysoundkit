@@ -2460,11 +2460,9 @@ app.openapi(
       });
     }
 
-    const entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
-    if (entitlements.isPremium && settlement.enrichLyrics) {
+    // Enrichment runs for every upload while the app is in development
+    // (no premium gate): Demucs stems + Workers AI lyrics.
+    if (settlement.enrichLyrics) {
       const [masterAsset] = await db
         .select()
         .from(trackAssets)
@@ -2532,10 +2530,6 @@ app.openapi(
     const { trackId } = c.req.valid("param"),
       body = c.req.valid("json"),
       session = c.get("session"),
-      entitlements = await resolveEntitlements({
-        session: isAuthenticatedSession(session) ? session : null,
-        user,
-      }),
       organizationId = await resolveActiveOrganizationId({
         session: isAuthenticatedSession(session) ? session : null,
         user,
@@ -2647,7 +2641,7 @@ app.openapi(
       });
     }
 
-    if (entitlements.isPremium && body.enrichLyrics !== false) {
+    if (body.enrichLyrics !== false) {
       await queueTrackAudioProcessing({
         masterAsset: { ...masterAsset, status: "ready" },
         trackId,
@@ -2824,10 +2818,6 @@ app.openapi(
         messageResponseSchema,
         "Track not found"
       ),
-      [HttpStatusCodes.FORBIDDEN]: jsonContent(
-        messageResponseSchema,
-        "Premium subscription required"
-      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
         "Authentication required"
@@ -2855,22 +2845,7 @@ app.openapi(
 
     const { trackId } = c.req.valid("param"),
       session = c.get("session"),
-      entitlements = await resolveEntitlements({
-        session: isAuthenticatedSession(session) ? session : null,
-        user,
-      });
-
-    if (!entitlements.isPremium) {
-      return c.json(
-        {
-          message:
-            "A premium artist subscription is required for automated StemSplit and transcription processing.",
-        },
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
-
-    const organizationId = await resolveActiveOrganizationId({
+      organizationId = await resolveActiveOrganizationId({
         session: isAuthenticatedSession(session) ? session : null,
         user,
       }),

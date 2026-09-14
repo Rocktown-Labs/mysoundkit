@@ -1,20 +1,19 @@
 /* eslint-disable one-var, sort-vars, complexity */
 import { createDb } from "@soundkit/db";
-import { openVerseListings, tracks } from "@soundkit/db/schema/app";
+import { openVerseListings } from "@soundkit/db/schema/app";
 import { WorkflowEntrypoint } from "cloudflare:workers";
 import type { WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 import { and, eq, inArray } from "drizzle-orm";
 
+import type { StemSeparatorContainer } from "@/containers/stem-separator";
 import {
+  demucsTargetKeys,
   finalizeTrackEnrichment,
-  pollStemSplitJob,
-  processTrackAudio,
-  saveStemSplitOutput,
-  transcribeStemSplitVocals,
+  findCurrentDemucsVocalStem,
+  saveDemucsStemAsset,
+  transcribeDemucsVocals,
 } from "@/lib/audio-processing";
-import type { StemSplitJobResponse } from "@/lib/audio-processing";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
-import { resolveEntitlements } from "@/lib/entitlements";
 import {
   trackEnrichmentWorkflowInstanceId,
   trackEnrichmentWorkflowPayloadSchema,
@@ -25,19 +24,27 @@ import {
   verifyCurrentMaster,
 } from "@/lib/media-processing";
 import { updateMediaProcessingJob } from "@/lib/media-processing-jobs";
+import { ContainerStemSeparator } from "@/lib/stem-separator";
 import { logError, logInfo } from "@/middleware/structured-logging";
 
-const MAX_STEMSPLIT_POLLS = 120,
-  stemSplitSubmissionConfig = {
+const separationStepConfig = {
     retries: {
       delay: "1 second" as const,
       limit: 0,
     },
-    timeout: "5 minutes" as const,
+    // htdemucs on CPU runs ~1.5x track duration; a 10-minute master can need
+    // 15+ minutes plus container boot.
+    timeout: "25 minutes" as const,
   },
-  // A missing/stale master can never succeed on retry, and every retry burns
-  // paid third-party StemSplit/transcription calls once past this point, so
-  // verification failures are returned to the engine as terminal results.
+  transcriptionStepConfig = {
+    retries: {
+      delay: "10 seconds" as const,
+      limit: 1,
+    },
+    timeout: "10 minutes" as const,
+  },
+  // A missing/stale master can never succeed on retry, so verification
+  // failures are returned to the engine as terminal results.
   masterVerifyStepConfig = {
     retries: {
       delay: "5 seconds" as const,
@@ -73,6 +80,9 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
     }
     if (!this.env.MEDIA_BUCKET) {
       throw new Error("MEDIA_BUCKET is required for track enrichment.");
+    }
+    if (!this.env.STEM_SEPARATOR) {
+      throw new Error("STEM_SEPARATOR is required for track enrichment.");
     }
 
     try {
@@ -133,70 +143,52 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
         return { reason: masterCheck.errorCode, status: "failed" };
       }
 
-      const eligibility = await step.do(
-        "verify Premium eligibility",
+      // Open Verse bases mid-collab are skipped: their finals get enriched
+      // when the owner uploads the finished master. (No premium gate: every
+      // upload enriches while the app is in development.)
+      const openVerseGuard = await step.do(
+        "check open verse guard",
         jobStateStepConfig,
         async () => {
           const db = createDb(),
-            [track] = await db
-              .select({ ownerUserId: tracks.ownerUserId })
-              .from(tracks)
-              .where(eq(tracks.id, payload.trackId))
-              .limit(1);
-          if (!track) {
-            throw new Error("Track does not exist for enrichment.");
-          }
-          const [unfinishedOpenVerse] = await db
-            .select({ id: openVerseListings.id })
-            .from(openVerseListings)
-            .where(
-              and(
-                eq(openVerseListings.trackId, payload.trackId),
-                inArray(openVerseListings.status, ["open", "closed"])
+            [unfinishedOpenVerse] = await db
+              .select({ id: openVerseListings.id })
+              .from(openVerseListings)
+              .where(
+                and(
+                  eq(openVerseListings.trackId, payload.trackId),
+                  inArray(openVerseListings.status, ["open", "closed"])
+                )
               )
-            )
-            .limit(1);
-          if (unfinishedOpenVerse) {
-            return { eligible: false, reason: "unfinished_open_verse" };
-          }
-          const entitlements = await resolveEntitlements({
-            session: null,
-            user: { id: track.ownerUserId },
-          });
-          return {
-            eligible: entitlements.isPremium,
-            reason: entitlements.isPremium ? null : "not_premium",
-          };
+              .limit(1);
+          return { skipped: Boolean(unfinishedOpenVerse) };
         }
       );
 
-      if (!eligibility.eligible) {
+      if (openVerseGuard.skipped) {
         await step.do("record enrichment skipped", async () => {
           await updateMediaProcessingJob({
             completedAt: new Date(),
             currentStage: "skipped",
-            output: { reason: eligibility.reason },
+            output: { reason: "unfinished_open_verse" },
             progressPercent: 100,
             status: "ready",
             workflowInstanceId: event.instanceId,
             workflowType: "track_enrichment",
           });
           logInfo({
-            event:
-              eligibility.reason === "not_premium"
-                ? "track_enrichment_skipped_not_premium"
-                : "track_enrichment_skipped_unfinished_open_verse",
+            event: "track_enrichment_skipped_unfinished_open_verse",
             sourceAssetId: payload.sourceAssetId,
             trackId: payload.trackId,
             workflowInstanceId: event.instanceId,
           });
         });
-        return { reason: eligibility.reason, status: "skipped" };
+        return { reason: "unfinished_open_verse", status: "skipped" };
       }
 
       await step.do("record enrichment started", async () => {
         await updateMediaProcessingJob({
-          currentStage: "submitting_stemsplit",
+          currentStage: "separating_stems",
           progressPercent: 5,
           startedAt: new Date(),
           status: "running",
@@ -212,69 +204,111 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
         });
       });
 
-      const submittedJob = await step.do(
-        "submit StemSplit job once",
-        stemSplitSubmissionConfig,
-        () => processTrackAudio(payload)
-      );
-      let currentJob: StemSplitJobResponse = submittedJob;
-
-      for (let pollCount = 0; pollCount < MAX_STEMSPLIT_POLLS; pollCount += 1) {
-        if (
-          currentJob.status === "COMPLETED" ||
-          currentJob.status === "FAILED"
-        ) {
-          break;
-        }
-        await step.sleep(
-          `wait for StemSplit poll ${pollCount + 1}`,
-          "15 seconds"
-        );
-        currentJob = await step.do(`poll StemSplit ${pollCount + 1}`, () =>
-          pollStemSplitJob({
-            stemsplitJobId: submittedJob.id,
+      // Smart retry: a current vocal stem for this exact source means Demucs
+      // already ran — reuse it and only re-run transcription.
+      const existingVocals = await step.do(
+        "check existing vocal stem",
+        jobStateStepConfig,
+        () =>
+          findCurrentDemucsVocalStem({
+            pipelineVersion: payload.pipelineVersion,
+            sourceAssetId: payload.sourceAssetId,
             trackId: payload.trackId,
           })
+      );
+
+      const targets = demucsTargetKeys({
+          pipelineVersion: payload.pipelineVersion,
+          trackId: payload.trackId,
+        }),
+        jobId = `demucs:${payload.sourceAssetId}:v${payload.pipelineVersion}`;
+
+      let vocalsAssetId: string | null = existingVocals?.id ?? null;
+      if (vocalsAssetId) {
+        await step.do("record stem reuse", async () => {
+          await updateMediaProcessingJob({
+            currentStage: "transcribing_vocals",
+            progressPercent: 60,
+            status: "running",
+            workflowInstanceId: event.instanceId,
+            workflowType: "track_enrichment",
+          });
+          logInfo({
+            event: "track_enrichment_stem_reused",
+            sourceAssetId: payload.sourceAssetId,
+            trackId: payload.trackId,
+            workflowInstanceId: event.instanceId,
+          });
+        });
+      } else {
+        const separation = await step.do(
+          "separate stems with Demucs",
+          separationStepConfig,
+          async () => {
+            const separator = new ContainerStemSeparator({
+              binding: this.env
+                .STEM_SEPARATOR as unknown as DurableObjectNamespace<StemSeparatorContainer>,
+              workflowInstanceId: event.instanceId,
+            });
+            const result = await separator.separate({
+              sourceObjectKey: payload.objectKey,
+              targetInstrumentalKey: targets.instrumentalKey,
+              targetVocalsKey: targets.vocalsKey,
+            });
+            return {
+              instrumental: result.instrumental,
+              vocals: result.vocals,
+            };
+          }
         );
+
+        const { vocalsAssetId: separatedVocalsAssetId } = await step.do(
+          "register stem assets",
+          async () => {
+            const vocals = await saveDemucsStemAsset({
+              assetKind: "vocal_stem",
+              pipelineVersion: payload.pipelineVersion,
+              separation: separation.vocals,
+              sourceAssetId: payload.sourceAssetId,
+              trackId: payload.trackId,
+            });
+            await saveDemucsStemAsset({
+              assetKind: "instrumental",
+              pipelineVersion: payload.pipelineVersion,
+              separation: separation.instrumental,
+              sourceAssetId: payload.sourceAssetId,
+              trackId: payload.trackId,
+            });
+            return { vocalsAssetId: vocals?.id ?? null };
+          }
+        );
+        vocalsAssetId = separatedVocalsAssetId;
       }
 
-      if (currentJob.status === "FAILED") {
-        throw new Error(`StemSplit job ${submittedJob.id} failed.`);
-      }
-      if (currentJob.status !== "COMPLETED") {
-        throw new Error(`StemSplit job ${submittedJob.id} timed out.`);
-      }
-
-      const vocals = await step.do("register vocal stem", async () => {
-        const asset = await saveStemSplitOutput({
-          assetId: payload.sourceAssetId,
-          job: currentJob,
-          output: "vocals",
-          trackId: payload.trackId,
-        });
-        return { assetId: asset?.id ?? null };
-      });
-      await step.do("register instrumental stem", async () => {
-        await saveStemSplitOutput({
-          assetId: payload.sourceAssetId,
-          job: currentJob,
-          output: "instrumental",
-          trackId: payload.trackId,
-        });
-      });
-      const lyrics = await step.do("transcribe vocal stem", async () => {
-        const revision = await transcribeStemSplitVocals({
-          trackId: payload.trackId,
-          vocalsAssetId: vocals.assetId,
-        });
-        return revision ? { id: revision.id, text: revision.text } : null;
-      });
+      const lyrics = await step.do(
+        "transcribe vocal stem",
+        transcriptionStepConfig,
+        async () => {
+          if (!vocalsAssetId) {
+            return null;
+          }
+          const revision = await transcribeDemucsVocals({
+            ai: (this.env as unknown as { AI?: Ai }).AI,
+            assetId: vocalsAssetId,
+            bucket: this.env.MEDIA_BUCKET,
+            trackId: payload.trackId,
+          });
+          return revision ? { id: revision.id, text: revision.text } : null;
+        }
+      );
 
       await step.do("finalize track enrichment", async () => {
         await finalizeTrackEnrichment({
           emailQueue,
-          job: currentJob,
+          inputAssetId: payload.sourceAssetId,
+          jobId,
           lyrics,
+          suppressNotifications: payload.quiet ?? false,
           trackId: payload.trackId,
         });
         await updateMediaProcessingJob({
@@ -282,7 +316,7 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
           currentStage: "complete",
           output: {
             lyricsRevisionId: lyrics?.id ?? null,
-            stemsplitJobId: currentJob.id,
+            separationJobId: jobId,
           },
           progressPercent: 100,
           status: "ready",
@@ -291,8 +325,8 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
         });
         logInfo({
           event: "track_enrichment_completed",
+          separationJobId: jobId,
           sourceAssetId: payload.sourceAssetId,
-          stemsplitJobId: currentJob.id,
           trackId: payload.trackId,
           workflowInstanceId: event.instanceId,
         });
@@ -300,8 +334,8 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
 
       return {
         lyricsRevisionId: lyrics?.id ?? null,
+        separationJobId: jobId,
         status: "completed",
-        stemsplitJobId: currentJob.id,
         trackId: payload.trackId,
       };
     } catch (error) {
