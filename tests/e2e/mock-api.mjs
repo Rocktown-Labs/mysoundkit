@@ -573,7 +573,7 @@ const normalizeGenre = (value) =>
       duration: "3:42",
       genre: "Hip-Hop",
       id: "video_midnight_vibes_mv",
-      muxPlaybackId: "mux_midnight_vibes_mv",
+      muxPlaybackId: "DS00Spx1CV902MCtPj5WknGlR102V5HFkDe",
       playbackPolicy: "public",
       sourceProvider: "mux",
       status: "ready",
@@ -2999,7 +2999,7 @@ export const createMockApiServer = async ({
         201,
         {
           participant: {
-            authToken: "mock-party-token",
+            authToken: `mock_rtk_meeting-${liveExperienceJoinMatch[1]}_participant-${session ?? "anonymous"}`,
             meetingId: `meeting-${liveExperienceJoinMatch[1]}`,
             participantId: `participant-${session ?? "anonymous"}`,
             presetName:

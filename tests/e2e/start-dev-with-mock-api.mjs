@@ -28,6 +28,7 @@ const webBaseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:4311",
         ...process.env,
         SOUNDKIT_CI_STATIC_CONFIG:
           process.env.SOUNDKIT_CI_STATIC_CONFIG ?? "true",
+        VITE_DISABLE_DEVTOOLS: "true",
         VITE_MEDIA_URL: apiUrl.origin,
         VITE_SERVER_URL: apiUrl.origin,
       },

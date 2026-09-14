@@ -352,6 +352,8 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
   makeNotificationCollection = (queryClient: QueryClient, scopeKey: string) => {
     const collection = createCollection(
       queryCollectionOptions({
+        autoIndex: "eager",
+        defaultIndexType: BasicIndex,
         enabled: scopeKey !== "anonymous",
         getKey: (notification) => notification.id,
         id: `soundkit-db-notifications-${scopeKey}`,
@@ -374,10 +376,6 @@ const DataDbContext = createContext<DataDbContextValue | null>(null),
       })
     );
 
-    collection.createIndex((notification) => notification.createdAt, {
-      indexType: BasicIndex,
-      name: "notifications-created-at",
-    });
     return collection;
   },
   makeNotificationStatsCollection = (
