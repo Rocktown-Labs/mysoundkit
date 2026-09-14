@@ -114,13 +114,15 @@ const getEnvValue = (key: string) =>
 
 export const demucsTargetKeys = ({
   pipelineVersion,
+  sourceAssetId,
   trackId,
 }: {
   pipelineVersion: number;
+  sourceAssetId: string;
   trackId: string;
 }) => ({
-  instrumentalKey: `processed/tracks/${trackId}/demucs-v${pipelineVersion}/instrumental.mp3`,
-  vocalsKey: `processed/tracks/${trackId}/demucs-v${pipelineVersion}/vocals.mp3`,
+  instrumentalKey: `processed/tracks/${trackId}/demucs-v${pipelineVersion}/${sourceAssetId}/instrumental.mp3`,
+  vocalsKey: `processed/tracks/${trackId}/demucs-v${pipelineVersion}/${sourceAssetId}/vocals.mp3`,
 });
 
 /** @deprecated StemSplit was removed (#257). Always resolves null. */
