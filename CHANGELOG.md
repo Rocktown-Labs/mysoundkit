@@ -42,7 +42,7 @@
 
 ### Fixed
 
-- Fixed preview Workers from registering scheduled jobs or running scheduled side effects, upgraded Better Auth/Hono/upload-parser security dependencies, and batched track/project summary enrichment queries (#259).
+- Fixed preview Workers from registering scheduled jobs or running scheduled side effects, upgraded Better Auth/Hono/upload-parser security dependencies, batched track/project summary enrichment queries, and added the Better Auth 1.7 team schema migration (#259).
 - Reduced browser smoke-test runtime noise by making Stripe Connect SSR-safe, deferring development devtools until client mount, recognizing local RealtimeKit fallback tokens, preventing post-unmount media updates, using compatible notification auto-indexing, and replacing the invalid Mux fixture playback ID.
 - Fixed recurring production track and live query hangs by scoping PostgreSQL pools to HTTP, queue, and scheduled Worker events, disposing clients after event background work, and bounding Hyperdrive connection and query waits.
 - Fixed production database query starvation by reusing Hyperdrive clients instead of rotating the pool client after every query, retrying transient wrapped database errors, and indexing live queue, live discovery, project-cover, and track-project lookups.
