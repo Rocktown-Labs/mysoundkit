@@ -21,6 +21,7 @@ export default defineConfig(({ mode }) => {
   return {
     optimizeDeps: {
       include: [
+        "@stripe/connect-js/pure",
         "@tanstack/react-devtools",
         "@tanstack/react-query-devtools",
         "@tanstack/react-router-devtools",

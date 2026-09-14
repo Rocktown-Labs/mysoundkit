@@ -1,5 +1,5 @@
 "use client";
-/* eslint-disable no-void, one-var, promise/prefer-await-to-callbacks, promise/prefer-await-to-then, react/exhaustive-effect-dependencies, react/todo, sort-vars, unicorn/no-nested-ternary, unicorn/require-array-join-separator */
+/* eslint-disable complexity, no-void, one-var, promise/prefer-await-to-callbacks, promise/prefer-await-to-then, react/exhaustive-effect-dependencies, react/todo, sort-vars, unicorn/no-nested-ternary, unicorn/require-array-join-separator */
 
 import type RealtimeKitClientType from "@cloudflare/realtimekit";
 import type { RTKParticipant, RTKSelf } from "@cloudflare/realtimekit";
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { API_V1_URL } from "@/lib/api";
 import type { LiveRoomArtist } from "@/lib/live-room";
+import { isMockRealtimeKitToken } from "@/lib/realtimekit-token";
 
 interface BattleParticipantToken {
   authToken: string;
@@ -255,8 +256,15 @@ export function BattleMediaStage({
           throw new Error(`Unable to join battle media: ${response.status}`);
         }
 
-        const payload = (await response.json()) as BattleJoinResponse,
-          { default: RealtimeKitClient } =
+        const payload = (await response.json()) as BattleJoinResponse;
+        if (isMockRealtimeKitToken(payload.participant.authToken)) {
+          if (!disposed) {
+            setConnection("connected");
+          }
+          return;
+        }
+
+        const { default: RealtimeKitClient } =
             await import("@cloudflare/realtimekit"),
           client = await RealtimeKitClient.init({
             authToken: payload.participant.authToken,
@@ -267,6 +275,10 @@ export function BattleMediaStage({
           });
 
         await client.join();
+        if (disposed) {
+          await client.leave();
+          return;
+        }
         if (!viewerOnly) {
           try {
             if (audioDeviceId) {
@@ -304,6 +316,9 @@ export function BattleMediaStage({
         setConnection("connected");
 
         const refreshParticipants = () => {
+          if (disposed) {
+            return;
+          }
           setParticipants(client.participants.joined.toArray());
           setSelf(client.self);
         };
@@ -336,8 +351,6 @@ export function BattleMediaStage({
       if (activeMeeting) {
         void activeMeeting.leave();
       }
-      setSelf(null);
-      setParticipants([]);
     };
   }, [audioDeviceId, experienceId, phase, retry, videoDeviceId, viewerOnly]);
 
