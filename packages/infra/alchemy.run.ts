@@ -501,7 +501,6 @@ export const server = await Worker("server", {
     SENTRY_ENVIRONMENT,
     // Legacy StemSplit integration (removed #257): bindings stay optional so
     // retired credentials are never required for deploys.
-    ...optionalEnvBinding("STEMSPLIT_API_KEY"),
     ...optionalEnvBinding("STEMSPLIT_WEBHOOK_SECRET"),
     STRIPE_SECRET_KEY: requiredSecret(
       alchemy.secret.env.STRIPE_SECRET_KEY,

@@ -40,7 +40,10 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { playConditionSql } from "@/lib/analytics-helpers";
 import { guardedTrackPlaybackUrl, publicAssetUrl } from "@/lib/asset-urls";
-import { isTrackEnrichmentCurrent } from "@/lib/audio-processing";
+import {
+  isTrackEnrichmentCurrent,
+  markTrackLyricsFailed,
+} from "@/lib/audio-processing";
 import {
   resolveDownloadAccess,
   resolveListeningAccess,
@@ -514,17 +517,6 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
     if (!job) {
       throw new Error("Unable to create track enrichment job.");
     }
-    const [machineLyrics] = await db
-      .select({ id: trackLyrics.id })
-      .from(trackLyrics)
-      .where(
-        and(
-          eq(trackLyrics.trackId, trackId),
-          eq(trackLyrics.sourceType, "machine_transcription")
-        )
-      )
-      .limit(1);
-
     await withRetry("mark lyrics generating", () =>
       db
         .update(tracks)
@@ -535,31 +527,52 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
         .where(and(eq(tracks.id, trackId), ne(tracks.lyricsStatus, "approved")))
     );
 
-    const ensured = await ensureTrackEnrichmentWorkflow({
-      payload: {
-        objectKey: masterAsset.objectKey,
-        pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
-        sourceAssetId: masterAsset.id,
-        trackId,
-      },
-      workflow: getTrackEnrichmentWorkflow(),
-    });
-    if (!machineLyrics && ensured.workflowStatus === "complete") {
-      // A prior run finished without lyrics (transcription returned empty);
-      // restart the completed instance so the retry actually reruns.
-      try {
+    let ensured: Awaited<ReturnType<typeof ensureTrackEnrichmentWorkflow>>;
+    try {
+      ensured = await ensureTrackEnrichmentWorkflow({
+        payload: {
+          objectKey: masterAsset.objectKey,
+          pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
+          sourceAssetId: masterAsset.id,
+          trackId,
+        },
+        workflow: getTrackEnrichmentWorkflow(),
+      });
+      if (ensured.workflowStatus === "complete") {
+        // Reaching this point means the exact source's outputs are incomplete,
+        // regardless of whether an older master has machine lyrics. Restart
+        // the completed instance to repair the missing v2 output.
         const binding = getTrackEnrichmentWorkflow();
         if (binding) {
           await (await binding.get(ensured.workflowInstanceId)).restart();
         }
-      } catch (error) {
-        logError({
-          error: error instanceof Error ? error.message : String(error),
-          event: "enrichment_lyrics_retry_restart_failed",
-          sourceAssetId: masterAsset.id,
-          trackId,
-        });
       }
+    } catch (error) {
+      await markTrackLyricsFailed({
+        sourceAssetId: masterAsset.id,
+        trackId,
+      });
+      await db
+        .update(trackStemJobs)
+        .set({
+          error: { message: "Workflow launch failed." },
+          status: "failed",
+        })
+        .where(eq(trackStemJobs.inputAssetId, masterAsset.id));
+      throw error;
+    }
+    if (ensured.workflowStatus === "binding_unavailable") {
+      await markTrackLyricsFailed({
+        sourceAssetId: masterAsset.id,
+        trackId,
+      });
+      await db
+        .update(trackStemJobs)
+        .set({
+          error: { message: "Workflow binding unavailable." },
+          status: "failed",
+        })
+        .where(eq(trackStemJobs.inputAssetId, masterAsset.id));
     }
     await withRetry("save enrichment workflow instance id", () =>
       db
@@ -574,7 +587,10 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
         ensured.workflowStatus === "binding_unavailable"
           ? "Track enrichment is retryable when its Workflow binding is available."
           : "Track enrichment workflow started.",
-      status: "queued" as const,
+      status:
+        ensured.workflowStatus === "binding_unavailable"
+          ? ("failed" as const)
+          : ("queued" as const),
     };
   };
 

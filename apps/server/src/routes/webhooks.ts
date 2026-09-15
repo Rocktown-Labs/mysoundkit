@@ -707,18 +707,14 @@ app.openapi(
         messageResponseSchema,
         "StemSplit webhook accepted"
       ),
-      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
-        messageResponseSchema,
-        "StemSplit webhook secret unavailable"
-      ),
     },
     tags: ["Webhooks"],
   }),
   async (c) => {
     if (!getEnvValue("STEMSPLIT_WEBHOOK_SECRET")) {
       return c.json(
-        { message: "StemSplit webhook verification is not configured." },
-        HttpStatusCodes.SERVICE_UNAVAILABLE
+        { message: "StemSplit webhook accepted." },
+        HttpStatusCodes.OK
       );
     }
 

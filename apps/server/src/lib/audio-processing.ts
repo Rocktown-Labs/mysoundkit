@@ -184,10 +184,39 @@ export const isTrackEnrichmentCurrent = async ({
 };
 
 /** Move a track stuck in generating to failed (retryable), keeping approved. */
-export const markTrackLyricsFailed = async (trackId: string) => {
+export const markTrackLyricsFailed = async ({
+  sourceAssetId,
+  trackId,
+}: {
+  sourceAssetId: string;
+  trackId: string;
+}) => {
+  // A superseded workflow must not overwrite the status owned by the newer
+  // master's run. This also keeps an older launch failure from clobbering a
+  // current transcription that is still generating.
+  if (!(await isCurrentEnrichmentSource(sourceAssetId))) {
+    return;
+  }
   await createDb()
     .update(tracks)
     .set({ lyricsStatus: "failed", updatedAt: new Date() })
+    .where(and(eq(tracks.id, trackId), eq(tracks.lyricsStatus, "generating")));
+};
+
+/** Restore an intentionally skipped current source to its idle lyric state. */
+export const markTrackLyricsMissing = async ({
+  sourceAssetId,
+  trackId,
+}: {
+  sourceAssetId: string;
+  trackId: string;
+}) => {
+  if (!(await isCurrentEnrichmentSource(sourceAssetId))) {
+    return;
+  }
+  await createDb()
+    .update(tracks)
+    .set({ lyricsStatus: "missing", updatedAt: new Date() })
     .where(and(eq(tracks.id, trackId), eq(tracks.lyricsStatus, "generating")));
 };
 

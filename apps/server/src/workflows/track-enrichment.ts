@@ -1,6 +1,6 @@
 /* eslint-disable one-var, sort-vars, complexity */
 import { createDb } from "@soundkit/db";
-import { openVerseListings } from "@soundkit/db/schema/app";
+import { openVerseListings, trackStemJobs } from "@soundkit/db/schema/app";
 import { WorkflowEntrypoint } from "cloudflare:workers";
 import type { WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 import { and, eq, inArray } from "drizzle-orm";
@@ -12,6 +12,7 @@ import {
   findCurrentDemucsStems,
   isCurrentEnrichmentSource,
   markTrackLyricsFailed,
+  markTrackLyricsMissing,
   saveDemucsStemAsset,
   transcribeDemucsVocals,
 } from "@/lib/audio-processing";
@@ -121,6 +122,13 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
           "record terminal enrichment failure",
           jobStateStepConfig,
           async () => {
+            await createDb()
+              .update(trackStemJobs)
+              .set({
+                error: { message: masterCheck.message },
+                status: "failed",
+              })
+              .where(eq(trackStemJobs.inputAssetId, payload.sourceAssetId));
             await updateMediaProcessingJob({
               completedAt: new Date(),
               currentStage: "failed",
@@ -130,7 +138,10 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
               workflowInstanceId: event.instanceId,
               workflowType: "track_enrichment",
             });
-            await markTrackLyricsFailed(payload.trackId);
+            await markTrackLyricsFailed({
+              sourceAssetId: payload.sourceAssetId,
+              trackId: payload.trackId,
+            });
             logError({
               error: masterCheck.message,
               errorCode: masterCheck.errorCode,
@@ -170,6 +181,14 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
 
       if (openVerseGuard.skipped) {
         await step.do("record enrichment skipped", async () => {
+          await createDb()
+            .update(trackStemJobs)
+            .set({ completedAt: new Date(), status: "completed" })
+            .where(eq(trackStemJobs.inputAssetId, payload.sourceAssetId));
+          await markTrackLyricsMissing({
+            sourceAssetId: payload.sourceAssetId,
+            trackId: payload.trackId,
+          });
           await updateMediaProcessingJob({
             completedAt: new Date(),
             currentStage: "skipped",
@@ -299,6 +318,10 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
         const { stale, vocalsAssetId: separatedVocalsAssetId } = registered;
         if (stale) {
           await step.do("record superseded enrichment", async () => {
+            await createDb()
+              .update(trackStemJobs)
+              .set({ completedAt: new Date(), status: "completed" })
+              .where(eq(trackStemJobs.inputAssetId, payload.sourceAssetId));
             await updateMediaProcessingJob({
               completedAt: new Date(),
               currentStage: "skipped",
@@ -338,6 +361,39 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
           return revision ? { id: revision.id, text: revision.text } : null;
         }
       );
+
+      const sourceStillCurrent = await step.do(
+        "verify current master before finalizing enrichment",
+        jobStateStepConfig,
+        () => isCurrentEnrichmentSource(payload.sourceAssetId)
+      );
+      if (!sourceStillCurrent) {
+        await step.do(
+          "record superseded enrichment after transcription",
+          async () => {
+            await createDb()
+              .update(trackStemJobs)
+              .set({ completedAt: new Date(), status: "completed" })
+              .where(eq(trackStemJobs.inputAssetId, payload.sourceAssetId));
+            await updateMediaProcessingJob({
+              completedAt: new Date(),
+              currentStage: "skipped",
+              output: { reason: "superseded_master" },
+              progressPercent: 100,
+              status: "ready",
+              workflowInstanceId: event.instanceId,
+              workflowType: "track_enrichment",
+            });
+            logInfo({
+              event: "track_enrichment_skipped_superseded_after_transcription",
+              sourceAssetId: payload.sourceAssetId,
+              trackId: payload.trackId,
+              workflowInstanceId: event.instanceId,
+            });
+          }
+        );
+        return { reason: "superseded_master", status: "skipped" };
+      }
 
       await step.do("finalize track enrichment", async () => {
         await finalizeTrackEnrichment({
@@ -387,7 +443,17 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
           workflowInstanceId: event.instanceId,
           workflowType: "track_enrichment",
         });
-        await markTrackLyricsFailed(payload.trackId);
+        await createDb()
+          .update(trackStemJobs)
+          .set({
+            error: { message: "Track enrichment failed." },
+            status: "failed",
+          })
+          .where(eq(trackStemJobs.inputAssetId, payload.sourceAssetId));
+        await markTrackLyricsFailed({
+          sourceAssetId: payload.sourceAssetId,
+          trackId: payload.trackId,
+        });
         logError({
           error: error instanceof Error ? error.message : "Enrichment failed.",
           event: "track_enrichment_failed",

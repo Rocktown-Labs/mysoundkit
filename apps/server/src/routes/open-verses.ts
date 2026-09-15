@@ -20,6 +20,7 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { isAdminUser } from "@/lib/admin";
 import { publicAssetUrl } from "@/lib/asset-urls";
+import { markTrackLyricsFailed } from "@/lib/audio-processing";
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
 import { getDisplayNameForUser } from "@/lib/email-events";
 import {
@@ -904,9 +905,9 @@ app.openapi(
     const status =
       body.action === "approve"
         ? "approved"
-        : (body.action === "decline"
+        : body.action === "decline"
           ? "declined"
-          : "canceled");
+          : "canceled";
     const [updated] = await db
       .update(openVerseAccessRequests)
       .set({
@@ -1456,7 +1457,31 @@ app.openapi(
         .update(trackStemJobs)
         .set({ workflowInstanceId: enrichment.workflowInstanceId })
         .where(eq(trackStemJobs.inputAssetId, finalMaster.id));
+      if (enrichment.workflowStatus === "binding_unavailable") {
+        await markTrackLyricsFailed({
+          sourceAssetId: finalMaster.id,
+          trackId: listing.trackId,
+        });
+        await db
+          .update(trackStemJobs)
+          .set({
+            error: { message: "Workflow binding unavailable." },
+            status: "failed",
+          })
+          .where(eq(trackStemJobs.inputAssetId, finalMaster.id));
+      }
     } catch (error) {
+      await markTrackLyricsFailed({
+        sourceAssetId: finalMaster.id,
+        trackId: listing.trackId,
+      });
+      await db
+        .update(trackStemJobs)
+        .set({
+          error: { message: "Workflow launch failed." },
+          status: "failed",
+        })
+        .where(eq(trackStemJobs.inputAssetId, finalMaster.id));
       logError({
         error: error instanceof Error ? error.message : String(error),
         event: "open_verse_final_enrichment_workflow_launch_failed",

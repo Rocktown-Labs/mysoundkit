@@ -8,7 +8,7 @@ import {
   trackStemJobs,
   tracks,
 } from "@soundkit/db/schema/app";
-import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -23,6 +23,7 @@ import {
   listDiagnosticJobs,
   processDiagnosticJob,
 } from "@/lib/audio-diagnostics";
+import { markTrackLyricsFailed } from "@/lib/audio-processing";
 import {
   enqueueLyricsEnrichmentBackfill,
   findEnrichedSourceIds,
@@ -412,20 +413,40 @@ app.openapi(
           },
           target: [trackStemJobs.inputAssetId],
         });
+      await db
+        .update(tracks)
+        .set({ lyricsStatus: "generating", updatedAt: new Date() })
+        .where(
+          and(
+            eq(tracks.id, master.trackId),
+            ne(tracks.lyricsStatus, "approved")
+          )
+        );
     }
-    const payloads = runnable
-        .filter((master) => master.objectKey)
-        .map((master): TrackEnrichmentWorkflowPayload => ({
-          objectKey: master.objectKey as string,
-          pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
-          quiet: true,
-          sourceAssetId: master.sourceAssetId,
-          trackId: master.trackId,
-        })),
+    const payloads = runnable.map((master): TrackEnrichmentWorkflowPayload => ({
+      objectKey: master.objectKey as string,
+      pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
+      quiet: true,
+      sourceAssetId: master.sourceAssetId,
+      trackId: master.trackId,
+    }));
+    if (payloads.length === 0) {
+      return c.json(
+        {
+          queuedCount: 0,
+          skippedCount: targets.length - runnable.length,
+          trackIds: [],
+        },
+        HttpStatusCodes.ACCEPTED
+      );
+    }
+    let result: Awaited<ReturnType<typeof ensureTrackEnrichmentWorkflowBatch>>,
+      restarted: string[];
+    try {
       result = await ensureTrackEnrichmentWorkflowBatch({
         payloads,
         workflow,
-      }),
+      });
       // createBatch skips existing ids: restart errored/terminated runs and
       // completed runs whose outputs are still missing (missing-only targets
       // qualify by construction; force targets always do).
@@ -434,9 +455,50 @@ app.openapi(
         payloads,
         workflow,
       });
+    } catch (error) {
+      for (const master of runnable) {
+        await markTrackLyricsFailed({
+          sourceAssetId: master.sourceAssetId,
+          trackId: master.trackId,
+        });
+      }
+      await db
+        .update(trackStemJobs)
+        .set({
+          error: { message: "Workflow launch failed." },
+          status: "failed",
+        })
+        .where(
+          inArray(
+            trackStemJobs.inputAssetId,
+            runnable.map((master) => master.sourceAssetId)
+          )
+        );
+      throw error;
+    }
+    if (!workflow) {
+      for (const master of runnable) {
+        await markTrackLyricsFailed({
+          sourceAssetId: master.sourceAssetId,
+          trackId: master.trackId,
+        });
+      }
+      await db
+        .update(trackStemJobs)
+        .set({
+          error: { message: "Workflow binding unavailable." },
+          status: "failed",
+        })
+        .where(
+          inArray(
+            trackStemJobs.inputAssetId,
+            runnable.map((master) => master.sourceAssetId)
+          )
+        );
+    }
     return c.json(
       {
-        queuedCount: result.created + restarted.length,
+        queuedCount: workflow ? result.created + restarted.length : 0,
         skippedCount: targets.length - runnable.length,
         trackIds: runnable.map((master) => master.trackId),
       },

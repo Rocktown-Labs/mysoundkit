@@ -35,7 +35,10 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
-import { indexSearchEntity } from "@/lib/audio-processing";
+import {
+  indexSearchEntity,
+  markTrackLyricsFailed,
+} from "@/lib/audio-processing";
 import {
   buildProjectDetail,
   buildProjectSummary,
@@ -2149,7 +2152,7 @@ app.openapi(
         .update(tracks)
         .set({ lyricsStatus: "generating", updatedAt: new Date() })
         .where(eq(tracks.id, trackId));
-      await ensureTrackEnrichmentWorkflow({
+      const enrichment = await ensureTrackEnrichmentWorkflow({
         payload: {
           objectKey: body.sourceObjectKey,
           pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
@@ -2158,7 +2161,25 @@ app.openapi(
         },
         workflow: c.env.TRACK_ENRICHMENT_WORKFLOW,
       });
+      if (enrichment.workflowStatus === "binding_unavailable") {
+        await markTrackLyricsFailed({ sourceAssetId: masterAssetId, trackId });
+        await db
+          .update(trackStemJobs)
+          .set({
+            error: { message: "Workflow binding unavailable." },
+            status: "failed",
+          })
+          .where(eq(trackStemJobs.inputAssetId, masterAssetId));
+      }
     } catch (error) {
+      await markTrackLyricsFailed({ sourceAssetId: masterAssetId, trackId });
+      await db
+        .update(trackStemJobs)
+        .set({
+          error: { message: "Workflow launch failed." },
+          status: "failed",
+        })
+        .where(eq(trackStemJobs.inputAssetId, masterAssetId));
       logError({
         error: error instanceof Error ? error.message : String(error),
         event: "project_track_enrichment_workflow_launch_failed",
