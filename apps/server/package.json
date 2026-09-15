@@ -11,7 +11,7 @@
   "dependencies": {
     "@ai-sdk/devtools": "^0.0.2",
     "@ai-sdk/google": "^3.0.1",
-    "@better-upload/server": "^3.0.16",
+    "@better-upload/server": "^3.0.19",
     "@cloudflare/containers": "^0.3.7",
     "@hono/swagger-ui": "^0.5.2",
     "@hono/zod-openapi": "^1.2.4",
@@ -26,7 +26,7 @@
     "better-auth": "catalog:",
     "dotenv": "catalog:",
     "drizzle-orm": "^0.45.1",
-    "hono": "^4.11.0",
+    "hono": "^4.13.7",
     "mediabunny": "^1.52.3",
     "resend": "^6.6.0",
     "stoker": "^2.0.1",

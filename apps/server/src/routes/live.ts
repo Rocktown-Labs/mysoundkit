@@ -56,7 +56,7 @@ import { evaluateBattleKitReadiness } from "@/lib/battle-kits";
 import { buildBattleRoundSeeds } from "@/lib/battle-rounds";
 import { loadBattleSchemaCapabilities } from "@/lib/battle-schema-capabilities";
 import { resolveListeningAccess } from "@/lib/content-access";
-import { buildTrackSummary } from "@/lib/dashboard-mappers";
+import { buildTrackSummaries } from "@/lib/dashboard-mappers";
 import { retryDurableObjectCall } from "@/lib/durable-object-retry";
 import {
   forbiddenMessage,
@@ -1359,43 +1359,45 @@ const badRequest = (message: string) => ({
         session,
         user,
       }),
-      summaries = await Promise.all(
-        candidates.map(async (track) => {
-          const isOwner = track.ownerUserId === user.id,
-            isCollaborator = collaboratorTrackIds.includes(track.id),
-            access = resolveListeningAccess({
-              hasPurchase: purchasedTrackIds.has(track.id),
-              isPremium: entitlements.isPremium,
-              policy: track,
-            });
+      eligibleCandidates = candidates.filter((track) => {
+        const isOwner = track.ownerUserId === user.id,
+          isCollaborator = collaboratorTrackIds.includes(track.id),
+          access = resolveListeningAccess({
+            hasPurchase: purchasedTrackIds.has(track.id),
+            isPremium: entitlements.isPremium,
+            policy: track,
+          });
 
-          if (
-            !(
-              isOwner ||
-              isCollaborator ||
-              ((track.isPublic || purchasedTrackIds.has(track.id)) &&
-                access.canListen)
-            )
-          ) {
-            return null;
-          }
+        return (
+          isOwner ||
+          isCollaborator ||
+          ((track.isPublic || purchasedTrackIds.has(track.id)) &&
+            access.canListen)
+        );
+      }),
+      trackSummaries = await buildTrackSummaries(
+        eligibleCandidates.map((row) => ({ row }))
+      ),
+      summaries = trackSummaries.flatMap((summary, index) => {
+        const track = eligibleCandidates[index];
+        if (!track || !summary.mediaReady) {
+          return [];
+        }
 
-          const summary = await buildTrackSummary(track);
-          return summary.mediaReady
-            ? {
-                artistName: summary.artistName,
-                coverArtUrl: summary.coverArtUrl,
-                id: summary.id,
-                isPublic: track.isPublic,
-                mediaReady: true,
-                playbackUrl: guardedTrackPlaybackUrl(track.id),
-                title: summary.title,
-              }
-            : null;
-        })
-      );
+        return [
+          {
+            artistName: summary.artistName,
+            coverArtUrl: summary.coverArtUrl,
+            id: summary.id,
+            isPublic: track.isPublic,
+            mediaReady: true,
+            playbackUrl: guardedTrackPlaybackUrl(track.id),
+            title: summary.title,
+          },
+        ];
+      });
 
-    return summaries.filter((summary) => summary !== null);
+    return summaries;
   },
   liveRoundStatusFromDb = (
     status: "active" | "completed" | "upcoming"

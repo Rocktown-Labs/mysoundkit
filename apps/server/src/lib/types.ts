@@ -73,6 +73,7 @@ export interface AppEnv {
     TURNSTILE_HOSTNAMES?: string;
     TURNSTILE_SECRET?: string;
     SOUNDKIT_ALLOW_MOCK_REALTIME?: string;
+    SOUNDKIT_SCHEDULED_JOBS_ENABLED?: string;
   };
   Variables: AppVariables;
 }

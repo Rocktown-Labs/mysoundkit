@@ -50,6 +50,7 @@ import {
 } from "@/lib/content-access";
 import {
   buildTrackDetail,
+  buildTrackSummaries,
   buildTrackSummary,
   findPublicProjectCoverForTrack,
   ownedTrackWhere,
@@ -662,15 +663,18 @@ app.openapi(
             .limit(limit)
             .offset(offset)
         ),
-        summaries = [];
-
-      for (const row of rows) {
-        summaries.push({
-          ...(await buildTrackSummary(row.track, row.playCount ?? 0)),
-          plays: row.playCount ?? 0,
-          regionSlug: regionSlugFromUser(row.state) ?? null,
-        });
-      }
+        summaries = (
+          await buildTrackSummaries(
+            rows.map(({ playCount, track }) => ({
+              playCountOverride: playCount ?? 0,
+              row: track,
+            }))
+          )
+        ).map((summary, index) => ({
+          ...summary,
+          plays: rows[index]?.playCount ?? 0,
+          regionSlug: regionSlugFromUser(rows[index]?.state) ?? null,
+        }));
 
       return c.json(summaries, HttpStatusCodes.OK);
     }
@@ -704,13 +708,12 @@ app.openapi(
           .orderBy(desc(tracks.updatedAt))
           .limit(100)
       ),
-      summaries = [];
-
-    for (const row of rows) {
-      summaries.push(
-        await buildTrackSummary(row.track, row.playCount ?? undefined)
+      summaries = await buildTrackSummaries(
+        rows.map(({ playCount, track }) => ({
+          playCountOverride: playCount ?? undefined,
+          row: track,
+        }))
       );
-    }
 
     return c.json(summaries, HttpStatusCodes.OK);
   }

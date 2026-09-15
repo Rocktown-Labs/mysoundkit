@@ -89,32 +89,51 @@ const projectAssetColumns = {
     isCurrent: asset.isCurrent ?? true,
     version: asset.version ?? 1,
   }),
+  loadProjectAssetsForProjects = async ({
+    db,
+    projectIds,
+  }: {
+    db: SoundKitDatabase;
+    projectIds: string[];
+  }): Promise<Map<string, ProjectAssetRow[]>> => {
+    if (projectIds.length === 0) {
+      return new Map();
+    }
+
+    const capabilities = await getDatabaseSchemaCapabilities(db),
+      rows = capabilities.projectAssetVersioning
+        ? await db
+            .select({
+              ...projectAssetColumns,
+              isCurrent: projectAssets.isCurrent,
+              version: projectAssets.version,
+            })
+            .from(projectAssets)
+            .where(inArray(projectAssets.projectId, projectIds))
+        : await db
+            .select(projectAssetColumns)
+            .from(projectAssets)
+            .where(inArray(projectAssets.projectId, projectIds)),
+      assetsByProjectId = new Map<string, ProjectAssetRow[]>();
+
+    for (const row of rows) {
+      const assets = assetsByProjectId.get(row.projectId) ?? [];
+      assets.push(normalizeProjectAsset(row));
+      assetsByProjectId.set(row.projectId, assets);
+    }
+
+    return assetsByProjectId;
+  },
   loadProjectAssets = async ({
     db,
     projectId,
   }: {
     db: SoundKitDatabase;
     projectId: string;
-  }): Promise<ProjectAssetRow[]> => {
-    const capabilities = await getDatabaseSchemaCapabilities(db);
-    if (capabilities.projectAssetVersioning) {
-      const rows = await db
-        .select({
-          ...projectAssetColumns,
-          isCurrent: projectAssets.isCurrent,
-          version: projectAssets.version,
-        })
-        .from(projectAssets)
-        .where(eq(projectAssets.projectId, projectId));
-      return rows.map(normalizeProjectAsset);
-    }
-
-    const rows = await db
-      .select(projectAssetColumns)
-      .from(projectAssets)
-      .where(eq(projectAssets.projectId, projectId));
-    return rows.map(normalizeProjectAsset);
-  },
+  }): Promise<ProjectAssetRow[]> =>
+    (await loadProjectAssetsForProjects({ db, projectIds: [projectId] })).get(
+      projectId
+    ) ?? [],
   mapAssetForDashboard = (
     asset: InferSelectModel<typeof trackAssets> | ProjectAssetRow
   ) => ({
@@ -207,65 +226,93 @@ const projectAssetColumns = {
     return "not_started";
   };
 
+const findPublicProjectCoversForTracks = async ({
+  db,
+  trackIds,
+}: {
+  db: SoundKitDatabase;
+  trackIds: string[];
+}): Promise<Map<string, ProjectAssetRow>> => {
+  if (trackIds.length === 0) {
+    return new Map();
+  }
+
+  const capabilities = await getDatabaseSchemaCapabilities(db),
+    rows = capabilities.projectAssetVersioning
+      ? await withRetry("find public project covers", () =>
+          db
+            .select({
+              asset: {
+                ...projectAssetColumns,
+                isCurrent: projectAssets.isCurrent,
+                version: projectAssets.version,
+              },
+              trackId: projectTracks.trackId,
+            })
+            .from(projectTracks)
+            .innerJoin(projects, eq(projects.id, projectTracks.projectId))
+            .innerJoin(
+              projectAssets,
+              and(
+                eq(projectAssets.projectId, projectTracks.projectId),
+                eq(projectAssets.assetKind, "cover_art"),
+                eq(projectAssets.isCurrent, true),
+                inArray(projectAssets.status, ["uploaded", "ready"])
+              )
+            )
+            .where(
+              and(
+                inArray(projectTracks.trackId, trackIds),
+                eq(projects.isPublic, true)
+              )
+            )
+            .orderBy(sql`${projectAssets.updatedAt} desc`)
+        )
+      : await withRetry("find public project covers", () =>
+          db
+            .select({
+              asset: projectAssetColumns,
+              trackId: projectTracks.trackId,
+            })
+            .from(projectTracks)
+            .innerJoin(projects, eq(projects.id, projectTracks.projectId))
+            .innerJoin(
+              projectAssets,
+              and(
+                eq(projectAssets.projectId, projectTracks.projectId),
+                eq(projectAssets.assetKind, "cover_art"),
+                inArray(projectAssets.status, ["uploaded", "ready"])
+              )
+            )
+            .where(
+              and(
+                inArray(projectTracks.trackId, trackIds),
+                eq(projects.isPublic, true)
+              )
+            )
+            .orderBy(sql`${projectAssets.updatedAt} desc`)
+        ),
+    covers = new Map<string, ProjectAssetRow>();
+
+  for (const row of rows) {
+    if (!covers.has(row.trackId)) {
+      covers.set(row.trackId, normalizeProjectAsset(row.asset));
+    }
+  }
+
+  return covers;
+};
+
 export const findPublicProjectCoverForTrack = async ({
   db,
   trackId,
 }: {
   db: SoundKitDatabase;
   trackId: string;
-}): Promise<ProjectAssetRow | null> => {
-  const capabilities = await getDatabaseSchemaCapabilities(db);
-  if (capabilities.projectAssetVersioning) {
-    const rows = await withRetry("find public project cover", () =>
-      db
-        .select({
-          asset: {
-            ...projectAssetColumns,
-            isCurrent: projectAssets.isCurrent,
-            version: projectAssets.version,
-          },
-        })
-        .from(projectTracks)
-        .innerJoin(projects, eq(projects.id, projectTracks.projectId))
-        .innerJoin(
-          projectAssets,
-          and(
-            eq(projectAssets.projectId, projectTracks.projectId),
-            eq(projectAssets.assetKind, "cover_art"),
-            eq(projectAssets.isCurrent, true),
-            inArray(projectAssets.status, ["uploaded", "ready"])
-          )
-        )
-        .where(
-          and(eq(projectTracks.trackId, trackId), eq(projects.isPublic, true))
-        )
-        .orderBy(sql`${projectAssets.updatedAt} desc`)
-        .limit(1)
-    );
-    return rows[0] ? normalizeProjectAsset(rows[0].asset) : null;
-  }
-
-  const rows = await withRetry("find public project cover", () =>
-    db
-      .select({ asset: projectAssetColumns })
-      .from(projectTracks)
-      .innerJoin(projects, eq(projects.id, projectTracks.projectId))
-      .innerJoin(
-        projectAssets,
-        and(
-          eq(projectAssets.projectId, projectTracks.projectId),
-          eq(projectAssets.assetKind, "cover_art"),
-          inArray(projectAssets.status, ["uploaded", "ready"])
-        )
-      )
-      .where(
-        and(eq(projectTracks.trackId, trackId), eq(projects.isPublic, true))
-      )
-      .orderBy(sql`${projectAssets.updatedAt} desc`)
-      .limit(1)
-  );
-  return rows[0] ? normalizeProjectAsset(rows[0].asset) : null;
-};
+}): Promise<ProjectAssetRow | null> =>
+  (await findPublicProjectCoversForTracks({ db, trackIds: [trackId] })).get(
+    trackId
+  ) ?? null;
 
 export const mapTrackSummary = ({
   artistName,
@@ -397,65 +444,148 @@ export const mapTrackSummary = ({
   };
 };
 
+export interface TrackSummaryInput {
+  playCountOverride?: number;
+  row: InferSelectModel<typeof tracks>;
+}
+
+export const buildTrackSummaries = async (
+  inputs: readonly TrackSummaryInput[]
+) => {
+  if (inputs.length === 0) {
+    return [];
+  }
+
+  const db = createDb(),
+    trackRows = inputs.map((input) => input.row),
+    trackIds = [...new Set(trackRows.map((row) => row.id))],
+    ownerIds = [...new Set(trackRows.map((row) => row.ownerUserId))],
+    genreIds = [
+      ...new Set(
+        trackRows
+          .map((row) => row.genreId)
+          .filter((genreId): genreId is string => Boolean(genreId))
+      ),
+    ],
+    playCountTrackIds = [
+      ...new Set(
+        inputs
+          .filter((input) => input.playCountOverride === undefined)
+          .map((input) => input.row.id)
+      ),
+    ],
+    [
+      profileRows,
+      genreRows,
+      assetRows,
+      collaboratorRows,
+      playCountRows,
+      covers,
+    ] = await Promise.all([
+      db
+        .select({
+          displayName: userProfiles.displayName,
+          ownerUserId: authUser.id,
+          state: userProfiles.state,
+          userName: authUser.name,
+          username: userProfiles.username,
+        })
+        .from(authUser)
+        .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+        .where(inArray(authUser.id, ownerIds)),
+      genreIds.length > 0
+        ? db
+            .select({ id: genres.id, name: genres.name })
+            .from(genres)
+            .where(inArray(genres.id, genreIds))
+        : Promise.resolve([]),
+      db
+        .select()
+        .from(trackAssets)
+        .where(inArray(trackAssets.trackId, trackIds)),
+      db
+        .select({
+          id: trackCollaborators.id,
+          trackId: trackCollaborators.trackId,
+        })
+        .from(trackCollaborators)
+        .where(inArray(trackCollaborators.trackId, trackIds)),
+      playCountTrackIds.length > 0
+        ? db
+            .select({
+              count: sql<number>`count(*)::int`,
+              trackId: playbackSessions.trackId,
+            })
+            .from(playbackSessions)
+            .where(
+              and(
+                inArray(playbackSessions.trackId, playCountTrackIds),
+                playConditionSql
+              )
+            )
+            .groupBy(playbackSessions.trackId)
+        : Promise.resolve([]),
+      findPublicProjectCoversForTracks({ db, trackIds }),
+    ]),
+    profileByOwnerId = new Map(
+      profileRows.map((profile) => [profile.ownerUserId, profile])
+    ),
+    genreById = new Map(genreRows.map((genre) => [genre.id, genre.name])),
+    assetsByTrackId = new Map<string, InferSelectModel<typeof trackAssets>[]>(),
+    collaboratorCountByTrackId = new Map<string, number>(),
+    playCountByTrackId = new Map(
+      playCountRows.map((playCount) => [playCount.trackId, playCount.count])
+    );
+
+  for (const asset of assetRows) {
+    const assets = assetsByTrackId.get(asset.trackId) ?? [];
+    assets.push(asset);
+    assetsByTrackId.set(asset.trackId, assets);
+  }
+
+  for (const collaborator of collaboratorRows) {
+    collaboratorCountByTrackId.set(
+      collaborator.trackId,
+      (collaboratorCountByTrackId.get(collaborator.trackId) ?? 0) + 1
+    );
+  }
+
+  return inputs.map(({ playCountOverride, row }) => {
+    const profile = profileByOwnerId.get(row.ownerUserId),
+      genreName = row.genreId ? genreById.get(row.genreId) : null,
+      actualPlays =
+        playCountOverride === undefined
+          ? (playCountByTrackId.get(row.id) ?? 0)
+          : playCountOverride,
+      summary = mapTrackSummary({
+        artistName:
+          profile?.displayName ?? profile?.userName ?? "SoundKit Artist",
+        artistUsername: profile?.username ?? null,
+        assets: assetsByTrackId.get(row.id) ?? [],
+        collaboratorCount: collaboratorCountByTrackId.get(row.id) ?? 0,
+        genre: genreName ? canonicalGenreName(genreName) : null,
+        plays: actualPlays,
+        regionSlug: regionSlugFromUser(profile?.state) ?? null,
+        row,
+      }),
+      publicProjectCover = covers.get(row.id);
+
+    return publicProjectCover
+      ? { ...summary, coverArtUrl: publicAssetUrl(publicProjectCover) }
+      : summary;
+  });
+};
+
 export const buildTrackSummary = async (
   row: InferSelectModel<typeof tracks>,
   playCountOverride?: number
 ) => {
-  const db = createDb(),
-    [profile] = await db
-      .select({
-        displayName: userProfiles.displayName,
-        state: userProfiles.state,
-        userName: authUser.name,
-        username: userProfiles.username,
-      })
-      .from(authUser)
-      .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-      .where(eq(authUser.id, row.ownerUserId))
-      .limit(1),
-    [genreRow] = row.genreId
-      ? await db
-          .select({ name: genres.name })
-          .from(genres)
-          .where(eq(genres.id, row.genreId))
-          .limit(1)
-      : [],
-    [assetRows, collaboratorRows, playCountRow, publicProjectCover] =
-      await Promise.all([
-        db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
-        db
-          .select({ id: trackCollaborators.id })
-          .from(trackCollaborators)
-          .where(eq(trackCollaborators.trackId, row.id)),
-        playCountOverride === undefined
-          ? db
-              .select({ count: sql<number>`count(*)::int` })
-              .from(playbackSessions)
-              .where(
-                and(eq(playbackSessions.trackId, row.id), playConditionSql)
-              )
-          : Promise.resolve([]),
-        findPublicProjectCoverForTrack({ db, trackId: row.id }),
-      ]),
-    actualPlays =
-      playCountOverride === undefined
-        ? (playCountRow[0]?.count ?? 0)
-        : playCountOverride;
+  const [summary] = await buildTrackSummaries([{ playCountOverride, row }]);
+  if (!summary) {
+    throw new Error(`Track summary was not built for ${row.id}.`);
+  }
 
-  const summary = mapTrackSummary({
-    artistName: profile?.displayName ?? profile?.userName ?? "SoundKit Artist",
-    artistUsername: profile?.username ?? null,
-    assets: assetRows,
-    collaboratorCount: collaboratorRows.length,
-    genre: genreRow?.name ? canonicalGenreName(genreRow.name) : null,
-    plays: actualPlays,
-    regionSlug: regionSlugFromUser(profile?.state) ?? null,
-    row,
-  });
-
-  return publicProjectCover
-    ? { ...summary, coverArtUrl: publicAssetUrl(publicProjectCover) }
-    : summary;
+  return summary;
 };
 
 export const buildTrackDetail = async (
@@ -539,50 +669,67 @@ export const buildTrackDetail = async (
   };
 };
 
-export const buildProjectSummary = async (
-  row: InferSelectModel<typeof projects>
+export const buildProjectSummaries = async (
+  rows: readonly InferSelectModel<typeof projects>[]
 ) => {
+  if (rows.length === 0) {
+    return [];
+  }
+
   const db = createDb(),
-    [trackRows, assetRows, collaboratorRows, profileRows, projectGenreRows] =
-      await Promise.all([
-        db
-          .select({
-            genreName: genres.name,
-            id: projectTracks.trackId,
-          })
-          .from(projectTracks)
-          .leftJoin(tracks, eq(tracks.id, projectTracks.trackId))
-          .leftJoin(genres, eq(genres.id, tracks.genreId))
-          .where(eq(projectTracks.projectId, row.id)),
-        loadProjectAssets({ db, projectId: row.id }),
-        db
-          .select({ id: projectCollaborators.id })
-          .from(projectCollaborators)
-          .where(eq(projectCollaborators.projectId, row.id)),
-        db
-          .select({
-            displayName: userProfiles.displayName,
-            state: userProfiles.state,
-            userName: authUser.name,
-            username: userProfiles.username,
-          })
-          .from(authUser)
-          .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-          .where(eq(authUser.id, row.ownerUserId))
-          .limit(1),
-        row.genreId
-          ? db
-              .select({ name: genres.name })
-              .from(genres)
-              .where(eq(genres.id, row.genreId))
-              .limit(1)
-          : Promise.resolve([]),
-      ]),
-    trackIds = trackRows.map((track) => track.id),
-    primaryGenre =
-      trackRows.find((track) => track.genreName)?.genreName ??
-      projectGenreRows[0]?.name,
-    [ownerProfile] = profileRows,
+    projectIds = [...new Set(rows.map((row) => row.id))],
+    ownerIds = [...new Set(rows.map((row) => row.ownerUserId))],
+    genreIds = [
+      ...new Set(
+        rows
+          .map((row) => row.genreId)
+          .filter((genreId): genreId is string => Boolean(genreId))
+      ),
+    ],
+    [
+      trackRows,
+      assetsByProjectId,
+      collaboratorRows,
+      profileRows,
+      projectGenreRows,
+    ] = await Promise.all([
+      db
+        .select({
+          genreName: genres.name,
+          id: projectTracks.trackId,
+          projectId: projectTracks.projectId,
+        })
+        .from(projectTracks)
+        .leftJoin(tracks, eq(tracks.id, projectTracks.trackId))
+        .leftJoin(genres, eq(genres.id, tracks.genreId))
+        .where(inArray(projectTracks.projectId, projectIds)),
+      loadProjectAssetsForProjects({ db, projectIds }),
+      db
+        .select({
+          id: projectCollaborators.id,
+          projectId: projectCollaborators.projectId,
+        })
+        .from(projectCollaborators)
+        .where(inArray(projectCollaborators.projectId, projectIds)),
+      db
+        .select({
+          displayName: userProfiles.displayName,
+          ownerUserId: authUser.id,
+          state: userProfiles.state,
+          userName: authUser.name,
+          username: userProfiles.username,
+        })
+        .from(authUser)
+        .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+        .where(inArray(authUser.id, ownerIds)),
+      genreIds.length > 0
+        ? db
+            .select({ id: genres.id, name: genres.name })
+            .from(genres)
+            .where(inArray(genres.id, genreIds))
+        : Promise.resolve([]),
+    ]),
+    trackIds = [...new Set(trackRows.map((track) => track.id))],
     durationAssetRows =
       trackIds.length > 0
         ? await db
@@ -594,7 +741,18 @@ export const buildProjectSummary = async (
             .from(trackAssets)
             .where(inArray(trackAssets.trackId, trackIds))
         : [],
-    durationByTrackId = new Map<string, number>();
+    durationByTrackId = new Map<string, number>(),
+    tracksByProjectId = new Map<
+      string,
+      { genreName: string | null; id: string }[]
+    >(),
+    collaboratorCountByProjectId = new Map<string, number>(),
+    profileByOwnerId = new Map(
+      profileRows.map((profile) => [profile.ownerUserId, profile])
+    ),
+    genreById = new Map(
+      projectGenreRows.map((genre) => [genre.id, genre.name])
+    );
 
   for (const asset of durationAssetRows) {
     if (!(asset.trackId && asset.durationMs)) {
@@ -609,61 +767,91 @@ export const buildProjectSummary = async (
     }
   }
 
-  let durationMs = 0;
-
-  for (const trackDurationMs of durationByTrackId.values()) {
-    durationMs += trackDurationMs;
-  }
-  const coverAsset = assetRows.find((asset) => asset.assetKind === "cover_art");
-  let progress = 25;
-
-  if (row.status === "released") {
-    progress = 100;
-  } else if (row.status === "scheduled") {
-    progress = 75;
+  for (const track of trackRows) {
+    const projectTracksForProject =
+      tracksByProjectId.get(track.projectId) ?? [];
+    projectTracksForProject.push({ genreName: track.genreName, id: track.id });
+    tracksByProjectId.set(track.projectId, projectTracksForProject);
   }
 
-  return {
-    artistName:
-      ownerProfile?.displayName ??
-      ownerProfile?.userName ??
-      ownerProfile?.username ??
-      "SoundKit Artist",
-    artistUsername: ownerProfile?.username ?? null,
-    collaboratorCount: collaboratorRows.length,
-    coverArtUrl: publicProjectAssetUrl(coverAsset),
-    description: row.description,
-    duration: durationMs > 0 ? formatDuration(durationMs) : "0:00",
-    durationMs,
-    exclusiveUntil: row.exclusiveUntil?.toISOString() ?? null,
-    exportVersion: row.exportVersion,
-    genre: primaryGenre ? canonicalGenreName(primaryGenre) : null,
-    id: row.id,
-    isForSale: row.isForSale,
-    isPublic: row.isPublic,
-    listeningAccess: row.listeningAccess,
-    priceCents: row.priceCents,
-    progress,
-    projectType: row.projectType,
-    regionSlug: regionSlugFromUser(ownerProfile?.state) ?? null,
-    releaseDate:
-      row.releaseDate instanceof Date
-        ? row.releaseDate.toISOString()
-        : typeof row.releaseDate === "string"
-          ? row.releaseDate
-          : null,
-    slug: row.slug,
-    status: row.status,
-    streamingLinks: row.streamingLinks,
-    title: row.title,
-    trackCount: trackRows.length,
-    updatedAt:
-      row.updatedAt instanceof Date
-        ? row.updatedAt.toISOString()
-        : typeof row.updatedAt === "string"
-          ? row.updatedAt
-          : new Date().toISOString(),
-  };
+  for (const collaborator of collaboratorRows) {
+    collaboratorCountByProjectId.set(
+      collaborator.projectId,
+      (collaboratorCountByProjectId.get(collaborator.projectId) ?? 0) + 1
+    );
+  }
+
+  return rows.map((row) => {
+    const projectTrackRows = tracksByProjectId.get(row.id) ?? [],
+      primaryGenre =
+        projectTrackRows.find((track) => track.genreName)?.genreName ??
+        (row.genreId ? genreById.get(row.genreId) : null),
+      ownerProfile = profileByOwnerId.get(row.ownerUserId),
+      durationMs = [
+        ...new Set(projectTrackRows.map((track) => track.id)),
+      ].reduce(
+        (total, trackId) => total + (durationByTrackId.get(trackId) ?? 0),
+        0
+      ),
+      coverAsset = assetsByProjectId
+        .get(row.id)
+        ?.find((asset) => asset.assetKind === "cover_art"),
+      progress =
+        row.status === "released" ? 100 : row.status === "scheduled" ? 75 : 25;
+
+    return {
+      artistName:
+        ownerProfile?.displayName ??
+        ownerProfile?.userName ??
+        ownerProfile?.username ??
+        "SoundKit Artist",
+      artistUsername: ownerProfile?.username ?? null,
+      collaboratorCount: collaboratorCountByProjectId.get(row.id) ?? 0,
+      coverArtUrl: publicProjectAssetUrl(coverAsset),
+      description: row.description,
+      duration: durationMs > 0 ? formatDuration(durationMs) : "0:00",
+      durationMs,
+      exclusiveUntil: row.exclusiveUntil?.toISOString() ?? null,
+      exportVersion: row.exportVersion,
+      genre: primaryGenre ? canonicalGenreName(primaryGenre) : null,
+      id: row.id,
+      isForSale: row.isForSale,
+      isPublic: row.isPublic,
+      listeningAccess: row.listeningAccess,
+      priceCents: row.priceCents,
+      progress,
+      projectType: row.projectType,
+      regionSlug: regionSlugFromUser(ownerProfile?.state) ?? null,
+      releaseDate:
+        row.releaseDate instanceof Date
+          ? row.releaseDate.toISOString()
+          : typeof row.releaseDate === "string"
+            ? row.releaseDate
+            : null,
+      slug: row.slug,
+      status: row.status,
+      streamingLinks: row.streamingLinks,
+      title: row.title,
+      trackCount: projectTrackRows.length,
+      updatedAt:
+        row.updatedAt instanceof Date
+          ? row.updatedAt.toISOString()
+          : typeof row.updatedAt === "string"
+            ? row.updatedAt
+            : new Date().toISOString(),
+    };
+  });
+};
+
+export const buildProjectSummary = async (
+  row: InferSelectModel<typeof projects>
+) => {
+  const [summary] = await buildProjectSummaries([row]);
+  if (!summary) {
+    throw new Error(`Project summary was not built for ${row.id}.`);
+  }
+
+  return summary;
 };
 
 export const buildProjectDetail = async (
@@ -698,15 +886,12 @@ export const buildProjectDetail = async (
         .where(eq(projectTracks.projectId, row.id))
         .orderBy(asc(projectTracks.position)),
     ]),
-    trackSummaries = [];
-
-  for (const trackRow of trackRows) {
-    const trackSummary = await buildTrackSummary(trackRow.row);
-    trackSummaries.push({
+    trackSummaries = (
+      await buildTrackSummaries(trackRows.map(({ row }) => ({ row })))
+    ).map((trackSummary) => ({
       ...trackSummary,
       coverArtUrl: summary.coverArtUrl ?? trackSummary.coverArtUrl,
-    });
-  }
+    }));
 
   return {
     ...summary,
