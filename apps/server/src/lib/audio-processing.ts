@@ -15,22 +15,54 @@ import {
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import { embed } from "ai";
-import { and, count, eq, ne } from "drizzle-orm";
+import { and, count, eq, inArray, ne } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import type { TrackEnrichmentWorkflowPayload } from "@/lib/media-pipeline";
-import { ENRICHMENT_PIPELINE_VERSION } from "@/lib/media-pipeline";
-import { createSignedMediaSourceUrl } from "@/lib/media-signing";
 import { notifyTrackProcessingComplete } from "@/lib/track-notifications";
 
 const DEFAULT_EMBEDDING_DIMENSIONS = 1536,
   DEFAULT_EMBEDDING_MODEL = "gemini-embedding-2",
-  OPENAI_TRANSCRIPTION_URL = "https://api.openai.com/v1/audio/transcriptions",
-  STEMSPLIT_BASE_URL = "https://stemsplit.io/api/v1",
-  MAX_OPENAI_TRANSCRIPTION_FILE_BYTES = 25 * 1024 * 1024,
+  // Single model for all lyric transcription (cost delta vs base whisper is
+  // ~$0.00006/min and tiering doubles code paths/tests for no benefit).
+  WORKERS_AI_WHISPER_MODEL = "@cf/openai/whisper-large-v3-turbo",
+  DEMUCS_SEPARATION_MODEL = "htdemucs",
+  // Workers AI Whisper accepts a base64 audio payload; cap single-call bytes
+  // so long masters truncate deterministically instead of OOMing the Worker.
+  // 3-minute vocal stems at 320k mp3 are ~7MB; longer tracks truncate with
+  // metadata truncated:true (byte-chunked transcription is a follow-up).
+  // Single-call transcription cap: the 16 kHz mono preview runs ~8 KB/s,
+  // so 8 MiB covers ~17 minutes. Anything larger fails loud (retryable)
+  // instead of silently truncating lyrics.
+  MAX_TRANSCRIPTION_BYTES = 8 * 1024 * 1024,
   LYRIC_LINE_BREAK_SECONDS = 1.2,
   MAX_LYRIC_LINE_CHARACTERS = 64,
   MAX_WORDS_PER_LYRIC_LINE = 9;
+
+/** Demucs in-house separation result (replaces the StemSplit job model). */
+export interface DemucsSeparationResult {
+  id: string;
+  instrumental: { objectKey: string; sizeBytes: number };
+  status: "COMPLETED" | "FAILED" | "PROCESSING";
+  vocals: { objectKey: string; sizeBytes: number };
+}
+
+/** @deprecated StemSplit was removed in favor of in-house Demucs (#257). */
+export interface StemSplitJobResponse {
+  audioMetadata?: {
+    bpm?: number;
+    key?: string;
+  };
+  creditsCharged?: number;
+  creditsRequired?: number;
+  id: string;
+  outputs?: {
+    instrumental?: StemSplitOutput;
+    vocals?: StemSplitOutput;
+  };
+  progress?: number;
+  status: StemSplitJobStatus;
+}
 
 type StemSplitJobStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
 
@@ -61,13 +93,6 @@ interface OpenAiTranscriptionWord {
   word?: string;
 }
 
-interface OpenAiVerboseTranscriptionResponse {
-  duration?: number;
-  language?: string;
-  text?: string;
-  words?: OpenAiTranscriptionWord[];
-}
-
 interface TimedLyricLine {
   endMs: number;
   startMs: number;
@@ -84,119 +109,150 @@ const getEnvValue = (key: string) =>
     return [...new Uint8Array(digest)]
       .map((byte) => byte.toString(16).padStart(2, "0"))
       .join("");
-  },
-  stemsplitFetch = async <T>(path: string, init?: RequestInit) => {
-    const apiKey = getEnvValue("STEMSPLIT_API_KEY");
-
-    if (!apiKey) {
-      return null;
-    }
-
-    const response = await fetch(`${STEMSPLIT_BASE_URL}${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        ...init?.headers,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`StemSplit request failed: ${response.status}`);
-    }
-
-    return response.json() as Promise<T>;
-  },
-  mapStemJobStatus = (status: StemSplitJobStatus) => {
-    if (status === "COMPLETED") {
-      return "completed" as const;
-    }
-
-    if (status === "FAILED") {
-      return "failed" as const;
-    }
-
-    if (status === "PROCESSING") {
-      return "processing" as const;
-    }
-
-    return "submitted" as const;
   };
 
-export const submitStemSplitJob = ({ sourceUrl }: { sourceUrl: string }) =>
-  stemsplitFetch<StemSplitJobResponse>("/jobs", {
-    body: JSON.stringify({
-      outputFormat: "MP3",
-      outputType: "BOTH",
-      quality: "BEST",
-      sourceUrl,
-    }),
-    method: "POST",
-  });
+export const demucsTargetKeys = ({
+  pipelineVersion,
+  sourceAssetId,
+  trackId,
+}: {
+  pipelineVersion: number;
+  sourceAssetId: string;
+  trackId: string;
+}) => {
+  // Keys are scoped to the exact source asset: if a master is replaced while
+  // an older enrichment is still running, the two runs never share bytes.
+  const prefix = `processed/tracks/${trackId}/demucs-v${pipelineVersion}/${sourceAssetId}`;
+  return {
+    instrumentalKey: `${prefix}/instrumental.mp3`,
+    previewKey: `${prefix}/vocals-preview.mp3`,
+    vocalsKey: `${prefix}/vocals.mp3`,
+  };
+};
 
-export const getStemSplitJob = (jobId: string) =>
-  stemsplitFetch<StemSplitJobResponse>(`/jobs/${jobId}`, {
-    method: "GET",
-  });
+/** True while the enrichment source is still the track's current master. */
+export const isCurrentEnrichmentSource = async (sourceAssetId: string) => {
+  const [asset] = await createDb()
+    .select({ isCurrent: trackAssets.isCurrent })
+    .from(trackAssets)
+    .where(eq(trackAssets.id, sourceAssetId))
+    .limit(1);
+  return asset?.isCurrent ?? false;
+};
 
-const copyStemOutputToR2 = async ({
-    sourceUrl,
-    targetKey,
-  }: {
-    sourceUrl: string;
-    targetKey: string;
-  }) => {
-    const bucket = getMediaBucket();
-
-    if (!bucket) {
-      throw new Error("MEDIA_BUCKET is not configured.");
-    }
-
-    const response = await fetch(sourceUrl);
-
-    if (!response.ok) {
-      throw new Error(`Stem output download failed: ${response.status}`);
-    }
-
-    const arrayBuffer = await response.arrayBuffer(),
-      contentType = response.headers.get("content-type") ?? "audio/mpeg";
-
-    await bucket.put(targetKey, arrayBuffer, {
-      httpMetadata: {
-        contentType,
-      },
-    });
-
-    return {
-      bucketName: getEnvValue("UPLOAD_BUCKET_NAME") || "soundkit-media",
-      mimeType: contentType,
-      objectKey: targetKey,
-      sizeBytes: arrayBuffer.byteLength,
-    };
-  },
-  saveStemAsset = async ({
-    assetKind,
+/** Lyrics are current when both v2 stems exist plus usable lyric text. */
+export const isTrackEnrichmentCurrent = async ({
+  pipelineVersion,
+  sourceAssetId,
+  trackId,
+}: {
+  pipelineVersion: number;
+  sourceAssetId: string;
+  trackId: string;
+}) => {
+  const { instrumental, vocals } = await findCurrentDemucsStems({
+    pipelineVersion,
     sourceAssetId,
-    sourceOutput,
-    stemsplitJobId,
-    targetKey,
+    trackId,
+  });
+  if (!(instrumental && vocals)) {
+    return false;
+  }
+  const db = createDb(),
+    [machineLyrics] = await db
+      .select({ id: trackLyrics.id })
+      .from(trackLyrics)
+      .where(
+        and(
+          eq(trackLyrics.trackId, trackId),
+          eq(trackLyrics.sourceAssetId, vocals.id),
+          eq(trackLyrics.sourceType, "machine_transcription")
+        )
+      )
+      .limit(1);
+  if (machineLyrics) {
+    return true;
+  }
+  const [approved] = await db
+    .select({ id: trackLyrics.id })
+    .from(trackLyrics)
+    .where(
+      and(eq(trackLyrics.trackId, trackId), eq(trackLyrics.status, "approved"))
+    )
+    .limit(1);
+  return Boolean(approved);
+};
+
+/** Move a track stuck in generating to failed (retryable), keeping approved. */
+export const markTrackLyricsFailed = async ({
+  sourceAssetId,
+  trackId,
+}: {
+  sourceAssetId: string;
+  trackId: string;
+}) => {
+  // A superseded workflow must not overwrite the status owned by the newer
+  // master's run. This also keeps an older launch failure from clobbering a
+  // current transcription that is still generating.
+  if (!(await isCurrentEnrichmentSource(sourceAssetId))) {
+    return;
+  }
+  await createDb()
+    .update(tracks)
+    .set({ lyricsStatus: "failed", updatedAt: new Date() })
+    .where(and(eq(tracks.id, trackId), eq(tracks.lyricsStatus, "generating")));
+};
+
+/** Restore an intentionally skipped current source to its idle lyric state. */
+export const markTrackLyricsMissing = async ({
+  sourceAssetId,
+  trackId,
+}: {
+  sourceAssetId: string;
+  trackId: string;
+}) => {
+  if (!(await isCurrentEnrichmentSource(sourceAssetId))) {
+    return;
+  }
+  await createDb()
+    .update(tracks)
+    .set({ lyricsStatus: "missing", updatedAt: new Date() })
+    .where(and(eq(tracks.id, trackId), eq(tracks.lyricsStatus, "generating")));
+};
+
+/** @deprecated StemSplit was removed (#257). Always resolves null. */
+export const submitStemSplitJob = (_args: { sourceUrl: string }) =>
+  Promise.resolve(null);
+
+/** @deprecated StemSplit was removed (#257). Always resolves null. */
+export const getStemSplitJob = (_jobId: string) => Promise.resolve(null);
+
+const saveStemAsset = async ({
+    assetKind,
+    jobId,
+    mimeType,
+    objectKey,
+    pipelineVersion,
+    sizeBytes,
+    sourceAssetId,
     trackId,
   }: {
     assetKind: "instrumental" | "vocal_stem";
+    jobId: string;
+    mimeType: string;
+    objectKey: string;
+    pipelineVersion: number;
+    sizeBytes: number;
     sourceAssetId: string;
-    sourceOutput: StemSplitOutput;
-    stemsplitJobId: string;
-    targetKey: string;
     trackId: string;
   }) => {
-    if (!sourceOutput.url) {
-      return null;
-    }
-
-    const copied = await copyStemOutputToR2({
-        sourceUrl: sourceOutput.url,
-        targetKey,
-      }),
+    // Demucs stems are uploaded straight into R2 by the container, so there
+    // is nothing to copy — just register (or refresh) the asset row.
+    // Every current row for this track/kind/purpose is cleared first: the
+    // partial unique index on (track, purpose, kind) rejects a second
+    // current row, so re-runs and pipeline upgrades must not leave the
+    // previous version current.
+    const bucketName = getEnvValue("UPLOAD_BUCKET_NAME") || "soundkit-media",
       db = createDb(),
       [sourceAsset] = await db
         .select({ uploaderUserId: trackAssets.uploaderUserId })
@@ -212,8 +268,7 @@ const copyStemOutputToR2 = async ({
           eq(trackAssets.trackId, trackId),
           eq(trackAssets.assetKind, assetKind),
           eq(trackAssets.purpose, "stem"),
-          eq(trackAssets.isCurrent, true),
-          ne(trackAssets.sourceAssetId, sourceAssetId)
+          eq(trackAssets.isCurrent, true)
         )
       );
 
@@ -221,21 +276,21 @@ const copyStemOutputToR2 = async ({
       .insert(trackAssets)
       .values({
         assetKind,
-        bucketName: copied.bucketName,
-        id: `enrichment:${sourceAssetId}:${assetKind}:v${ENRICHMENT_PIPELINE_VERSION}`,
+        bucketName,
+        id: `enrichment:${sourceAssetId}:${assetKind}:v${pipelineVersion}`,
         isCurrent: true,
         metadata: {
-          expiresAt: sourceOutput.expiresAt ?? null,
           generatedBy: "soundkit",
-          processingVersion: ENRICHMENT_PIPELINE_VERSION,
+          jobId,
+          processingVersion: pipelineVersion,
+          separationModel: DEMUCS_SEPARATION_MODEL,
           sourceAssetId,
-          stemsplitJobId,
         },
-        mimeType: copied.mimeType,
-        objectKey: copied.objectKey,
-        processingVersion: ENRICHMENT_PIPELINE_VERSION,
+        mimeType,
+        objectKey,
+        processingVersion: pipelineVersion,
         purpose: "stem",
-        sizeBytes: copied.sizeBytes,
+        sizeBytes,
         sourceAssetId,
         status: "ready",
         storageProvider: "r2",
@@ -245,19 +300,19 @@ const copyStemOutputToR2 = async ({
       .onConflictDoUpdate({
         set: {
           assetKind,
-          bucketName: copied.bucketName,
+          bucketName,
           isCurrent: true,
           metadata: {
-            expiresAt: sourceOutput.expiresAt ?? null,
             generatedBy: "soundkit",
-            processingVersion: ENRICHMENT_PIPELINE_VERSION,
+            jobId,
+            processingVersion: pipelineVersion,
+            separationModel: DEMUCS_SEPARATION_MODEL,
             sourceAssetId,
-            stemsplitJobId,
           },
-          mimeType: copied.mimeType,
-          processingVersion: ENRICHMENT_PIPELINE_VERSION,
+          mimeType,
+          processingVersion: pipelineVersion,
           purpose: "stem",
-          sizeBytes: copied.sizeBytes,
+          sizeBytes,
           sourceAssetId,
           status: "ready",
           trackId,
@@ -341,120 +396,290 @@ export const buildTimedLyricLinesFromWords = (
   return lines;
 };
 
-const fetchAudioFileForOpenAi = async (sourceUrl: string) => {
-    const response = await fetch(sourceUrl);
+export interface WorkersAiTranscriptionWord {
+  end?: number;
+  start?: number;
+  word?: string;
+}
 
-    if (!response.ok) {
-      throw new Error(`Vocal stem download failed: ${response.status}`);
+export interface WorkersAiTranscriptionSegment {
+  end?: number;
+  start?: number;
+  text?: string;
+  words?: WorkersAiTranscriptionWord[];
+}
+
+export interface WorkersAiTranscriptionResponse {
+  segments?: WorkersAiTranscriptionSegment[];
+  text?: string;
+  transcription_info?: {
+    duration?: number;
+    duration_after_vad?: number;
+    language?: string;
+    language_probability?: number;
+  };
+  vtt?: string;
+  word_count?: number;
+}
+
+export const buildTimedLyricLinesFromSegments = (
+  segments: WorkersAiTranscriptionSegment[]
+): TimedLyricLine[] => {
+  const words: OpenAiTranscriptionWord[] = [];
+  for (const segment of segments) {
+    if (Array.isArray(segment.words) && segment.words.length > 0) {
+      for (const word of segment.words) {
+        words.push({ end: word.end, start: word.start, word: word.word });
+      }
+      continue;
     }
-
-    const rawAudio = await response.blob(),
-      audio =
-        rawAudio.size > MAX_OPENAI_TRANSCRIPTION_FILE_BYTES
-          ? rawAudio.slice(0, MAX_OPENAI_TRANSCRIPTION_FILE_BYTES)
-          : rawAudio;
-
-    return new File([audio], "vocals.mp3", {
-      type: response.headers.get("content-type") ?? "audio/mpeg",
-    });
-  },
-  transcribeAudioWithOpenAi = async (sourceUrl: string) => {
-    const apiKey = getEnvValue("OPENAI_API_KEY");
-
-    if (!apiKey) {
-      return null;
+    // No word timings: treat the segment as a single timed line.
+    if (
+      typeof segment.start === "number" &&
+      typeof segment.end === "number" &&
+      segment.text?.trim()
+    ) {
+      words.push({
+        end: segment.end,
+        start: segment.start,
+        word: segment.text.trim(),
+      });
     }
+  }
+  return buildTimedLyricLinesFromWords(words);
+};
 
-    const formData = new FormData();
-    formData.set("file", await fetchAudioFileForOpenAi(sourceUrl));
-    formData.set("model", "whisper-1");
-    formData.set("response_format", "verbose_json");
-    formData.append("timestamp_granularities[]", "word");
-    formData.set(
-      "prompt",
-      "Transcribe song vocals as lyrics. Preserve line-friendly punctuation and avoid adding section labels that are not sung."
-    );
+const vttTimestampToSeconds = (value: string): number | null => {
+  const match = value
+    .trim()
+    .match(/^(?:(\d+):)?([0-5]?\d):([0-5]?\d)\.(\d{3})$/u);
+  if (!match) {
+    return null;
+  }
+  const [, hours, minutes, seconds, millis] = match;
+  return (
+    Number(hours ?? 0) * 3600 +
+    Number(minutes) * 60 +
+    Number(seconds) +
+    Number(millis) / 1000
+  );
+};
 
-    const response = await fetch(OPENAI_TRANSCRIPTION_URL, {
-      body: formData,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-      method: "POST",
-    });
+export const buildTimedLyricLinesFromVtt = (vtt: string): TimedLyricLine[] => {
+  const lines: TimedLyricLine[] = [],
+    cuePattern =
+      /((?:\d+:)?\d{2}:\d{2}\.\d{3})\s*-->\s*((?:\d+:)?\d{2}:\d{2}\.\d{3})\s*\r?\n([\s\S]*?)(?=\r?\n\r?\n|\r?\n*$)/gu;
+  let match: RegExpExecArray | null;
+  match = cuePattern.exec(vtt);
+  while (match !== null) {
+    const startRaw = match[1] ?? "",
+      endRaw = match[2] ?? "",
+      textRaw = match[3] ?? "",
+      start = vttTimestampToSeconds(startRaw),
+      end = vttTimestampToSeconds(endRaw),
+      text = textRaw
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .join(" ");
+    if (start !== null && end !== null && end > start && text) {
+      lines.push({
+        endMs: secondsToMilliseconds(end),
+        startMs: secondsToMilliseconds(start),
+        text,
+      });
+    }
+    match = cuePattern.exec(vtt);
+  }
+  return lines;
+};
 
-    if (!response.ok) {
-      const message = await response.text();
-      console.warn(
-        `OpenAI transcription skipped/failed: ${response.status} ${message.slice(0, 160)}`
+const bytesToBase64 = (bytes: Uint8Array): string => {
+    let binary = "";
+    const chunkSize = 8192;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binary += String.fromCharCode(
+        ...bytes.subarray(offset, offset + chunkSize)
       );
-      return null;
     }
-
-    return response.json() as Promise<OpenAiVerboseTranscriptionResponse>;
+    return btoa(binary);
+  },
+  // Workers AI Whisper input is a base64 audio string (see
+  // Ai_Cf_Openai_Whisper_Large_V3_Turbo_Input.audio in
+  // @cloudflare/workers-types), not a byte array.
+  transcribeAudioChunkWithCloudflareWorkersAi = async ({
+    ai,
+    audioBytes,
+  }: {
+    ai: Ai;
+    audioBytes: Uint8Array;
+  }): Promise<WorkersAiTranscriptionResponse> => {
+    const response = (await ai.run(WORKERS_AI_WHISPER_MODEL, {
+      audio: bytesToBase64(audioBytes),
+      beam_size: 5,
+      compression_ratio_threshold: 2.4,
+      condition_on_previous_text: false,
+      hallucination_silence_threshold: 2,
+      initial_prompt:
+        "Transcribe song vocals as lyrics. Preserve line-friendly punctuation and avoid adding section labels that are not sung.",
+      log_prob_threshold: -1,
+      no_speech_threshold: 0.6,
+      task: "transcribe",
+      vad_filter: true,
+    })) as unknown as WorkersAiTranscriptionResponse;
+    return {
+      ...response,
+      text: typeof response.text === "string" ? response.text : "",
+    };
+  },
+  // Vocal audio is transcribed from the container's 16 kHz mono preview: one
+  // complete, independently decodable object per call, so word timings are
+  // exact and no song is ever cut to a byte prefix.
+  transcribeR2ObjectForLyrics = async ({
+    ai,
+    bucket,
+    maxBytes,
+    objectKey,
+  }: {
+    ai: Ai;
+    bucket: R2Bucket;
+    maxBytes: number;
+    objectKey: string;
+  }): Promise<{
+    detectedLanguage: string | null;
+    duration: number | null;
+    text: string;
+    timedLines: TimedLyricLine[];
+    wordCount: number | null;
+  }> => {
+    const head = await bucket.head(objectKey);
+    if (!head) {
+      throw new Error("Transcription source object is missing from R2.");
+    }
+    if (head.size > maxBytes) {
+      throw new Error(
+        `Transcription source is ${head.size} bytes (cap ${maxBytes}); split the audio and retry.`
+      );
+    }
+    const object = await bucket.get(objectKey);
+    if (!object) {
+      throw new Error("Transcription source object is missing from R2.");
+    }
+    const result = await transcribeAudioChunkWithCloudflareWorkersAi({
+        ai,
+        audioBytes: new Uint8Array(await object.arrayBuffer()),
+      }),
+      text = (result.text ?? "").trim();
+    let timedLines: TimedLyricLine[] = buildTimedLyricLinesFromSegments(
+      result.segments ?? []
+    );
+    if (timedLines.length === 0 && result.vtt) {
+      timedLines = buildTimedLyricLinesFromVtt(result.vtt);
+    }
+    return {
+      detectedLanguage: result.transcription_info?.language ?? null,
+      duration: result.transcription_info?.duration ?? null,
+      text,
+      timedLines,
+      wordCount: result.word_count ?? null,
+    };
   },
   transcribeVocals = async ({
+    ai,
     assetId,
+    bucket,
+    previewObjectKey,
     trackId,
   }: {
+    ai?: Ai | null;
     assetId: string;
+    bucket?: R2Bucket | null;
+    /** 16 kHz mono proxy; falls back to the full vocal stem on rollout mix. */
+    previewObjectKey?: string | null;
     trackId: string;
   }) => {
-    try {
-      const db = createDb(),
-        [existingLyrics] = await db
-          .select()
-          .from(trackLyrics)
-          .where(
-            and(
-              eq(trackLyrics.trackId, trackId),
-              eq(trackLyrics.sourceAssetId, assetId),
-              eq(trackLyrics.sourceType, "machine_transcription")
-            )
+    const db = createDb(),
+      [existingLyrics] = await db
+        .select()
+        .from(trackLyrics)
+        .where(
+          and(
+            eq(trackLyrics.trackId, trackId),
+            eq(trackLyrics.sourceAssetId, assetId),
+            eq(trackLyrics.sourceType, "machine_transcription")
           )
-          .limit(1);
-      if (existingLyrics) {
-        return existingLyrics;
+        )
+        .limit(1);
+    if (existingLyrics) {
+      return existingLyrics;
+    }
+
+    const resolvedBucket = bucket ?? getMediaBucket();
+    if (!resolvedBucket) {
+      throw new Error("MEDIA_BUCKET is required for vocal transcription.");
+    }
+    if (!ai) {
+      throw new Error("Workers AI binding is required for transcription.");
+    }
+    let transcriptionKey = previewObjectKey ?? null;
+    if (transcriptionKey) {
+      // Rolling deploys may run a container without preview support.
+      const previewHead = await resolvedBucket.head(transcriptionKey);
+      if (!previewHead) {
+        transcriptionKey = null;
       }
-
-      const sourceUrl = await createSignedMediaSourceUrl({ assetId, trackId }),
-        result = await transcribeAudioWithOpenAi(sourceUrl),
-        text = result?.text?.trim() ?? "";
-
-      if (!text) {
-        return null;
-      }
-
-      const timedLines = buildTimedLyricLinesFromWords(result?.words ?? []),
-        [lyrics] = await db
-          .insert(trackLyrics)
-          .values({
-            id: crypto.randomUUID(),
-            language: "en",
-            metadata: {
-              duration: result?.duration ?? null,
-              language: result?.language ?? null,
-              model: "whisper-1",
-              provider: "openai",
-              timestampGranularity: "word",
-            },
-            sourceAssetId: assetId,
-            sourceType: "machine_transcription",
-            status: "pending_review",
-            text,
-            timedLines: timedLines.length > 0 ? timedLines : null,
-            trackId,
-          })
-          .returning();
-
-      return lyrics ?? null;
-    } catch (error) {
-      console.warn("Vocal stem lyric transcription skipped", {
-        error: error instanceof Error ? error.message : String(error),
-        trackId,
-      });
+    }
+    if (!transcriptionKey) {
+      const [vocalAsset] = await db
+        .select({
+          objectKey: trackAssets.objectKey,
+        })
+        .from(trackAssets)
+        .where(eq(trackAssets.id, assetId))
+        .limit(1);
+      transcriptionKey = vocalAsset?.objectKey ?? null;
+    }
+    if (!transcriptionKey) {
       return null;
     }
+    // Provider/storage errors throw so the Workflow step retry policy reruns
+    // them; only "nothing to transcribe" resolves to null.
+    const result = await transcribeR2ObjectForLyrics({
+        ai,
+        bucket: resolvedBucket,
+        maxBytes: MAX_TRANSCRIPTION_BYTES,
+        objectKey: transcriptionKey,
+      }),
+      text = result.text.trim();
+
+    if (!text) {
+      return null;
+    }
+
+    const [lyrics] = await db
+      .insert(trackLyrics)
+      .values({
+        id: crypto.randomUUID(),
+        language: result.detectedLanguage ?? "en",
+        metadata: {
+          duration: result.duration,
+          language: result.detectedLanguage,
+          model: WORKERS_AI_WHISPER_MODEL,
+          provider: "cloudflare-workers-ai",
+          separationModel: DEMUCS_SEPARATION_MODEL,
+          timestampGranularity: "word",
+          wordCount: result.wordCount,
+        },
+        sourceAssetId: assetId,
+        sourceType: "machine_transcription",
+        status: "pending_review",
+        text,
+        timedLines: result.timedLines.length > 0 ? result.timedLines : null,
+        trackId,
+      })
+      .returning();
+
+    return lyrics ?? null;
   },
   embeddingModelName = (): string =>
     getEnvValue("GOOGLE_EMBEDDING_MODEL")
@@ -462,6 +687,7 @@ const fetchAudioFileForOpenAi = async (sourceUrl: string) => {
       .trim() || DEFAULT_EMBEDDING_MODEL;
 
 export { embeddingModelName };
+export { transcribeVocals as transcribeDemucsVocals };
 
 export const backfillSearchEmbeddings = async (limit = 100) => {
   if (!isDatabaseConfigured()) {
@@ -687,53 +913,115 @@ export const saveEmbedding = async ({
   }
 };
 
-export const saveStemSplitOutput = ({
-  assetId,
-  job,
-  output,
+export const saveDemucsStemAsset = ({
+  assetKind,
+  pipelineVersion,
+  separation,
+  sourceAssetId,
   trackId,
 }: {
+  assetKind: "instrumental" | "vocal_stem";
+  pipelineVersion: number;
+  separation: { objectKey: string; sizeBytes: number };
+  sourceAssetId: string;
+  trackId: string;
+}) =>
+  saveStemAsset({
+    assetKind,
+    jobId: `demucs:${sourceAssetId}:v${pipelineVersion}`,
+    mimeType: "audio/mpeg",
+    objectKey: separation.objectKey,
+    pipelineVersion,
+    sizeBytes: separation.sizeBytes,
+    sourceAssetId,
+    trackId,
+  });
+
+export const findCurrentDemucsStems = async ({
+  pipelineVersion,
+  sourceAssetId,
+  trackId,
+}: {
+  pipelineVersion: number;
+  sourceAssetId: string;
+  trackId: string;
+}) => {
+  const rows = await createDb()
+    .select({
+      assetKind: trackAssets.assetKind,
+      id: trackAssets.id,
+      objectKey: trackAssets.objectKey,
+    })
+    .from(trackAssets)
+    .where(
+      and(
+        eq(trackAssets.trackId, trackId),
+        inArray(trackAssets.assetKind, ["vocal_stem", "instrumental"]),
+        eq(trackAssets.purpose, "stem"),
+        eq(trackAssets.isCurrent, true),
+        eq(trackAssets.sourceAssetId, sourceAssetId),
+        eq(trackAssets.processingVersion, pipelineVersion)
+      )
+    );
+  const vocals = rows.find((row) => row.assetKind === "vocal_stem") ?? null,
+    instrumental = rows.find((row) => row.assetKind === "instrumental") ?? null;
+  return { instrumental, vocals };
+};
+
+/** @deprecated Use findCurrentDemucsStems (#257). */
+export const findCurrentDemucsVocalStem = async (args: {
+  pipelineVersion: number;
+  sourceAssetId: string;
+  trackId: string;
+}) => (await findCurrentDemucsStems(args)).vocals;
+
+/** @deprecated StemSplit was removed (#257). Always returns null. */
+export const saveStemSplitOutput = (_args: {
   assetId: string;
   job: StemSplitJobResponse;
   output: "instrumental" | "vocals";
   trackId: string;
-}) => {
-  const sourceOutput = job.outputs?.[output];
-  if (!sourceOutput) {
-    return null;
-  }
-  return saveStemAsset({
-    assetKind: output === "vocals" ? "vocal_stem" : "instrumental",
-    sourceAssetId: assetId,
-    sourceOutput,
-    stemsplitJobId: job.id,
-    targetKey: `processed/tracks/${trackId}/${job.id}/${output}.mp3`,
-    trackId,
-  });
-};
+}) => null;
 
 export const transcribeStemSplitVocals = ({
+  ai,
+  bucket,
+  previewObjectKey,
   trackId,
   vocalsAssetId,
 }: {
+  ai?: Ai | null;
+  bucket?: R2Bucket | null;
+  previewObjectKey?: string | null;
   trackId: string;
   vocalsAssetId: string | null;
 }) => {
   if (!vocalsAssetId) {
     return null;
   }
-  return transcribeVocals({ assetId: vocalsAssetId, trackId });
+  return transcribeVocals({
+    ai,
+    assetId: vocalsAssetId,
+    bucket,
+    previewObjectKey,
+    trackId,
+  });
 };
 
 export const finalizeTrackEnrichment = async ({
   emailQueue,
-  job,
+  inputAssetId,
+  jobId,
   lyrics,
+  suppressNotifications = false,
   trackId,
 }: {
   emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
-  job: StemSplitJobResponse;
+  inputAssetId: string;
+  jobId: string;
   lyrics: null | { id: string; text: string };
+  /** Backfill/admin runs set this so artists get no 1am lyric emails. */
+  suppressNotifications?: boolean;
   trackId: string;
 }) => {
   const db = createDb(),
@@ -819,132 +1107,47 @@ export const finalizeTrackEnrichment = async ({
     .update(trackStemJobs)
     .set({
       completedAt: now,
-      creditsCharged: job.creditsCharged,
       progress: 100,
       status: "completed",
+      stemsplitJobId: jobId,
       updatedAt: now,
     })
     .where(
       and(
         eq(trackStemJobs.trackId, trackId),
-        eq(trackStemJobs.stemsplitJobId, job.id)
+        eq(trackStemJobs.inputAssetId, inputAssetId)
       )
     );
-  await notifyTrackProcessingComplete({ emailQueue, trackId });
+  if (!suppressNotifications) {
+    await notifyTrackProcessingComplete({ emailQueue, trackId });
+  }
 };
 
-export const processCompletedStemSplitJob = async ({
-  assetId,
-  emailQueue,
-  job,
-  trackId,
-}: {
+/** @deprecated StemSplit was removed (#257). No-op for legacy webhooks. */
+export const processCompletedStemSplitJob = async (_args: {
   assetId: string;
   emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
   job: StemSplitJobResponse;
   trackId: string;
-}) => {
-  const vocalsAsset = await saveStemSplitOutput({
-    assetId,
-    job,
-    output: "vocals",
-    trackId,
-  });
-  await saveStemSplitOutput({
-    assetId,
-    job,
-    output: "instrumental",
-    trackId,
-  });
-  const lyrics = await transcribeStemSplitVocals({
-    trackId,
-    vocalsAssetId: vocalsAsset?.id ?? null,
-  });
-  await finalizeTrackEnrichment({ emailQueue, job, lyrics, trackId });
+}) => null;
+
+/** @deprecated StemSplit submission was removed (#257). Use the Demucs container. */
+export const processTrackAudio = async (
+  _args: TrackEnrichmentWorkflowPayload
+): Promise<never> => {
+  throw new Error(
+    "StemSplit submission was removed; use Demucs separation (#257)."
+  );
 };
 
-export const processTrackAudio = async ({
-  sourceAssetId,
-  trackId,
-}: TrackEnrichmentWorkflowPayload) => {
-  const assetId = sourceAssetId;
-  if (!isDatabaseConfigured()) {
-    throw new Error("DATABASE_URL is required for track processing.");
-  }
-
-  const db = createDb(),
-    [storedJob] = await db
-      .select({ stemsplitJobId: trackStemJobs.stemsplitJobId })
-      .from(trackStemJobs)
-      .where(eq(trackStemJobs.inputAssetId, assetId))
-      .limit(1);
-  if (storedJob?.stemsplitJobId) {
-    const existingJob = await getStemSplitJob(storedJob.stemsplitJobId);
-    if (existingJob) {
-      return existingJob;
-    }
-  }
-
-  const sourceUrl = await createSignedMediaSourceUrl({
-      assetId,
-      trackId,
-    }),
-    submittedJob = await submitStemSplitJob({ sourceUrl });
-
-  if (!submittedJob) {
-    throw new Error("STEMSPLIT_API_KEY is required for track processing.");
-  }
-
-  await db
-    .update(trackStemJobs)
-    .set({
-      creditsRequired: submittedJob.creditsRequired,
-      progress: submittedJob.progress ?? 0,
-      status: mapStemJobStatus(submittedJob.status),
-      stemsplitJobId: submittedJob.id,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(trackStemJobs.trackId, trackId),
-        eq(trackStemJobs.inputAssetId, assetId)
-      )
-    );
-
-  return submittedJob;
-};
-
-export const pollStemSplitJob = async ({
-  stemsplitJobId,
-  trackId,
-}: {
+/** @deprecated StemSplit polling was removed (#257). Use the Demucs container. */
+export const pollStemSplitJob = async (_args: {
   stemsplitJobId: string;
   trackId: string;
-}) => {
-  const job = await getStemSplitJob(stemsplitJobId);
-
-  if (!job) {
-    throw new Error("STEMSPLIT_API_KEY is required for track processing.");
-  }
-
-  const db = createDb();
-
-  await db
-    .update(trackStemJobs)
-    .set({
-      creditsCharged: job.creditsCharged,
-      progress: job.progress ?? 0,
-      status: mapStemJobStatus(job.status),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(trackStemJobs.trackId, trackId),
-        eq(trackStemJobs.stemsplitJobId, stemsplitJobId)
-      )
-    );
-
-  return job;
+}): Promise<never> => {
+  throw new Error(
+    "StemSplit polling was removed; use Demucs separation (#257)."
+  );
 };
 
 export const createWorkflowJobRow = async ({

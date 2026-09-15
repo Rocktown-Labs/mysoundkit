@@ -98,6 +98,7 @@ import { scheduleDuePayoutRuns } from "@/workflows/payout-run";
 
 export { ContainerProxy } from "@cloudflare/containers";
 export { MediaProcessorContainer } from "@/containers/media-processor";
+export { StemSeparatorContainer } from "@/containers/stem-separator";
 export { LiveRecordingWorkflow } from "@/workflows/live-recording";
 export { MediaProcessingWorkflow } from "@/workflows/media-processing";
 export { MediaRetentionWorkflow } from "@/workflows/media-retention";

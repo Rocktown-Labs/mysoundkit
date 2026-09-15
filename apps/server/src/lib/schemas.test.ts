@@ -319,6 +319,7 @@ describe("artist dashboard release schemas", () => {
     });
 
     expect(result.success).toBe(true);
+    expect(result.data?.enrichLyrics).toBe(true);
   });
 
   it("accepts one atomic upload finalization payload", () => {

@@ -93,7 +93,7 @@ export function BioNav() {
     <header className="sticky top-0 z-40 w-full overflow-x-clip border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:h-16 sm:flex-nowrap sm:gap-4 sm:px-6 sm:py-0">
         {/* Left: Logo */}
-        <div className="flex min-w-0 sm:w-56 items-center">
+        <div className="flex min-w-0 items-center sm:w-64">
           <Link className="shrink-0 hover:opacity-85 transition-opacity" to="/">
             <span className="font-notable tracking-[0.2em] text-xs sm:text-sm">
               SOUNDKIT<span className="text-primary">.BIO</span>
@@ -107,10 +107,10 @@ export function BioNav() {
         </div>
 
         {/* Right CTAs */}
-        <div className="flex shrink-0 sm:w-56 items-center justify-end gap-2 sm:gap-3">
+        <div className="flex shrink-0 items-center justify-end gap-2 sm:w-64 sm:gap-3">
           {currentUser?.accountType === "artist" ? (
             <Link
-              className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary transition-[background-color,border-color] hover:border-primary/60 hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary transition-[background-color,border-color] hover:border-primary/60 hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               to="/dashboard"
             >
               <LayoutDashboard aria-hidden="true" className="size-3.5" />
@@ -118,7 +118,7 @@ export function BioNav() {
             </Link>
           ) : currentUser ? (
             <a
-              className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary transition-[background-color,border-color] hover:border-primary/60 hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary transition-[background-color,border-color] hover:border-primary/60 hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               href={buildSoundKitWebUrl("/dashboard")}
             >
               <LayoutDashboard aria-hidden="true" className="size-3.5" />
@@ -127,7 +127,7 @@ export function BioNav() {
           ) : (
             <>
               <button
-                className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-border/40 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground/85 transition-[border-color,color] hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1.5 whitespace-nowrap rounded-lg border border-border/40 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground/85 transition-[border-color,color] hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 onClick={handleSignIn}
                 type="button"
               >
@@ -136,13 +136,10 @@ export function BioNav() {
               </button>
 
               <Link
-                className="hidden min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-border/40 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground/85 transition-[border-color,color] hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:inline-flex"
+                className="hidden min-h-11 shrink-0 touch-manipulation items-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-[background-color] hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:inline-flex"
                 to="/signup/artist"
               >
-                <Sparkles
-                  aria-hidden="true"
-                  className="size-3.5 text-primary"
-                />
+                <Sparkles aria-hidden="true" className="size-3.5" />
                 <span>Claim Account</span>
               </Link>
             </>

@@ -38,6 +38,7 @@ export const additionalClientRpcOperations = [
   "GET /v1/admin/audio-diagnostics/jobs",
   "GET /v1/admin/audio-diagnostics/jobs/:jobId",
   "POST /v1/admin/audio-diagnostics/jobs",
+  "POST /v1/admin/audio-diagnostics/sync-lyrics-stems",
   "GET /v1/admin/finance/payments/coupons",
   "GET /v1/admin/finance/payments/users",
   "POST /v1/auth/handoff-token",

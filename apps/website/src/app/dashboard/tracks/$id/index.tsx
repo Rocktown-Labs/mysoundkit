@@ -146,10 +146,13 @@ interface LyricsWorkspaceProps {
       }
     | null
     | undefined;
+  instrumentalReady: boolean;
   isTranscribing: boolean;
+  lyricsStatus: null | string | undefined;
   masterAssetExists: boolean;
   onRefetchTrack: () => Promise<unknown>;
   onTranscribe: () => Promise<void>;
+  stemReady: boolean;
   trackId: string;
 }
 
@@ -289,10 +292,13 @@ const SECTION_SNIPPETS = [
 function LyricsWorkspace({
   initialLyrics,
   initialRevision,
+  instrumentalReady,
   isTranscribing,
+  lyricsStatus,
   masterAssetExists,
   onRefetchTrack,
   onTranscribe,
+  stemReady,
   trackId,
 }: LyricsWorkspaceProps) {
   const createLyricsMutation = useCreateTrackLyricsMutation(trackId),
@@ -447,9 +453,26 @@ function LyricsWorkspace({
               Lyrics Workspace
             </CardTitle>
             <CardDescription className="text-xs">
-              Write sectioned lyrics, generate a sync draft, or queue OpenAI
-              transcription from the vocal stem.
+              Write sectioned lyrics, generate a sync draft, or separate vocals
+              with Demucs and transcribe them with Cloudflare Workers AI
+              (Whisper Large v3 Turbo).
             </CardDescription>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Badge variant="outline">Whisper Large v3 Turbo</Badge>
+              <Badge variant={stemReady ? "outline" : "secondary"}>
+                {stemReady ? "Stem ready" : "Stem missing"}
+              </Badge>
+              <Badge variant={instrumentalReady ? "outline" : "secondary"}>
+                {instrumentalReady ? "Instrumental ready" : "No instrumental"}
+              </Badge>
+              {lyricsStatus === "failed" ? (
+                <Badge variant="destructive">
+                  Transcription failed — retry below
+                </Badge>
+              ) : lyricsStatus === "generating" ? (
+                <Badge variant="secondary">Transcribing…</Badge>
+              ) : null}
+            </div>
           </div>
           <Button
             className="shrink-0"
@@ -1142,10 +1165,25 @@ function TrackDetailPage() {
           <LyricsWorkspace
             initialLyrics={trackQueryData.lyrics}
             initialRevision={trackQueryData.lyricsRevision}
+            instrumentalReady={
+              "instrumentalReady" in trackQueryData
+                ? Boolean(trackQueryData.instrumentalReady)
+                : assets.some((asset) => asset.assetKind === "instrumental")
+            }
             isTranscribing={isTranscribing}
+            lyricsStatus={
+              "lyricsStatus" in trackQueryData
+                ? (trackQueryData.lyricsStatus as string | null)
+                : null
+            }
             masterAssetExists={Boolean(masterAsset)}
             onRefetchTrack={() => trackQuery.refetch()}
             onTranscribe={handleTranscribe}
+            stemReady={
+              "stemReady" in trackQueryData
+                ? Boolean(trackQueryData.stemReady)
+                : assets.some((asset) => asset.assetKind === "vocal_stem")
+            }
             trackId={trackQueryData.id}
           />
         </TabsContent>

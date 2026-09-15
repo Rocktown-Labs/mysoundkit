@@ -29,7 +29,16 @@
       "max_instances": 20,
       "instance_type": "basic",
     },
+    {
+      "class_name": "StemSeparatorContainer",
+      "image": "../stem-separator/Dockerfile",
+      "max_instances": 10,
+      "instance_type": "standard-3",
+    },
   ],
+  "ai": {
+    "binding": "AI",
+  },
   "analytics_engine_datasets": [
     {
       "binding": "DO_METRICS",
@@ -54,6 +63,10 @@
         "name": "MEDIA_PROCESSOR",
         "class_name": "MediaProcessorContainer",
       },
+      {
+        "name": "STEM_SEPARATOR",
+        "class_name": "StemSeparatorContainer",
+      },
     ],
   },
   "migrations": [
@@ -68,6 +81,10 @@
     {
       "new_sqlite_classes": ["BattleDirectoryDurableObject"],
       "tag": "v3",
+    },
+    {
+      "new_sqlite_classes": ["StemSeparatorContainer"],
+      "tag": "v4",
     },
   ],
   "r2_buckets": [

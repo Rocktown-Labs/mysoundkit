@@ -637,16 +637,18 @@ export const buildTrackDetail = async (
       assets: assetRows,
       purpose: "master",
       trackId: row.id,
-    });
+    }),
+    currentAssets = assetRows.filter((asset) => asset.isCurrent);
 
   return {
     ...summary,
-    assets: assetRows
-      .filter((asset) => asset.isCurrent)
-      .map(mapAssetForDashboard),
+    assets: currentAssets.map(mapAssetForDashboard),
     collaborators: collaboratorRows,
     createdAt: row.createdAt.toISOString(),
     description: row.description,
+    instrumentalReady: currentAssets.some(
+      (asset) => asset.assetKind === "instrumental" && asset.status === "ready"
+    ),
     lyrics: lyricsRows[0]?.text ?? null,
     lyricsRevision: lyricsRows[0]
       ? {
@@ -661,6 +663,9 @@ export const buildTrackDetail = async (
     playbackUrl:
       summary.playbackUrl ??
       (ownerMaster ? guardedTrackPlaybackUrl(row.id) : null),
+    stemReady: currentAssets.some(
+      (asset) => asset.assetKind === "vocal_stem" && asset.status === "ready"
+    ),
   };
 };
 
