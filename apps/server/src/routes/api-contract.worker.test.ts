@@ -763,19 +763,28 @@ describe("SoundKit API input validation", () => {
 });
 
 describe("SoundKit provider endpoint configuration", () => {
-  it.each([
-    ["/v1/webhooks/mux", "Mux webhook verification is not configured."],
-    [
-      "/v1/webhooks/stemsplit",
-      "StemSplit webhook verification is not configured.",
-    ],
-  ])("fails closed when POST %s is not configured", async (path, message) => {
-    const { body, response } = await fetchJson<{ message: string }>(path, {
-      method: "POST",
-    });
+  it("fails closed when POST /v1/webhooks/mux is not configured", async () => {
+    const { body, response } = await fetchJson<{ message: string }>(
+      "/v1/webhooks/mux",
+      {
+        method: "POST",
+      }
+    );
 
     expect(response.status).toBe(503);
-    expect(body.message).toBe(message);
+    expect(body.message).toBe("Mux webhook verification is not configured.");
+  });
+
+  it("acknowledges retired StemSplit deliveries without credentials", async () => {
+    const { body, response } = await fetchJson<{ message: string }>(
+      "/v1/webhooks/stemsplit",
+      {
+        method: "POST",
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(body.message).toBe("StemSplit webhook accepted.");
   });
 
   it("keeps inert webhook acknowledgements available", async () => {

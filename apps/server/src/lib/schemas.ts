@@ -2029,9 +2029,9 @@ export const createTrackBodySchema = z.object({
 });
 
 export const settleTrackBodySchema = z.object({
-  // Premium enrichment (StemSplit + transcription) consumes paid third-party
-  // API quota and is opt-IN: it runs only when explicitly enabled.
-  enrichLyrics: z.boolean().default(false),
+  // In-house Demucs + Workers AI enrichment runs on every upload and is
+  // opt-OUT: it runs unless explicitly disabled.
+  enrichLyrics: z.boolean().default(true),
   isPublic: z.boolean(),
   productionStatus: z.enum(["demo", "mixed", "mastered", "complete"]),
   releaseAt: z.string().optional(),

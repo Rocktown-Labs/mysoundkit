@@ -59,3 +59,8 @@ tmp
 temp
 .playwright-mcp
 pi-session-*.html
+
+# Python (stem-separator container)
+__pycache__/
+*.py[cod]
+.venv/

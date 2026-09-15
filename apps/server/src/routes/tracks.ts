@@ -41,6 +41,10 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 import { playConditionSql } from "@/lib/analytics-helpers";
 import { guardedTrackPlaybackUrl, publicAssetUrl } from "@/lib/asset-urls";
 import {
+  isTrackEnrichmentCurrent,
+  markTrackLyricsFailed,
+} from "@/lib/audio-processing";
+import {
   resolveDownloadAccess,
   resolveListeningAccess,
 } from "@/lib/content-access";
@@ -460,7 +464,30 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
     }
 
     const db = createDb(),
-      stemJobId = `stem:${masterAsset.id}:v${ENRICHMENT_PIPELINE_VERSION}`;
+      stemJobId = `stem:${masterAsset.id}:v${ENRICHMENT_PIPELINE_VERSION}`,
+      [existingJob] = await db
+        .select()
+        .from(trackStemJobs)
+        .where(eq(trackStemJobs.inputAssetId, masterAsset.id))
+        .limit(1);
+    // A completed job row only proves a run finished: lyrics are current
+    // only with both v2 stems plus machine lyrics from this exact master
+    // (or approved lyrics). Anything else must rerun instead of reporting
+    // "already current".
+    if (
+      existingJob?.status === "completed" &&
+      (await isTrackEnrichmentCurrent({
+        pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
+        sourceAssetId: masterAsset.id,
+        trackId,
+      }))
+    ) {
+      return {
+        jobId: existingJob.id,
+        message: "Track enrichment is already current.",
+        status: "completed" as const,
+      };
+    }
     await withRetry("ensure current stem job", () =>
       db
         .insert(trackStemJobs)
@@ -472,7 +499,15 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
           status: "queued",
           trackId,
         })
-        .onConflictDoNothing()
+        .onConflictDoUpdate({
+          set: {
+            outputFormat: "MP3",
+            outputType: "BOTH",
+            status: "queued",
+            updatedAt: new Date(),
+          },
+          target: [trackStemJobs.inputAssetId],
+        })
     );
     const [job] = await db
       .select()
@@ -482,14 +517,6 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
     if (!job) {
       throw new Error("Unable to create track enrichment job.");
     }
-    if (job.status === "completed") {
-      return {
-        jobId: job.id,
-        message: "Track enrichment is already current.",
-        status: "completed" as const,
-      };
-    }
-
     await withRetry("mark lyrics generating", () =>
       db
         .update(tracks)
@@ -500,15 +527,53 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
         .where(and(eq(tracks.id, trackId), ne(tracks.lyricsStatus, "approved")))
     );
 
-    const ensured = await ensureTrackEnrichmentWorkflow({
-      payload: {
-        objectKey: masterAsset.objectKey,
-        pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
+    let ensured: Awaited<ReturnType<typeof ensureTrackEnrichmentWorkflow>>;
+    try {
+      ensured = await ensureTrackEnrichmentWorkflow({
+        payload: {
+          objectKey: masterAsset.objectKey,
+          pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
+          sourceAssetId: masterAsset.id,
+          trackId,
+        },
+        workflow: getTrackEnrichmentWorkflow(),
+      });
+      if (ensured.workflowStatus === "complete") {
+        // Reaching this point means the exact source's outputs are incomplete,
+        // regardless of whether an older master has machine lyrics. Restart
+        // the completed instance to repair the missing v2 output.
+        const binding = getTrackEnrichmentWorkflow();
+        if (binding) {
+          await (await binding.get(ensured.workflowInstanceId)).restart();
+        }
+      }
+    } catch (error) {
+      await markTrackLyricsFailed({
         sourceAssetId: masterAsset.id,
         trackId,
-      },
-      workflow: getTrackEnrichmentWorkflow(),
-    });
+      });
+      await db
+        .update(trackStemJobs)
+        .set({
+          error: { message: "Workflow launch failed." },
+          status: "failed",
+        })
+        .where(eq(trackStemJobs.inputAssetId, masterAsset.id));
+      throw error;
+    }
+    if (ensured.workflowStatus === "binding_unavailable") {
+      await markTrackLyricsFailed({
+        sourceAssetId: masterAsset.id,
+        trackId,
+      });
+      await db
+        .update(trackStemJobs)
+        .set({
+          error: { message: "Workflow binding unavailable." },
+          status: "failed",
+        })
+        .where(eq(trackStemJobs.inputAssetId, masterAsset.id));
+    }
     await withRetry("save enrichment workflow instance id", () =>
       db
         .update(trackStemJobs)
@@ -522,7 +587,10 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
         ensured.workflowStatus === "binding_unavailable"
           ? "Track enrichment is retryable when its Workflow binding is available."
           : "Track enrichment workflow started.",
-      status: "queued" as const,
+      status:
+        ensured.workflowStatus === "binding_unavailable"
+          ? ("failed" as const)
+          : ("queued" as const),
     };
   };
 
@@ -2460,11 +2528,9 @@ app.openapi(
       });
     }
 
-    const entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
-    if (entitlements.isPremium && settlement.enrichLyrics) {
+    // Enrichment runs for every upload while the app is in development
+    // (no premium gate): Demucs stems + Workers AI lyrics.
+    if (settlement.enrichLyrics) {
       const [masterAsset] = await db
         .select()
         .from(trackAssets)
@@ -2532,10 +2598,6 @@ app.openapi(
     const { trackId } = c.req.valid("param"),
       body = c.req.valid("json"),
       session = c.get("session"),
-      entitlements = await resolveEntitlements({
-        session: isAuthenticatedSession(session) ? session : null,
-        user,
-      }),
       organizationId = await resolveActiveOrganizationId({
         session: isAuthenticatedSession(session) ? session : null,
         user,
@@ -2647,7 +2709,7 @@ app.openapi(
       });
     }
 
-    if (entitlements.isPremium && body.enrichLyrics !== false) {
+    if (body.enrichLyrics !== false) {
       await queueTrackAudioProcessing({
         masterAsset: { ...masterAsset, status: "ready" },
         trackId,
@@ -2824,10 +2886,6 @@ app.openapi(
         messageResponseSchema,
         "Track not found"
       ),
-      [HttpStatusCodes.FORBIDDEN]: jsonContent(
-        messageResponseSchema,
-        "Premium subscription required"
-      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
         "Authentication required"
@@ -2855,22 +2913,7 @@ app.openapi(
 
     const { trackId } = c.req.valid("param"),
       session = c.get("session"),
-      entitlements = await resolveEntitlements({
-        session: isAuthenticatedSession(session) ? session : null,
-        user,
-      });
-
-    if (!entitlements.isPremium) {
-      return c.json(
-        {
-          message:
-            "A premium artist subscription is required for automated StemSplit and transcription processing.",
-        },
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
-
-    const organizationId = await resolveActiveOrganizationId({
+      organizationId = await resolveActiveOrganizationId({
         session: isAuthenticatedSession(session) ? session : null,
         user,
       }),
@@ -2891,9 +2934,11 @@ app.openapi(
       .where(
         and(
           eq(trackAssets.trackId, trackId),
-          eq(trackAssets.assetKind, "master")
+          eq(trackAssets.assetKind, "master"),
+          eq(trackAssets.isCurrent, true)
         )
       )
+      .orderBy(desc(trackAssets.updatedAt))
       .limit(1);
 
     if (!masterAsset) {

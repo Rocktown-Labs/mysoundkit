@@ -7,7 +7,6 @@ import {
   liveExperiences,
   muxAssets,
   muxUploads,
-  trackStemJobs,
   videos,
   webhookEvents,
 } from "@soundkit/db/schema/app";
@@ -16,7 +15,6 @@ import { and, eq, or } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
-import { processCompletedStemSplitJob } from "@/lib/audio-processing";
 import { processBattleServiceEvent } from "@/lib/battle-service";
 import { verifyResendWebhook } from "@/lib/email";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
@@ -693,73 +691,11 @@ const getStemSplitEventId = (payload: Record<string, unknown>) => {
     emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
     payload: Record<string, unknown>;
   }) => {
-    if (!isDatabaseConfigured()) {
-      return "ignored" as const;
-    }
-
-    const event = getStringValue(payload.event),
-      data = getEventData(payload),
-      jobId = data ? getStringValue(data.jobId) : null;
-
-    if (!event || !data || !jobId) {
-      return "ignored" as const;
-    }
-
-    const db = createDb(),
-      [stemJob] = await db
-        .select()
-        .from(trackStemJobs)
-        .where(eq(trackStemJobs.stemsplitJobId, jobId))
-        .limit(1);
-
-    if (!stemJob) {
-      return "ignored" as const;
-    }
-
-    if (event === "job.failed") {
-      await db
-        .update(trackStemJobs)
-        .set({
-          error: data,
-          status: "failed",
-          updatedAt: new Date(),
-        })
-        .where(eq(trackStemJobs.id, stemJob.id));
-
-      return "processed" as const;
-    }
-
-    if (event !== "job.completed") {
-      return "ignored" as const;
-    }
-
-    await processCompletedStemSplitJob({
-      assetId: stemJob.inputAssetId,
-      emailQueue,
-      job: {
-        audioMetadata:
-          typeof data.audioMetadata === "object" && data.audioMetadata !== null
-            ? (data.audioMetadata as { bpm?: number; key?: string })
-            : undefined,
-        creditsCharged:
-          typeof data.creditsCharged === "number"
-            ? data.creditsCharged
-            : undefined,
-        id: jobId,
-        outputs:
-          typeof data.outputs === "object" && data.outputs !== null
-            ? (data.outputs as {
-                instrumental?: { expiresAt?: string; url?: string };
-                vocals?: { expiresAt?: string; url?: string };
-              })
-            : undefined,
-        progress: 100,
-        status: "COMPLETED",
-      },
-      trackId: stemJob.trackId,
-    });
-
-    return "processed" as const;
+    // StemSplit was removed (#257): legacy deliveries are acknowledged and
+    // ignored so old retries drain without touching lyrics or stems.
+    void emailQueue;
+    void payload;
+    return "ignored" as const;
   };
 
 app.openapi(
@@ -771,18 +707,14 @@ app.openapi(
         messageResponseSchema,
         "StemSplit webhook accepted"
       ),
-      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
-        messageResponseSchema,
-        "StemSplit webhook secret unavailable"
-      ),
     },
     tags: ["Webhooks"],
   }),
   async (c) => {
     if (!getEnvValue("STEMSPLIT_WEBHOOK_SECRET")) {
       return c.json(
-        { message: "StemSplit webhook verification is not configured." },
-        HttpStatusCodes.SERVICE_UNAVAILABLE
+        { message: "StemSplit webhook accepted." },
+        HttpStatusCodes.OK
       );
     }
 

@@ -1,8 +1,14 @@
 /* eslint-disable one-var, sort-vars */
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { audioDiagnosticJobs } from "@soundkit/db/schema/app";
-import { eq } from "drizzle-orm";
+import {
+  audioDiagnosticJobs,
+  mediaProcessingJobs,
+  trackAssets,
+  trackStemJobs,
+  tracks,
+} from "@soundkit/db/schema/app";
+import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -17,6 +23,17 @@ import {
   listDiagnosticJobs,
   processDiagnosticJob,
 } from "@/lib/audio-diagnostics";
+import { markTrackLyricsFailed } from "@/lib/audio-processing";
+import {
+  enqueueLyricsEnrichmentBackfill,
+  findEnrichedSourceIds,
+} from "@/lib/media-backfill";
+import { ENRICHMENT_PIPELINE_VERSION } from "@/lib/media-pipeline";
+import type { TrackEnrichmentWorkflowPayload } from "@/lib/media-pipeline";
+import {
+  ensureTrackEnrichmentWorkflowBatch,
+  restartStuckEnrichmentInstances,
+} from "@/lib/media-processing-jobs";
 import { ContainerMediaProcessor } from "@/lib/media-processor";
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
@@ -250,6 +267,243 @@ app.openapi(
       kickJobProcessing(jobId, c.env as AppEnv["Bindings"], c.executionCtx);
     }
     return c.json(serializeJob(job), HttpStatusCodes.OK);
+  }
+);
+
+const syncLyricsStemsBodySchema = z.object({
+    limit: z.number().int().min(1).max(100).optional(),
+    missingOnly: z.boolean().optional(),
+    trackIds: z.string().array().min(1).max(100).optional(),
+  }),
+  syncLyricsStemsResponseSchema = z.object({
+    queuedCount: z.number().int(),
+    skippedCount: z.number().int(),
+    trackIds: z.string().array(),
+  });
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/audio-diagnostics/sync-lyrics-stems",
+    request: {
+      body: jsonContentRequired(
+        syncLyricsStemsBodySchema,
+        "Lyrics/stems backfill payload"
+      ),
+    },
+    responses: {
+      [HttpStatusCodes.ACCEPTED]: jsonContent(
+        syncLyricsStemsResponseSchema,
+        "Backfill queued (quiet: no lyric notifications)"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Admin required"
+      ),
+    },
+    tags: ["Admin"],
+  }),
+  async (c) => {
+    if (!isAdminUser(c.get("user"))) {
+      return c.json(
+        { message: "Admin access is required." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+    const body = c.req.valid("json"),
+      workflow = (c.env as AppEnv["Bindings"]).TRACK_ENRICHMENT_WORKFLOW;
+
+    // No explicit IDs: sweep masters missing enrichment (quiet backfill).
+    if (!body.trackIds || body.trackIds.length === 0) {
+      const result = await enqueueLyricsEnrichmentBackfill({
+        batchSize: body.limit ?? 25,
+        workflow,
+      });
+      return c.json(
+        {
+          queuedCount: result.created + result.restarted,
+          skippedCount: 0,
+          trackIds: [],
+        },
+        HttpStatusCodes.ACCEPTED
+      );
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { queuedCount: 0, skippedCount: 0, trackIds: [] },
+        HttpStatusCodes.ACCEPTED
+      );
+    }
+    const db = createDb(),
+      masters = await db
+        .select({
+          objectKey: trackAssets.objectKey,
+          sourceAssetId: trackAssets.id,
+          trackId: trackAssets.trackId,
+        })
+        .from(trackAssets)
+        .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
+        .where(
+          and(
+            inArray(trackAssets.trackId, [...new Set(body.trackIds)]),
+            eq(trackAssets.assetKind, "master"),
+            eq(trackAssets.isCurrent, true),
+            isNotNull(trackAssets.objectKey),
+            inArray(trackAssets.status, ["uploaded", "ready"]),
+            isNull(tracks.deletedAt)
+          )
+        )
+        .limit(100),
+      masterSourceIds = masters.map((master) => master.sourceAssetId),
+      masterTrackIds = [...new Set(masters.map((master) => master.trackId))],
+      enrichedExplicitSources = await findEnrichedSourceIds({
+        sourceAssetIds: masterSourceIds,
+        trackIds: masterTrackIds,
+      }),
+      force = body.missingOnly === false,
+      targets = force
+        ? masters
+        : masters.filter(
+            (master) => !enrichedExplicitSources.has(master.sourceAssetId)
+          );
+    // Never overlap a running/queued enrichment for the same source: the
+    // two runs would race on output objects, assets, and final lyrics.
+    const activeExplicitSources = new Set<string>();
+    if (targets.length > 0) {
+      const activeRows = await db
+        .select({ sourceAssetId: mediaProcessingJobs.sourceAssetId })
+        .from(mediaProcessingJobs)
+        .where(
+          and(
+            inArray(
+              mediaProcessingJobs.sourceAssetId,
+              targets.map((master) => master.sourceAssetId)
+            ),
+            eq(mediaProcessingJobs.workflowType, "track_enrichment"),
+            inArray(mediaProcessingJobs.status, ["queued", "running"])
+          )
+        );
+      for (const row of activeRows) {
+        if (row.sourceAssetId) {
+          activeExplicitSources.add(row.sourceAssetId);
+        }
+      }
+    }
+    const runnable = targets.filter(
+      (master) => !activeExplicitSources.has(master.sourceAssetId)
+    );
+    for (const master of runnable) {
+      await db
+        .insert(trackStemJobs)
+        .values({
+          id: `stem:${master.sourceAssetId}:v${ENRICHMENT_PIPELINE_VERSION}`,
+          inputAssetId: master.sourceAssetId,
+          outputFormat: "MP3",
+          outputType: "BOTH",
+          status: "queued",
+          trackId: master.trackId,
+        })
+        .onConflictDoUpdate({
+          set: {
+            outputFormat: "MP3",
+            outputType: "BOTH",
+            status: "queued",
+            updatedAt: new Date(),
+          },
+          target: [trackStemJobs.inputAssetId],
+        });
+      await db
+        .update(tracks)
+        .set({ lyricsStatus: "generating", updatedAt: new Date() })
+        .where(
+          and(
+            eq(tracks.id, master.trackId),
+            ne(tracks.lyricsStatus, "approved")
+          )
+        );
+    }
+    const payloads = runnable.map((master): TrackEnrichmentWorkflowPayload => ({
+      objectKey: master.objectKey as string,
+      pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
+      quiet: true,
+      sourceAssetId: master.sourceAssetId,
+      trackId: master.trackId,
+    }));
+    if (payloads.length === 0) {
+      return c.json(
+        {
+          queuedCount: 0,
+          skippedCount: targets.length - runnable.length,
+          trackIds: [],
+        },
+        HttpStatusCodes.ACCEPTED
+      );
+    }
+    let result: Awaited<ReturnType<typeof ensureTrackEnrichmentWorkflowBatch>>,
+      restarted: string[];
+    try {
+      result = await ensureTrackEnrichmentWorkflowBatch({
+        payloads,
+        workflow,
+      });
+      // createBatch skips existing ids: restart errored/terminated runs and
+      // completed runs whose outputs are still missing (missing-only targets
+      // qualify by construction; force targets always do).
+      restarted = await restartStuckEnrichmentInstances({
+        includeComplete: true,
+        payloads,
+        workflow,
+      });
+    } catch (error) {
+      for (const master of runnable) {
+        await markTrackLyricsFailed({
+          sourceAssetId: master.sourceAssetId,
+          trackId: master.trackId,
+        });
+      }
+      await db
+        .update(trackStemJobs)
+        .set({
+          error: { message: "Workflow launch failed." },
+          status: "failed",
+        })
+        .where(
+          inArray(
+            trackStemJobs.inputAssetId,
+            runnable.map((master) => master.sourceAssetId)
+          )
+        );
+      throw error;
+    }
+    if (!workflow) {
+      for (const master of runnable) {
+        await markTrackLyricsFailed({
+          sourceAssetId: master.sourceAssetId,
+          trackId: master.trackId,
+        });
+      }
+      await db
+        .update(trackStemJobs)
+        .set({
+          error: { message: "Workflow binding unavailable." },
+          status: "failed",
+        })
+        .where(
+          inArray(
+            trackStemJobs.inputAssetId,
+            runnable.map((master) => master.sourceAssetId)
+          )
+        );
+    }
+    return c.json(
+      {
+        queuedCount: workflow ? result.created + restarted.length : 0,
+        skippedCount: targets.length - runnable.length,
+        trackIds: runnable.map((master) => master.trackId),
+      },
+      HttpStatusCodes.ACCEPTED
+    );
   }
 );
 

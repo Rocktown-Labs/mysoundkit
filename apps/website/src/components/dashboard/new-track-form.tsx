@@ -84,7 +84,6 @@ import {
   soundkitQueryKeys,
   useCreateTrackMutation,
   useGenresQuery,
-  useMeEntitlementsQuery,
   useSellerStatusQuery,
   useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
@@ -188,7 +187,7 @@ const exclusiveUntilForApi = (
     downloadsAllowed: z.boolean().default(true),
     downloadsRequireFirstPlay: z.boolean().default(false),
     downloadsRequirePurchase: z.boolean().default(true),
-    enrichLyrics: z.boolean().default(false),
+    enrichLyrics: z.boolean().default(true),
     exclusiveUntil: z.string().optional(),
     genre: z.string().min(1, "Genre is required"),
     isForSale: z.boolean().default(false),
@@ -266,7 +265,7 @@ const isGenreOption = (value: unknown): value is GenreOption =>
     downloadsAllowed: true,
     downloadsRequireFirstPlay: true,
     downloadsRequirePurchase: false,
-    enrichLyrics: false,
+    enrichLyrics: true,
     exclusiveUntil: "",
     genre: "Hip-Hop/Rap",
     isForSale: false,
@@ -378,8 +377,6 @@ export function NewTrackForm({
     } | null>(null),
     createTrackMutation = useCreateTrackMutation(),
     updateTrackMutation = useUpdateTrackMutation(trackId ?? ""),
-    entitlementsQuery = useMeEntitlementsQuery(),
-    isPremiumArtist = entitlementsQuery.data?.isPremium === true,
     sellerStatusQuery = useSellerStatusQuery(),
     payoutsReady = (sellerStatusQuery.data?.chargesEnabled ?? false) === true,
     editTrackResolver = zodResolver(
@@ -2289,34 +2286,31 @@ export function NewTrackForm({
                   />
                 </div>
 
-                {isPremiumArtist ? (
-                  <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl border border-border/40 bg-muted/20 gap-4">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-bold">
-                        Generate lyrics &amp; stems
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Premium: splits vocals/instrumental and transcribes
-                        timed lyrics with third-party credits. Leave off to
-                        skip.
-                      </p>
-                    </div>
-                    <FormField
-                      control={form.control}
-                      name="enrichLyrics"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
+                <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl border border-border/40 bg-muted/20 gap-4">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold">
+                      Generate lyrics &amp; stems
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Splits vocals/instrumental and transcribes timed lyrics
+                      automatically. Turn off to skip.
+                    </p>
                   </div>
-                ) : null}
+                  <FormField
+                    control={form.control}
+                    name="enrichLyrics"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 {form.watch("isForSale") ? (
                   <div className="rounded-xl border border-border/40 bg-muted/20 p-4 text-sm space-y-4">

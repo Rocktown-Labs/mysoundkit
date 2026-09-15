@@ -797,7 +797,7 @@ export function NewProjectForm({
                     },
                   ],
                   settlement: {
-                    enrichLyrics: false,
+                    enrichLyrics: true,
                     isPublic: releaseState.isListed,
                     productionStatus: "complete",
                     releaseAt: releaseState.releaseDate,

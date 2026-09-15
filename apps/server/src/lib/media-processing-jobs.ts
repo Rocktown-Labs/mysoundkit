@@ -438,6 +438,45 @@ export const ensureTrackEnrichmentWorkflowBatch = async ({
   return { created: created.length, requested: jobs.length };
 };
 
+/**
+ * createBatch skips existing ids, so batch callers use this to repair stuck
+ * runs: restarts errored/terminated instances and, when requested, completed
+ * ones whose outputs are still missing. Running/queued instances are left
+ * alone. Returns restarted instance ids.
+ */
+export const restartStuckEnrichmentInstances = async ({
+  includeComplete,
+  payloads,
+  workflow,
+}: {
+  includeComplete: boolean;
+  payloads: TrackEnrichmentWorkflowPayload[];
+  workflow: null | Workflow<TrackEnrichmentWorkflowPayload> | undefined;
+}): Promise<string[]> => {
+  if (!workflow || payloads.length === 0) {
+    return [];
+  }
+  const restarted: string[] = [];
+  for (const payload of payloads) {
+    const workflowInstanceId = trackEnrichmentWorkflowInstanceId(payload);
+    try {
+      const instance = await workflow.get(workflowInstanceId),
+        state = await instance.status();
+      if (
+        state.status === "errored" ||
+        state.status === "terminated" ||
+        (includeComplete && state.status === "complete")
+      ) {
+        await instance.restart();
+        restarted.push(workflowInstanceId);
+      }
+    } catch {
+      // Missing instances are handled by createBatch; leave them alone.
+    }
+  }
+  return restarted;
+};
+
 export const ensureMediaRetentionWorkflow = ({
   payload,
   workflow,

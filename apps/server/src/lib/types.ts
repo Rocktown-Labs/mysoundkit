@@ -1,4 +1,5 @@
 import type { MediaProcessorContainer } from "@/containers/media-processor";
+import type { StemSeparatorContainer } from "@/containers/stem-separator";
 import type { BattleDirectoryDurableObject } from "@/durable-objects/battle-directory";
 import type { LiveRoomDurableObject } from "@/durable-objects/live-room";
 import type { PresenceDurableObject } from "@/durable-objects/presence";
@@ -35,6 +36,7 @@ export interface AppVariables {
 
 export interface AppEnv {
   Bindings: {
+    AI?: Ai;
     BATTLE_ADMISSION_BATCH_SIZE?: string;
     BATTLE_BOT_SECRET?: string;
     BATTLE_DIRECTORY?: DurableObjectNamespace<BattleDirectoryDurableObject>;
@@ -51,6 +53,7 @@ export interface AppEnv {
     MEDIA_PROCESSING_WORKFLOW?: Workflow<MediaProcessingWorkflowPayload>;
     MEDIA_RETENTION_WORKFLOW?: Workflow<MediaRetentionWorkflowPayload>;
     MEDIA_PROCESSOR?: DurableObjectNamespace<MediaProcessorContainer>;
+    STEM_SEPARATOR?: DurableObjectNamespace<StemSeparatorContainer>;
     RECORDINGS_ACCESS_KEY_ID?: string;
     RECORDINGS_BUCKET?: R2Bucket;
     RECORDINGS_BUCKET_NAME?: string;
