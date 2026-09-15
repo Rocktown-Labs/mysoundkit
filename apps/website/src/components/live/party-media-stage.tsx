@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { API_V1_URL } from "@/lib/api";
+import { isMockRealtimeKitToken } from "@/lib/realtimekit-token";
 
 interface PartyParticipantToken {
   authToken: string;
@@ -93,8 +94,15 @@ export function PartyMediaStage({
           throw new Error(`Unable to join party media: ${response.status}`);
         }
 
-        const payload = (await response.json()) as PartyJoinResponse,
-          { default: RealtimeKitClient } =
+        const payload = (await response.json()) as PartyJoinResponse;
+        if (isMockRealtimeKitToken(payload.participant.authToken)) {
+          if (!disposed) {
+            setConnection("connected");
+          }
+          return;
+        }
+
+        const { default: RealtimeKitClient } =
             await import("@cloudflare/realtimekit"),
           client = await RealtimeKitClient.init({
             authToken: payload.participant.authToken,
@@ -116,6 +124,9 @@ export function PartyMediaStage({
         setConnection("connected");
 
         const refreshParticipants = () => {
+          if (disposed) {
+            return;
+          }
           setParticipants(client.participants.joined.toArray());
           setSelf(client.self);
         };
@@ -147,8 +158,6 @@ export function PartyMediaStage({
       if (activeMeeting) {
         void activeMeeting.leave();
       }
-      setSelf(null);
-      setParticipants([]);
     };
   }, [enabled, experienceId, retry, viewerOnly]);
 

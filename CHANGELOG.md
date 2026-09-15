@@ -45,6 +45,7 @@
 ### Fixed
 
 - Fixed v2 enrichment retry and status edge cases so project uploads opt in, admin sync safely handles empty batches and launch failures, completed retries are scoped to the current master lineage, superseded workflows cannot overwrite current lyric state, and deprecated StemSplit retries are acknowledged without configured credentials.
+- Reduced browser smoke-test runtime noise by making Stripe Connect SSR-safe, deferring development devtools until client mount, recognizing local RealtimeKit fallback tokens, preventing post-unmount media updates, using compatible notification auto-indexing, and replacing the invalid Mux fixture playback ID.
 - Fixed recurring production track and live query hangs by scoping PostgreSQL pools to HTTP, queue, and scheduled Worker events, disposing clients after event background work, and bounding Hyperdrive connection and query waits.
 - Fixed production database query starvation by reusing Hyperdrive clients instead of rotating the pool client after every query, retrying transient wrapped database errors, and indexing live queue, live discovery, project-cover, and track-project lookups.
 - Fixed Bio tip Checkout failures caused by Stripe Managed Payments conflicts and hide Tip actions until an artist has enabled charges, payouts, and completed onboarding.

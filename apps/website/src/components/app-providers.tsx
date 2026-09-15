@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useMemo, useSyncExternalStore } from "react";
 
 import { AudioPlayerProvider } from "@/components/audio-player-provider";
 import { CartProvider } from "@/components/cart-provider";
@@ -18,33 +18,67 @@ import { DataDbProvider } from "@/lib/data-db";
 import { MessagingDbProvider } from "@/lib/message-db";
 import { PresenceProvider } from "@/lib/presence-context";
 
-const AppDevtools = import.meta.env.DEV
-  ? lazy(async () => {
-      const { AppDevtools: DevtoolsComponent } =
-        await import("@/components/app-devtools");
+const AppDevtools =
+  import.meta.env.DEV && import.meta.env.VITE_DISABLE_DEVTOOLS !== "true"
+    ? lazy(async () => {
+        const { AppDevtools: DevtoolsComponent } =
+          await import("@/components/app-devtools");
 
-      return {
-        default: DevtoolsComponent,
-      };
-    })
-  : null;
+        return {
+          default: DevtoolsComponent,
+        };
+      })
+    : null;
+
+function createScopedQueryClient(_scopeKey: string) {
+  return new QueryClient();
+}
+
+function unsubscribeFromClientMount() {
+  return null;
+}
+
+function subscribeToClientMount() {
+  return unsubscribeFromClientMount;
+}
+
+function ClientDevtools() {
+  const hasMounted = useSyncExternalStore(
+    subscribeToClientMount,
+    () => true,
+    () => false
+  );
+
+  if (!(hasMounted && AppDevtools)) {
+    return null;
+  }
+
+  return (
+    <Suspense fallback={null}>
+      <AppDevtools />
+    </Suspense>
+  );
+}
 
 export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
   const { data: session } = authClient.useSession(),
-    scopeKey = session?.user.id ?? "anonymous",
-    queryClient = useMemo(() => new QueryClient(), [scopeKey]);
+    clientScopeKey = session?.user.id ?? "anonymous",
+    queryClient = useMemo(
+      () => createScopedQueryClient(clientScopeKey),
+      [clientScopeKey]
+    );
 
   return (
     <QueryClientProvider client={queryClient}>
       <DataDbProvider
-        key={scopeKey}
+        key={clientScopeKey}
         queryClient={queryClient}
-        scopeKey={scopeKey}
+        scopeKey={clientScopeKey}
       >
         <MessagingDbProvider
-          key={scopeKey}
+          key={clientScopeKey}
           queryClient={queryClient}
-          scopeKey={scopeKey}
+          scopeKey={clientScopeKey}
         >
           <ThemeProvider
             attribute="class"
@@ -64,11 +98,7 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
               </PresenceProvider>
             </KeyboardShortcutsProvider>
             <Toaster />
-            {AppDevtools ? (
-              <Suspense fallback={null}>
-                <AppDevtools />
-              </Suspense>
-            ) : null}
+            {AppDevtools ? <ClientDevtools /> : null}
           </ThemeProvider>
         </MessagingDbProvider>
       </DataDbProvider>
