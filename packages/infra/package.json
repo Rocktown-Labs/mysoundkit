@@ -12,7 +12,9 @@
     "realtimekit:presets:dry-run": "bun realtimekit-presets.ts --dry-run"
   },
   "dependencies": {
+    "@effect/platform-node": "catalog:",
     "dotenv": "catalog:",
+    "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

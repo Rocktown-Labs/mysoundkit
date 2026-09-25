@@ -32,6 +32,8 @@
 
 ### Changed
 
+- Migrated infrastructure from Alchemy v1 to Alchemy v2 (#261): `packages/infra/alchemy.run.ts` is now an Effect-based `Alchemy.Stack` (`alchemy@2.0.0-beta.79` via pnpm, plus `effect`/`@effect/platform-node`). All physical resource names are pinned for zero-downtime adoption (`pnpm alchemy deploy --adopt`, preview stages first). Notes: workflow definitions are recreated under v2-derived names (old `soundkit-*` definitions linger until cleaned up), R2 S3 upload keypairs move out of Alchemy into deploy-time secrets (`CLOUDFLARE_ACCESS_KEY_ID`/`CLOUDFLARE_SECRET_ACCESS_KEY`, `RECORDINGS_ACCESS_KEY_ID`/`RECORDINGS_SECRET_ACCESS_KEY`), the v1 `placement: { region }` (no `mode`) is dropped in favor of Cloudflare defaults, and the v1 TanStackStart vite plugin is removed (v2 builds via `Cloudflare.Website.Vite`).
+
 - Updated track and project detail pages to conditionally render external streaming links only when uploaded by the artist, replacing generic search fallbacks with authentic SVGL brand buttons.
 - Revamped Bio creator analytics (/dashboard/analytics) by replacing the cross-artist directory with state-level playback metrics, interactive territory leaderboards, and social/platform referral tracking (Instagram, TikTok, X, YouTube, Direct).
 - Moved artist profile Share button out of inline action rows into an independent top-right aligned action on the profile card.
