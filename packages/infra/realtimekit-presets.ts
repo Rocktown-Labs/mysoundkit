@@ -2,22 +2,70 @@
 // Creates or updates the RealtimeKit presets SoundKit expects for live
 // experiences (battles, parties, streams).
 //
-// Uses the Alchemy Cloudflare profile for authentication (see `alchemy
-// configure` / `alchemy login`), or a CLOUDFLARE_API_TOKEN in the environment.
-// The OAuth profile must include the "Realtime Admin" permission group; if it
-// does not, set CLOUDFLARE_API_TOKEN (e.g. the GitHub Actions secret) instead.
+// Authenticates with a CLOUDFLARE_API_TOKEN in the environment (e.g. the
+// GitHub Actions secret). The token needs RealtimeKit read/write access.
+// The Alchemy Cloudflare profile is no longer used here since Alchemy v2
+// manages API credentials internally (see `alchemy profile edit`).
 //
 // Usage:
 //   bun realtimekit-presets.ts            # configure presets
 //   bun realtimekit-presets.ts --dry-run  # preview without changing anything
 //   bun realtimekit-presets.ts --delete   # remove the SoundKit presets
 //
+// Env (required):
+//   CLOUDFLARE_ACCOUNT_ID        Cloudflare account ID.
+//   CLOUDFLARE_API_TOKEN         API token with RealtimeKit access.
+//
 // Env (optional):
 //   CLOUDFLARE_REALTIMEKIT_APP_ID  Restrict to a specific RealtimeKit app.
 //                                  Defaults to the first "soundkit" app found.
-//   CLOUDFLARE_PROFILE             Alchemy profile to use (default: "default")
 
-import { createCloudflareApi } from "alchemy/cloudflare";
+const accountId = process.env.CLOUDFLARE_ACCOUNT_ID,
+  apiToken = process.env.CLOUDFLARE_API_TOKEN;
+
+if (!accountId) {
+  throw new Error("CLOUDFLARE_ACCOUNT_ID is required.");
+}
+
+if (!apiToken) {
+  throw new Error("CLOUDFLARE_API_TOKEN is required.");
+}
+
+const api = {
+  accountId,
+  delete: (path: string) =>
+    fetch(`https://api.cloudflare.com/client/v4${path}`, {
+      headers: { Authorization: `Bearer ${apiToken}` },
+      method: "DELETE",
+    }),
+  get: (path: string) =>
+    fetch(`https://api.cloudflare.com/client/v4${path}`, {
+      headers: { Authorization: `Bearer ${apiToken}` },
+    }),
+  patch: (path: string, body: unknown) =>
+    fetch(`https://api.cloudflare.com/client/v4${path}`, {
+      body: JSON.stringify(body),
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      method: "PATCH",
+    }),
+  post: (path: string, body: unknown) =>
+    fetch(`https://api.cloudflare.com/client/v4${path}`, {
+      body: JSON.stringify(body),
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    }),
+};
+
+type RealtimeKitRecord = {
+  id?: string;
+  name?: string;
+};
 
 const args = new Set(process.argv.slice(2)),
   dryRun = args.has("--dry-run"),
@@ -236,8 +284,15 @@ const args = new Set(process.argv.slice(2)),
       },
     },
   ],
-  readResponse = async (response, label) => {
-    const data = await response.json().catch(() => ({}));
+  readResponse = async (
+    response: Response,
+    label: string
+  ): Promise<unknown> => {
+    const data = (await response.json().catch(() => ({}))) as {
+      data?: unknown;
+      errors?: unknown;
+      result?: unknown;
+    };
 
     if (!response.ok) {
       throw new Error(
@@ -250,16 +305,18 @@ const args = new Set(process.argv.slice(2)),
     return data.data ?? data.result ?? data;
   },
   main = async () => {
-    const api = await createCloudflareApi(),
-      apps = await readResponse(
+    const appsPayload = (await readResponse(
         await api.get(`/accounts/${api.accountId}/realtime/kit/apps`),
         "Listing RealtimeKit apps"
-      ),
+      )) as RealtimeKitRecord[] | { apps?: RealtimeKitRecord[] },
+      apps = appsPayload,
       appList = Array.isArray(apps) ? apps : (apps.apps ?? []),
       targetAppId = process.env.CLOUDFLARE_REALTIMEKIT_APP_ID,
       match = targetAppId
-        ? appList.find((app) => app.id === targetAppId)
-        : appList.find((app) => app.name?.toLowerCase().includes("soundkit"));
+        ? appList.find((app: { id?: string }) => app.id === targetAppId)
+        : appList.find((app: { name?: string }) =>
+            app.name?.toLowerCase().includes("soundkit")
+          );
 
     if (!match?.id) {
       throw new Error(
@@ -272,10 +329,10 @@ const args = new Set(process.argv.slice(2)),
     console.log(`Using RealtimeKit app "${match.name}" (${match.id})`);
 
     const baseUrl = `/accounts/${api.accountId}/realtime/kit/${match.id}/presets`,
-      existing = await readResponse(
+      existing = (await readResponse(
         await api.get(baseUrl),
         "Listing RealtimeKit presets"
-      ),
+      )) as RealtimeKitRecord[],
       byName = new Map(
         (Array.isArray(existing) ? existing : []).map((preset) => [
           preset.name,
@@ -328,7 +385,7 @@ const args = new Set(process.argv.slice(2)),
         continue;
       }
 
-      const created = await readResponse(
+      const created = (await readResponse(
         await api.post(baseUrl, {
           config: preset.config,
           name: preset.name,
@@ -336,12 +393,12 @@ const args = new Set(process.argv.slice(2)),
           ui: uiConfig,
         }),
         `Creating preset ${preset.name}`
-      );
+      )) as RealtimeKitRecord | undefined;
       console.log(`Created: ${preset.name} (${created?.id ?? "?"})`);
     }
   };
 
-main().catch((error) => {
+main().catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 });

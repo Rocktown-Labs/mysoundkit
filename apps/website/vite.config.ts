@@ -5,15 +5,10 @@ import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
-import alchemy from "alchemy/cloudflare/tanstack-start";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
-const ciConfigPath =
-    process.env.SOUNDKIT_CI_STATIC_CONFIG === "true"
-      ? "./wrangler.ci.jsonc"
-      : undefined,
-  hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN);
+const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN);
 
 export default defineConfig(({ mode }) => {
   const isDev = mode === "development";
@@ -55,7 +50,6 @@ export default defineConfig(({ mode }) => {
         telemetry: false,
       }),
       viteReact(),
-      alchemy({ configPath: ciConfigPath }),
     ],
     resolve: {
       alias: {
