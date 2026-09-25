@@ -1,9 +1,10 @@
+import type * as Cloudflare from "alchemy/Cloudflare";
 import type { server } from "@soundkit/infra/alchemy.run";
 
 // This file infers types for the cloudflare:workers environment from your Alchemy Worker.
-// @see https://alchemy.run/concepts/bindings/#type-safe-bindings
+// @see https://alchemy.run/cloudflare/compute/workers#async-workers
 
-export type CloudflareEnv = typeof server.Env & {
+export type CloudflareEnv = Cloudflare.InferEnv<typeof server> & {
   HYPERDRIVE?: {
     connectionString: string;
   };

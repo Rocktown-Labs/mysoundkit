@@ -55,5 +55,6 @@ jobs:
             bun realtimekit-presets.ts --dry-run
           fi
         env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_REALTIMEKIT_APP_ID: ${{ vars.CLOUDFLARE_REALTIMEKIT_APP_ID }}

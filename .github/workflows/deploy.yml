@@ -153,26 +153,24 @@ jobs:
       - name: Deploy through Alchemy
         working-directory: packages/infra
         run: |
-          ALCHEMY_STATE_FORCE_UPDATE=true pnpm run deploy && exit 0
-          echo "Production deploy refreshed the Alchemy state worker. Retrying after propagation..."
-          sleep 30
-          for attempt in 2 3; do
-            ALCHEMY_STATE_FORCE_UPDATE=false pnpm run deploy && exit 0
+          for attempt in 1 2 3; do
+            pnpm run deploy && exit 0
             if [ "$attempt" = "3" ]; then
               exit 1
             fi
-            echo "Production deploy still failed after state refresh. Retrying in 30 seconds..."
+            echo "Production deploy failed while the Alchemy state store may still be propagating. Retrying in 30 seconds..."
             sleep 30
           done
         env:
-          ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_STREAM_API_TOKEN: ${{ secrets.CLOUDFLARE_STREAM_API_TOKEN }}
           CLOUDFLARE_STREAM_CUSTOMER_CODE: ${{ vars.CLOUDFLARE_STREAM_CUSTOMER_CODE }}
-          ALCHEMY_STATE_FORCE_UPDATE: ${{ vars.ALCHEMY_STATE_FORCE_UPDATE }}
-          ALCHEMY_STATE_TOKEN: ${{ secrets.ALCHEMY_STATE_TOKEN }}
           ADMIN_EMAILS: ${{ vars.ADMIN_EMAILS }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          CLOUDFLARE_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
+          CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+          RECORDINGS_ACCESS_KEY_ID: ${{ secrets.RECORDINGS_ACCESS_KEY_ID }}
+          RECORDINGS_SECRET_ACCESS_KEY: ${{ secrets.RECORDINGS_SECRET_ACCESS_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_REALTIMEKIT_APP_ID: ${{ vars.CLOUDFLARE_REALTIMEKIT_APP_ID }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -318,14 +316,15 @@ jobs:
             sleep 30
           done
         env:
-          ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_STREAM_API_TOKEN: ${{ secrets.CLOUDFLARE_STREAM_API_TOKEN }}
           CLOUDFLARE_STREAM_CUSTOMER_CODE: ${{ vars.CLOUDFLARE_STREAM_CUSTOMER_CODE }}
-          ALCHEMY_STATE_FORCE_UPDATE: ${{ vars.ALCHEMY_STATE_FORCE_UPDATE }}
-          ALCHEMY_STATE_TOKEN: ${{ secrets.ALCHEMY_STATE_TOKEN }}
           ADMIN_EMAILS: ${{ vars.ADMIN_EMAILS }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          CLOUDFLARE_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
+          CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+          RECORDINGS_ACCESS_KEY_ID: ${{ secrets.RECORDINGS_ACCESS_KEY_ID }}
+          RECORDINGS_SECRET_ACCESS_KEY: ${{ secrets.RECORDINGS_SECRET_ACCESS_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_REALTIMEKIT_APP_ID: ${{ vars.CLOUDFLARE_REALTIMEKIT_APP_ID }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -521,11 +520,12 @@ jobs:
             sleep 30
           done
         env:
-          ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          ALCHEMY_STATE_FORCE_UPDATE: ${{ vars.ALCHEMY_STATE_FORCE_UPDATE }}
-          ALCHEMY_STATE_TOKEN: ${{ secrets.ALCHEMY_STATE_TOKEN }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          CLOUDFLARE_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
+          CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+          RECORDINGS_ACCESS_KEY_ID: ${{ secrets.RECORDINGS_ACCESS_KEY_ID }}
+          RECORDINGS_SECRET_ACCESS_KEY: ${{ secrets.RECORDINGS_SECRET_ACCESS_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GOOGLE_EMBEDDING_MODEL: ${{ vars.GOOGLE_EMBEDDING_MODEL }}
