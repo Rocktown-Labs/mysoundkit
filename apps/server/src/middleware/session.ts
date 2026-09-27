@@ -3,6 +3,7 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { eq } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
+import * as HttpStatusCodes from "stoker/http-status-codes";
 
 import { isConfiguredAdminEmail } from "@/lib/admin";
 import type { AppEnv } from "@/lib/types";
@@ -28,6 +29,7 @@ export const sessionMiddleware = createMiddleware<AppEnv>(async (c, next) => {
 
     if (
       session?.user &&
+      session.user.emailVerified &&
       isConfiguredAdminEmail(session.user.email) &&
       !role?.split(",").includes("admin") &&
       isDatabaseConfigured()
@@ -51,6 +53,13 @@ export const sessionMiddleware = createMiddleware<AppEnv>(async (c, next) => {
           }
         : null
     );
+
+    if (c.get("user")?.banned) {
+      return c.json(
+        { message: "Account suspended." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
   } catch {
     c.set("session", null);
     c.set("user", null);

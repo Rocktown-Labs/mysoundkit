@@ -264,6 +264,30 @@ const app = new OpenAPIHono<AppEnv>(),
     (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
   bytesToHex = (bytes: Uint8Array) =>
     [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
+  verifyBattleServiceSignature = async ({
+    rawBody,
+    secret,
+    signature,
+  }: {
+    rawBody: string;
+    secret: string;
+    signature: string;
+  }) => {
+    const key = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(secret),
+        { hash: "SHA-256", name: "HMAC" },
+        false,
+        ["sign"]
+      ),
+      digest = await crypto.subtle.sign(
+        "HMAC",
+        key,
+        new TextEncoder().encode(rawBody)
+      );
+
+    return bytesToHex(new Uint8Array(digest)) === signature;
+  },
   verifyStemSplitSignature = async ({
     rawBody,
     signature,
@@ -891,6 +915,10 @@ app.openapi(
     method: "post",
     path: "/battle-service",
     responses: {
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid battle service webhook signature"
+      ),
       [HttpStatusCodes.OK]: jsonContent(
         messageResponseSchema,
         "Battle service webhook accepted"
@@ -900,7 +928,24 @@ app.openapi(
   }),
   async (c) => {
     const rawBody = await c.req.raw.text(),
-      payload = JSON.parse(rawBody || "{}") as Record<string, unknown>,
+      signature = c.req.raw.headers.get("x-soundkit-battlebot-signature"),
+      secret = c.env.BATTLE_BOT_SECRET;
+
+    if (!(secret && signature)) {
+      return c.json(
+        { message: "Invalid battle service webhook signature." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    if (!(await verifyBattleServiceSignature({ rawBody, secret, signature }))) {
+      return c.json(
+        { message: "Invalid battle service webhook signature." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const payload = JSON.parse(rawBody || "{}") as Record<string, unknown>,
       externalEventId = getBattleServiceEventId(payload),
       eventType = getBattleServiceEventType(payload),
       battleId = getBattleServiceBattleId(payload);

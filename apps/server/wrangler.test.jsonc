@@ -5,6 +5,7 @@
   "compatibility_date": "2026-04-12",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
+    "BATTLE_BOT_SECRET": "soundkit-test-battle-bot-secret",
     "BETTER_AUTH_SECRET": "soundkit-test-secret-at-least-thirty-two-characters",
     "BETTER_AUTH_URL": "http://127.0.0.1:3000",
     "CORS_ORIGIN": "http://127.0.0.1:3001",

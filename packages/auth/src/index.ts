@@ -26,11 +26,6 @@ const getEnvValue = (key: string) =>
     }
   },
   uniqueValues = (values: string[]) => [...new Set(values.filter(Boolean))],
-  getAdminEmails = () =>
-    getEnvValue("ADMIN_EMAILS")
-      .split(",")
-      .map((email) => email.trim().toLowerCase())
-      .filter(Boolean),
   getPublicSiteUrl = () =>
     getEnvValue("SOUNDKIT_PUBLIC_URL") ||
     getEnvValue("CORS_ORIGIN") ||
@@ -446,9 +441,7 @@ export const createAuth = () => {
             Promise.resolve({
               data: {
                 ...user,
-                role: getAdminEmails().includes(user.email.toLowerCase())
-                  ? "admin"
-                  : "user",
+                role: "user",
               },
             }),
         },

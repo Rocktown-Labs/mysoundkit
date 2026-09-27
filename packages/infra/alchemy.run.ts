@@ -425,6 +425,7 @@ export const server = await Worker("server", {
   adopt: isProduction,
   bindings: {
     AI: workersAi,
+    ...optionalEnvBinding("BATTLE_BOT_SECRET"),
     BETTER_AUTH_SECRET: requiredSecret(
       alchemy.secret.env.BETTER_AUTH_SECRET,
       "BETTER_AUTH_SECRET"
