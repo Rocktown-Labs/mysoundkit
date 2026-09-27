@@ -9,6 +9,7 @@ export default defineConfig({
       main: "apps/server/src/index.ts",
       miniflare: {
         bindings: {
+          BATTLE_BOT_SECRET: "soundkit-test-battle-bot-secret",
           BETTER_AUTH_SECRET:
             "soundkit-test-secret-at-least-thirty-two-characters",
           BETTER_AUTH_URL: "http://127.0.0.1:3000",

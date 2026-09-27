@@ -18,6 +18,24 @@ const API_ORIGIN = "http://soundkit.test",
     },
     method,
   }),
+  hmacHex = async (message: string, secret: string) => {
+    const key = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(secret),
+        { hash: "SHA-256", name: "HMAC" },
+        false,
+        ["sign"]
+      ),
+      digest = await crypto.subtle.sign(
+        "HMAC",
+        key,
+        new TextEncoder().encode(message)
+      );
+
+    return [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+  },
   fetchJson = async <T>(path: string, init?: RequestInit) => {
     const response = await SELF.fetch(`${API_ORIGIN}${path}`, init),
       body = (await response.json()) as T;
@@ -788,14 +806,37 @@ describe("SoundKit provider endpoint configuration", () => {
   });
 
   it("keeps inert webhook acknowledgements available", async () => {
+    const signature = await hmacHex("", "soundkit-test-battle-bot-secret"),
+      battleResult = await fetchJson<{ message: string }>(
+        "/v1/webhooks/battle-service",
+        {
+          body: "",
+          headers: {
+            "x-soundkit-battlebot-signature": signature,
+          },
+          method: "POST",
+        }
+      );
+
+    expect(battleResult.response.status).toBe(200);
+    expect(battleResult.body.message).toBe("Battle service webhook accepted");
+  });
+
+  it("rejects battle-service webhooks without a valid signature", async () => {
     const battleResult = await fetchJson<{ message: string }>(
       "/v1/webhooks/battle-service",
       {
+        body: "",
+        headers: {
+          "x-soundkit-battlebot-signature": "invalid-signature",
+        },
         method: "POST",
       }
     );
 
-    expect(battleResult.response.status).toBe(200);
-    expect(battleResult.body.message).toBe("Battle service webhook accepted");
+    expect(battleResult.response.status).toBe(400);
+    expect(battleResult.body.message).toBe(
+      "Invalid battle service webhook signature."
+    );
   });
 });
