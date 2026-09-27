@@ -45,12 +45,14 @@ export const isPublicCacheRequest = (request: Request): boolean => {
 
 export const publicCacheKey = (request: Request): Request => {
   const url = new URL(request.url),
+    origin = request.headers.get("origin"),
     sortedParams = [...url.searchParams.entries()].toSorted(
       ([firstKey, firstValue], [secondKey, secondValue]) =>
         firstKey.localeCompare(secondKey) ||
         firstValue.localeCompare(secondValue)
     );
   url.search = "";
+  url.searchParams.append("__sk_origin", origin ?? "none");
   for (const [key, value] of sortedParams) {
     url.searchParams.append(key, value);
   }
@@ -96,9 +98,6 @@ export const publicResponseCache = createMiddleware<AppEnv>(async (c, next) => {
   browserHeaders.set("Cache-Control", browserCacheControl);
   browserHeaders.set("X-SoundKit-Cache", "MISS");
   storedHeaders.set("Cache-Control", edgeCacheControl);
-  storedHeaders.delete("Access-Control-Allow-Credentials");
-  storedHeaders.delete("Access-Control-Allow-Origin");
-  storedHeaders.delete("Vary");
   storedHeaders.set("X-SoundKit-Cache", "HIT");
 
   const responseForCache = new Response(response.clone().body, {

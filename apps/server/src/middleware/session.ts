@@ -7,6 +7,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 
 import { isConfiguredAdminEmail } from "@/lib/admin";
 import type { AppEnv } from "@/lib/types";
+import { logError } from "@/middleware/structured-logging";
 
 export const sessionMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   try {
@@ -53,14 +54,17 @@ export const sessionMiddleware = createMiddleware<AppEnv>(async (c, next) => {
           }
         : null
     );
-
     if (c.get("user")?.banned) {
       return c.json(
         { message: "Account suspended." },
         HttpStatusCodes.FORBIDDEN
       );
     }
-  } catch {
+  } catch (error) {
+    logError({
+      error: error instanceof Error ? error.message : String(error),
+      event: "session_middleware_error",
+    });
     c.set("session", null);
     c.set("user", null);
   }

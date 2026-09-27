@@ -45,6 +45,8 @@ export const objectKeyFromPath = (path: string) => {
 };
 
 const app = new OpenAPIHono<AppEnv>(),
+  escapeLikePattern = (value: string) =>
+    value.replace(/[%_\\]/gu, "\\$&"),
   isPrivateTrackAsset = (asset: typeof trackAssets.$inferSelect) =>
     asset.purpose === "master" ||
     asset.purpose === "stem" ||
@@ -179,7 +181,7 @@ app.get("/*", async (c) => {
         .from(videos)
         .where(
           and(
-            like(videos.externalPlaybackUrl, `%${objectKey}`),
+            like(videos.externalPlaybackUrl, `%${escapeLikePattern(objectKey)}`),
             eq(videos.isPublic, true),
             eq(videos.status, "ready")
           )
