@@ -470,6 +470,7 @@ export const server = await Worker("server", {
     PURCHASE_FULFILLMENT_WORKFLOW: purchaseFulfillmentWorkflow,
     PAYOUT_RUN_WORKFLOW: payoutRunWorkflow,
     MEDIA_PUBLIC_URL: MEDIA_URL,
+    ...optionalEnvBinding("MEDIA_SIGNING_SECRET"),
     RECORDINGS_ACCESS_KEY_ID: recordingsUploadToken.accessKeyId,
     RECORDINGS_BUCKET: recordings,
     RECORDINGS_BUCKET_NAME: recordings.name,

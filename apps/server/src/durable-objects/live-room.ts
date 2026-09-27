@@ -143,9 +143,9 @@ export const battleOutcomeMessage = (room: LiveRoomState) => {
       (round) => round.number === coordination?.roundNumber
     ),
     affectedTrack = affectedArtist
-      ? (affectedArtist.id === room.battle?.artists[0]?.id
+      ? affectedArtist.id === room.battle?.artists[0]?.id
         ? currentRound?.artistATrack
-        : currentRound?.artistBTrack)
+        : currentRound?.artistBTrack
       : undefined,
     roundNumber = coordination?.roundNumber ?? 1;
 
@@ -360,7 +360,7 @@ export class LiveRoomDurableObject extends DurableObject {
       return jsonResponse(this.publicState(await this.loadState()));
     }
 
-    const identity = this.identityFromRequest(request);
+    const identity = await this.identityFromRequest(request);
     if (request.method === "POST" && url.pathname === "/chat") {
       const body = (await request.json().catch(() => ({}))) as LiveRoomChatBody,
         result = await this.appendChatMessage(body, identity);
@@ -509,7 +509,7 @@ export class LiveRoomDurableObject extends DurableObject {
             ...coordination,
             queuedUserIds: [...queuedUserIds, identity.userId],
           }
-        : (isAdmissionOpen
+        : isAdmissionOpen
           ? {
               ...coordination,
               admittedUserIds: [...admittedUserIds, identity.userId],
@@ -517,7 +517,7 @@ export class LiveRoomDurableObject extends DurableObject {
           : {
               ...coordination,
               waitingUserIds: [...waitingUserIds, identity.userId],
-            }),
+            },
       nextRoom = {
         ...room,
         battle: { ...room.battle, coordination: nextCoordination },
@@ -526,9 +526,9 @@ export class LiveRoomDurableObject extends DurableObject {
     this.broadcast({
       type: isScheduled
         ? "battle.viewer_queued"
-        : (isAdmissionOpen
+        : isAdmissionOpen
           ? "battle.viewer_admitted"
-          : "battle.viewer_waiting"),
+          : "battle.viewer_waiting",
       userId: identity.userId,
     });
     return this.publicState(nextRoom, identity);
@@ -1226,9 +1226,9 @@ export class LiveRoomDurableObject extends DurableObject {
         playbackState:
           action.type === "pause"
             ? ("paused" as const)
-            : (action.type === "resume" || action.type === "track_changed"
+            : action.type === "resume" || action.type === "track_changed"
               ? ("playing" as const)
-              : playback.playbackState),
+              : playback.playbackState,
         positionMs:
           action.type === "replay" || action.type === "track_changed"
             ? 0
@@ -1248,9 +1248,9 @@ export class LiveRoomDurableObject extends DurableObject {
           status:
             track.id === nextPlayback.trackId
               ? "playing"
-              : (index < nextPlayback.trackIndex
+              : index < nextPlayback.trackIndex
                 ? "played"
-                : "queued"),
+                : "queued",
         })),
       };
 
@@ -1310,9 +1310,9 @@ export class LiveRoomDurableObject extends DurableObject {
       format = (existingCoordination?.format ??
         (regularRoundCount === 7
           ? "best_of_7"
-          : (regularRoundCount === 5
+          : regularRoundCount === 5
             ? "best_of_5"
-            : "best_of_3"))) as BattleCoordination["format"],
+            : "best_of_3")) as BattleCoordination["format"],
       scheduledStartAt = room.startsAt ? Date.parse(room.startsAt) : null,
       shouldWaitForScheduledStart =
         room.status === "upcoming" &&
@@ -1333,14 +1333,14 @@ export class LiveRoomDurableObject extends DurableObject {
               phaseEndsAt: scheduledStartAt,
               phaseStartedAt: Date.now(),
             }
-          : (existingCoordination?.phase === "waiting_room" &&
+          : existingCoordination?.phase === "waiting_room" &&
               !existingCoordination.phaseEndsAt
             ? {
                 phaseEndsAt:
                   existingCoordination.phaseStartedAt +
                   existingCoordination.durations.waitingRoomMs,
               }
-            : {})),
+            : {}),
         admissionBatchSize:
           room.battle.coordination?.admissionBatchSize ??
           this.battleAdmissionBatchSize(),
@@ -1556,9 +1556,9 @@ export class LiveRoomDurableObject extends DurableObject {
           phase === "round_intro" ||
           phase === "between_rounds"
             ? "open"
-            : (phase === "ended" || phase === "battle_result"
+            : phase === "ended" || phase === "battle_result"
               ? "close"
-              : "sync"),
+              : "sync",
         activeArtistUserId: next.battle.coordination.activeArtistUserId,
         phase,
         type: "battle.bot_stage_control",
@@ -1868,14 +1868,14 @@ export class LiveRoomDurableObject extends DurableObject {
     };
   }
 
-  private handleWebSocket(request: Request) {
+  private async handleWebSocket(request: Request) {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return jsonResponse({ message: "Expected WebSocket upgrade." }, 426);
     }
 
     const pair = new WebSocketPair(),
       [client, server] = Object.values(pair) as [WebSocket, WebSocket],
-      identity = this.identityFromRequest(request),
+      identity = await this.identityFromRequest(request),
       attachment: LiveRoomSocketAttachment = {
         ...identity,
         connectedAt: Date.now(),
@@ -2072,22 +2072,64 @@ export class LiveRoomDurableObject extends DurableObject {
     return true;
   }
 
-  private identityFromRequest(request: Request): LiveRoomIdentity {
-    const role = request.headers.get("x-soundkit-live-role");
+  private async identityFromRequest(
+    request: Request
+  ): Promise<LiveRoomIdentity> {
+    const headers = request.headers,
+      role = headers.get("x-soundkit-live-role"),
+      signature = headers.get("x-soundkit-live-signature"),
+      secret = (this.env as unknown as Record<string, string | undefined>)
+        .BETTER_AUTH_SECRET,
+      identity: LiveRoomIdentity = {
+        avatarUrl: headers.get("x-soundkit-live-avatar-url"),
+        displayName: headers.get("x-soundkit-live-display-name") ?? "Listener",
+        isOverlay: headers.get("x-soundkit-live-overlay") === "true",
+        role:
+          role === "admin" ||
+          role === "artist_a" ||
+          role === "artist_b" ||
+          role === "fan" ||
+          role === "host"
+            ? role
+            : undefined,
+        userId: headers.get("x-soundkit-live-user-id") ?? "anonymous",
+      };
+
+    if (secret && signature) {
+      const payload = [
+          identity.userId,
+          identity.role ?? "",
+          identity.displayName,
+          identity.avatarUrl ?? "",
+          identity.isOverlay ?? false,
+        ].join("|"),
+        key = await crypto.subtle.importKey(
+          "raw",
+          new TextEncoder().encode(secret),
+          { hash: "SHA-256", name: "HMAC" },
+          false,
+          ["sign"]
+        ),
+        digest = await crypto.subtle.sign(
+          "HMAC",
+          key,
+          new TextEncoder().encode(payload)
+        ),
+        expected = [...new Uint8Array(digest)]
+          .map((byte) => byte.toString(16).padStart(2, "0"))
+          .join("");
+
+      if (signature === expected) {
+        return identity;
+      }
+    }
+
     return {
-      avatarUrl: request.headers.get("x-soundkit-live-avatar-url"),
-      displayName:
-        request.headers.get("x-soundkit-live-display-name") ?? "Listener",
-      isOverlay: request.headers.get("x-soundkit-live-overlay") === "true",
-      role:
-        role === "admin" ||
-        role === "artist_a" ||
-        role === "artist_b" ||
-        role === "fan" ||
-        role === "host"
-          ? role
-          : undefined,
-      userId: request.headers.get("x-soundkit-live-user-id") ?? "anonymous",
+      avatarUrl: null,
+      displayName: "Listener",
+      isOverlay: false,
+      role: undefined,
+      userId: "anonymous",
     };
   }
 

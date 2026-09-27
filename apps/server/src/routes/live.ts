@@ -965,9 +965,9 @@ const badRequest = (message: string) => ({
       status =
         battle.status === "live"
           ? "live"
-          : (battle.status === "completed" || battle.status === "archived"
+          : battle.status === "completed" || battle.status === "archived"
             ? "ended"
-            : "scheduled"),
+            : "scheduled",
       startsAt = (battle.startsAt ?? battle.createdAt).toISOString(),
       [createdExperience] = await db
         .insert(liveExperiences)
@@ -1120,9 +1120,9 @@ const badRequest = (message: string) => ({
           status:
             party.status === "live"
               ? "live"
-              : (party.status === "ended" || party.status === "canceled"
+              : party.status === "ended" || party.status === "canceled"
                 ? "ended"
-                : "scheduled"),
+                : "scheduled",
         })
         .onConflictDoNothing()
         .returning();
@@ -1231,6 +1231,54 @@ const badRequest = (message: string) => ({
       userId: user?.id ?? "anonymous",
     };
   },
+  identityFromHeaders = (
+    headers: Headers,
+    isOverlay?: string
+  ): LiveRoomIdentity => {
+    const role = headers.get("x-soundkit-live-role");
+
+    return {
+      avatarUrl: headers.get("x-soundkit-live-avatar-url"),
+      displayName: headers.get("x-soundkit-live-display-name") ?? "Listener",
+      isOverlay:
+        headers.get("x-soundkit-live-overlay") === "true" || Boolean(isOverlay),
+      role:
+        role === "admin" ||
+        role === "artist_a" ||
+        role === "artist_b" ||
+        role === "fan" ||
+        role === "host"
+          ? role
+          : undefined,
+      userId: headers.get("x-soundkit-live-user-id") ?? "anonymous",
+    };
+  },
+  signLiveRoomIdentity = async (identity: LiveRoomIdentity, secret: string) => {
+    const payload = [
+      identity.userId,
+      identity.role ?? "",
+      identity.displayName,
+      identity.avatarUrl ?? "",
+      identity.isOverlay ?? false,
+    ].join("|");
+
+    const key = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(secret),
+        { hash: "SHA-256", name: "HMAC" },
+        false,
+        ["sign"]
+      ),
+      digest = await crypto.subtle.sign(
+        "HMAC",
+        key,
+        new TextEncoder().encode(payload)
+      );
+
+    return [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+  },
   durableWebSocketRequest = async (
     c: {
       env: AppEnv["Bindings"];
@@ -1244,7 +1292,8 @@ const badRequest = (message: string) => ({
       return null;
     }
 
-    const headers = new Headers(request.headers);
+    const secret = c.env.BETTER_AUTH_SECRET,
+      headers = new Headers(request.headers);
     headers.set("x-soundkit-live-room-id", roomId);
     if (overlayToken) {
       headers.set("x-soundkit-live-display-name", "Stream Overlay");
@@ -1261,6 +1310,15 @@ const badRequest = (message: string) => ({
       );
       headers.set("x-soundkit-live-role", identity.role ?? "fan");
     }
+
+    if (secret) {
+      const identity = identityFromHeaders(headers, overlayToken);
+      headers.set(
+        "x-soundkit-live-signature",
+        await signLiveRoomIdentity(identity, secret)
+      );
+    }
+
     return c.env.LIVE_ROOMS.getByName(roomId).fetch(
       new Request(`https://live-room.soundkit.internal/ws`, {
         headers,
@@ -1902,9 +1960,9 @@ const badRequest = (message: string) => ({
       status:
         battle.status === "completed" || battle.status === "archived"
           ? "ended"
-          : (battle.status === "live"
+          : battle.status === "live"
             ? "live"
-            : "upcoming"),
+            : "upcoming",
       summary:
         "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
       title: resolveArtistBattleTitle(battle.title, battle.genre ?? "Hip-Hop"),
@@ -2029,16 +2087,16 @@ const badRequest = (message: string) => ({
     const roomStatus: LiveRoomState["status"] =
       experience.status === "ended"
         ? "ended"
-        : (experience.status === "live"
+        : experience.status === "live"
           ? "live"
-          : "upcoming");
+          : "upcoming";
 
     const summary =
       experience.kind === "stream"
         ? `Live creator broadcast by ${hostName} on SoundKit.`
-        : (experience.kind === "party"
+        : experience.kind === "party"
           ? `Live listening party hosted by ${hostName}.`
-          : `Live event on SoundKit.`);
+          : `Live event on SoundKit.`;
 
     return {
       chat: [],
@@ -2083,9 +2141,9 @@ const badRequest = (message: string) => ({
               reconnectUntil: experience.reconnectUntil?.getTime() ?? null,
               replayStatus: experience.replayPublishedAt
                 ? "available"
-                : (experience.recordingStatus
+                : experience.recordingStatus
                   ? "processing"
-                  : "none"),
+                  : "none",
             }
           : undefined,
       summary,
@@ -2202,9 +2260,9 @@ const badRequest = (message: string) => ({
       party.status === "canceled" ||
       party.experienceStatus === "ended"
         ? "ended"
-        : (party.status === "live" || party.experienceStatus === "live"
+        : party.status === "live" || party.experienceStatus === "live"
           ? "live"
-          : "upcoming");
+          : "upcoming";
 
     return {
       chat: [],
@@ -2584,9 +2642,9 @@ const buildCreateExperienceResponse = ({
       body.source === "obs" &&
       body.scheduleMode === "asap"
         ? "waiting_for_ingest"
-        : (body.scheduleMode === "asap"
+        : body.scheduleMode === "asap"
           ? "ready"
-          : "scheduled"),
+          : "scheduled",
     title: body.title.trim(),
     visibility: body.visibility,
   },
@@ -2599,9 +2657,9 @@ const buildCreateExperienceResponse = ({
       body.source === "obs" &&
       body.scheduleMode === "asap"
         ? "scheduled"
-        : (body.scheduleMode === "asap"
+        : body.scheduleMode === "asap"
           ? "live"
-          : "scheduled"),
+          : "scheduled",
   },
   notifications: buildNotificationFanout({
     experienceId,
@@ -3076,9 +3134,9 @@ app.post("/experiences/:experienceId/join", async (c) => {
       participantRole =
         battleRole === "artist_a" || battleRole === "artist_b"
           ? "artist"
-          : (battleRole === "admin"
+          : battleRole === "admin"
             ? "host"
-            : "listener");
+            : "listener";
       if (participantRole === "artist") {
         const [lineup] = await createDb()
           .select({ format: battleLineupSnapshots.format })
@@ -3975,9 +4033,9 @@ app.post("/rooms/:roomId/party/playback", async (c) => {
       roomId,
       body.type === "track_changed"
         ? { trackId: body.trackId ?? "", type: body.type }
-        : (body.type === "replay"
+        : body.type === "replay"
           ? { trackId: body.trackId, type: body.type }
-          : { type: body.type }),
+          : { type: body.type },
       identity
     );
     return c.json(room, HttpStatusCodes.OK);
@@ -4007,50 +4065,48 @@ app.get("/rooms/queue", async (c) => {
   }
 
   const db = createDb(),
-    [rows, participatingRows] = await withRetry(
-      "load live room queue",
-      () =>
-        Promise.all([
-          db
-            .select({
-              battleId: battleQueueEntries.battleId,
-              startsAt: battles.startsAt,
-              status: battles.status,
-              title: battles.title,
-            })
-            .from(battleQueueEntries)
-            .innerJoin(battles, eq(battles.id, battleQueueEntries.battleId))
-            .where(
-              and(
-                eq(battleQueueEntries.userId, user.id),
-                or(
-                  eq(battleQueueEntries.status, "queued"),
-                  eq(battleQueueEntries.status, "conflict")
-                )
+    [rows, participatingRows] = await withRetry("load live room queue", () =>
+      Promise.all([
+        db
+          .select({
+            battleId: battleQueueEntries.battleId,
+            startsAt: battles.startsAt,
+            status: battles.status,
+            title: battles.title,
+          })
+          .from(battleQueueEntries)
+          .innerJoin(battles, eq(battles.id, battleQueueEntries.battleId))
+          .where(
+            and(
+              eq(battleQueueEntries.userId, user.id),
+              or(
+                eq(battleQueueEntries.status, "queued"),
+                eq(battleQueueEntries.status, "conflict")
               )
             )
-            .orderBy(asc(battles.startsAt)),
-          db
-            .select({
-              battleId: battles.id,
-              challengerArtistUserId: battles.challengerArtistUserId,
-              opponentArtistUserId: battles.opponentArtistUserId,
-              startsAt: battles.startsAt,
-              status: battles.status,
-              title: battles.title,
-            })
-            .from(battles)
-            .where(
-              and(
-                eq(battles.status, "live"),
-                or(
-                  eq(battles.challengerArtistUserId, user.id),
-                  eq(battles.opponentArtistUserId, user.id)
-                )
+          )
+          .orderBy(asc(battles.startsAt)),
+        db
+          .select({
+            battleId: battles.id,
+            challengerArtistUserId: battles.challengerArtistUserId,
+            opponentArtistUserId: battles.opponentArtistUserId,
+            startsAt: battles.startsAt,
+            status: battles.status,
+            title: battles.title,
+          })
+          .from(battles)
+          .where(
+            and(
+              eq(battles.status, "live"),
+              or(
+                eq(battles.challengerArtistUserId, user.id),
+                eq(battles.opponentArtistUserId, user.id)
               )
             )
-            .orderBy(asc(battles.startsAt)),
-        ])
+          )
+          .orderBy(asc(battles.startsAt)),
+      ])
     );
 
   return c.json(

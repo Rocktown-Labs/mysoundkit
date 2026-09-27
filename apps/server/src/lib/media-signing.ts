@@ -6,10 +6,12 @@ const SIGNED_MEDIA_TTL_SECONDS = 30 * 60,
   SIGNED_MEDIA_MAX_TTL_SECONDS = 72 * 60 * 60,
   encoder = new TextEncoder(),
   signingSecret = () => {
-    const secret = env.BETTER_AUTH_SECRET;
+    const secret =
+      (env as unknown as Record<string, string | undefined>)
+        .MEDIA_SIGNING_SECRET ?? env.BETTER_AUTH_SECRET;
     if (!secret) {
       throw new Error(
-        "BETTER_AUTH_SECRET is required for signed media access."
+        "MEDIA_SIGNING_SECRET (or BETTER_AUTH_SECRET as fallback) is required for signed media access."
       );
     }
     return secret;

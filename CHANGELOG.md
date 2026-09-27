@@ -47,6 +47,15 @@
 - Added HMAC signature verification to the `/v1/webhooks/battle-service` endpoint using `BATTLE_BOT_SECRET`; unsigned or invalid requests are now rejected.
 - Enforced account-level bans in the session middleware: banned users receive a 403 on all `/v1/*` and `/media/*` routes.
 - Required a verified email address before automatically promoting admin-email matches to the `admin` role.
+- Hardened auth and transport security:
+  - Restricted CORS allowed origins to SoundKit-controlled `*.mysoundkit.com` / `*.soundkit.bio` hosts, removing wildcard `*.pages.dev` and `*.workers.dev` patterns.
+  - Restricted Better Auth trustedOrigins and allowed auth hosts to the same SoundKit-controlled domains.
+  - Made Turnstile verification fail-closed in production unless explicitly disabled via `TURNSTILE_DISABLED`.
+  - Signed live-room Durable Object identity claims with `BETTER_AUTH_SECRET` so the DO no longer trusts raw internal headers for role/user identity.
+  - Added a dedicated `MEDIA_SIGNING_SECRET` binding; media URL signatures prefer it over `BETTER_AUTH_SECRET`.
+  - Removed password-reset and email-verification tokens from auth email logs and Resend idempotency keys, replacing them with SHA-256 hashes.
+  - Added a security-headers middleware (HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy) to the API.
+
 - Reduced browser smoke-test runtime noise by making Stripe Connect SSR-safe, deferring development devtools until client mount, recognizing local RealtimeKit fallback tokens, preventing post-unmount media updates, using compatible notification auto-indexing, and replacing the invalid Mux fixture playback ID.
 - Fixed recurring production track and live query hangs by scoping PostgreSQL pools to HTTP, queue, and scheduled Worker events, disposing clients after event background work, and bounding Hyperdrive connection and query waits.
 - Fixed production database query starvation by reusing Hyperdrive clients instead of rotating the pool client after every query, retrying transient wrapped database errors, and indexing live queue, live discovery, project-cover, and track-project lookups.

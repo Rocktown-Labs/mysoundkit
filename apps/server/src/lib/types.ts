@@ -39,6 +39,7 @@ export interface AppEnv {
     AI?: Ai;
     BATTLE_ADMISSION_BATCH_SIZE?: string;
     BATTLE_BOT_SECRET?: string;
+    BETTER_AUTH_SECRET?: string;
     BATTLE_DIRECTORY?: DurableObjectNamespace<BattleDirectoryDurableObject>;
     DO_METRICS?: AnalyticsEngineDataset;
     LIVE_NOTIFICATION_QUEUE?: Queue<LiveNotificationQueueMessage>;
@@ -52,6 +53,7 @@ export interface AppEnv {
     MEDIA_BUCKET?: R2Bucket;
     MEDIA_PROCESSING_WORKFLOW?: Workflow<MediaProcessingWorkflowPayload>;
     MEDIA_RETENTION_WORKFLOW?: Workflow<MediaRetentionWorkflowPayload>;
+    MEDIA_SIGNING_SECRET?: string;
     MEDIA_PROCESSOR?: DurableObjectNamespace<MediaProcessorContainer>;
     STEM_SEPARATOR?: DurableObjectNamespace<StemSeparatorContainer>;
     RECORDINGS_ACCESS_KEY_ID?: string;

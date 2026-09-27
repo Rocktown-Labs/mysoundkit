@@ -16,6 +16,7 @@ export default defineConfig({
           CORS_ORIGIN: "http://127.0.0.1:3001",
           GOOGLE_EMBEDDING_MODEL: "gemini-embedding-2",
           MEDIA_PUBLIC_URL: "http://127.0.0.1:3000",
+          TURNSTILE_DISABLED: "true",
           STRIPE_BETTER_AUTH_WEBHOOK_SECRET: "whsec_soundkit_better_auth_test",
           STRIPE_COMMERCE_WEBHOOK_SECRET: "whsec_soundkit_commerce_test",
           STRIPE_CONNECT_WEBHOOK_SECRET: "whsec_soundkit_connect_test",

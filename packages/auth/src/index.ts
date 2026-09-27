@@ -99,7 +99,9 @@ const getRecipientUsername = async (email: string) => {
     const apiKey = getResendApiKey();
 
     if (!apiKey) {
-      console.info(`${subject} for ${email}: ${actionUrl}`);
+      console.info(
+        `${subject} for ${email}: auth email skipped (Resend not configured)`
+      );
       return;
     }
 
@@ -223,7 +225,7 @@ const getRecipientUsername = async (email: string) => {
       tag: "welcome_premium",
     });
   },
-  sendPasswordResetEmail = ({
+  sendPasswordResetEmail = async ({
     email,
     name,
     url,
@@ -231,8 +233,15 @@ const getRecipientUsername = async (email: string) => {
     email: string;
     name?: string | null;
     url: string;
-  }) =>
-    sendAuthNotificationEmail({
+  }) => {
+    const urlHash = [
+      ...new Uint8Array(
+        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(url))
+      ),
+    ]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+    return sendAuthNotificationEmail({
       actionUrl: url,
       body: "We received a request to reset your SoundKit password. Use the secure link below to choose a new one.",
       ctaLabel: "Reset password",
@@ -241,13 +250,14 @@ const getRecipientUsername = async (email: string) => {
       footerNote:
         "If you did not request this, you can ignore this email and your password will stay the same.",
       heading: "Reset your SoundKit password",
-      idempotencyKey: `password-reset/${email}/${url}`,
+      idempotencyKey: `password-reset/${email}/${urlHash}`,
       previewText: "Use this secure link to reset your SoundKit password.",
       recipientName: name ?? "there",
       subject: "Reset your SoundKit password",
       tag: "password_reset",
-    }),
-  sendEmailVerificationEmail = ({
+    });
+  },
+  sendEmailVerificationEmail = async ({
     email,
     name,
     url,
@@ -255,8 +265,15 @@ const getRecipientUsername = async (email: string) => {
     email: string;
     name?: string | null;
     url: string;
-  }) =>
-    sendAuthNotificationEmail({
+  }) => {
+    const urlHash = [
+      ...new Uint8Array(
+        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(url))
+      ),
+    ]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+    return sendAuthNotificationEmail({
       actionUrl: url,
       body: "Confirm this email address so SoundKit can keep your account secure and send the account updates you ask for.",
       ctaLabel: "Verify email",
@@ -265,12 +282,13 @@ const getRecipientUsername = async (email: string) => {
       footerNote:
         "You are receiving this because this email address was used for a SoundKit account.",
       heading: "Verify your SoundKit email",
-      idempotencyKey: `email-verification/${email}/${url}`,
+      idempotencyKey: `email-verification/${email}/${urlHash}`,
       previewText: "Confirm your SoundKit email address.",
       recipientName: name ?? "there",
       subject: "Verify your SoundKit email",
       tag: "email_verification",
-    }),
+    });
+  },
   isPremiumPlan = (plan: string | null | undefined) =>
     Boolean(plan?.startsWith("soundkit_premium_")),
   addPremiumNotification = async ({
@@ -393,10 +411,7 @@ export const createAuth = () => {
       "mysoundkit.com",
       "www.mysoundkit.com",
       hostFromUrl(bioSiteUrl),
-      "*.mysoundkit.pages.dev",
-      "*.pages.dev",
-      "*.workers.dev",
-      "*.rocktown-labs.workers.dev",
+      "*.mysoundkit.com",
     ]),
     dynamicBaseURL = isDevelopment
       ? env.BETTER_AUTH_URL
@@ -618,10 +633,7 @@ export const createAuth = () => {
       bioSiteUrl,
       "https://mysoundkit.com",
       "https://www.mysoundkit.com",
-      "https://*.mysoundkit.pages.dev",
-      "https://*.pages.dev",
-      "https://*.workers.dev",
-      "https://*.rocktown-labs.workers.dev",
+      "https://*.mysoundkit.com",
       "soundkit://",
       ...(isDevelopment
         ? [
