@@ -1,15 +1,14 @@
 import { env } from "@soundkit/env/server";
 
 const getEnvValue = (key: string) =>
-  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
-
- getExpectedHostnames = () =>
-  new Set(
-    getEnvValue("TURNSTILE_HOSTNAMES")
-      .split(",")
-      .map((hostname) => hostname.trim().toLowerCase())
-      .filter(Boolean)
-  );
+    (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
+  getExpectedHostnames = () =>
+    new Set(
+      getEnvValue("TURNSTILE_HOSTNAMES")
+        .split(",")
+        .map((hostname) => hostname.trim().toLowerCase())
+        .filter(Boolean)
+    );
 
 export interface TurnstileVerificationResponse {
   action?: string;
@@ -41,10 +40,10 @@ export const verifyTurnstileRequest = async ({
   const secret = getEnvValue("TURNSTILE_SECRET"),
     expectedHostnames = getExpectedHostnames();
 
-  // Local/CI environments can remain capability-gated until a sitekey and
-  // server secret are configured. Production has both GitHub bindings set.
+  // Local/CI environments can explicitly disable Turnstile while the
+  // sitekey and server secret are not configured. Production must fail closed.
   if (!secret || expectedHostnames.size === 0) {
-    return true;
+    return getEnvValue("TURNSTILE_DISABLED").toLowerCase() === "true";
   }
 
   const token = request.headers.get("X-Turnstile-Token");
@@ -53,10 +52,10 @@ export const verifyTurnstileRequest = async ({
   }
 
   const form = new URLSearchParams({
-    response: token,
-    secret,
-  }),
-   clientIp = request.headers.get("CF-Connecting-IP");
+      response: token,
+      secret,
+    }),
+    clientIp = request.headers.get("CF-Connecting-IP");
   if (clientIp) {
     form.set("remoteip", clientIp);
   }

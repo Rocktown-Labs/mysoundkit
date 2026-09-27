@@ -52,6 +52,7 @@ import { withRetry } from "@/lib/retry";
 import type { AppEnv } from "@/lib/types";
 import { jsonBodyMiddleware } from "@/middleware/json-body";
 import { publicResponseCache } from "@/middleware/public-response-cache";
+import { securityHeadersMiddleware } from "@/middleware/security-headers";
 import { sessionMiddleware } from "@/middleware/session";
 import {
   logWarn,
@@ -113,10 +114,8 @@ const app = new OpenAPIHono<AppEnv>({
     defaultHook,
   }),
   allowedCorsOriginPatterns = [
-    /^https:\/\/(?<sub>[a-z0-9-]+\.)*mysoundkit\.pages\.dev$/u,
-    /^https:\/\/(?<sub>[a-z0-9-]+)\.pages\.dev$/u,
-    /^https:\/\/(?<sub>[a-z0-9-]+\.)*workers\.dev$/u,
-    /^https:\/\/(?<sub>[a-z0-9-]+\.)*rocktown-labs\.workers\.dev$/u,
+    /^https:\/\/(?<sub>[a-z0-9-]+\.)*mysoundkit\.com$/u,
+    /^https:\/\/(?<sub>[a-z0-9-]+\.)*soundkit\.bio$/u,
   ],
   hasEnvValue = (key: string) =>
     Boolean((env as unknown as Record<string, unknown>)[key]),
@@ -168,6 +167,7 @@ app.use(
   }))
 );
 app.use(structuredLoggingMiddleware);
+app.use(securityHeadersMiddleware);
 app.use(
   "/*",
   cors({
