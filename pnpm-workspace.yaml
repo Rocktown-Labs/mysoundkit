@@ -47,3 +47,6 @@ catalog:
 
 minimumReleaseAgeExclude:
   - electron@44.1.1
+
+patchedDependencies:
+  '@distilled.cloud/cloudflare@1.0.0-rc.12': patches/@distilled.cloud__cloudflare@1.0.0-rc.12.patch
