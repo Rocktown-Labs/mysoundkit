@@ -17,7 +17,7 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { publicProjectAssetUrl } from "@/lib/asset-urls";
 import { fuseRankings, searchAudioEntities } from "@/lib/audio-embeddings";
-import { buildTrackSummary } from "@/lib/dashboard-mappers";
+import { buildTrackSummaries } from "@/lib/dashboard-mappers";
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import {
   applyGeoScope,
@@ -395,11 +395,9 @@ app.openapi(
               .limit(query.limit)
           : [],
       ]),
-      trackSummaries = [];
-
-    for (const row of trackRows) {
-      trackSummaries.push(await buildTrackSummary(row.tracks));
-    }
+      trackSummaries = await buildTrackSummaries(
+        trackRows.map(({ tracks: track }) => ({ row: track }))
+      );
 
     const projectCoverRows =
         projectRows.length > 0

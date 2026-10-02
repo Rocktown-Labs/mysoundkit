@@ -49,6 +49,7 @@ import { runOpenVerseSweep } from "@/lib/open-verse-sweep";
 import { runOrphanedUploadSweep } from "@/lib/orphan-sweep";
 import { publishDueTrackReleases } from "@/lib/release-notifications";
 import { withRetry } from "@/lib/retry";
+import { isScheduledJobsEnabled } from "@/lib/scheduled-jobs";
 import type { AppEnv } from "@/lib/types";
 import { jsonBodyMiddleware } from "@/middleware/json-body";
 import { publicResponseCache } from "@/middleware/public-response-cache";
@@ -380,6 +381,10 @@ export default {
       );
     }),
   scheduled: (_controller, workerEnv, executionContext) => {
+    if (!isScheduledJobsEnabled(workerEnv.SOUNDKIT_SCHEDULED_JOBS_ENABLED)) {
+      return;
+    }
+
     const now = new Date();
 
     executionContext.waitUntil(

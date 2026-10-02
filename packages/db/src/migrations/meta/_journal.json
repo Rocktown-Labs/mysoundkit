@@ -442,6 +442,13 @@
       "when": 1789131856442,
       "tag": "0062_rapid_golden_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1789410498960,
+      "tag": "0063_spooky_chat",
+      "breakpoints": true
     }
   ]
 }
