@@ -178,7 +178,9 @@ jobs:
           # --yes: Alchemy v2 asks for plan approval and aborts when it cannot
           # prompt, which is always the case on a runner.
           for attempt in 1 2 3; do
-            pnpm run deploy --yes && exit 0
+            # --adopt: take over v1-era cloud resources that have no v2 state
+            # yet (no-op once resources exist in the v2 state store).
+            pnpm run deploy --yes --adopt && exit 0
             if [ "$attempt" = "3" ]; then
               exit 1
             fi
@@ -358,7 +360,9 @@ jobs:
           # --yes: Alchemy v2 asks for plan approval and aborts when it cannot
           # prompt, which is always the case on a runner.
           for attempt in 1 2 3; do
-            pnpm run deploy:stage --stage pr-${{ github.event.pull_request.number }} --yes && exit 0
+            # --adopt: take over v1-era cloud resources that have no v2 state
+            # yet (no-op once resources exist in the v2 state store).
+            pnpm run deploy:stage --stage pr-${{ github.event.pull_request.number }} --yes --adopt && exit 0
             if [ "$attempt" = "3" ]; then
               exit 1
             fi
