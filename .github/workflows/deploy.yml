@@ -175,6 +175,8 @@ jobs:
             # shellcheck disable=SC1091
             . "$RUNNER_TEMP/r2-secrets.env"
           fi
+          # --yes: Alchemy v2 asks for plan approval and aborts when it cannot
+          # prompt, which is always the case on a runner.
           for attempt in 1 2 3; do
             pnpm run deploy --yes && exit 0
             if [ "$attempt" = "3" ]; then
@@ -353,6 +355,8 @@ jobs:
             # shellcheck disable=SC1091
             . "$RUNNER_TEMP/r2-secrets.env"
           fi
+          # --yes: Alchemy v2 asks for plan approval and aborts when it cannot
+          # prompt, which is always the case on a runner.
           for attempt in 1 2 3; do
             pnpm run deploy:stage --stage pr-${{ github.event.pull_request.number }} --yes && exit 0
             if [ "$attempt" = "3" ]; then
@@ -559,8 +563,10 @@ jobs:
       - name: Destroy preview through Alchemy
         working-directory: packages/infra
         run: |
+          # --yes: Alchemy v2 asks for plan approval and aborts when it cannot
+          # prompt, which is always the case on a runner.
           for attempt in 1 2 3; do
-            pnpm run destroy:stage --stage pr-${{ github.event.pull_request.number }} && exit 0
+            pnpm run destroy:stage --stage pr-${{ github.event.pull_request.number }} --yes && exit 0
             if [ "$attempt" = "3" ]; then
               exit 1
             fi
