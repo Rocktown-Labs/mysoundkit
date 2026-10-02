@@ -120,6 +120,39 @@ const getR2Jurisdiction = () => {
     const value = process.env[name];
 
     return value ? { [name]: value } : {};
+  },
+  // R2 S3-compatible upload keypairs, which Alchemy v2 cannot mint (see the
+  // AccountApiToken NOTE below) and which therefore arrive as deploy-time
+  // secrets. Declaring them with `Config.String`/`Config.Redacted` — which
+  // reject an empty value — made every stage that has not been handed a
+  // keypair fail to plan. They are bound optionally instead, matching the
+  // upload routes, which already answer with an explicit "not configured yet"
+  // error when the keypair is absent. Production is the one stage that cannot
+  // tolerate that, because v1 always provisioned the keypair: there it is a
+  // hard requirement, checked here so the failure names the missing secrets
+  // instead of surfacing as an opaque deploy error.
+  r2UploadCredentialNames = [
+    "CLOUDFLARE_ACCESS_KEY_ID",
+    "CLOUDFLARE_SECRET_ACCESS_KEY",
+    "RECORDINGS_ACCESS_KEY_ID",
+    "RECORDINGS_SECRET_ACCESS_KEY",
+  ] as const,
+  requireR2UploadCredentials = (isProduction: boolean) => {
+    if (!isProduction) {
+      return;
+    }
+
+    const missing = r2UploadCredentialNames.filter(
+      (name) => !process.env[name]
+    );
+
+    if (missing.length > 0) {
+      throw new Error(
+        `R2 upload credentials are required in production but missing: ${missing.join(
+          ", "
+        )}. Create the keypair under Cloudflare dashboard R2 > API Tokens and add it to the production environment secrets.`
+      );
+    }
   };
 
 // Every stage (production and pr-<number> previews alike) shares the single
@@ -466,6 +499,8 @@ export const server = Cloudflare.Worker(
   Effect.gen(function* () {
     const d = yield* deployment;
 
+    requireR2UploadCredentials(d.isProduction);
+
     return {
       compatibility: { flags: ["nodejs_compat"] },
       // Scheduled jobs are production-only. Preview Workers share
@@ -485,11 +520,9 @@ export const server = Cloudflare.Worker(
         BATTLE_DIRECTORY: battleDirectory,
         BETTER_AUTH_SECRET: Config.Redacted("BETTER_AUTH_SECRET"),
         BETTER_AUTH_URL: d.API_URL,
-        CLOUDFLARE_ACCESS_KEY_ID: Config.String("CLOUDFLARE_ACCESS_KEY_ID"),
+        ...optionalEnvBinding("CLOUDFLARE_ACCESS_KEY_ID"),
         CLOUDFLARE_ACCOUNT_ID: Config.String("CLOUDFLARE_ACCOUNT_ID"),
-        CLOUDFLARE_SECRET_ACCESS_KEY: Config.Redacted(
-          "CLOUDFLARE_SECRET_ACCESS_KEY"
-        ),
+        ...optionalEnvBinding("CLOUDFLARE_SECRET_ACCESS_KEY"),
         CORS_ORIGIN: d.SITE_URL,
         ...optionalEnvBinding("CLOUDFLARE_API_TOKEN"),
         ...optionalEnvBinding("CLOUDFLARE_REALTIMEKIT_APP_ID"),
@@ -525,12 +558,10 @@ export const server = Cloudflare.Worker(
         PRESENCE: presence,
         PROJECT_EXPORT_WORKFLOW: projectExportWorkflow,
         PURCHASE_FULFILLMENT_WORKFLOW: purchaseFulfillmentWorkflow,
-        RECORDINGS_ACCESS_KEY_ID: Config.String("RECORDINGS_ACCESS_KEY_ID"),
+        ...optionalEnvBinding("RECORDINGS_ACCESS_KEY_ID"),
         RECORDINGS_BUCKET: recordings,
         RECORDINGS_BUCKET_NAME: d.resourceName("soundkit-recordings"),
-        RECORDINGS_SECRET_ACCESS_KEY: Config.Redacted(
-          "RECORDINGS_SECRET_ACCESS_KEY"
-        ),
+        ...optionalEnvBinding("RECORDINGS_SECRET_ACCESS_KEY"),
         SENTRY_DSN: d.SENTRY_SERVER_DSN,
         SENTRY_ENVIRONMENT: d.SENTRY_ENVIRONMENT,
         SOUNDKIT_BIO_URL: d.BIO_URL,
