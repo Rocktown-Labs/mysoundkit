@@ -98,11 +98,11 @@ export const renderBattleAudioSpot = async ({
       `Battle spot TTS failed: ${response.status} ${(await response.text()).slice(0, 200)}`
     );
   }
-  const audio = await response.arrayBuffer();
-  if (audio.byteLength === 0) {
+  const audioBody = response.body;
+  if (!audioBody) {
     throw new Error("Battle spot TTS returned empty audio.");
   }
-  await bucket.put(objectKey, audio, {
+  await bucket.put(objectKey, audioBody, {
     httpMetadata: { contentType: "audio/mpeg" },
   });
   return {

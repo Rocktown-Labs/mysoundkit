@@ -6,11 +6,7 @@ import { lazy, Suspense, useMemo, useSyncExternalStore } from "react";
 
 import { AudioPlayerProvider } from "@/components/audio-player-provider";
 import { CartProvider } from "@/components/cart-provider";
-import { FloatingChatBar } from "@/components/dashboard/floating-chat-bar";
-import { MusicPlayer } from "@/components/explore/music-player";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provider";
-import { BattleQueueCta } from "@/components/live/battle-queue-cta";
-import { BattleReturnMonitor } from "@/components/live/battle-return-monitor";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { authClient } from "@/lib/auth-client";
@@ -19,16 +15,40 @@ import { MessagingDbProvider } from "@/lib/message-db";
 import { PresenceProvider } from "@/lib/presence-context";
 
 const AppDevtools =
-  import.meta.env.DEV && import.meta.env.VITE_DISABLE_DEVTOOLS !== "true"
-    ? lazy(async () => {
-        const { AppDevtools: DevtoolsComponent } =
-          await import("@/components/app-devtools");
+    import.meta.env.DEV && import.meta.env.VITE_DISABLE_DEVTOOLS !== "true"
+      ? lazy(async () => {
+          const { AppDevtools: DevtoolsComponent } =
+            await import("@/components/app-devtools");
 
-        return {
-          default: DevtoolsComponent,
-        };
-      })
-    : null;
+          return {
+            default: DevtoolsComponent,
+          };
+        })
+      : null,
+  MusicPlayer = lazy(async () => {
+    const { MusicPlayer: Player } =
+      await import("@/components/explore/music-player");
+
+    return { default: Player };
+  }),
+  FloatingChatBar = lazy(async () => {
+    const { FloatingChatBar: ChatBar } =
+      await import("@/components/dashboard/floating-chat-bar");
+
+    return { default: ChatBar };
+  }),
+  BattleQueueCta = lazy(async () => {
+    const { BattleQueueCta: QueueCta } =
+      await import("@/components/live/battle-queue-cta");
+
+    return { default: QueueCta };
+  }),
+  BattleReturnMonitor = lazy(async () => {
+    const { BattleReturnMonitor: Monitor } =
+      await import("@/components/live/battle-return-monitor");
+
+    return { default: Monitor };
+  });
 
 function createScopedQueryClient(_scopeKey: string) {
   return new QueryClient();
@@ -90,10 +110,12 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
               <PresenceProvider>
                 <AudioPlayerProvider>
                   <CartProvider>{children}</CartProvider>
-                  <MusicPlayer />
-                  <FloatingChatBar />
-                  <BattleQueueCta />
-                  <BattleReturnMonitor />
+                  <Suspense fallback={null}>
+                    <MusicPlayer />
+                    <FloatingChatBar />
+                    <BattleQueueCta />
+                    <BattleReturnMonitor />
+                  </Suspense>
                 </AudioPlayerProvider>
               </PresenceProvider>
             </KeyboardShortcutsProvider>
