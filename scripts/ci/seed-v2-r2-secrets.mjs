@@ -51,13 +51,20 @@ for (const name of [
 
 const { default: alchemy } = await import("alchemy");
 const { CloudflareStateStore } = await import("alchemy/state");
+const { Scope } = await import("alchemy");
 
-const readStates = (forceUpdate) =>
-  alchemy("soundkit", {
+const readStates = async (forceUpdate) => {
+  await alchemy("soundkit", {
     stage: "prod",
     stateStore: (scope) => new CloudflareStateStore(scope, { forceUpdate }),
     noTrack: true,
-  }).then((app) => app.state.all());
+  });
+  // alchemy() returns the ROOT scope, but enters the stage scope
+  // ("soundkit" -> "prod") into AsyncLocalStorage — read state through
+  // Scope.current so the request targets the chain ["soundkit", "prod"],
+  // exactly like a real `alchemy deploy --stage prod`.
+  return Scope.current.state.all();
+};
 
 // Read-only pass over the v1 prod state. The worker is only (re-)published
 // when it is missing or its bundle tag is outdated; reading existing state
