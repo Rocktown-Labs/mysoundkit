@@ -16,6 +16,15 @@ allowBuilds:
   sharp: true
   workerd: true
 
+# Pin react/react-dom to the version the apps resolve so library peers can
+# never dedupe against a second copy (a nested react inside
+# @tanstack/react-query after the #262 lockfile regen made every SSR route
+# 500 with "Cannot read properties of null (reading 'useEffect')" — see
+# #356). Keep in sync with the react/react-dom ranges in apps/*/package.json.
+overrides:
+  react: 19.2.7
+  react-dom: 19.2.7
+
 catalog:
   dotenv: ^17.2.2
   zod: ^4.1.13

@@ -46,6 +46,7 @@
 
 ### Fixed
 
+- Fixed a master-only SSR crash (all routes 500 with `Cannot read properties of null (reading 'useEffect')` from `QueryClientProvider`) introduced by the #262 lockfile regen: `@tanstack/react-query` deduped its `react` peer against a nested `react@19.2.0` while the apps use `react@19.2.7`, giving every page two copies of React. `react`/`react-dom` are now pinned via pnpm overrides so peers can never resolve to a second copy (#356).
 - Fixed the Alchemy v2 migration's deploy failure (#262): the stack main effect yielded the image-backed container declarations (`media-processor`, `stem-separator`) as runtime instance tags, which are only provided by `Containers.layer(...)` in dev/runtime contexts — `alchemy deploy` failed at stack open with `Service not found: Container<...>`. The stack now yields the deployable `.Application` ContainerApplication resources, verified by reproducing the stack-open failure locally (pre-fix) and a clean 27-resource stack open (post-fix).
 - Fixed the Alchemy v2 migration's non-interactive CI deploy failure (#262): the production, preview, and preview-cleanup jobs now pass `--yes`, because Alchemy v2 asks for plan approval and aborts with `Cannot prompt for approval in a non-interactive terminal` when no terminal is attached — every preview deploy resolved its plan and then failed on all three retries.
 - Added HMAC signature verification to the `/v1/webhooks/battle-service` endpoint using `BATTLE_BOT_SECRET`; unsigned or invalid requests are now rejected.
