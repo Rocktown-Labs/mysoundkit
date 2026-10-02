@@ -52,16 +52,32 @@ for (const name of [
 const { default: alchemy } = await import("alchemy");
 const { CloudflareStateStore } = await import("alchemy/state");
 
-// Read-only pass over the v1 prod state. CloudflareStateStore.provision()
-// only creates/updates the state worker when it is missing or outdated;
-// reading existing state makes no changes.
-const app = await alchemy("soundkit", {
-  stage: "prod",
-  stateStore: (scope) => new CloudflareStateStore(scope),
-  noTrack: true,
-});
+const readStates = (forceUpdate) =>
+  alchemy("soundkit", {
+    stage: "prod",
+    stateStore: (scope) => new CloudflareStateStore(scope, { forceUpdate }),
+    noTrack: true,
+  }).then((app) => app.state.all());
 
-const states = await app.state.all();
+// Read-only pass over the v1 prod state. The worker is only (re-)published
+// when it is missing or its bundle tag is outdated; reading existing state
+// makes no changes. If the worker's bearer token has drifted from
+// ALCHEMY_STATE_TOKEN (the repo secret was last rotated without a deploy
+// re-syncing it — the same situation master's v1 deploys handle with
+// ALCHEMY_STATE_FORCE_UPDATE=true on their first attempt), retry once with
+// forceUpdate to re-bind the current secret, exactly like those deploys do.
+let states;
+try {
+  states = await readStates(false);
+} catch (error) {
+  if (!String(error?.message ?? "").includes("token is invalid")) {
+    throw error;
+  }
+  console.log(
+    "::notice title=seed-r2-secrets::v1 state store token stale — re-syncing STATE_TOKEN binding from ALCHEMY_STATE_TOKEN (same routine as v1 CI deploys)"
+  );
+  states = await readStates(true);
+}
 const findState = (needle) =>
   Object.entries(states).find(([key]) => key.includes(needle));
 const media = findState("media-upload-token");
