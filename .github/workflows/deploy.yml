@@ -104,9 +104,6 @@ jobs:
     environment: production
     permissions:
       contents: read
-      # The one-time R2 secret bootstrap publishes deploy secrets read from
-      # the v1 Alchemy state store.
-      secrets: write
     steps:
       - name: Bootstrap repository
         env:
@@ -159,7 +156,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           ALCHEMY_STATE_TOKEN: ${{ secrets.ALCHEMY_STATE_TOKEN }}
           ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
-          GH_TOKEN: ${{ github.token }}
           SEED_R2_SECRETS: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID != '' && 'false' || 'true' }}
         run: |
           set -euo pipefail
@@ -298,9 +294,6 @@ jobs:
     environment: preview
     permissions:
       contents: read
-      # The one-time R2 secret bootstrap publishes deploy secrets read from
-      # the v1 Alchemy state store.
-      secrets: write
     outputs:
       web_url: ${{ steps.urls.outputs.web_url }}
       api_url: ${{ steps.urls.outputs.api_url }}
@@ -341,7 +334,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           ALCHEMY_STATE_TOKEN: ${{ secrets.ALCHEMY_STATE_TOKEN }}
           ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
-          GH_TOKEN: ${{ github.token }}
           SEED_R2_SECRETS: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID != '' && 'false' || 'true' }}
         run: |
           set -euo pipefail

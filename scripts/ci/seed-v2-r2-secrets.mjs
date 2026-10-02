@@ -8,14 +8,10 @@
  * secrets: CLOUDFLARE_ACCESS_KEY_ID / CLOUDFLARE_SECRET_ACCESS_KEY and
  * RECORDINGS_ACCESS_KEY_ID / RECORDINGS_SECRET_ACCESS_KEY.
  *
- * This script reads the live tokens from the v1 prod state store and:
- *   1. publishes them as GitHub repository secrets (via `gh secret set`), so
- *      every future CI run picks them up through the normal secrets mapping,
- *   2. appends `export NAME=value` lines to the env file passed as argv, so
- *      the *current* CI run can deploy before the secrets context refreshes.
- *
- * Secret values never touch stdout — they are piped to `gh` via stdin and
- * written only to the env file.
+ * GitHub's workflow token cannot write repository secrets, so this bootstrap
+ * instead reads the live tokens from the v1 prod state store and appends
+ * `export NAME=value` lines to the env file passed as argv, which the deploy
+ * job sources before running `alchemy deploy`. Values never touch stdout.
  *
  * Run from a temp directory that has alchemy@0.90.1 installed (this script
  * resolves `alchemy` from its own directory, so it must be copied next to the
@@ -23,12 +19,11 @@
  *
  * Required environment:
  *   ALCHEMY_STATE_TOKEN, ALCHEMY_PASSWORD, CLOUDFLARE_API_TOKEN,
- *   CLOUDFLARE_ACCOUNT_ID, GH_TOKEN (with repository `secrets: write`)
+ *   CLOUDFLARE_ACCOUNT_ID
  *
  * Usage: node seed-v2-r2-secrets.mjs <out-env-file>
  * Skip guard: SEED_R2_SECRETS=false exits immediately (idempotence).
  */
-import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 
 const outEnvFile = process.argv[2];
@@ -47,7 +42,6 @@ for (const name of [
   "ALCHEMY_PASSWORD",
   "CLOUDFLARE_API_TOKEN",
   "CLOUDFLARE_ACCOUNT_ID",
-  "GH_TOKEN",
 ]) {
   if (!process.env[name]) {
     console.error(`::error title=seed-r2-secrets::missing required environment variable ${name}`);
@@ -95,16 +89,11 @@ for (const [name, value] of Object.entries(secrets)) {
 }
 
 const shellQuote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
-const repo = process.env.GITHUB_REPOSITORY;
 let envFile = "";
 for (const [name, value] of Object.entries(secrets)) {
-  execFileSync("gh", ["secret", "set", name, "--repo", repo], {
-    input: value,
-    stdio: ["pipe", "ignore", "inherit"],
-  });
   envFile += `export ${name}=${shellQuote(value)}\n`;
 }
 appendFileSync(outEnvFile, envFile, { flag: "a" });
 console.log(
-  "::notice title=seed-r2-secrets::seeded CLOUDFLARE_ACCESS_KEY_ID, CLOUDFLARE_SECRET_ACCESS_KEY, RECORDINGS_ACCESS_KEY_ID, RECORDINGS_SECRET_ACCESS_KEY from the v1 Alchemy state store"
+  "::notice title=seed-r2-secrets::exported CLOUDFLARE_ACCESS_KEY_ID, CLOUDFLARE_SECRET_ACCESS_KEY, RECORDINGS_ACCESS_KEY_ID, RECORDINGS_SECRET_ACCESS_KEY from the v1 Alchemy state store for this run (set them as repository secrets to stop reading v1 state)"
 );
