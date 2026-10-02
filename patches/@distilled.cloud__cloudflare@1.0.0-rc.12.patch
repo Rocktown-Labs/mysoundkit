@@ -1,0 +1,56 @@
+diff --git a/lib/services/queues.js b/lib/services/queues.js
+index 3142057deea594cfff8f7a6ee1b0c5e401401701..87cbcfaf5c28f1743e193eae30130d30f348f84e 100644
+--- a/lib/services/queues.js
++++ b/lib/services/queues.js
+@@ -1196,6 +1196,8 @@ export const ListConsumersResponse = /*@__PURE__*/ S.suspend(() => S.Struct({
+ });
+ export const ListQueuesRequest = /*@__PURE__*/ S.suspend(() => S.Struct({
+     accountId: S.String.pipe(T.Label("account_id")),
++    page: S.optional(S.Number.pipe(T.Query())),
++    perPage: S.optional(S.Number.pipe(T.Query("per_page"))),
+ })
+     .pipe(T.Http({
+     method: "GET",
+@@ -2255,7 +2257,13 @@ export const listQueues = /*@__PURE__*/ API.makePaginated(() => ({
+     errors: [InvalidRoute, CloudflareRateLimited, CloudflareError],
+     protocol: CloudflarePaginatedProtocol,
+     retry: Retry.Retry,
+-    pagination: { mode: "single", items: "result" },
++    pagination: {
++        mode: "page",
++        inputToken: "page",
++        outputToken: "resultInfo.page",
++        items: "result",
++        pageSize: "perPage",
++    },
+ }), cloudflarePaginate);
+ /** Get a paginated list of event subscriptions with optional sorting and filtering */
+ export const listSubscriptions = /*@__PURE__*/ API.makePaginated(() => ({
+diff --git a/src/services/queues.ts b/src/services/queues.ts
+index 160f4bf763201728b4725d71cbf88da7fb020142..ce7eb6cfe441faff11e3f794a764d9e3251ccf14 100644
+--- a/src/services/queues.ts
++++ b/src/services/queues.ts
+@@ -2805,6 +2805,8 @@ export interface ListQueuesRequest {
+ export const ListQueuesRequest = /*@__PURE__*/ S.suspend(() =>
+   S.Struct({
+     accountId: S.String.pipe(T.Label("account_id")),
++    page: S.optional(S.Number.pipe(T.Query())),
++    perPage: S.optional(S.Number.pipe(T.Query("per_page"))),
+   })
+     .pipe(
+       T.Http({
+@@ -5273,7 +5275,13 @@ export const listConsumers: API.PaginatedOperationMethod<
+     ],
+     protocol: CloudflarePaginatedProtocol,
+     retry: Retry.Retry,
+-    pagination: { mode: "single", items: "result" } as const,
++    pagination: {
++      mode: "page",
++      inputToken: "page",
++      outputToken: "resultInfo.page",
++      items: "result",
++      pageSize: "perPage",
++    } as const,
+   }),
+   cloudflarePaginate,
+ ) as any;
