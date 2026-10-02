@@ -176,7 +176,7 @@ jobs:
             . "$RUNNER_TEMP/r2-secrets.env"
           fi
           for attempt in 1 2 3; do
-            pnpm run deploy && exit 0
+            pnpm run deploy --yes && exit 0
             if [ "$attempt" = "3" ]; then
               exit 1
             fi
@@ -354,7 +354,7 @@ jobs:
             . "$RUNNER_TEMP/r2-secrets.env"
           fi
           for attempt in 1 2 3; do
-            pnpm run deploy:stage --stage pr-${{ github.event.pull_request.number }} && exit 0
+            pnpm run deploy:stage --stage pr-${{ github.event.pull_request.number }} --yes && exit 0
             if [ "$attempt" = "3" ]; then
               exit 1
             fi
