@@ -46,6 +46,7 @@
 
 ### Fixed
 
+- Fixed the Alchemy v2 migration's deploy failure (#262): the stack main effect yielded the image-backed container declarations (`media-processor`, `stem-separator`) as runtime instance tags, which are only provided by `Containers.layer(...)` in dev/runtime contexts — `alchemy deploy` failed at stack open with `Service not found: Container<...>`. The stack now yields the deployable `.Application` ContainerApplication resources, verified by reproducing the stack-open failure locally (pre-fix) and a clean 27-resource stack open (post-fix).
 - Added HMAC signature verification to the `/v1/webhooks/battle-service` endpoint using `BATTLE_BOT_SECRET`; unsigned or invalid requests are now rejected.
 - Enforced account-level bans in the session middleware: banned users receive a 403 on all `/v1/*` and `/media/*` routes.
 - Required a verified email address before automatically promoting admin-email matches to the `admin` role.

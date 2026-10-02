@@ -702,8 +702,14 @@ export default Alchemy.Stack(
     yield* trackDurationBackfillDeadLetterQueue;
     yield* trackDurationBackfillQueue;
     yield* hyperdrive;
-    yield* MediaProcessorContainer;
-    yield* StemSeparatorContainer;
+    // Containers are image-backed declarations: `yield* MyContainer` would
+    // resolve the runtime "started instance" service (only provided by
+    // `Containers.layer(...)` in dev/runtime contexts, never at deploy time —
+    // stack open fails with `Service not found: Container<...>`). The
+    // deployable ContainerApplication resource is `MyContainer.Application`,
+    // which provisions the container app ahead of the server Worker binding.
+    yield* MediaProcessorContainer.Application;
+    yield* StemSeparatorContainer.Application;
     const webResource = yield* web,
       bioResource = yield* bio,
       serverResource = yield* server;
