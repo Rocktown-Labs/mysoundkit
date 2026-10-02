@@ -76,7 +76,21 @@ try {
   console.log(
     "::notice title=seed-r2-secrets::v1 state store token stale — re-syncing STATE_TOKEN binding from ALCHEMY_STATE_TOKEN (same routine as v1 CI deploys)"
   );
-  states = await readStates(true);
+  try {
+    states = await readStates(true);
+  } catch (forceError) {
+    if (!String(forceError?.message ?? "").includes("token is invalid")) {
+      throw forceError;
+    }
+    // The re-published worker is still propagating (the old version keeps
+    // answering 401 for a few seconds) — the same race master's deploy
+    // workflow absorbs by sleeping 30s between attempts.
+    console.log(
+      "::notice title=seed-r2-secrets::state worker update is propagating — waiting 30s before retrying"
+    );
+    await new Promise((resolve) => setTimeout(resolve, 30_000));
+    states = await readStates(false);
+  }
 }
 const findState = (needle) =>
   Object.entries(states).find(([key]) => key.includes(needle));
