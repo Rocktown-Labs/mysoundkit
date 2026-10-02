@@ -373,8 +373,10 @@ export class MediaProcessorContainer extends Cloudflare.Container<MediaProcessor
 
     return {
       className: "MediaProcessorContainer",
+      // NOTE (v2): leave `dockerfile` unset — an explicit path is resolved
+      // against the process CWD by alchemy v2, but the default resolves to
+      // `<context>/Dockerfile`, which is what we want.
       context: "../../apps/media-processor",
-      dockerfile: "Dockerfile",
       instanceType: d.isProduction ? "standard-1" : "basic",
       maxInstances: d.isProduction ? 25 : 20,
       name: d.resourceName("soundkit-media-processor"),
@@ -393,7 +395,6 @@ export class StemSeparatorContainer extends Cloudflare.Container<StemSeparatorCo
     return {
       className: "StemSeparatorContainer",
       context: "../../apps/stem-separator",
-      dockerfile: "Dockerfile",
       instanceType: "standard-3",
       maxInstances: 10,
       name: d.resourceName("soundkit-stem-separator"),
