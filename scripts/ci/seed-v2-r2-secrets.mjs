@@ -131,6 +131,32 @@ for (const [name, value] of Object.entries(secrets)) {
   envFile += `export ${name}=${shellQuote(value)}\n`;
 }
 appendFileSync(outEnvFile, envFile, { flag: "a" });
-console.log(
-  "::notice title=seed-r2-secrets::exported CLOUDFLARE_ACCESS_KEY_ID, CLOUDFLARE_SECRET_ACCESS_KEY, RECORDINGS_ACCESS_KEY_ID, RECORDINGS_SECRET_ACCESS_KEY from the v1 Alchemy state store for this run (set them as repository secrets to stop reading v1 state)"
-);
+
+// Optional publish mode (maintenance workflow): set the values as GitHub
+// repository secrets so the per-deploy bootstrap can retire. The workflow
+// token cannot write repo secrets — this needs a PAT with Secrets:write
+// provided as SECRETS_WRITER_TOKEN. Values are piped via stdin, never logged.
+if (process.env.PUBLISH_GH_SECRETS === "true") {
+  if (!process.env.GH_SECRETS_WRITER_TOKEN) {
+    console.error(
+      "::error title=seed-r2-secrets::PUBLISH_GH_SECRETS=true but SECRETS_WRITER_TOKEN is not set. Create a fine-grained PAT with Repository permissions -> Secrets: Read and writing (scoped to this repo), add it as a repository secret named SECRETS_WRITER_TOKEN, and re-run this task."
+    );
+    process.exit(1);
+  }
+  const { execFileSync } = await import("node:child_process");
+  const repo = process.env.GITHUB_REPOSITORY;
+  for (const [name, value] of Object.entries(secrets)) {
+    execFileSync("gh", ["secret", "set", name, "--repo", repo], {
+      input: value,
+      stdio: ["pipe", "ignore", "inherit"],
+      env: { ...process.env, GH_TOKEN: process.env.GH_SECRETS_WRITER_TOKEN },
+    });
+  }
+  console.log(
+    "::notice title=seed-r2-secrets::published CLOUDFLARE_ACCESS_KEY_ID, CLOUDFLARE_SECRET_ACCESS_KEY, RECORDINGS_ACCESS_KEY_ID, RECORDINGS_SECRET_ACCESS_KEY as repository secrets — the deploy bootstrap will skip itself from the next run"
+  );
+} else {
+  console.log(
+    "::notice title=seed-r2-secrets::exported CLOUDFLARE_ACCESS_KEY_ID, CLOUDFLARE_SECRET_ACCESS_KEY, RECORDINGS_ACCESS_KEY_ID, RECORDINGS_SECRET_ACCESS_KEY from the v1 Alchemy state store for this run (set them as repository secrets to stop reading v1 state)"
+  );
+}
