@@ -27,60 +27,19 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - name: List workflow definitions and count non-terminal instances
+      - name: Bootstrap repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          API="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workflows"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
 
-          cf() {
-            curl -sS --fail-with-body \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              -H "Content-Type: application/json" \
-              "$@"
-          }
-
-          cf "$API" > defs.json
-          echo "Workflow definitions in account: $(jq '.result | length' defs.json)"
-
-          printf '%-60s %10s %10s %10s  %s\n' \
-            "DEFINITION" "QUEUED/RUN/PAUSE" "ERRORED" "TOTAL_SEEN" "VERDICT"
-          printf '%.0s-' {1..110}; echo
-
-          jq -r '.result[] | [.id, .name] | @tsv' defs.json | while IFS=$'\t' read -r id name; do
-            live=0
-            errored=0
-            seen=0
-
-            for status in queued running paused errored; do
-              body=$(cf "$API/$id/instances?status=$status" || echo '{}')
-              n=$(echo "$body" | jq '.result_info.total_count // (.result | length) // 0')
-              seen=$((seen + n))
-              if [ "$status" = "errored" ]; then
-                errored=$n
-              else
-                live=$((live + n))
-              fi
-            done
-
-            verdict="DRAINING (has live instances)"
-            if [ "$live" -eq 0 ] && [ "$errored" -gt 0 ]; then
-              verdict="drained (only errored instances remain — safe after review)"
-            elif [ "$live" -eq 0 ] && [ "$seen" -eq 0 ]; then
-              verdict="drained (no instances ever seen)"
-            elif [ "$live" -eq 0 ]; then
-              verdict="drained (safe to delete)"
-            fi
-
-            printf '%-60s %10s %10s %10s  %s\n' \
-              "$name" "$live" "$errored" "$seen" "$verdict"
-          done
-
-          echo
-          echo "Notes:"
-          echo "- v1-era definitions are the flat 'soundkit-*' names; v2 manages"
-          echo "  '{script}-{Class}-{hash}' names. Only the flat names are orphans."
-          echo "- This audit is read-only. Delete drained v1 definitions via the"
-          echo "  Cloudflare dashboard (Workers & Pages -> Workflows)."
+      - name: Run the audit script
+        run: bash scripts/ci/audit-v1-workflows.sh
 
   set-r2-secrets:
     name: Publish R2 deploy secrets as repository secrets
