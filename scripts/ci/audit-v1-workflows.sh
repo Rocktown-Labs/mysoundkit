@@ -67,7 +67,8 @@ for name in "${names[@]}"; do
 
   era="v1-orphan"
   case "$name" in
-    *Workflow*) era="v2-managed";;
+    # v2 derives names as {script}-{class}-{hash}: lowercase class + 8-hex suffix
+    soundkit-server-*workflow-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) era="v2-managed";;
   esac
 
   verdict=""
