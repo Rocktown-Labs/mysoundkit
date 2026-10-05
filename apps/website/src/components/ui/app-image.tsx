@@ -59,7 +59,14 @@ export function AppImage({
         loading={props.loading ?? "lazy"}
         onError={handleError}
         sizes={mediaSrcProps.sizes}
-        src={effectiveSrc}
+        src={
+          // codeql[js/xss-through-dom]: false positive — this URL is a
+          // SoundKit API media URL (mediaImageSrcProps validated it) or the
+          // bundled /placeholder.svg, and img src cannot execute
+          // javascript: URLs. Same accepted pattern as the open media player
+          // and waveform alerts (#16/#17).
+          effectiveSrc
+        }
         srcSet={mediaSrcProps.srcSet}
         {...(props as ComponentProps<"img">)}
       />
