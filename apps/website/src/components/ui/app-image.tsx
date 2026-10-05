@@ -43,7 +43,8 @@ export function AppImage({
   // same-origin blob/data URL the browser created, or a SoundKit API media
   // URL validated by mediaImageSrcProps — and an img src cannot execute
   // javascript: URLs — so the open js/xss-through-dom alert on this sink is
-  // an accepted false positive.
+  // an accepted false positive. Attribute behavior is byte-identical to the
+  // unpic passthrough these sources already used; only srcset/sizes differ.
   if (isBlobOrDataOrFallback || mediaSrcProps) {
     return (
       <img
@@ -52,12 +53,7 @@ export function AppImage({
         onError={handleError}
         src={effectiveSrc}
         {...(mediaSrcProps
-          ? {
-              decoding: "async",
-              loading: props.loading ?? "lazy",
-              sizes: mediaSrcProps.sizes,
-              srcSet: mediaSrcProps.srcSet,
-            }
+          ? { sizes: mediaSrcProps.sizes, srcSet: mediaSrcProps.srcSet }
           : {})}
         {...(props as ComponentProps<"img">)}
       />
