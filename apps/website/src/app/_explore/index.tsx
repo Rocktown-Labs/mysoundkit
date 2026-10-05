@@ -10,7 +10,6 @@ import {
   Music,
   Radio,
   RotateCcw,
-  ShoppingBag,
   Swords,
   Users,
   Video,
@@ -344,20 +343,14 @@ function LocalExplorePage() {
         setSelectedRegion(savedLocation);
         setMapScope(savedMapScope ?? "global");
         setLocationPromptState("granted");
-        return;
       }
     } catch {}
 
-    // On initial visit without saved location, automatically request location
-    try {
-      const alreadyPrompted = sessionStorage.getItem(
-        "soundkit_location_prompted"
-      );
-      if (!alreadyPrompted && "geolocation" in navigator) {
-        sessionStorage.setItem("soundkit_location_prompted", "true");
-        requestLocation();
-      }
-    } catch {}
+    // Deliberately no automatic geolocation request here: prompting for
+    // location on load triggers the browser permission dialog before the user
+    // has asked for anything (and flags Lighthouse's geolocation-on-start
+    // audit). Region detection only happens via the explicit "use my
+    // location" button.
   }, [search.region, search.regionType]);
 
   const handleResetGlobal = () => {

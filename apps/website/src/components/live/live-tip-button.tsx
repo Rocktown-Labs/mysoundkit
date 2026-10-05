@@ -7,6 +7,7 @@ import {
   EmbeddedCheckoutProvider,
 } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
+import type { Stripe } from "@stripe/stripe-js";
 import { Link } from "@tanstack/react-router";
 import { HandCoins } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -30,9 +31,6 @@ import type { LiveTipKind } from "@/lib/soundkit-api-hooks";
 const PRESET_AMOUNTS_CENTS = [500, 1000, 1500, 2000] as const,
   MAX_TIP_CENTS = 100_000,
   MIN_TIP_CENTS = 100,
-  stripePromise = env.VITE_STRIPE_PUBLISHABLE_KEY
-    ? loadStripe(env.VITE_STRIPE_PUBLISHABLE_KEY)
-    : null,
   formatDollars = (amountCents: number) => `$${(amountCents / 100).toFixed(2)}`,
   currencyAmountPattern = /^\d+(?:\.\d{1,2})?$/u;
 
@@ -91,6 +89,11 @@ export function LiveTipButton({
   recipients,
 }: LiveTipButtonProps) {
   const [isOpen, setIsOpen] = useState(false),
+    // Stripe.js is loaded on demand (first dialog open) instead of at module
+    // scope so the ~900KB suite never loads for visitors who never tip.
+    [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(
+      null
+    ),
     [customAmount, setCustomAmount] = useState("10.00"),
     [selectedPreset, setSelectedPreset] = useState<number | null>(1000),
     [message, setMessage] = useState(""),
@@ -124,6 +127,9 @@ export function LiveTipButton({
       amountCents >= MIN_TIP_CENTS &&
       amountCents <= MAX_TIP_CENTS,
     handleOpenChange = (open: boolean) => {
+      if (open && !stripePromise && env.VITE_STRIPE_PUBLISHABLE_KEY) {
+        setStripePromise(loadStripe(env.VITE_STRIPE_PUBLISHABLE_KEY));
+      }
       setIsOpen(open);
       if (!open) {
         setClientSecret(null);
@@ -201,7 +207,7 @@ export function LiveTipButton({
     <>
       <Button
         className="gap-1.5"
-        onClick={() => setIsOpen(true)}
+        onClick={() => handleOpenChange(true)}
         size="sm"
         type="button"
         variant="default"
