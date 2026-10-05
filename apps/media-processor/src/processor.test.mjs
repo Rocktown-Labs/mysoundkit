@@ -3,12 +3,14 @@ import test from "node:test";
 
 import {
   assertVerifiedDerivative,
+  buildImageRenderArguments,
   DerivativeValidationError,
   linearGainChain,
   nextNormalizationSettings,
   buildMetadataArguments,
   isLosslessCodec,
   parseFfprobeOutput,
+  parseImageProbeOutput,
   parseLoudnormOutput,
   requireDerivativeVerification,
 } from "./processor.mjs";
@@ -182,6 +184,48 @@ test("normalized derivatives enforce loudness and True Peak", () => {
         targetLufs: -13,
         verification: { integratedLufs: -13, truePeakDbtp: 0.51 },
       }),
+    DerivativeValidationError
+  );
+});
+
+test("image render arguments cap width without upscaling", () => {
+  const args = buildImageRenderArguments({
+    inputPath: "source.png",
+    outputPath: "output.webp",
+    widthPx: 640,
+  });
+
+  assert.equal(args.at(-1), "output.webp");
+  assert.equal(args[args.indexOf("-vf") + 1], "scale='min(640,iw)':-2");
+  assert.equal(args[args.indexOf("-frames:v") + 1], "1");
+  assert.equal(args[args.indexOf("-c:v") + 1], "libwebp");
+  assert.ok(args.includes("-an"));
+  assert.ok(args.includes("-map_metadata"));
+});
+
+test("image probe output accepts webp and rejects other codecs", () => {
+  const webp = parseImageProbeOutput(
+    JSON.stringify({
+      streams: [
+        { codec_type: "video", codec_name: "webp", height: 400, width: 640 },
+      ],
+    })
+  );
+  assert.deepEqual(webp, { codec: "webp", heightPx: 400, widthPx: 640 });
+
+  assert.throws(
+    () =>
+      parseImageProbeOutput(
+        JSON.stringify({
+          streams: [
+            { codec_type: "video", codec_name: "mjpeg", height: 400, width: 640 },
+          ],
+        })
+      ),
+    DerivativeValidationError
+  );
+  assert.throws(
+    () => parseImageProbeOutput(JSON.stringify({ streams: [] })),
     DerivativeValidationError
   );
 });

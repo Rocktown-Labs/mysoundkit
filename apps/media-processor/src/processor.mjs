@@ -646,4 +646,99 @@ export const createDerivativeObject = ({
     };
   });
 
+export const buildImageRenderArguments = ({
+  inputPath,
+  outputPath,
+  widthPx,
+}) => [
+  "-hide_banner",
+  "-nostats",
+  "-y",
+  "-i",
+  inputPath,
+  // Never upscale: sources narrower than the target keep their native width.
+  // -2 keeps the aspect ratio on an even height, which is codec-safe.
+  "-vf",
+  `scale='min(${widthPx},iw)':-2`,
+  "-frames:v",
+  "1",
+  "-an",
+  "-map_metadata",
+  "-1",
+  "-c:v",
+  "libwebp",
+  "-quality",
+  "82",
+  outputPath,
+];
+
+export const parseImageProbeOutput = (rawOutput) => {
+  const probe = JSON.parse(rawOutput),
+    imageStream =
+      probe.streams?.find((stream) => stream.codec_type === "video") ?? null;
+  if (!imageStream) {
+    throw new DerivativeValidationError(
+      "The processed derivative does not contain an image stream."
+    );
+  }
+
+  const codec = String(imageStream.codec_name ?? "unknown");
+  if (codec !== "webp") {
+    throw new DerivativeValidationError(
+      `Image derivative was encoded as ${codec} instead of webp.`
+    );
+  }
+
+  return {
+    codec,
+    heightPx: finiteNumber(imageStream.height ?? 0, "image height"),
+    widthPx: finiteNumber(imageStream.width ?? 0, "image width"),
+  };
+};
+
+export const createImageDerivativeObject = ({
+  sourceObjectKey,
+  targetObjectKey,
+  widthPx,
+}) =>
+  withSourceFile(sourceObjectKey, async ({ sourcePath, workspace }) => {
+    const outputPath = join(workspace, `output.${widthPx}w.webp`);
+    await runCommand(
+      "ffmpeg",
+      buildImageRenderArguments({ inputPath: sourcePath, outputPath, widthPx })
+    );
+
+    const { stdout } = await runCommand("ffprobe", [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=codec_name,codec_type,height,width",
+      "-of",
+      "json",
+      outputPath,
+    ]);
+    const inspection = parseImageProbeOutput(stdout);
+    if (inspection.widthPx > widthPx) {
+      throw new DerivativeValidationError(
+        `Image derivative width ${inspection.widthPx}px exceeds the ${widthPx}px target.`
+      );
+    }
+
+    const sizeBytes = await uploadObject({
+      contentType: "image/webp",
+      objectKey: targetObjectKey,
+      sourcePath: outputPath,
+    });
+
+    return {
+      contentType: "image/webp",
+      heightPx: inspection.heightPx,
+      objectKey: targetObjectKey,
+      sizeBytes,
+      widthPx: inspection.widthPx,
+    };
+  });
+
 export { linearGainChain, nextNormalizationSettings };

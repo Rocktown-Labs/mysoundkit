@@ -15,7 +15,9 @@ import {
 } from "@soundkit/db/schema/app";
 import { and, eq, like } from "drizzle-orm";
 
+import type { MediaProcessorContainer } from "@/containers/media-processor";
 import { isAuthenticatedUser } from "@/lib/entitlements";
+import { parseImageDerivativeObjectKey } from "@/lib/image-derivative-keys";
 import { isPublicTrackArtwork } from "@/lib/media-access";
 import type { AppEnv } from "@/lib/types";
 import { logWarn } from "@/middleware/structured-logging";
@@ -45,8 +47,7 @@ export const objectKeyFromPath = (path: string) => {
 };
 
 const app = new OpenAPIHono<AppEnv>(),
-  escapeLikePattern = (value: string) =>
-    value.replace(/[%_\\]/gu, "\\$&"),
+  escapeLikePattern = (value: string) => value.replaceAll(/[%_\\]/gu, "\\$&"),
   isPrivateTrackAsset = (asset: typeof trackAssets.$inferSelect) =>
     asset.purpose === "master" ||
     asset.purpose === "stem" ||
@@ -107,13 +108,22 @@ const clearMissingMediaReferences = async (objectKey: string) => {
 };
 
 app.get("/*", async (c) => {
-  const objectKey = objectKeyFromPath(c.req.path),
+  const requestedObjectKey = objectKeyFromPath(c.req.path),
     bucket = c.env.MEDIA_BUCKET;
-  if (!(objectKey && bucket)) {
+  if (!(requestedObjectKey && bucket)) {
     return c.json({ message: "Media not found." }, 404);
   }
 
-  let authorized = objectKey.startsWith("profiles/");
+  // Derivative keys (`{originalKey}.{width}w.webp`) authorize against their
+  // base key, so every database lookup below runs against the original.
+  const derivative = parseImageDerivativeObjectKey(requestedObjectKey),
+    objectKey = derivative?.baseObjectKey ?? requestedObjectKey;
+
+  let authorized = objectKey.startsWith("profiles/"),
+    // Content-addressed R2 keys are never reused, so publicly authorized
+    // media (profile media, artwork on public tracks/projects) can be cached
+    // immutably. Owner-only access keeps the existing private headers.
+    publiclyCacheable = authorized;
   if (isDatabaseConfigured() && !authorized) {
     const db = createDb(),
       user = c.get("user"),
@@ -168,6 +178,10 @@ app.get("/*", async (c) => {
         Boolean(projectAccess) ||
         (!privateAsset &&
           (publicArtwork || publicStreaming || Boolean(openVerse)));
+      publiclyCacheable =
+        Boolean(publicArtwork) ||
+        Boolean(publicStreaming) ||
+        Boolean(openVerse);
     }
 
     if (!authorized && objectKey.startsWith("live-recordings/")) {
@@ -181,7 +195,10 @@ app.get("/*", async (c) => {
         .from(videos)
         .where(
           and(
-            like(videos.externalPlaybackUrl, `%${escapeLikePattern(objectKey)}`),
+            like(
+              videos.externalPlaybackUrl,
+              `%${escapeLikePattern(objectKey)}`
+            ),
             eq(videos.isPublic, true),
             eq(videos.status, "ready")
           )
@@ -235,8 +252,42 @@ app.get("/*", async (c) => {
   if (!authorized) {
     return c.json({ message: "Media access denied." }, 403);
   }
-  const object = await bucket.get(objectKey);
+  const object = await bucket.get(requestedObjectKey);
   if (!object) {
+    if (derivative) {
+      // First request for a derivative that has not been generated yet:
+      // schedule generation for the next request and redirect to the
+      // original so this request still renders.
+      if (c.env.MEDIA_PROCESSOR) {
+        // Lazy import keeps the container client out of the module graph for
+        // node-environment tests that exercise this route's pure helpers.
+        const { ensureImageDerivatives } =
+          await import("@/lib/image-derivatives");
+        c.executionCtx.waitUntil(
+          (async () => {
+            try {
+              await ensureImageDerivatives({
+                bucket,
+                objectKey,
+                processorBinding: c.env
+                  .MEDIA_PROCESSOR as unknown as DurableObjectNamespace<MediaProcessorContainer>,
+              });
+            } catch (error) {
+              logWarn({
+                error: error instanceof Error ? error.message : String(error),
+                event: "image_derivative_serve_generation_failed",
+                objectKey,
+              });
+            }
+          })()
+        );
+      }
+      const encodedBaseKey = objectKey
+        .split("/")
+        .map(encodeURIComponent)
+        .join("/");
+      return c.redirect(`/media/${encodedBaseKey}`, 302);
+    }
     c.executionCtx.waitUntil(clearMissingMediaReferences(objectKey));
     return c.json({ message: "Media not found." }, 404);
   }
@@ -244,7 +295,7 @@ app.get("/*", async (c) => {
   object.writeHttpMetadata(headers);
   headers.set(
     "Cache-Control",
-    objectKey.startsWith("profiles/")
+    publiclyCacheable || objectKey.startsWith("profiles/")
       ? "public, max-age=31536000, immutable"
       : "private, max-age=0"
   );

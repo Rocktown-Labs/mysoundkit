@@ -62,6 +62,22 @@ export const backfillTrackDurationsResponseSchema = z.object({
   scanned: z.number().int().nonnegative(),
 });
 
+export const backfillImageDerivativesBodySchema = z.object({
+  afterObjectKey: z.string().min(1).optional(),
+  limit: z.number().int().min(1).max(25).default(10),
+  objectKeys: z.array(z.string().min(1)).max(25).optional(),
+});
+
+export const backfillImageDerivativesResponseSchema = z.object({
+  failed: z.number().int().nonnegative(),
+  generated: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+  nextAfterObjectKey: z.string().nullable(),
+  objectKeys: z.array(z.string()),
+  processed: z.number().int().nonnegative(),
+  skippedExisting: z.number().int().nonnegative(),
+});
+
 export const trackDurationBackfillStatusQuerySchema = z.object({
   runId: z.string().min(1).optional(),
 });

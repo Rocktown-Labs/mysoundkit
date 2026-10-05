@@ -1,8 +1,11 @@
+"use client";
 /* eslint-disable one-var, sort-vars */
 import { Image } from "@unpic/react";
 import type { ImageProps } from "@unpic/react";
 import type { ComponentProps } from "react";
 import { useState } from "react";
+
+import { mediaImageSrcProps } from "@/lib/image-derivatives";
 
 type AppImageProps = Omit<ImageProps, "src" | "alt"> & {
   alt: string;
@@ -39,6 +42,25 @@ export function AppImage({
         className={className}
         onError={handleError}
         src={effectiveSrc}
+        {...(props as ComponentProps<"img">)}
+      />
+    );
+  }
+
+  // SoundKit media URLs serve `.{width}w.webp` derivatives: let the browser
+  // pick a sized candidate instead of downloading multi-MB originals.
+  const mediaSrcProps = mediaImageSrcProps(effectiveSrc);
+  if (mediaSrcProps) {
+    return (
+      <img
+        alt={alt}
+        className={className}
+        decoding="async"
+        loading={props.loading ?? "lazy"}
+        onError={handleError}
+        sizes={mediaSrcProps.sizes}
+        src={effectiveSrc}
+        srcSet={mediaSrcProps.srcSet}
         {...(props as ComponentProps<"img">)}
       />
     );
