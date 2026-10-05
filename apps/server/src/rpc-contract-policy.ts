@@ -16,6 +16,8 @@ export const rpcTransportExclusions = {
     "Signed binary track download.",
   "GET /v1/tracks/:trackId/assets/:assetId/source":
     "Binary source-media transport.",
+  "POST /v1/admin/media/backfill-image-derivatives":
+    "Admin image-derivative backfill operation.",
   "POST /v1/webhooks/battle-service": "Battle provider webhook.",
   "POST /v1/webhooks/cloudflare-stream": "Cloudflare Stream webhook.",
   "POST /v1/webhooks/mux": "Mux provider webhook.",

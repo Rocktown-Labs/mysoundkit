@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import {
   analyzeSourceObject,
   createDerivativeObject,
+  createImageDerivativeObject,
   DerivativeValidationError,
   inspectSourceObject,
 } from "./processor.mjs";
@@ -110,6 +111,25 @@ const PORT = Number(process.env.PORT ?? 8080),
             body.targetObjectKey,
             "targetObjectKey"
           ),
+        })
+      );
+      return;
+    }
+    if (url.pathname === "/v1/render-image") {
+      const widthPx = Number(body.widthPx);
+      if (!Number.isInteger(widthPx) || widthPx < 16 || widthPx > 4096) {
+        throw new Error("widthPx must be an integer between 16 and 4096.");
+      }
+      jsonResponse(
+        response,
+        200,
+        await createImageDerivativeObject({
+          sourceObjectKey,
+          targetObjectKey: requiredString(
+            body.targetObjectKey,
+            "targetObjectKey"
+          ),
+          widthPx,
         })
       );
       return;

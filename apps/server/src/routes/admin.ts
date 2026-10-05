@@ -11,6 +11,7 @@ import {
   openVerseAccessRequests,
   openVerseListings,
   openVerseSubmissions,
+  projectAssets,
   projects,
   trackAssets,
   tracks,
@@ -22,18 +23,22 @@ import { communities } from "@soundkit/db/schema/communities";
 import { platformFees, transactions } from "@soundkit/db/schema/payments";
 import {
   and,
+  asc,
   count,
   countDistinct,
   desc,
   eq,
+  gt,
   isNotNull,
   isNull,
+  or,
   sql,
 } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import type { MediaProcessorContainer } from "@/containers/media-processor";
 import { isAdminUser } from "@/lib/admin";
 import {
   AUDIO_SPIKE_MAX_PROBES,
@@ -51,6 +56,10 @@ import {
   mergePersistedGenreCatalog,
 } from "@/lib/genre-catalog";
 import {
+  ensureImageDerivatives,
+  isLikelyImageObjectKey,
+} from "@/lib/image-derivatives";
+import {
   enqueueTrackDurationBackfills,
   loadTrackDurationBackfillStatus,
 } from "@/lib/media-metadata";
@@ -61,6 +70,8 @@ import {
   adminOpenVerseListingSchema,
   adminOverviewSchema,
   adminRegionOverviewSchema,
+  backfillImageDerivativesBodySchema,
+  backfillImageDerivativesResponseSchema,
   backfillTrackDurationsBodySchema,
   backfillTrackDurationsResponseSchema,
   createGenreBodySchema,
@@ -896,6 +907,162 @@ app.openapi(
     const { runId } = c.req.valid("query");
     return c.json(
       await loadTrackDurationBackfillStatus(runId),
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/media/backfill-image-derivatives",
+    request: {
+      body: jsonContentRequired(
+        backfillImageDerivativesBodySchema,
+        "Image derivative backfill options"
+      ),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        backfillImageDerivativesResponseSchema,
+        "Image derivative backfill results"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Media processing bindings unavailable"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Admin required"
+      ),
+    },
+    tags: ["Admin"],
+  }),
+  async (c) => {
+    if (!isAdminUser(c.get("user"))) {
+      return c.json(
+        { message: "Admin access is required." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+    if (!(c.env.MEDIA_BUCKET && c.env.MEDIA_PROCESSOR)) {
+      return c.json(
+        { message: "Media processing bindings are unavailable." },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const body = c.req.valid("json"),
+      bucket = c.env.MEDIA_BUCKET,
+      processorBinding = c.env
+        .MEDIA_PROCESSOR as unknown as DurableObjectNamespace<MediaProcessorContainer>;
+
+    let candidates: string[] = [];
+    if (body.objectKeys?.length) {
+      candidates = [...new Set(body.objectKeys)];
+    } else if (isDatabaseConfigured()) {
+      // Auto mode walks artwork-bearing object keys in stable key order so
+      // callers can page through with `afterObjectKey` across reruns.
+      const db = createDb(),
+        after = body.afterObjectKey ?? "",
+        [profileAvatarRows, profileHeaderRows, trackRows, projectRows] =
+          await Promise.all([
+            db
+              .select({ objectKey: userProfiles.avatarObjectKey })
+              .from(userProfiles)
+              .where(
+                and(
+                  isNotNull(userProfiles.avatarObjectKey),
+                  gt(userProfiles.avatarObjectKey, after)
+                )
+              )
+              .orderBy(asc(userProfiles.avatarObjectKey))
+              .limit(body.limit),
+            db
+              .select({ objectKey: userProfiles.headerObjectKey })
+              .from(userProfiles)
+              .where(
+                and(
+                  isNotNull(userProfiles.headerObjectKey),
+                  gt(userProfiles.headerObjectKey, after)
+                )
+              )
+              .orderBy(asc(userProfiles.headerObjectKey))
+              .limit(body.limit),
+            db
+              .select({ objectKey: trackAssets.objectKey })
+              .from(trackAssets)
+              .where(
+                and(
+                  isNotNull(trackAssets.objectKey),
+                  gt(trackAssets.objectKey, after),
+                  or(
+                    eq(trackAssets.purpose, "artwork"),
+                    eq(trackAssets.assetKind, "cover_art")
+                  )
+                )
+              )
+              .orderBy(asc(trackAssets.objectKey))
+              .limit(body.limit),
+            db
+              .select({ objectKey: projectAssets.objectKey })
+              .from(projectAssets)
+              .where(
+                and(
+                  isNotNull(projectAssets.objectKey),
+                  gt(projectAssets.objectKey, after),
+                  eq(projectAssets.assetKind, "cover_art")
+                )
+              )
+              .orderBy(asc(projectAssets.objectKey))
+              .limit(body.limit),
+          ]);
+
+      candidates = [
+        ...new Set(
+          [
+            ...profileAvatarRows,
+            ...profileHeaderRows,
+            ...trackRows,
+            ...projectRows,
+          ]
+            .map((row) => row.objectKey)
+            .filter(
+              (objectKey): objectKey is string =>
+                objectKey !== null && isLikelyImageObjectKey(objectKey)
+            )
+        ),
+      ]
+        .toSorted()
+        .slice(0, body.limit);
+    }
+
+    let failed = 0,
+      generated = 0,
+      processed = 0,
+      skippedExisting = 0;
+    for (const objectKey of candidates) {
+      const result = await ensureImageDerivatives({
+        bucket,
+        objectKey,
+        processorBinding,
+      });
+      failed += result.failed;
+      generated += result.generated;
+      processed += 1;
+      skippedExisting += result.existing;
+    }
+
+    return c.json(
+      {
+        failed,
+        generated,
+        hasMore: candidates.length >= body.limit,
+        nextAfterObjectKey: candidates.at(-1) ?? null,
+        objectKeys: candidates,
+        processed,
+        skippedExisting,
+      },
       HttpStatusCodes.OK
     );
   }

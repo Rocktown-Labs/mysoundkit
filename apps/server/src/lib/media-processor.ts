@@ -35,12 +35,20 @@ const technicalMediaSchema = z.object({
     sizeBytes: z.number().int().positive(),
     technical: technicalMediaSchema,
     truePeakDbtp: z.number().finite(),
+  }),
+  imageDerivativeSchema = z.object({
+    contentType: z.literal("image/webp"),
+    heightPx: z.number().int().positive(),
+    objectKey: z.string().min(1),
+    sizeBytes: z.number().int().positive(),
+    widthPx: z.number().int().positive(),
   });
 
 export type TechnicalMedia = z.infer<typeof technicalMediaSchema>;
 export type SourceInspection = z.infer<typeof sourceInspectionSchema>;
 export type LoudnessAnalysis = z.infer<typeof loudnessAnalysisSchema>;
 export type GeneratedMedia = z.infer<typeof generatedMediaSchema>;
+export type ImageDerivative = z.infer<typeof imageDerivativeSchema>;
 
 export interface MediaClip {
   endMs: number;
@@ -54,7 +62,8 @@ export interface MediaClip {
 const CONTAINER_BOOT_TIMEOUT_MS = 60_000,
   INSPECT_TIMEOUT_MS = 120_000,
   LOUDNESS_ANALYSIS_TIMEOUT_MS = 600_000,
-  RENDER_TIMEOUT_MS = 1_200_000;
+  RENDER_TIMEOUT_MS = 1_200_000,
+  IMAGE_RENDER_TIMEOUT_MS = 180_000;
 
 const describeTimeout = (timeoutMs: number) =>
   `${Math.round(timeoutMs / 1000)}s`;
@@ -87,12 +96,21 @@ export interface CreateDerivativeInput {
   targetObjectKey: string;
 }
 
+export interface CreateImageDerivativeInput {
+  sourceObjectKey: string;
+  targetObjectKey: string;
+  widthPx: number;
+}
+
 export interface MediaProcessor {
   analyzeLoudness: (input: {
     clip?: MediaClip;
     sourceObjectKey: string;
   }) => Promise<LoudnessAnalysis>;
   createDerivative: (input: CreateDerivativeInput) => Promise<GeneratedMedia>;
+  createImageDerivative: (
+    input: CreateImageDerivativeInput
+  ) => Promise<ImageDerivative>;
   inspectSource: (input: {
     sourceObjectKey: string;
   }) => Promise<SourceInspection>;
@@ -218,6 +236,34 @@ export class ContainerMediaProcessor implements MediaProcessor {
     const generated = await readProcessorResponse(
       response,
       generatedMediaSchema
+    );
+    if (generated.objectKey !== targetObjectKey) {
+      throw new Error("Media processor returned an unexpected object key.");
+    }
+    return generated;
+  }
+
+  public async createImageDerivative({
+    sourceObjectKey,
+    targetObjectKey,
+    widthPx,
+  }: CreateImageDerivativeInput): Promise<ImageDerivative> {
+    await this.container.configureJob({
+      sourceObjectKey,
+      targetObjectKeys: [targetObjectKey],
+    });
+    const response = await fetchFromContainer(
+      this.container,
+      new Request("http://media-processor/v1/render-image", {
+        body: JSON.stringify({ sourceObjectKey, targetObjectKey, widthPx }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+      CONTAINER_BOOT_TIMEOUT_MS + IMAGE_RENDER_TIMEOUT_MS
+    );
+    const generated = await readProcessorResponse(
+      response,
+      imageDerivativeSchema
     );
     if (generated.objectKey !== targetObjectKey) {
       throw new Error("Media processor returned an unexpected object key.");
