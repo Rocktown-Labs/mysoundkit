@@ -269,6 +269,9 @@ app.get("/*", async (c) => {
               await ensureImageDerivatives({
                 bucket,
                 objectKey,
+                // The requested width is the one this visitor is waiting
+                // on, so render it before the rest of the set.
+                priorityWidthPx: derivative.widthPx,
                 processorBinding: c.env
                   .MEDIA_PROCESSOR as unknown as DurableObjectNamespace<MediaProcessorContainer>,
               });
