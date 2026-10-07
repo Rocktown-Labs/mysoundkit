@@ -1,6 +1,5 @@
 "use client";
 
-import { usePostHog } from "@posthog/react";
 import {
   createContext,
   useCallback,
@@ -12,6 +11,7 @@ import {
 import type { ReactNode } from "react";
 
 import { toast } from "@/hooks/use-toast";
+import { capture } from "@/lib/analytics";
 import { API_V1_URL } from "@/lib/api";
 
 type ProductType = "track" | "project";
@@ -198,8 +198,7 @@ const EMPTY_CART: Cart = {
   };
 
 export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
-  const posthog = usePostHog(),
-    [cart, setCart] = useState<Cart>(EMPTY_CART),
+  const [cart, setCart] = useState<Cart>(EMPTY_CART),
     [isApiCartActive, setIsApiCartActive] = useState(false),
     [isCartOpen, setIsCartOpen] = useState(false);
 
@@ -274,7 +273,7 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
             setCart(apiCart);
             setIsApiCartActive(true);
             setIsCartOpen(true);
-            posthog.capture("cart_item_added", {
+            capture("cart_item_added", {
               artist_name: input.artistName,
               price_cents: input.priceCents,
               product_type: input.productType,
@@ -312,7 +311,7 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
           description: `"${input.title}" added to your cart.`,
           title: "Added to Cart",
         });
-        posthog.capture("cart_item_added", {
+        capture("cart_item_added", {
           artist_name: input.artistName,
           price_cents: input.priceCents,
           product_type: input.productType,
@@ -320,7 +319,7 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
           title: input.title,
         });
       },
-      [cart.items, isApiCartActive, posthog, setLocalItems]
+      [isApiCartActive, setLocalItems]
     ),
     updateQuantity = useCallback(
       async (cartItemId: string, quantity: number) => {
@@ -347,7 +346,7 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
           )
         );
       },
-      [cart.items, isApiCartActive, setLocalItems]
+      [isApiCartActive, setLocalItems]
     ),
     removeItem = useCallback(
       async (cartItemId: string) => {
@@ -366,7 +365,7 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
         const removed = cart.items.find((item) => item.id === cartItemId);
         setLocalItems(cart.items.filter((item) => item.id !== cartItemId));
         if (removed) {
-          posthog.capture("cart_item_removed", {
+          capture("cart_item_removed", {
             price_cents: removed.priceCents,
             product_type: removed.productType,
             purchase_mode: removed.purchaseMode,
@@ -374,7 +373,7 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
           });
         }
       },
-      [cart.items, isApiCartActive, posthog, setLocalItems]
+      [isApiCartActive, setLocalItems]
     ),
     clearCart = useCallback(async () => {
       if (isApiCartActive) {
@@ -387,9 +386,9 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
         }
       }
 
-      posthog.capture("cart_cleared", { item_count: cart.items.length });
+      capture("cart_cleared", { item_count: cart.items.length });
       setLocalItems([]);
-    }, [cart.items.length, isApiCartActive, posthog, setLocalItems]),
+    }, [isApiCartActive, setLocalItems]),
     value = useMemo(
       () => ({
         addItem,
@@ -402,7 +401,6 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
       }),
       [
         addItem,
-        cart,
         clearCart,
         isCartOpen,
         removeItem,

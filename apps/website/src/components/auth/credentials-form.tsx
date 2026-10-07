@@ -1,4 +1,3 @@
-import { usePostHog } from "@posthog/react";
 import { Link, useRouter } from "@tanstack/react-router";
 import type { FormEvent } from "react";
 import { useState } from "react";
@@ -20,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { capture, captureAnalyticsException, identify } from "@/lib/analytics";
 import { API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { completeBattleShareReferral } from "@/lib/battle-share";
@@ -36,8 +36,7 @@ export function CredentialsForm({
   mode?: "login" | "signup";
   redirect?: string;
 }) {
-  const posthog = usePostHog(),
-    router = useRouter(),
+  const router = useRouter(),
     isSignup = mode === "signup",
     label = accountType ? accountLabel(accountType) : "SoundKit",
     [email, setEmail] = useState(""),
@@ -88,13 +87,10 @@ export function CredentialsForm({
       }
 
       setIsSubmitting(true);
-      posthog.capture(
-        isSignup ? "signup_method_selected" : "login_method_selected",
-        {
-          account_type: accountType,
-          auth_method: "email",
-        }
-      );
+      capture(isSignup ? "signup_method_selected" : "login_method_selected", {
+        account_type: accountType,
+        auth_method: "email",
+      });
       try {
         const fetchOptions = turnstileToken
             ? {
@@ -129,7 +125,7 @@ export function CredentialsForm({
           if (accountType === "fan") {
             await completeBattleShareReferral();
           }
-          posthog.capture("account_created", {
+          capture("account_created", {
             account_type: accountType,
             auth_method: "email",
             marketing_opt_in: marketingOptIn,
@@ -141,14 +137,14 @@ export function CredentialsForm({
         }
 
         if (result.data?.user?.id) {
-          posthog.identify(result.data.user.id, { account_type: accountType });
+          identify(result.data.user.id, { account_type: accountType });
         }
-        posthog.capture("user_signed_in", { method: "email" });
+        capture("user_signed_in", { method: "email" });
         await router.navigate({ to: redirect });
       } catch (error) {
         setTurnstileToken("");
         setTurnstileResetKey((current) => current + 1);
-        posthog.captureException(error);
+        captureAnalyticsException(error);
         setErrorMessage("Unable to reach SoundKit. Please try again.");
       } finally {
         setIsSubmitting(false);

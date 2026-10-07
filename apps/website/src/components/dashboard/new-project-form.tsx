@@ -3,7 +3,6 @@
 /* oxlint-disable one-var, prefer-destructuring, react/incompatible-library, react/no-array-index-key, sort-vars, unicorn/consistent-function-scoping */
 
 import { useUploadFiles } from "@better-upload/client";
-import { usePostHog } from "@posthog/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import {
@@ -28,6 +27,8 @@ import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import type { FieldErrors } from "react-hook-form";
 import * as z from "zod";
+
+import { capture, captureAnalyticsException } from "@/lib/analytics";
 
 const SUPPORTED_GENRES = [
   "Afrobeats",
@@ -349,8 +350,7 @@ export function NewProjectForm({
   initialProject,
   projectId,
 }: NewProjectFormProps = {}) {
-  const posthog = usePostHog(),
-    queryClient = useQueryClient(),
+  const queryClient = useQueryClient(),
     router = useRouter(),
     genresQuery = useGenresQuery(),
     genreRows = Array.isArray(genresQuery.data)
@@ -601,7 +601,7 @@ export function NewProjectForm({
             title: values.name,
           });
 
-          posthog.capture("project_updated", {
+          capture("project_updated", {
             project_id: projectId,
             project_type: values.type,
           });
@@ -616,7 +616,7 @@ export function NewProjectForm({
             to: "/dashboard/projects/$id",
           });
         } catch (error) {
-          posthog.captureException(error);
+          captureAnalyticsException(error);
           toast({
             description: "Failed to update project. Please try again.",
             title: "Error",
@@ -838,7 +838,7 @@ export function NewProjectForm({
           queryKey: soundkitQueryKeys.projects,
         });
 
-        posthog.capture("project_created", {
+        capture("project_created", {
           collaborator_count: values.collaborators.length,
           existing_track_count: values.selectedExistingTracks.length,
           has_release_date: Boolean(releaseState.releaseDate),
@@ -868,7 +868,7 @@ export function NewProjectForm({
         allowNavigation();
         router.navigate({ to: "/dashboard/projects" });
       } catch (error) {
-        posthog.captureException(error);
+        captureAnalyticsException(error);
         toast({
           description: "Failed to create project. Please try again.",
           title: "Error",
@@ -927,7 +927,7 @@ export function NewProjectForm({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
       onError: (uploadError) => {
-        posthog.captureException(uploadError);
+        captureAnalyticsException(uploadError);
       },
       route: "media",
     });
@@ -947,7 +947,7 @@ export function NewProjectForm({
       api: TRACK_SOURCE_UPLOAD_URL,
       credentials: "include",
       onError: (uploadError) => {
-        posthog.captureException(uploadError);
+        captureAnalyticsException(uploadError);
       },
       route: "track-source",
     }),

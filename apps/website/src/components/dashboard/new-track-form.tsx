@@ -3,7 +3,6 @@
 /* oxlint-disable react/incompatible-library */
 
 import { useUploadFiles } from "@better-upload/client";
-import { usePostHog } from "@posthog/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
 import {
@@ -70,6 +69,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFormDraftGuard } from "@/hooks/use-form-draft-guard";
 import { toast } from "@/hooks/use-toast";
+import { capture, captureAnalyticsException } from "@/lib/analytics";
 import {
   apiClient,
   API_V1_URL,
@@ -306,8 +306,7 @@ export function NewTrackForm({
   initialTrack,
   trackId,
 }: NewTrackFormProps = {}) {
-  const posthog = usePostHog(),
-    queryClient = useQueryClient(),
+  const queryClient = useQueryClient(),
     router = useRouter(),
     genresQuery = useGenresQuery(),
     genreRows = Array.isArray(genresQuery.data)
@@ -610,7 +609,7 @@ export function NewTrackForm({
       api: TRACK_SOURCE_UPLOAD_URL,
       credentials: "include",
       onError: (uploadError) => {
-        posthog.captureException(uploadError);
+        captureAnalyticsException(uploadError);
       },
       route: "track-source",
     }),
@@ -623,7 +622,7 @@ export function NewTrackForm({
       api: TRACK_SOURCE_UPLOAD_URL,
       credentials: "include",
       onError: (uploadError) => {
-        posthog.captureException(uploadError);
+        captureAnalyticsException(uploadError);
       },
       route: "track-source",
     }),
@@ -636,7 +635,7 @@ export function NewTrackForm({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
       onError: (uploadError) => {
-        posthog.captureException(uploadError);
+        captureAnalyticsException(uploadError);
       },
       route: "media",
     }),
@@ -748,7 +747,7 @@ export function NewTrackForm({
         });
         router.navigate({ to: "/dashboard/tracks" });
       } catch (error) {
-        posthog.captureException(error);
+        captureAnalyticsException(error);
         toast({
           description:
             error instanceof Error ? error.message : "Failed to save draft.",
@@ -1071,14 +1070,14 @@ export function NewTrackForm({
         clearTrackMediaState();
         allowNavigation();
         pendingMasterTrackRef.current = null;
-        posthog.capture("track_upload_settled", {
+        capture("track_upload_settled", {
           genre: values.genre,
           isPublic: values.status === "ready",
           status: values.status,
           trackId: trackIdToUse,
         });
       } catch (error) {
-        posthog.captureException(error);
+        captureAnalyticsException(error);
         toast({
           description:
             error instanceof Error
@@ -1264,7 +1263,7 @@ export function NewTrackForm({
         form.reset(values);
         initialValuesRef.current = values;
       } catch (error) {
-        posthog.captureException(error);
+        captureAnalyticsException(error);
         toast({
           description:
             error instanceof Error ? error.message : "Failed to save changes.",

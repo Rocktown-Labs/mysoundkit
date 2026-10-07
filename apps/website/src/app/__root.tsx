@@ -1,5 +1,3 @@
-import { PostHogProvider } from "@posthog/react";
-import * as Sentry from "@sentry/tanstackstart-react";
 import {
   HeadContent,
   Link,
@@ -12,6 +10,7 @@ import { useEffect } from "react";
 import type { ReactNode } from "react";
 
 import { AppProviders } from "@/components/app-providers";
+import { reportError } from "@/lib/sentry-client";
 import {
   SITE_DESCRIPTION,
   SITE_ICON_URL,
@@ -26,42 +25,21 @@ import appCss from "./globals.css?url";
 export type RouterAppContext = Record<string, never>;
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
-  const posthogProjectToken = import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN,
-    app = (
-      <AppProviders>
-        {children}
-        <Scripts />
-      </AppProviders>
-    );
+  const app = (
+    <AppProviders>
+      {children}
+      <Scripts />
+    </AppProviders>
+  );
 
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
-        <meta
-          content="width=device-width, initial-scale=1"
-          name="viewport"
-        />
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
         <HeadContent />
       </head>
       <body className="font-sans bg-background text-foreground antialiased">
-        {posthogProjectToken ? (
-          <PostHogProvider
-            apiKey={posthogProjectToken}
-            options={{
-              api_host: "/ingest",
-              capture_exceptions: true,
-              debug: import.meta.env.DEV,
-              defaults: "2025-05-24",
-              ui_host:
-                import.meta.env.VITE_PUBLIC_POSTHOG_HOST ||
-                "https://us.posthog.com",
-            }}
-          >
-            {app}
-          </PostHogProvider>
-        ) : (
-          app
-        )}
+        {app}
       </body>
     </html>
   );
@@ -115,7 +93,7 @@ function GlobalErrorFallback({
   const router = useRouter();
 
   useEffect(() => {
-    Sentry.captureException(error);
+    reportError(error);
   }, [error]);
 
   return (

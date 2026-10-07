@@ -1,4 +1,3 @@
-import { usePostHog } from "@posthog/react";
 import {
   createFileRoute,
   Link,
@@ -17,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { capture } from "@/lib/analytics";
 import { signupRedirectForUser } from "@/lib/onboarding-flow";
 import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
@@ -26,7 +26,6 @@ export const Route = createFileRoute("/signup")({
 
 function SignupPage() {
   const router = useRouter(),
-    posthog = usePostHog(),
     { data: me } = useMeQuery(),
     pathname = useRouterState({
       select: (state) => state.location.pathname,
@@ -73,7 +72,7 @@ function SignupPage() {
         <div className="grid md:grid-cols-2 gap-6">
           <Link
             onClick={() =>
-              posthog.capture("signup_type_selected", {
+              capture("signup_type_selected", {
                 account_type: "artist",
               })
             }
@@ -125,7 +124,7 @@ function SignupPage() {
 
           <Link
             onClick={() =>
-              posthog.capture("signup_type_selected", { account_type: "fan" })
+              capture("signup_type_selected", { account_type: "fan" })
             }
             reloadDocument
             to="/signup/fan/credentials"
