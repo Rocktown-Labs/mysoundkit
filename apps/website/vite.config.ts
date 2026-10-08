@@ -38,13 +38,6 @@ export default defineConfig(({ mode }) => {
         router: {
           routesDirectory: "app",
         },
-        server: {
-          build: {
-            // Inline the route CSS into the SSR HTML: globals.css was a
-            // render-blocking <link> costing ~420ms on mobile profiles.
-            inlineCss: true,
-          },
-        },
         srcDirectory: "src",
       }),
       sentryTanstackStart({
