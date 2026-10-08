@@ -1,4 +1,3 @@
-import { usePostHog } from "@posthog/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import {
   Check,
@@ -14,32 +13,31 @@ import { useEffect, useMemo, useState } from "react";
 import { PlanSelectionCard } from "@/components/billing/plan-selection-card";
 import { ArtistAvatarUpload } from "@/components/onboarding/artist-avatar-upload";
 import type { AvatarUploadStatus } from "@/components/onboarding/artist-avatar-upload";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { LocationField } from "@/components/onboarding/location-field";
-import {
-  OnboardingExitDialog,
-  type OnboardingExitAction,
-} from "@/components/onboarding/onboarding-exit-dialog";
 import { MediaLayoutSelector } from "@/components/onboarding/media-layout-selector";
+import { OnboardingExitDialog } from "@/components/onboarding/onboarding-exit-dialog";
+import type { OnboardingExitAction } from "@/components/onboarding/onboarding-exit-dialog";
 import {
   RequiredFieldLabel,
   RequiredMark,
 } from "@/components/onboarding/required-field-label";
 import { UsernameField } from "@/components/onboarding/username-field";
 import { SoundKitBrand } from "@/components/soundkit-brand";
-import { authClient } from "@/lib/auth-client";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { capture } from "@/lib/analytics";
 import { API_V1_URL } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
 import {
   ARTIST_ONBOARDING_DRAFT_KEY,
   parseArtistOnboardingDraft,
@@ -73,7 +71,6 @@ type Eligibility = keyof typeof creatorCopy;
 
 function ArtistOnboardingPage() {
   const router = useRouter(),
-    posthog = usePostHog(),
     genresQuery = useGenresQuery(),
     plansQuery = useBillingPlansQuery(),
     [step, setStep] = useState(1),
@@ -139,7 +136,7 @@ function ArtistOnboardingPage() {
       });
     },
     goToStep = (nextStep: number) => {
-      posthog.capture("onboarding_step_completed", {
+      capture("onboarding_step_completed", {
         account_type: "artist",
         step,
       });
@@ -178,7 +175,7 @@ function ArtistOnboardingPage() {
           return;
         }
         setEligibility(value);
-        posthog.capture("creator_eligibility_declared", {
+        capture("creator_eligibility_declared", {
           account_type: value === "major" ? "fan" : "artist",
           eligibility: value,
         });
@@ -199,7 +196,7 @@ function ArtistOnboardingPage() {
         if (!response.ok) {
           throw new Error("We could not save your onboarding progress.");
         }
-        posthog.capture("onboarding_exited", {
+        capture("onboarding_exited", {
           account_type: "artist",
           exit_action: "finish_later",
           step,
@@ -234,7 +231,7 @@ function ArtistOnboardingPage() {
         if (result.error) {
           throw new Error(result.error.message ?? "Sign out failed.");
         }
-        posthog.capture("onboarding_exited", {
+        capture("onboarding_exited", {
           account_type: "artist",
           exit_action: "log_out",
           step,
@@ -315,13 +312,13 @@ function ArtistOnboardingPage() {
           return;
         }
         window.localStorage.removeItem(ARTIST_ONBOARDING_DRAFT_KEY);
-        posthog.capture("onboarding_completed", {
+        capture("onboarding_completed", {
           account_type: "artist",
           selected_plan: selectedPlanCode,
         });
         if (payload?.checkoutUrl) {
           setFinalizationStatus("checkout");
-          posthog.capture("premium_checkout_started", {
+          capture("premium_checkout_started", {
             account_type: "artist",
             selected_plan: selectedPlanCode,
           });
@@ -341,8 +338,8 @@ function ArtistOnboardingPage() {
     if (hasExited) {
       return;
     }
-    posthog.capture("onboarding_step_viewed", { account_type: "artist", step });
-  }, [hasExited, posthog, step]);
+    capture("onboarding_step_viewed", { account_type: "artist", step });
+  }, [hasExited, step]);
 
   useEffect(() => {
     const restoreProgress = async () => {
@@ -374,7 +371,7 @@ function ArtistOnboardingPage() {
           credentials: "include",
         });
       if (!response.ok) {
-        posthog.capture("onboarding_started", { account_type: "artist" });
+        capture("onboarding_started", { account_type: "artist" });
         return;
       }
       const state = (await response.json().catch(() => null)) as {
@@ -384,12 +381,12 @@ function ArtistOnboardingPage() {
       } | null;
       if (state?.currentStep && state.currentStep > 1 && !hasLocalDraft) {
         setStep(Math.min(state.currentStep, totalSteps));
-        posthog.capture("onboarding_resumed", {
+        capture("onboarding_resumed", {
           account_type: "artist",
           step: state.currentStep,
         });
       } else {
-        posthog.capture("onboarding_started", { account_type: "artist" });
+        capture("onboarding_started", { account_type: "artist" });
       }
       if (
         state?.creatorEligibility === "independent" ||
@@ -406,7 +403,7 @@ function ArtistOnboardingPage() {
       }
     };
     void restoreProgress();
-  }, [posthog]);
+  }, []);
 
   useEffect(() => {
     if (!isDraftRestored || hasExited) {
@@ -459,518 +456,521 @@ function ArtistOnboardingPage() {
         className="min-h-screen bg-background px-4 py-8 sm:py-12"
         data-onboarding-ready={isDraftRestored}
       >
-      <div className="mx-auto w-full max-w-3xl">
-        <div className="mb-8 text-center">
-          <SoundKitBrand variant="wordmark" wordmarkClassName="h-11" />
-          <div className="mt-6 flex items-center justify-between text-sm text-muted-foreground">
-            <h1>Set up your Artist profile</h1>
-            <button
-              className="text-primary hover:underline"
-              onClick={() => setIsExitDialogOpen(true)}
-              type="button"
-            >
-              Exit setup
-            </button>
+        <div className="mx-auto w-full max-w-3xl">
+          <div className="mb-8 text-center">
+            <SoundKitBrand variant="wordmark" wordmarkClassName="h-11" />
+            <div className="mt-6 flex items-center justify-between text-sm text-muted-foreground">
+              <h1>Set up your Artist profile</h1>
+              <button
+                className="text-primary hover:underline"
+                onClick={() => setIsExitDialogOpen(true)}
+                type="button"
+              >
+                Exit setup
+              </button>
+            </div>
+            <p className="mt-3 text-muted-foreground">
+              Step {step} of {totalSteps}
+            </p>
+            <Progress className="mt-4 h-2" value={(step / totalSteps) * 100} />
           </div>
-          <p className="mt-3 text-muted-foreground">
-            Step {step} of {totalSteps}
-          </p>
-          <Progress className="mt-4 h-2" value={(step / totalSteps) * 100} />
-        </div>
 
-        <Card className="border-border/60 bg-card/80 shadow-xl shadow-black/10">
-          <CardContent className="p-6 md:p-10">
-            {step === 1 ? (
-              <StepFrame
-                icon={<SlidersHorizontal />}
-                required
-                title="What Do You Create?"
-                subtitle="Choose one or both. Your dashboard can support both roles."
-              >
-                <div
-                  aria-label="Creator roles"
-                  aria-required="true"
-                  className="grid grid-cols-2 gap-3"
-                  role="radiogroup"
+          <Card className="border-border/60 bg-card/80 shadow-xl shadow-black/10">
+            <CardContent className="p-6 md:p-10">
+              {step === 1 ? (
+                <StepFrame
+                  icon={<SlidersHorizontal />}
+                  required
+                  title="What Do You Create?"
+                  subtitle="Choose one or both. Your dashboard can support both roles."
                 >
-                  <ChoiceCard
-                    selected={roles.includes("musician")}
-                    onClick={() => toggleRole("musician")}
-                    title="Musician"
-                    description="Release songs, albums, EPs, videos, and battle tracks."
-                    icon={<Music2 />}
-                  />
-                  <ChoiceCard
-                    selected={roles.includes("producer")}
-                    onClick={() => toggleRole("producer")}
-                    title="Producer"
-                    description="Sell or stream beats, license instrumentals, and collaborate."
-                    icon={<SlidersHorizontal />}
-                  />
-                </div>
-                <div className="mt-6">{nextButton(2)}</div>
-              </StepFrame>
-            ) : null}
-
-            {step === 2 ? (
-              <StepFrame
-                icon={<User />}
-                required
-                title="Can you publish independently on SoundKit?"
-                subtitle="SoundKit Artist accounts are currently for independent creators who control the rights needed to upload and monetize their music."
-              >
-                <div
-                  aria-label="Creator eligibility"
-                  aria-required="true"
-                  className="grid grid-cols-2 gap-3"
-                  role="radiogroup"
-                >
-                  <ChoiceCard
-                    selected={eligibility === "independent"}
-                    onClick={() => void declareEligibility("independent")}
-                    title={creatorCopy.independent.title}
-                    description={creatorCopy.independent.description}
-                  />
-                  <ChoiceCard
-                    selected={eligibility === "major"}
-                    onClick={() => void declareEligibility("major")}
-                    title={creatorCopy.major.title}
-                    description={creatorCopy.major.description}
-                  />
-                </div>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Independent-label and distribution deals are okay if you
-                  retain the rights or permissions required to publish here.
-                </p>
-                {eligibility === "major" ? (
-                  <div className="mt-5 rounded-lg border border-primary/40 bg-primary/10 p-4">
-                    <p className="font-medium">
-                      SoundKit isn&apos;t onboarding major-label-controlled
-                      artist catalogs right now.
-                    </p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      You can still use SoundKit as a fan to listen, follow
-                      artists, vote, build your library, and participate in the
-                      community.
-                    </p>
-                    <Button
-                      className="mt-4 h-11 w-full"
-                      onClick={() => {
-                        window.localStorage.removeItem(
-                          ARTIST_ONBOARDING_DRAFT_KEY
-                        );
-                        posthog.capture("onboarding_exited", {
-                          account_type: "artist",
-                          eligibility: "major_label_affiliated",
-                          step,
-                        });
-                        void router.navigate({ to: "/signup/fan/onboarding" });
-                      }}
-                    >
-                      Continue as Fan
-                    </Button>
+                  <div
+                    aria-label="Creator roles"
+                    aria-required="true"
+                    className="grid grid-cols-2 gap-3"
+                    role="radiogroup"
+                  >
+                    <ChoiceCard
+                      selected={roles.includes("musician")}
+                      onClick={() => toggleRole("musician")}
+                      title="Musician"
+                      description="Release songs, albums, EPs, videos, and battle tracks."
+                      icon={<Music2 />}
+                    />
+                    <ChoiceCard
+                      selected={roles.includes("producer")}
+                      onClick={() => toggleRole("producer")}
+                      title="Producer"
+                      description="Sell or stream beats, license instrumentals, and collaborate."
+                      icon={<SlidersHorizontal />}
+                    />
                   </div>
-                ) : (
+                  <div className="mt-6">{nextButton(2)}</div>
+                </StepFrame>
+              ) : null}
+
+              {step === 2 ? (
+                <StepFrame
+                  icon={<User />}
+                  required
+                  title="Can you publish independently on SoundKit?"
+                  subtitle="SoundKit Artist accounts are currently for independent creators who control the rights needed to upload and monetize their music."
+                >
+                  <div
+                    aria-label="Creator eligibility"
+                    aria-required="true"
+                    className="grid grid-cols-2 gap-3"
+                    role="radiogroup"
+                  >
+                    <ChoiceCard
+                      selected={eligibility === "independent"}
+                      onClick={() => void declareEligibility("independent")}
+                      title={creatorCopy.independent.title}
+                      description={creatorCopy.independent.description}
+                    />
+                    <ChoiceCard
+                      selected={eligibility === "major"}
+                      onClick={() => void declareEligibility("major")}
+                      title={creatorCopy.major.title}
+                      description={creatorCopy.major.description}
+                    />
+                  </div>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Independent-label and distribution deals are okay if you
+                    retain the rights or permissions required to publish here.
+                  </p>
+                  {eligibility === "major" ? (
+                    <div className="mt-5 rounded-lg border border-primary/40 bg-primary/10 p-4">
+                      <p className="font-medium">
+                        SoundKit isn&apos;t onboarding major-label-controlled
+                        artist catalogs right now.
+                      </p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        You can still use SoundKit as a fan to listen, follow
+                        artists, vote, build your library, and participate in
+                        the community.
+                      </p>
+                      <Button
+                        className="mt-4 h-11 w-full"
+                        onClick={() => {
+                          window.localStorage.removeItem(
+                            ARTIST_ONBOARDING_DRAFT_KEY
+                          );
+                          capture("onboarding_exited", {
+                            account_type: "artist",
+                            eligibility: "major_label_affiliated",
+                            step,
+                          });
+                          void router.navigate({
+                            to: "/signup/fan/onboarding",
+                          });
+                        }}
+                      >
+                        Continue as Fan
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="mt-6 flex gap-3">
+                      <Button
+                        className="h-12 flex-1"
+                        onClick={() => setStep(1)}
+                        size="lg"
+                        variant="outline"
+                      >
+                        Back
+                      </Button>
+                      <div className="flex-1">
+                        {nextButton(3, eligibility !== "independent")}
+                      </div>
+                    </div>
+                  )}
+                </StepFrame>
+              ) : null}
+
+              {step === 3 ? (
+                <StepFrame
+                  icon={<User />}
+                  title="Choose Your Username"
+                  subtitle="This is how fans will find you."
+                >
+                  <UsernameField
+                    onChange={setUsername}
+                    onStatusChange={(status) =>
+                      setUsernameAvailable(status === "available")
+                    }
+                    value={username}
+                  />
                   <div className="mt-6 flex gap-3">
                     <Button
                       className="h-12 flex-1"
-                      onClick={() => setStep(1)}
+                      onClick={() => setStep(2)}
                       size="lg"
                       variant="outline"
                     >
                       Back
                     </Button>
                     <div className="flex-1">
-                      {nextButton(3, eligibility !== "independent")}
+                      {nextButton(4, !usernameAvailable)}
                     </div>
                   </div>
-                )}
-              </StepFrame>
-            ) : null}
+                </StepFrame>
+              ) : null}
 
-            {step === 3 ? (
-              <StepFrame
-                icon={<User />}
-                title="Choose Your Username"
-                subtitle="This is how fans will find you."
-              >
-                <UsernameField
-                  onChange={setUsername}
-                  onStatusChange={(status) =>
-                    setUsernameAvailable(status === "available")
-                  }
-                  value={username}
-                />
-                <div className="mt-6 flex gap-3">
-                  <Button
-                    className="h-12 flex-1"
-                    onClick={() => setStep(2)}
-                    size="lg"
-                    variant="outline"
-                  >
-                    Back
-                  </Button>
-                  <div className="flex-1">
-                    {nextButton(4, !usernameAvailable)}
-                  </div>
-                </div>
-              </StepFrame>
-            ) : null}
-
-            {step === 4 ? (
-              <StepFrame
-                icon={<User />}
-                title="Add a Profile Picture"
-                subtitle="Optional. You can skip this and add one later."
-              >
-                <ArtistAvatarUpload
-                  avatarUrl={avatarUrl}
-                  onStatusChange={setAvatarStatus}
-                  onUploaded={({ objectKey, url }) => {
-                    setAvatarObjectKey(objectKey);
-                    setAvatarUrl(url);
-                  }}
-                />
-                <div className="mt-6 flex gap-3">
-                  <Button
-                    className="h-12 flex-1"
-                    onClick={() => setStep(3)}
-                    size="lg"
-                    variant="outline"
-                  >
-                    Back
-                  </Button>
-                  <div className="flex-1">
-                    {nextButton(
-                      5,
-                      avatarStatus === "uploading" || avatarStatus === "failed"
-                    )}
-                  </div>
-                </div>
-              </StepFrame>
-            ) : null}
-
-            {step === 5 ? (
-              <StepFrame
-                icon={<MapPin />}
-                title="Where Do You Make Music?"
-                subtitle="Help fans discover local talent."
-              >
-                <LocationField
-                  city={city}
-                  country={country}
-                  onChange={({
-                    city: nextCity,
-                    country: nextCountry,
-                    state: nextState,
-                  }) => {
-                    setCity(nextCity);
-                    setCountry(nextCountry);
-                    setStateValue(nextState);
-                  }}
-                  state={stateValue}
-                />
-                <div className="mt-6 flex gap-3">
-                  <Button
-                    className="h-12 flex-1"
-                    onClick={() => setStep(4)}
-                    size="lg"
-                    variant="outline"
-                  >
-                    Back
-                  </Button>
-                  <div className="flex-1">
-                    {nextButton(6, !(city && country && stateValue))}
-                  </div>
-                </div>
-              </StepFrame>
-            ) : null}
-
-            {step === 6 ? (
-              <StepFrame
-                icon={<Music2 />}
-                title="What's Your Primary Genre?"
-                subtitle="Help fans find your style."
-              >
-                <div className="space-y-2">
-                  <RequiredFieldLabel htmlFor="primary-genre">
-                    Primary genre
-                  </RequiredFieldLabel>
-                  <select
-                    className="h-12 w-full rounded-md border border-border bg-background px-3"
-                    id="primary-genre"
-                    required
-                    onChange={(event) => setPrimaryGenre(event.target.value)}
-                    value={primaryGenre}
-                  >
-                    <option value="">Select genre</option>
-                    {genresQuery.data?.map((genre) => (
-                      <option key={genre.slug} value={genre.slug}>
-                        {genre.name}
-                      </option>
-                    ))}
-                  </select>
-                  {genresQuery.isLoading ? (
-                    <p className="text-xs text-muted-foreground">
-                      Loading genres…
-                    </p>
-                  ) : null}
-                  {genresQuery.error ? (
-                    <p className="text-xs text-destructive">
-                      Genres are unavailable right now. Try again.
-                    </p>
-                  ) : null}
-                </div>
-                <div className="mt-6 flex gap-3">
-                  <Button
-                    className="h-12 flex-1"
-                    onClick={() => setStep(5)}
-                    size="lg"
-                    variant="outline"
-                  >
-                    Back
-                  </Button>
-                  <div className="flex-1">
-                    {nextButton(7, !primaryGenre || genresQuery.isLoading)}
-                  </div>
-                </div>
-              </StepFrame>
-            ) : null}
-
-            {step === 7 ? (
-              <StepFrame
-                icon={<LinkIcon />}
-                title="Connect Your Music"
-                subtitle="Link your streaming profiles and add optional profile details."
-              >
-                <div className="space-y-4">
-                  <LinkInput
-                    id="spotify"
-                    label="Spotify Artist URL"
-                    onChange={setSpotifyUrl}
-                    placeholder="@artist or https://open.spotify.com/artist/..."
-                    value={spotifyUrl}
-                  />
-                  <LinkInput
-                    id="apple-music"
-                    label="Apple Music URL"
-                    onChange={setAppleMusicUrl}
-                    placeholder="@artist or https://music.apple.com/artist/..."
-                    value={appleMusicUrl}
-                  />
-                  <LinkInput
-                    id="youtube"
-                    label="YouTube Channel URL"
-                    onChange={setYoutubeUrl}
-                    placeholder="@channel or https://youtube.com/@..."
-                    value={youtubeUrl}
-                  />
-                </div>
-
-                <Accordion
-                  className="rounded-lg border border-border/60 px-4"
-                  collapsible
-                  type="single"
+              {step === 4 ? (
+                <StepFrame
+                  icon={<User />}
+                  title="Add a Profile Picture"
+                  subtitle="Optional. You can skip this and add one later."
                 >
-                  <AccordionItem className="border-0" value="profile-details">
-                    <AccordionTrigger className="hover:no-underline">
-                      <span>
-                        <span className="block text-left">
-                          Optional profile details
-                        </span>
-                        <span className="mt-1 block text-left text-xs font-normal text-muted-foreground">
-                          Social links, stage name, and PRO information
-                        </span>
-                      </span>
-                    </AccordionTrigger>
-                    <AccordionContent className="space-y-4 pb-5">
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <LinkInput
-                          id="instagram"
-                          label="Instagram"
-                          onChange={setInstagramHandle}
-                          placeholder="@yourhandle"
-                          value={instagramHandle}
-                        />
-                        <LinkInput
-                          id="tiktok"
-                          label="TikTok"
-                          onChange={setTiktokHandle}
-                          placeholder="@yourhandle"
-                          value={tiktokHandle}
-                        />
-                        <LinkInput
-                          id="twitter"
-                          label="X (Twitter)"
-                          onChange={setTwitterHandle}
-                          placeholder="@yourhandle"
-                          value={twitterHandle}
-                        />
-                        <LinkInput
-                          id="songwriter"
-                          label="Stage / songwriter name"
-                          onChange={setSongwriterLegalName}
-                          placeholder="Optional public name"
-                          value={songwriterLegalName}
-                        />
-                        <LinkInput
-                          id="pro"
-                          label="ASCAP / BMI"
-                          onChange={setProAffiliation}
-                          placeholder="Optional"
-                          value={proAffiliation}
-                        />
-                        <LinkInput
-                          id="pro-member"
-                          label="PRO number"
-                          onChange={setProMemberId}
-                          placeholder="Optional"
-                          value={proMemberId}
-                        />
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-
-                <div className="mt-6 flex gap-3">
-                  <Button
-                    className="h-12 flex-1"
-                    onClick={() => setStep(6)}
-                    size="lg"
-                    variant="outline"
-                  >
-                    Back
-                  </Button>
-                  <div className="flex-1">{nextButton(8)}</div>
-                </div>
-              </StepFrame>
-            ) : null}
-
-            {step === 8 ? (
-              <StepFrame
-                icon={<Check />}
-                title="Finish Your Artist Profile"
-                subtitle="Choose your layout, select Free or Premium, and confirm your rights."
-              >
-                <div className="space-y-5">
-                  <MediaLayoutSelector
-                    onChange={setMediaLayout}
-                    value={mediaLayout}
+                  <ArtistAvatarUpload
+                    avatarUrl={avatarUrl}
+                    onStatusChange={setAvatarStatus}
+                    onUploaded={({ objectKey, url }) => {
+                      setAvatarObjectKey(objectKey);
+                      setAvatarUrl(url);
+                    }}
                   />
-
-                  <div className="space-y-3">
-                    <div>
-                      <h3 className="font-semibold">
-                        Choose your plan <RequiredMark />
-                      </h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Start free and upgrade whenever you need more creator
-                        tools.
-                      </p>
-                    </div>
-                    <div
-                      aria-label="Choose your plan"
-                      aria-required="true"
-                      className="grid grid-cols-2 gap-3"
-                      role="radiogroup"
+                  <div className="mt-6 flex gap-3">
+                    <Button
+                      className="h-12 flex-1"
+                      onClick={() => setStep(3)}
+                      size="lg"
+                      variant="outline"
                     >
-                      {plans.map((plan) => (
-                        <PlanSelectionCard
-                          description={
-                            plan.code === "artist_free"
-                              ? "The essentials to publish and grow."
-                              : "Everything in Free, plus live creator tools and rewards."
-                          }
-                          features={
-                            plan.code === "artist_free"
-                              ? [
-                                  "1 artist account included",
-                                  "Public artist profile and releases",
-                                  "Upload music and build your audience",
-                                ]
-                              : [
-                                  "Everything in Free",
-                                  "5 accounts/seats included",
-                                  "Host live streams and artist battles",
-                                  "Creator Rewards eligibility",
-                                ]
-                          }
-                          key={plan.code}
-                          onSelect={() => setSelectedPlanCode(plan.code)}
-                          plan={{ ...plan, maxSeats: plan.maxSeats ?? 1 }}
-                          selected={selectedPlanCode === plan.code}
-                          showRecommendedBadge={false}
-                        />
-                      ))}
+                      Back
+                    </Button>
+                    <div className="flex-1">
+                      {nextButton(
+                        5,
+                        avatarStatus === "uploading" ||
+                          avatarStatus === "failed"
+                      )}
                     </div>
                   </div>
+                </StepFrame>
+              ) : null}
 
-                  <div className="rounded-lg border border-border/60 p-4">
-                    <label className="flex items-start gap-3 text-sm">
-                      <Checkbox
-                        aria-required="true"
-                        checked={rightsAttested}
-                        onCheckedChange={(checked) =>
-                          setRightsAttested(checked === true)
-                        }
-                        required
-                      />
-                      <span>
-                        <span className="block font-medium">
-                          Rights confirmation <RequiredMark />
-                        </span>
-                        <span className="mt-1 block">
-                          I confirm that I own or have the permissions needed to
-                          upload, distribute, stream, sell, and monetize the
-                          content I publish on SoundKit.{" "}
-                          <a
-                            className="text-primary hover:underline"
-                            href="/terms"
-                          >
-                            Read the Terms
-                          </a>
-                          .
-                        </span>
-                      </span>
-                    </label>
+              {step === 5 ? (
+                <StepFrame
+                  icon={<MapPin />}
+                  title="Where Do You Make Music?"
+                  subtitle="Help fans discover local talent."
+                >
+                  <LocationField
+                    city={city}
+                    country={country}
+                    onChange={({
+                      city: nextCity,
+                      country: nextCountry,
+                      state: nextState,
+                    }) => {
+                      setCity(nextCity);
+                      setCountry(nextCountry);
+                      setStateValue(nextState);
+                    }}
+                    state={stateValue}
+                  />
+                  <div className="mt-6 flex gap-3">
+                    <Button
+                      className="h-12 flex-1"
+                      onClick={() => setStep(4)}
+                      size="lg"
+                      variant="outline"
+                    >
+                      Back
+                    </Button>
+                    <div className="flex-1">
+                      {nextButton(6, !(city && country && stateValue))}
+                    </div>
                   </div>
-                </div>
-                {errorMessage ? (
-                  <p className="mt-5 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                    {errorMessage}
-                  </p>
-                ) : null}
-                <div className="mt-6 flex gap-3">
-                  <Button
-                    className="h-12 flex-1"
-                    onClick={() => setStep(7)}
-                    size="lg"
-                    variant="outline"
+                </StepFrame>
+              ) : null}
+
+              {step === 6 ? (
+                <StepFrame
+                  icon={<Music2 />}
+                  title="What's Your Primary Genre?"
+                  subtitle="Help fans find your style."
+                >
+                  <div className="space-y-2">
+                    <RequiredFieldLabel htmlFor="primary-genre">
+                      Primary genre
+                    </RequiredFieldLabel>
+                    <select
+                      className="h-12 w-full rounded-md border border-border bg-background px-3"
+                      id="primary-genre"
+                      required
+                      onChange={(event) => setPrimaryGenre(event.target.value)}
+                      value={primaryGenre}
+                    >
+                      <option value="">Select genre</option>
+                      {genresQuery.data?.map((genre) => (
+                        <option key={genre.slug} value={genre.slug}>
+                          {genre.name}
+                        </option>
+                      ))}
+                    </select>
+                    {genresQuery.isLoading ? (
+                      <p className="text-xs text-muted-foreground">
+                        Loading genres…
+                      </p>
+                    ) : null}
+                    {genresQuery.error ? (
+                      <p className="text-xs text-destructive">
+                        Genres are unavailable right now. Try again.
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="mt-6 flex gap-3">
+                    <Button
+                      className="h-12 flex-1"
+                      onClick={() => setStep(5)}
+                      size="lg"
+                      variant="outline"
+                    >
+                      Back
+                    </Button>
+                    <div className="flex-1">
+                      {nextButton(7, !primaryGenre || genresQuery.isLoading)}
+                    </div>
+                  </div>
+                </StepFrame>
+              ) : null}
+
+              {step === 7 ? (
+                <StepFrame
+                  icon={<LinkIcon />}
+                  title="Connect Your Music"
+                  subtitle="Link your streaming profiles and add optional profile details."
+                >
+                  <div className="space-y-4">
+                    <LinkInput
+                      id="spotify"
+                      label="Spotify Artist URL"
+                      onChange={setSpotifyUrl}
+                      placeholder="@artist or https://open.spotify.com/artist/..."
+                      value={spotifyUrl}
+                    />
+                    <LinkInput
+                      id="apple-music"
+                      label="Apple Music URL"
+                      onChange={setAppleMusicUrl}
+                      placeholder="@artist or https://music.apple.com/artist/..."
+                      value={appleMusicUrl}
+                    />
+                    <LinkInput
+                      id="youtube"
+                      label="YouTube Channel URL"
+                      onChange={setYoutubeUrl}
+                      placeholder="@channel or https://youtube.com/@..."
+                      value={youtubeUrl}
+                    />
+                  </div>
+
+                  <Accordion
+                    className="rounded-lg border border-border/60 px-4"
+                    collapsible
+                    type="single"
                   >
-                    Back
-                  </Button>
-                  <Button
-                    className="h-12 flex-1"
-                    disabled={isSubmitting || !rightsAttested}
-                    onClick={() => void completeOnboarding()}
-                    size="lg"
-                  >
-                    <Check className="mr-2 size-4" />
-                    {isSubmitting ? "Saving your profile…" : "Complete setup"}
-                  </Button>
-                </div>
-                {isSubmitting ? (
-                  <p className="mt-4 text-center text-xs text-muted-foreground">
-                    {finalizationStatus === "checkout"
-                      ? "Starting Premium checkout…"
-                      : "Saving your profile, preparing your workspace, and finishing profile media…"}
-                  </p>
-                ) : null}
-              </StepFrame>
-            ) : null}
-          </CardContent>
-        </Card>
-      </div>
+                    <AccordionItem className="border-0" value="profile-details">
+                      <AccordionTrigger className="hover:no-underline">
+                        <span>
+                          <span className="block text-left">
+                            Optional profile details
+                          </span>
+                          <span className="mt-1 block text-left text-xs font-normal text-muted-foreground">
+                            Social links, stage name, and PRO information
+                          </span>
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="space-y-4 pb-5">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <LinkInput
+                            id="instagram"
+                            label="Instagram"
+                            onChange={setInstagramHandle}
+                            placeholder="@yourhandle"
+                            value={instagramHandle}
+                          />
+                          <LinkInput
+                            id="tiktok"
+                            label="TikTok"
+                            onChange={setTiktokHandle}
+                            placeholder="@yourhandle"
+                            value={tiktokHandle}
+                          />
+                          <LinkInput
+                            id="twitter"
+                            label="X (Twitter)"
+                            onChange={setTwitterHandle}
+                            placeholder="@yourhandle"
+                            value={twitterHandle}
+                          />
+                          <LinkInput
+                            id="songwriter"
+                            label="Stage / songwriter name"
+                            onChange={setSongwriterLegalName}
+                            placeholder="Optional public name"
+                            value={songwriterLegalName}
+                          />
+                          <LinkInput
+                            id="pro"
+                            label="ASCAP / BMI"
+                            onChange={setProAffiliation}
+                            placeholder="Optional"
+                            value={proAffiliation}
+                          />
+                          <LinkInput
+                            id="pro-member"
+                            label="PRO number"
+                            onChange={setProMemberId}
+                            placeholder="Optional"
+                            value={proMemberId}
+                          />
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+
+                  <div className="mt-6 flex gap-3">
+                    <Button
+                      className="h-12 flex-1"
+                      onClick={() => setStep(6)}
+                      size="lg"
+                      variant="outline"
+                    >
+                      Back
+                    </Button>
+                    <div className="flex-1">{nextButton(8)}</div>
+                  </div>
+                </StepFrame>
+              ) : null}
+
+              {step === 8 ? (
+                <StepFrame
+                  icon={<Check />}
+                  title="Finish Your Artist Profile"
+                  subtitle="Choose your layout, select Free or Premium, and confirm your rights."
+                >
+                  <div className="space-y-5">
+                    <MediaLayoutSelector
+                      onChange={setMediaLayout}
+                      value={mediaLayout}
+                    />
+
+                    <div className="space-y-3">
+                      <div>
+                        <h3 className="font-semibold">
+                          Choose your plan <RequiredMark />
+                        </h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Start free and upgrade whenever you need more creator
+                          tools.
+                        </p>
+                      </div>
+                      <div
+                        aria-label="Choose your plan"
+                        aria-required="true"
+                        className="grid grid-cols-2 gap-3"
+                        role="radiogroup"
+                      >
+                        {plans.map((plan) => (
+                          <PlanSelectionCard
+                            description={
+                              plan.code === "artist_free"
+                                ? "The essentials to publish and grow."
+                                : "Everything in Free, plus live creator tools and rewards."
+                            }
+                            features={
+                              plan.code === "artist_free"
+                                ? [
+                                    "1 artist account included",
+                                    "Public artist profile and releases",
+                                    "Upload music and build your audience",
+                                  ]
+                                : [
+                                    "Everything in Free",
+                                    "5 accounts/seats included",
+                                    "Host live streams and artist battles",
+                                    "Creator Rewards eligibility",
+                                  ]
+                            }
+                            key={plan.code}
+                            onSelect={() => setSelectedPlanCode(plan.code)}
+                            plan={{ ...plan, maxSeats: plan.maxSeats ?? 1 }}
+                            selected={selectedPlanCode === plan.code}
+                            showRecommendedBadge={false}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border/60 p-4">
+                      <label className="flex items-start gap-3 text-sm">
+                        <Checkbox
+                          aria-required="true"
+                          checked={rightsAttested}
+                          onCheckedChange={(checked) =>
+                            setRightsAttested(checked === true)
+                          }
+                          required
+                        />
+                        <span>
+                          <span className="block font-medium">
+                            Rights confirmation <RequiredMark />
+                          </span>
+                          <span className="mt-1 block">
+                            I confirm that I own or have the permissions needed
+                            to upload, distribute, stream, sell, and monetize
+                            the content I publish on SoundKit.{" "}
+                            <a
+                              className="text-primary hover:underline"
+                              href="/terms"
+                            >
+                              Read the Terms
+                            </a>
+                            .
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                  {errorMessage ? (
+                    <p className="mt-5 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                      {errorMessage}
+                    </p>
+                  ) : null}
+                  <div className="mt-6 flex gap-3">
+                    <Button
+                      className="h-12 flex-1"
+                      onClick={() => setStep(7)}
+                      size="lg"
+                      variant="outline"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      className="h-12 flex-1"
+                      disabled={isSubmitting || !rightsAttested}
+                      onClick={() => void completeOnboarding()}
+                      size="lg"
+                    >
+                      <Check className="mr-2 size-4" />
+                      {isSubmitting ? "Saving your profile…" : "Complete setup"}
+                    </Button>
+                  </div>
+                  {isSubmitting ? (
+                    <p className="mt-4 text-center text-xs text-muted-foreground">
+                      {finalizationStatus === "checkout"
+                        ? "Starting Premium checkout…"
+                        : "Saving your profile, preparing your workspace, and finishing profile media…"}
+                    </p>
+                  ) : null}
+                </StepFrame>
+              ) : null}
+            </CardContent>
+          </Card>
+        </div>
       </main>
       <OnboardingExitDialog
         onFinishLater={() => void finishLater()}

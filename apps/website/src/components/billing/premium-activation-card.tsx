@@ -1,4 +1,3 @@
-import { usePostHog } from "@posthog/react";
 import { useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -9,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { capture } from "@/lib/analytics";
 import { useMeEntitlementsQuery } from "@/lib/soundkit-api-hooks";
 
 const MAX_ACTIVATION_ATTEMPTS = 8,
@@ -19,8 +19,7 @@ export function PremiumActivationCard({
 }: {
   accountType: "artist" | "fan";
 }) {
-  const posthog = usePostHog(),
-    entitlements = useMeEntitlementsQuery(),
+  const entitlements = useMeEntitlementsQuery(),
     { refetch } = entitlements,
     [attempt, setAttempt] = useState(0),
     isPremium = entitlements.data?.isPremium === true,
@@ -30,11 +29,11 @@ export function PremiumActivationCard({
   useEffect(() => {
     if (isPremium && !completionCaptured.current) {
       completionCaptured.current = true;
-      posthog.capture("premium_checkout_completed", {
+      capture("premium_checkout_completed", {
         account_type: accountType,
       });
     }
-  }, [accountType, isPremium, posthog]);
+  }, [accountType]);
 
   useEffect(() => {
     if (isSettled) {
@@ -50,7 +49,7 @@ export function PremiumActivationCard({
     );
 
     return () => window.clearTimeout(timeout);
-  }, [attempt, isSettled, refetch]);
+  }, [attempt, isSettled]);
 
   if (isPremium) {
     return (

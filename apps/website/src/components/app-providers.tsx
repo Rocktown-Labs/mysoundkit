@@ -2,13 +2,20 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { lazy, Suspense, useMemo, useSyncExternalStore } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 
 import { AudioPlayerProvider } from "@/components/audio-player-provider";
 import { CartProvider } from "@/components/cart-provider";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { loadAnalytics } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { DataDbProvider } from "@/lib/data-db";
 import { MessagingDbProvider } from "@/lib/message-db";
@@ -87,6 +94,11 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
       () => createScopedQueryClient(clientScopeKey),
       [clientScopeKey]
     );
+
+  // Analytics loads on idle after first paint (see lib/analytics).
+  useEffect(() => {
+    loadAnalytics();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

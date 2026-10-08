@@ -9,6 +9,7 @@ import type { InferRequestType, InferResponseType } from "hono/client";
 import { useEffect } from "react";
 
 import { API_V1_URL, SoundKitApiError, apiClient, rpcJson } from "./api";
+import { authClient } from "./auth-client";
 import { liveRoomKey } from "./live-room";
 
 const meGet = apiClient.v1.me.index.$get,
@@ -879,11 +880,18 @@ export const useTrackDurationBackfillStatusQuery = (
     },
   });
 
-export const useMeQuery = () =>
-  useQuery({
+// The /v1/me routes respond 401 for anonymous visitors and the browser logs
+// every failed response to the console, so these queries only run once a
+// session exists (better-auth's useSession resolves anonymously as null).
+export const useMeQuery = () => {
+  const { data: session } = authClient.useSession();
+
+  return useQuery({
+    enabled: Boolean(session?.user),
     queryFn: async () => rpcJson(await meGet()),
     queryKey: soundkitQueryKeys.me,
   });
+};
 
 export const useUpdateMeProfileMutation = () => {
   const queryClient = useQueryClient();
@@ -944,12 +952,16 @@ export const useUpdateNotificationSettingsMutation = () => {
   });
 };
 
-export const useMeEntitlementsQuery = () =>
-  useQuery({
+export const useMeEntitlementsQuery = () => {
+  const { data: session } = authClient.useSession();
+
+  return useQuery({
+    enabled: Boolean(session?.user),
     queryFn: async (): Promise<EntitlementSummary> =>
       rpcJson(await meEntitlementsGet()),
     queryKey: soundkitQueryKeys.meEntitlements,
   });
+};
 
 export const useBillingPlansQuery = () =>
   useQuery<BillingPlan[]>({

@@ -1,8 +1,7 @@
-import * as Sentry from "@sentry/tanstackstart-react";
-import { env } from "@soundkit/env/web";
 import { createRouter } from "@tanstack/react-router";
 
 import type { RouterAppContext } from "./app/__root";
+import { loadSentry } from "./lib/sentry-client";
 import { routeTree } from "./routeTree.gen";
 
 export function getRouter() {
@@ -13,15 +12,10 @@ export function getRouter() {
     scrollRestoration: true,
   });
 
-  if (!(router as { isServer?: boolean }).isServer && env.VITE_SENTRY_DSN) {
-    Sentry.init({
-      dsn: env.VITE_SENTRY_DSN,
-      enableLogs: true,
-      environment: env.VITE_SENTRY_ENVIRONMENT,
-      integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],
-      sendDefaultPii: true,
-      tracesSampleRate: 1,
-    });
+  if (!(router as { isServer?: boolean }).isServer) {
+    // The Sentry SDK imports on idle (see lib/sentry-client) so its ~110KB
+    // stays out of the entry chunk.
+    loadSentry(router);
   }
 
   return router;

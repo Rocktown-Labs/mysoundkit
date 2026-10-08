@@ -1,4 +1,3 @@
-import { usePostHog } from "@posthog/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Check, MapPin, Music2, User } from "lucide-react";
 import type { ReactNode } from "react";
@@ -6,19 +5,18 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PlanSelectionCard } from "@/components/billing/plan-selection-card";
 import { LocationField } from "@/components/onboarding/location-field";
-import {
-  OnboardingExitDialog,
-  type OnboardingExitAction,
-} from "@/components/onboarding/onboarding-exit-dialog";
 import { MediaLayoutSelector } from "@/components/onboarding/media-layout-selector";
+import { OnboardingExitDialog } from "@/components/onboarding/onboarding-exit-dialog";
+import type { OnboardingExitAction } from "@/components/onboarding/onboarding-exit-dialog";
 import { RequiredMark } from "@/components/onboarding/required-field-label";
 import { UsernameField } from "@/components/onboarding/username-field";
 import { SoundKitBrand } from "@/components/soundkit-brand";
-import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { capture } from "@/lib/analytics";
 import { API_V1_URL } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
 import {
   clearBattleShareReferral,
   readBattleShareReferral,
@@ -36,7 +34,6 @@ export const Route = createFileRoute("/signup/fan/onboarding")({
 
 function FanOnboardingPage() {
   const router = useRouter(),
-    posthog = usePostHog(),
     genresQuery = useGenresQuery(),
     plansQuery = useBillingPlansQuery(),
     [step, setStep] = useState(1),
@@ -81,7 +78,7 @@ function FanOnboardingPage() {
       });
     },
     goToStep = (nextStep: number) => {
-      posthog.capture("onboarding_step_completed", {
+      capture("onboarding_step_completed", {
         account_type: "fan",
         step,
       });
@@ -106,7 +103,7 @@ function FanOnboardingPage() {
         if (!response.ok) {
           throw new Error("We could not save your onboarding progress.");
         }
-        posthog.capture("onboarding_exited", {
+        capture("onboarding_exited", {
           account_type: "fan",
           exit_action: "finish_later",
           step,
@@ -140,7 +137,7 @@ function FanOnboardingPage() {
         if (result.error) {
           throw new Error(result.error.message ?? "Sign out failed.");
         }
-        posthog.capture("onboarding_exited", {
+        capture("onboarding_exited", {
           account_type: "fan",
           exit_action: "log_out",
           step,
@@ -205,14 +202,14 @@ function FanOnboardingPage() {
         }
         window.localStorage.removeItem(FAN_ONBOARDING_DRAFT_KEY);
         clearBattleShareReferral();
-        posthog.capture("onboarding_completed", {
+        capture("onboarding_completed", {
           account_type: "fan",
           genre_count: selectedGenres.length,
           selected_plan: selectedPlanCode,
         });
         if (payload?.checkoutUrl) {
           setFinalizationStatus("checkout");
-          posthog.capture("premium_checkout_started", {
+          capture("premium_checkout_started", {
             account_type: "fan",
             selected_plan: selectedPlanCode,
           });
@@ -229,8 +226,8 @@ function FanOnboardingPage() {
     };
 
   useEffect(() => {
-    posthog.capture("onboarding_step_viewed", { account_type: "fan", step });
-  }, [posthog, step]);
+    capture("onboarding_step_viewed", { account_type: "fan", step });
+  }, [step]);
 
   useEffect(() => {
     const rawDraft = window.localStorage.getItem(FAN_ONBOARDING_DRAFT_KEY);
@@ -279,7 +276,7 @@ function FanOnboardingPage() {
         credentials: "include",
       });
       if (!response.ok) {
-        posthog.capture("onboarding_started", { account_type: "fan" });
+        capture("onboarding_started", { account_type: "fan" });
         return;
       }
       const state = (await response.json().catch(() => null)) as {
@@ -288,19 +285,19 @@ function FanOnboardingPage() {
       } | null;
       if (state?.currentStep && state.currentStep > 1) {
         setStep(Math.min(state.currentStep, totalSteps));
-        posthog.capture("onboarding_resumed", {
+        capture("onboarding_resumed", {
           account_type: "fan",
           step: state.currentStep,
         });
       } else {
-        posthog.capture("onboarding_started", { account_type: "fan" });
+        capture("onboarding_started", { account_type: "fan" });
       }
       if (state?.selectedPlanCode) {
         setSelectedPlanCode(state.selectedPlanCode);
       }
     };
     void restoreProgress();
-  }, [posthog]);
+  }, []);
 
   useEffect(() => {
     if (!isDraftRestored || hasExited) {
@@ -341,234 +338,234 @@ function FanOnboardingPage() {
   return (
     <>
       <main className="min-h-screen bg-background px-4 py-8 sm:py-12">
-      <div className="mx-auto w-full max-w-3xl">
-        <div className="mb-8 text-center">
-          <SoundKitBrand variant="wordmark" wordmarkClassName="h-11" />
-          <div className="mt-6 flex items-center justify-between text-sm text-muted-foreground">
-            <span>Personalize your SoundKit</span>
-            <button
-              className="text-primary hover:underline"
-              onClick={() => setIsExitDialogOpen(true)}
-              type="button"
-            >
-              Exit setup
-            </button>
+        <div className="mx-auto w-full max-w-3xl">
+          <div className="mb-8 text-center">
+            <SoundKitBrand variant="wordmark" wordmarkClassName="h-11" />
+            <div className="mt-6 flex items-center justify-between text-sm text-muted-foreground">
+              <span>Personalize your SoundKit</span>
+              <button
+                className="text-primary hover:underline"
+                onClick={() => setIsExitDialogOpen(true)}
+                type="button"
+              >
+                Exit setup
+              </button>
+            </div>
+            <p className="mt-3 text-muted-foreground">
+              Step {step} of {totalSteps}
+            </p>
+            <Progress className="mt-4 h-2" value={(step / totalSteps) * 100} />
           </div>
-          <p className="mt-3 text-muted-foreground">
-            Step {step} of {totalSteps}
-          </p>
-          <Progress className="mt-4 h-2" value={(step / totalSteps) * 100} />
-        </div>
-        <Card className="border-border/60 bg-card/80 shadow-xl shadow-black/10">
-          <CardContent className="p-6 md:p-10">
-            {step === 1 ? (
-              <StepFrame
-                icon={<User />}
-                title="Choose Your Username"
-                subtitle="This is how you will appear to other people."
-              >
-                <UsernameField
-                  onChange={setUsername}
-                  onStatusChange={(status) =>
-                    setUsernameAvailable(status === "available")
-                  }
-                  value={username}
-                />
-                <div className="mt-6">
-                  <Button
-                    className="h-12 w-full"
-                    disabled={!usernameAvailable}
-                    onClick={() => goToStep(2)}
-                    size="lg"
-                  >
-                    Continue
-                  </Button>
-                </div>
-              </StepFrame>
-            ) : null}
-            {step === 2 ? (
-              <StepFrame
-                icon={<Music2 />}
-                required
-                title="What Do You Like to Listen To?"
-                subtitle="Choose at least three genres to personalize discovery."
-              >
-                <div
-                  aria-label="Favorite genres"
-                  className="grid grid-cols-2 gap-3"
-                  role="group"
+          <Card className="border-border/60 bg-card/80 shadow-xl shadow-black/10">
+            <CardContent className="p-6 md:p-10">
+              {step === 1 ? (
+                <StepFrame
+                  icon={<User />}
+                  title="Choose Your Username"
+                  subtitle="This is how you will appear to other people."
                 >
-                  {genresQuery.data?.map((genre) => (
-                    <button
-                      aria-checked={selectedGenres.includes(genre.slug)}
-                      className={`min-h-16 rounded-lg border-2 p-4 text-left transition ${selectedGenres.includes(genre.slug) ? "border-primary bg-primary/10" : "border-border bg-background/50 hover:border-primary/60"}`}
-                      key={genre.slug}
-                      onClick={() => toggleGenre(genre.slug)}
-                      role="checkbox"
-                      type="button"
-                    >
-                      <span className="font-medium">{genre.name}</span>
-                    </button>
-                  ))}
-                </div>
-                {genresQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground">
-                    Loading genres…
-                  </p>
-                ) : null}
-                {genresQuery.error ? (
-                  <p className="text-sm text-destructive">
-                    Genres are unavailable right now. Try again.
-                  </p>
-                ) : null}
-                <p className="text-xs text-muted-foreground">
-                  {selectedGenres.length} selected · minimum 3
-                </p>
-                <div className="mt-6 flex gap-3">
-                  <Button
-                    className="h-12 flex-1"
-                    onClick={goBack}
-                    size="lg"
-                    variant="outline"
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    className="h-12 flex-1"
-                    disabled={selectedGenres.length < 3}
-                    onClick={() => goToStep(3)}
-                    size="lg"
-                  >
-                    Continue
-                  </Button>
-                </div>
-              </StepFrame>
-            ) : null}
-            {step === 3 ? (
-              <StepFrame
-                icon={<MapPin />}
-                title="Where Are You Located?"
-                subtitle="Discover local artists and events with a city and region or country."
-              >
-                <LocationField
-                  city={city}
-                  country={country}
-                  onChange={({
-                    city: nextCity,
-                    country: nextCountry,
-                    state: nextState,
-                  }) => {
-                    setCity(nextCity);
-                    setCountry(nextCountry);
-                    setStateValue(nextState);
-                  }}
-                  state={stateValue}
-                />
-                <div className="mt-6 flex gap-3">
-                  <Button
-                    className="h-12 flex-1"
-                    onClick={goBack}
-                    size="lg"
-                    variant="outline"
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    className="h-12 flex-1"
-                    disabled={!(city && country && stateValue)}
-                    onClick={() => goToStep(4)}
-                    size="lg"
-                  >
-                    Continue
-                  </Button>
-                </div>
-              </StepFrame>
-            ) : null}
-            {step === 4 ? (
-              <StepFrame
-                icon={<Check />}
-                title="Choose Your Experience"
-                subtitle="Pick a library layout and choose Free or Premium. You can upgrade later."
-              >
-                <div className="space-y-5">
-                  <MediaLayoutSelector
-                    onChange={setMediaLayout}
-                    value={mediaLayout}
+                  <UsernameField
+                    onChange={setUsername}
+                    onStatusChange={(status) =>
+                      setUsernameAvailable(status === "available")
+                    }
+                    value={username}
                   />
-                  <div className="space-y-3">
-                    <div>
-                      <h3 className="font-semibold">
-                        Choose your plan <RequiredMark />
-                      </h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Start free and upgrade whenever you want more ways to
-                        listen and participate.
-                      </p>
-                    </div>
-                    <div
-                      aria-label="Choose your plan"
-                      aria-required="true"
-                      className="grid grid-cols-2 gap-3"
-                      role="radiogroup"
+                  <div className="mt-6">
+                    <Button
+                      className="h-12 w-full"
+                      disabled={!usernameAvailable}
+                      onClick={() => goToStep(2)}
+                      size="lg"
                     >
-                      {plans.map((plan) => (
-                        <PlanSelectionCard
-                          description={
-                            plan.code === "fan_free"
-                              ? "Discover public releases with the essentials."
-                              : "Everything in Free, plus premium listening and live access."
-                          }
-                          features={
-                            plan.code === "fan_free"
-                              ? [
-                                  "1 listener account included",
-                                  "Discover public releases",
-                                  "Save music and build your library",
-                                ]
-                              : [
-                                  "Everything in Free",
-                                  "5 accounts/seats included",
-                                  "Premium listening and live access",
-                                  "Vote in battle rounds",
-                                ]
-                          }
-                          key={plan.code}
-                          onSelect={() => setSelectedPlanCode(plan.code)}
-                          plan={{ ...plan, maxSeats: plan.maxSeats ?? 1 }}
-                          selected={selectedPlanCode === plan.code}
-                        />
-                      ))}
+                      Continue
+                    </Button>
+                  </div>
+                </StepFrame>
+              ) : null}
+              {step === 2 ? (
+                <StepFrame
+                  icon={<Music2 />}
+                  required
+                  title="What Do You Like to Listen To?"
+                  subtitle="Choose at least three genres to personalize discovery."
+                >
+                  <div
+                    aria-label="Favorite genres"
+                    className="grid grid-cols-2 gap-3"
+                    role="group"
+                  >
+                    {genresQuery.data?.map((genre) => (
+                      <button
+                        aria-checked={selectedGenres.includes(genre.slug)}
+                        className={`min-h-16 rounded-lg border-2 p-4 text-left transition ${selectedGenres.includes(genre.slug) ? "border-primary bg-primary/10" : "border-border bg-background/50 hover:border-primary/60"}`}
+                        key={genre.slug}
+                        onClick={() => toggleGenre(genre.slug)}
+                        role="checkbox"
+                        type="button"
+                      >
+                        <span className="font-medium">{genre.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {genresQuery.isLoading ? (
+                    <p className="text-sm text-muted-foreground">
+                      Loading genres…
+                    </p>
+                  ) : null}
+                  {genresQuery.error ? (
+                    <p className="text-sm text-destructive">
+                      Genres are unavailable right now. Try again.
+                    </p>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    {selectedGenres.length} selected · minimum 3
+                  </p>
+                  <div className="mt-6 flex gap-3">
+                    <Button
+                      className="h-12 flex-1"
+                      onClick={goBack}
+                      size="lg"
+                      variant="outline"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      className="h-12 flex-1"
+                      disabled={selectedGenres.length < 3}
+                      onClick={() => goToStep(3)}
+                      size="lg"
+                    >
+                      Continue
+                    </Button>
+                  </div>
+                </StepFrame>
+              ) : null}
+              {step === 3 ? (
+                <StepFrame
+                  icon={<MapPin />}
+                  title="Where Are You Located?"
+                  subtitle="Discover local artists and events with a city and region or country."
+                >
+                  <LocationField
+                    city={city}
+                    country={country}
+                    onChange={({
+                      city: nextCity,
+                      country: nextCountry,
+                      state: nextState,
+                    }) => {
+                      setCity(nextCity);
+                      setCountry(nextCountry);
+                      setStateValue(nextState);
+                    }}
+                    state={stateValue}
+                  />
+                  <div className="mt-6 flex gap-3">
+                    <Button
+                      className="h-12 flex-1"
+                      onClick={goBack}
+                      size="lg"
+                      variant="outline"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      className="h-12 flex-1"
+                      disabled={!(city && country && stateValue)}
+                      onClick={() => goToStep(4)}
+                      size="lg"
+                    >
+                      Continue
+                    </Button>
+                  </div>
+                </StepFrame>
+              ) : null}
+              {step === 4 ? (
+                <StepFrame
+                  icon={<Check />}
+                  title="Choose Your Experience"
+                  subtitle="Pick a library layout and choose Free or Premium. You can upgrade later."
+                >
+                  <div className="space-y-5">
+                    <MediaLayoutSelector
+                      onChange={setMediaLayout}
+                      value={mediaLayout}
+                    />
+                    <div className="space-y-3">
+                      <div>
+                        <h3 className="font-semibold">
+                          Choose your plan <RequiredMark />
+                        </h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Start free and upgrade whenever you want more ways to
+                          listen and participate.
+                        </p>
+                      </div>
+                      <div
+                        aria-label="Choose your plan"
+                        aria-required="true"
+                        className="grid grid-cols-2 gap-3"
+                        role="radiogroup"
+                      >
+                        {plans.map((plan) => (
+                          <PlanSelectionCard
+                            description={
+                              plan.code === "fan_free"
+                                ? "Discover public releases with the essentials."
+                                : "Everything in Free, plus premium listening and live access."
+                            }
+                            features={
+                              plan.code === "fan_free"
+                                ? [
+                                    "1 listener account included",
+                                    "Discover public releases",
+                                    "Save music and build your library",
+                                  ]
+                                : [
+                                    "Everything in Free",
+                                    "5 accounts/seats included",
+                                    "Premium listening and live access",
+                                    "Vote in battle rounds",
+                                  ]
+                            }
+                            key={plan.code}
+                            onSelect={() => setSelectedPlanCode(plan.code)}
+                            plan={{ ...plan, maxSeats: plan.maxSeats ?? 1 }}
+                            selected={selectedPlanCode === plan.code}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-                {errorMessage ? (
-                  <p className="mt-5 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                    {errorMessage}
-                  </p>
-                ) : null}
-                <div className="mt-6 flex gap-3">
-                  <Button
-                    className="h-12 flex-1"
-                    onClick={goBack}
-                    size="lg"
-                    variant="outline"
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    className="h-12 flex-1"
-                    disabled={isSubmitting}
-                    onClick={() => void completeOnboarding()}
-                    size="lg"
-                  >
-                    {isSubmitting ? submitLabel : "Complete setup"}
-                  </Button>
-                </div>
-              </StepFrame>
-            ) : null}
-          </CardContent>
-        </Card>
-      </div>
+                  {errorMessage ? (
+                    <p className="mt-5 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                      {errorMessage}
+                    </p>
+                  ) : null}
+                  <div className="mt-6 flex gap-3">
+                    <Button
+                      className="h-12 flex-1"
+                      onClick={goBack}
+                      size="lg"
+                      variant="outline"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      className="h-12 flex-1"
+                      disabled={isSubmitting}
+                      onClick={() => void completeOnboarding()}
+                      size="lg"
+                    >
+                      {isSubmitting ? submitLabel : "Complete setup"}
+                    </Button>
+                  </div>
+                </StepFrame>
+              ) : null}
+            </CardContent>
+          </Card>
+        </div>
       </main>
       <OnboardingExitDialog
         onFinishLater={() => void finishLater()}

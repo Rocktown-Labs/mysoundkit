@@ -1,8 +1,8 @@
-import { usePostHog } from "@posthog/react";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { capture } from "@/lib/analytics";
 import { API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 
@@ -15,20 +15,19 @@ export function GoogleAuthButton({
   accountType?: "artist" | "fan";
   callbackURL: string;
 }) {
-  const posthog = usePostHog(),
-    capabilityQuery = useQuery({
-      queryFn: async () => {
-        const response = await fetch(`${API_V1_URL}/auth/capabilities`, {
-          credentials: "include",
-        });
-        if (!response.ok) {
-          return { google: false };
-        }
-        return (await response.json()) as { google: boolean };
-      },
-      queryKey: googleCapabilityQueryKey,
-      staleTime: 5 * 60_000,
-    });
+  const capabilityQuery = useQuery({
+    queryFn: async () => {
+      const response = await fetch(`${API_V1_URL}/auth/capabilities`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        return { google: false };
+      }
+      return (await response.json()) as { google: boolean };
+    },
+    queryKey: googleCapabilityQueryKey,
+    staleTime: 5 * 60_000,
+  });
 
   if (capabilityQuery.isLoading) {
     return (
@@ -47,7 +46,7 @@ export function GoogleAuthButton({
     <Button
       className="h-12 w-full border-border bg-background hover:bg-accent"
       onClick={() => {
-        posthog.capture("signup_method_selected", {
+        capture("signup_method_selected", {
           account_type: accountType,
           auth_method: "google",
         });
