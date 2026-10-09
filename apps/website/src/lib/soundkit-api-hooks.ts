@@ -1882,12 +1882,16 @@ export const useListeningPartiesQuery = (query: PublicRegionQuery = {}) =>
 
 interface BattleDirectorySubscription {
   count: number;
+  reconnectAttempts: number;
   reconnectTimer: number | null;
   socket: WebSocket | null;
   stopped: boolean;
 }
 
-const battleDirectorySubscriptions = new WeakMap<
+const BATTLE_DIRECTORY_RECONNECT_BASE_MS = 1000,
+  BATTLE_DIRECTORY_RECONNECT_MAX_MS = 30_000,
+
+ battleDirectorySubscriptions = new WeakMap<
     QueryClient,
     BattleDirectorySubscription
   >(),
@@ -1921,6 +1925,9 @@ const battleDirectorySubscriptions = new WeakMap<
         url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
         const socket = new WebSocket(url.toString());
         subscription.socket = socket;
+        socket.addEventListener("open", () => {
+          subscription.reconnectAttempts = 0;
+        });
         socket.addEventListener("message", () => {
           void queryClient.invalidateQueries({
             queryKey: soundkitQueryKeys.battles,
@@ -1930,15 +1937,25 @@ const battleDirectorySubscriptions = new WeakMap<
           if (subscription.stopped || subscription.reconnectTimer !== null) {
             return;
           }
+          // Exponential backoff: a transient failure (DNS, network blip) used
+          // to retry every second, spamming the console with dozens of
+          // identical errors while the endpoint was unreachable.
+          const delayMs = Math.min(
+            BATTLE_DIRECTORY_RECONNECT_BASE_MS *
+              2 ** subscription.reconnectAttempts,
+            BATTLE_DIRECTORY_RECONNECT_MAX_MS
+          );
+          subscription.reconnectAttempts += 1;
           subscription.reconnectTimer = window.setTimeout(() => {
             subscription.reconnectTimer = null;
             connect();
-          }, 1000);
+          }, delayMs);
         });
         socket.addEventListener("error", () => socket.close(), { once: true });
       },
       subscription: BattleDirectorySubscription = {
         count: 1,
+        reconnectAttempts: 0,
         reconnectTimer: null,
         socket: null,
         stopped: false,

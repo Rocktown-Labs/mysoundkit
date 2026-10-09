@@ -96,9 +96,9 @@ export function ArtistLeaderboardCard({
           {/* Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h4 className="font-semibold text-sm truncate group-hover:text-primary transition-colors">
+              <h3 className="font-semibold text-sm truncate group-hover:text-primary transition-colors">
                 {artist.name}
-              </h4>
+              </h3>
               {artist.verified && (
                 <Badge
                   variant="secondary"

@@ -22,6 +22,7 @@ export function ProjectCard({ project }: { project: PublicProjectSummary }) {
             height={640}
             layout="constrained"
             loading="lazy"
+            sizes="(max-width: 768px) 248px, 320px"
             src={project.coverArtUrl}
             width={640}
           />

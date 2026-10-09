@@ -69,6 +69,7 @@ export function VideoCard({ video }: { video: ExploreVideoCardData }) {
             height={720}
             layout="constrained"
             loading="lazy"
+            sizes="(max-width: 768px) 248px, 320px"
             src={video.thumbnail}
             width={1280}
           />
