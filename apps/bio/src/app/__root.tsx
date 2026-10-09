@@ -11,11 +11,15 @@ import {
 import { BioAudioPlayerProvider } from "@/components/bio-audio-player";
 import { BioNav } from "@/components/bio-nav";
 import { API_BASE_URL, SOUNDKIT_BIO_URL } from "@/lib/api";
+import { resolveBioNavSession } from "@/lib/session.functions";
 
 import appCss from "./styles.css?inline";
 
 export const Route = createRootRoute({
   component: RootComponent,
+  // Resolving the session in the root loader lets the nav render its
+  // signed-in state from SSR — the browser-side /v1/me check generated the
+  // only remaining errors-in-console failure (401 for anonymous visitors).
   head: () => ({
     links: [
       // The API origin serves the discovery/session data rendered by every
@@ -78,10 +82,15 @@ export const Route = createRootRoute({
     // tag.
     styles: [{ children: appCss, title: "globals" }],
   }),
+  loader: async () => ({
+    initialSession:
+      typeof window === "undefined" ? await resolveBioNavSession() : null,
+  }),
 });
 
 function RootComponent() {
   const { pathname } = useLocation(),
+    { initialSession } = Route.useLoaderData(),
     isDashboard = pathname.startsWith("/dashboard");
 
   return (
@@ -92,7 +101,7 @@ function RootComponent() {
       <body className="min-h-screen overflow-x-clip bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary-foreground">
         <BioAudioPlayerProvider>
           <div className="flex min-h-screen flex-col pb-24">
-            {isDashboard ? null : <BioNav />}
+            {isDashboard ? null : <BioNav initialUser={initialSession} />}
             <main className="min-w-0 flex-1">
               <Outlet />
             </main>
