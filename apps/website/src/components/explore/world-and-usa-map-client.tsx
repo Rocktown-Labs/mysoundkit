@@ -168,7 +168,10 @@ export function WorldAndUSAMapClient({
               onValueChange={(value) => changeScope(value as MapScope)}
               value={mapScope}
             >
-              <SelectTrigger className="h-8 w-[190px] bg-background/90 text-xs shadow-md backdrop-blur">
+              <SelectTrigger
+                aria-label="Map area"
+                className="h-8 w-[190px] bg-background/90 text-xs shadow-md backdrop-blur"
+              >
                 <SelectValue placeholder="Map area" />
               </SelectTrigger>
               <SelectContent>

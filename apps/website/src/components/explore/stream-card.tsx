@@ -83,6 +83,8 @@ export function StreamCard({
             alt={title}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             height={720}
+            loading="lazy"
+            sizes="(max-width: 768px) 248px, 320px"
             src={posterImage}
             width={1280}
           />

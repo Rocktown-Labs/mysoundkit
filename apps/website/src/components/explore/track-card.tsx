@@ -93,6 +93,7 @@ export function TrackCard({
             height={440}
             layout="constrained"
             loading="lazy"
+            sizes="(max-width: 768px) 248px, 320px"
             src={cover || "/placeholder.svg"}
             width={440}
           />
@@ -121,12 +122,12 @@ export function TrackCard({
 
       <PublicCardMeta className="space-y-0.5">
         <Link {...trackLink}>
-          <h3 className="truncate font-semibold text-sm transition-colors group-hover:text-primary">
+          <h3 className="-mx-2 truncate px-2 py-1 font-semibold text-sm transition-colors group-hover:text-primary">
             {title}
           </h3>
         </Link>
         <Link
-          className="block truncate text-muted-foreground text-xs transition-colors hover:text-primary"
+          className="-mx-2 block truncate px-2 py-1.5 text-muted-foreground text-xs transition-colors hover:text-primary"
           params={{ username: artistSlug }}
           to="/artist/$username"
         >
