@@ -25,27 +25,18 @@ const SOUNDKIT_WEB_ORIGIN = getSoundKitWebOrigin();
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === "object");
 
-export function BioNav() {
-  const [currentUser, setCurrentUser] = useState<BioCurrentUser | null>(null),
+export function BioNav({
+  initialUser,
+}: {
+  initialUser: BioCurrentUser | null;
+}) {
+  const [currentUser, setCurrentUser] = useState<BioCurrentUser | null>(
+      initialUser
+    ),
     handoffWindowRef = useRef<Window | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-
-    const checkSession = async () => {
-      try {
-        const user = await getCurrentSessionUser();
-        if (!cancelled) {
-          setCurrentUser(user);
-        }
-      } catch {
-        if (!cancelled) {
-          setCurrentUser(null);
-        }
-      }
-    };
-
-    void checkSession();
 
     const handleMessage = async (event: MessageEvent<unknown>) => {
       if (
