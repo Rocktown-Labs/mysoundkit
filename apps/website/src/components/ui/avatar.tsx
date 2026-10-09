@@ -25,9 +25,11 @@ function AvatarImage({
   src,
   ...props
 }: React.ComponentProps<typeof AvatarPrimitive.Image>) {
-  // Avatars render at thumbnail sizes (32–96px) but historically downloaded
+  // Avatars render at thumbnail sizes but historically downloaded
   // multi-megabyte profile originals; SoundKit media URLs get the same WebP
-  // derivative candidates AppImage uses.
+  // derivative candidates AppImage uses. Attribute behavior is otherwise
+  // unchanged — no new defaults: lazy-loading previously-eager avatars once
+  // destabilized a browser smoke test (same class of regression as #373).
   const mediaSrcProps =
     typeof src === "string" ? mediaImageSrcProps(src) : null;
 
@@ -35,7 +37,6 @@ function AvatarImage({
     <AvatarPrimitive.Image
       data-slot="avatar-image"
       className={cn("aspect-square size-full", className)}
-      loading={props.loading ?? "lazy"}
       src={src}
       {...(mediaSrcProps
         ? {
