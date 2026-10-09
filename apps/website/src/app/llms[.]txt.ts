@@ -1,3 +1,5 @@
+/* eslint-disable one-var */
+
 import { createFileRoute } from "@tanstack/react-router";
 
 import { SITE_URL } from "@/lib/site";
@@ -38,7 +40,7 @@ SoundKit combines music streaming, artist discovery, live events, and fan commun
 export const Route = createFileRoute("/llms.txt")({
   server: {
     handlers: {
-      GET: async () =>
+      GET: () =>
         new Response(llmsText, {
           headers: {
             "Content-Type": "text/plain; charset=utf-8",

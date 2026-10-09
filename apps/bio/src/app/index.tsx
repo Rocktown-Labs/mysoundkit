@@ -14,41 +14,39 @@ import {
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
+import { BioAvatarImage } from "@/components/bio-avatar-image";
 import { BioMap } from "@/components/bio-map";
 import { getCurrentSessionUser, loadArtistDiscoveryPage } from "@/lib/api";
 import type { BioArtistSearchResult } from "@/lib/api";
 import { exploreRegionSlug, regionTypeForMapScope } from "@/lib/explore-region";
 import type { MapScope } from "@/lib/map-scopes";
+import { resolveBioSessionUserId } from "@/lib/session.functions";
 
 export const Route = createFileRoute("/")({
   component: BioHomePage,
+  loader: async () => {
+    // Resolving the session here lets the hero render in the initial HTML —
+    // resolving it in a client effect made the hero appear after hydration,
+    // shifting the map section by 0.36 CLS and delaying LCP by ~1.8s. During
+    // SSR the serverFn forwards the incoming cookie/Authorization to the API;
+    // on the client (SPA navigation) it falls back to the shared session
+    // helper.
+    if (typeof window === "undefined") {
+      return { currentUserId: await resolveBioSessionUserId() };
+    }
+    const user = await getCurrentSessionUser();
+    return { currentUserId: user?.id ?? null };
+  },
 });
 
 function BioHomePage() {
-  const [currentUser, setCurrentUser] = useState<string | null>(null),
-    [isSessionResolved, setIsSessionResolved] = useState(false),
+  const { currentUserId: currentUser } = Route.useLoaderData(),
     [mapScope, setMapScope] = useState<MapScope>("usa"),
     [selectedRegion, setSelectedRegion] = useState<string>("Arkansas"),
     [artists, setArtists] = useState<BioArtistSearchResult[]>([]),
     [isLoading, setIsLoading] = useState(false),
     [loadError, setLoadError] = useState<string | null>(null),
     [retryCount, setRetryCount] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadCurrentUser = async () => {
-      const user = await getCurrentSessionUser();
-      if (!cancelled) {
-        setCurrentUser(user?.id ?? null);
-        setIsSessionResolved(true);
-      }
-    };
-
-    void loadCurrentUser();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let isCancelled = false;
@@ -123,7 +121,7 @@ function BioHomePage() {
   return (
     <div className="mx-auto min-w-0 w-full max-w-7xl overflow-x-clip px-4 py-6 sm:px-6 sm:py-10 space-y-10 sm:space-y-14">
       {/* Public discovery hero is intentionally omitted for signed-in users. */}
-      {isSessionResolved && !currentUser ? (
+      {currentUser ? null : (
         <div className="relative min-w-0 overflow-hidden rounded-3xl border border-border/40 bg-card/40 p-5 shadow-lg sm:p-10 md:p-12">
           <div className="relative z-10 mx-auto max-w-2xl space-y-4 text-center sm:mx-0 sm:space-y-5 sm:text-left">
             <h1 className="font-playfair text-3xl font-medium leading-[1.08] tracking-tight text-foreground sm:text-5xl md:text-6xl">
@@ -155,7 +153,7 @@ function BioHomePage() {
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
       {/* Map & Regional Discovery Section */}
       <section className="space-y-6">
@@ -264,12 +262,10 @@ function BioHomePage() {
                   {/* Avatar */}
                   <div className="relative size-12 shrink-0 overflow-hidden rounded-full border border-border/50 bg-black/40">
                     {artist.avatarUrl ? (
-                      <img
+                      <BioAvatarImage
                         alt={artist.name}
                         className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        decoding="async"
                         height={48}
-                        loading="lazy"
                         src={artist.avatarUrl}
                         width={48}
                       />

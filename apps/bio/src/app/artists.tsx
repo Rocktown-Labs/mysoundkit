@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { BioAvatarImage } from "@/components/bio-avatar-image";
 import { loadArtistDiscoveryPage } from "@/lib/api";
 import type { BioArtistSearchResult } from "@/lib/api";
 
@@ -197,12 +198,10 @@ function ArtistDiscoveryCard({
       </span>
       <div className="size-14 shrink-0 overflow-hidden rounded-full border border-border/50 bg-black/40">
         {artist.avatarUrl ? (
-          <img
+          <BioAvatarImage
             alt={artist.name}
             className="size-full object-cover"
-            decoding="async"
             height={56}
-            loading="lazy"
             src={artist.avatarUrl}
             width={56}
           />

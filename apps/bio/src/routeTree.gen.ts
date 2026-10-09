@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './app/__root'
+import { Route as RobotsDottxtRouteImport } from './app/robots[.]txt'
+import { Route as LlmsDottxtRouteImport } from './app/llms[.]txt'
 import { Route as DashboardRouteImport } from './app/dashboard'
 import { Route as ArtistsRouteImport } from './app/artists'
 import { Route as UsernameRouteImport } from './app/$username'
@@ -25,6 +27,16 @@ import { Route as LiveIdRouteImport } from './app/live/$id'
 import { Route as DashboardPaymentsRouteImport } from './app/dashboard/payments'
 import { Route as DashboardAnalyticsRouteImport } from './app/dashboard/analytics'
 
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
+  id: '/llms.txt',
+  path: '/llms.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -106,6 +118,8 @@ export interface FileRoutesByFullPath {
   '/$username': typeof UsernameRoute
   '/artists': typeof ArtistsRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/payments': typeof DashboardPaymentsRoute
   '/live/$id': typeof LiveIdRoute
@@ -122,6 +136,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$username': typeof UsernameRoute
   '/artists': typeof ArtistsRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/payments': typeof DashboardPaymentsRoute
   '/live/$id': typeof LiveIdRoute
@@ -140,6 +156,8 @@ export interface FileRoutesById {
   '/$username': typeof UsernameRoute
   '/artists': typeof ArtistsRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/payments': typeof DashboardPaymentsRoute
   '/live/$id': typeof LiveIdRoute
@@ -159,6 +177,8 @@ export interface FileRouteTypes {
     | '/$username'
     | '/artists'
     | '/dashboard'
+    | '/llms.txt'
+    | '/robots.txt'
     | '/dashboard/analytics'
     | '/dashboard/payments'
     | '/live/$id'
@@ -175,6 +195,8 @@ export interface FileRouteTypes {
     | '/'
     | '/$username'
     | '/artists'
+    | '/llms.txt'
+    | '/robots.txt'
     | '/dashboard/analytics'
     | '/dashboard/payments'
     | '/live/$id'
@@ -192,6 +214,8 @@ export interface FileRouteTypes {
     | '/$username'
     | '/artists'
     | '/dashboard'
+    | '/llms.txt'
+    | '/robots.txt'
     | '/dashboard/analytics'
     | '/dashboard/payments'
     | '/live/$id'
@@ -210,6 +234,8 @@ export interface RootRouteChildren {
   UsernameRoute: typeof UsernameRoute
   ArtistsRoute: typeof ArtistsRoute
   DashboardRoute: typeof DashboardRouteWithChildren
+  LlmsDottxtRoute: typeof LlmsDottxtRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
   LiveIdRoute: typeof LiveIdRoute
   ProjectsIdRoute: typeof ProjectsIdRoute
   SignupArtistRoute: typeof SignupArtistRoute
@@ -222,6 +248,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/llms.txt': {
+      id: '/llms.txt'
+      path: '/llms.txt'
+      fullPath: '/llms.txt'
+      preLoaderRoute: typeof LlmsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -351,6 +391,8 @@ const rootRouteChildren: RootRouteChildren = {
   UsernameRoute: UsernameRoute,
   ArtistsRoute: ArtistsRoute,
   DashboardRoute: DashboardRouteWithChildren,
+  LlmsDottxtRoute: LlmsDottxtRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
   LiveIdRoute: LiveIdRoute,
   ProjectsIdRoute: ProjectsIdRoute,
   SignupArtistRoute: SignupArtistRoute,
