@@ -9,6 +9,7 @@ import { BioSearchBar } from "@/components/bio-search-bar";
 import {
   buildSoundKitWebUrl,
   getCurrentSessionUser,
+  getBioAuthToken,
   setBioAuthToken,
   SOUNDKIT_WEB_URL,
 } from "@/lib/api";
@@ -25,18 +26,28 @@ const SOUNDKIT_WEB_ORIGIN = getSoundKitWebOrigin();
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === "object");
 
-export function BioNav({
-  initialUser,
-}: {
-  initialUser: BioCurrentUser | null;
-}) {
-  const [currentUser, setCurrentUser] = useState<BioCurrentUser | null>(
-      initialUser
-    ),
+export function BioNav() {
+  const [currentUser, setCurrentUser] = useState<BioCurrentUser | null>(null),
     handoffWindowRef = useRef<Window | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+
+    // The bio is a cross-site app: better-auth's SameSite=Lax session cookies
+    // never reach it, so the only session signal is the handoff token in
+    // localStorage. Gated on token presence — anonymous visitors make no
+    // request at all, which keeps the browser console free of the 401 this
+    // call produces for signed-out users (the last errors-in-console source).
+    if (getBioAuthToken()) {
+      const checkSession = async () => {
+        const user = await getCurrentSessionUser();
+        if (!cancelled) {
+          setCurrentUser(user);
+        }
+      };
+
+      void checkSession();
+    }
 
     const handleMessage = async (event: MessageEvent<unknown>) => {
       if (
