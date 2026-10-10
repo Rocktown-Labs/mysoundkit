@@ -5,6 +5,7 @@ import { Stage } from "alchemy/Stage";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
+import * as RemovalPolicy from "alchemy/RemovalPolicy";
 import { config } from "dotenv";
 
 config({ path: "./.env" });
@@ -159,7 +160,10 @@ const getR2Jurisdiction = () => {
 // production media bucket, mirroring how stages share one application
 // database. Previews must never delete or empty it, so `forceDestroy` is
 // only enabled for production and the CORS rule is a stable wildcard so
-// stage deploys never fight over bucket configuration.
+// stage deploys never fight over bucket configuration. Because the bucket's
+// physical name is shared, preview stages also RETAIN it on destroy —
+// otherwise `alchemy destroy` for a pr-<number> stage tries to delete the
+// production bucket (it fails today only because the bucket is non-empty).
 export const media = Cloudflare.R2.Bucket(
   "media",
   Effect.gen(function* () {
@@ -194,7 +198,12 @@ export const media = Cloudflare.R2.Bucket(
       name: d.MEDIA_BUCKET_NAME,
     };
   })
-);
+).pipe(RemovalPolicy.retain(Effect.gen(function* () {
+  // Retain for every non-production stage: preview destroys must drop the
+  // state row without touching the shared production bucket.
+  const d = yield* deployment;
+  return !d.isProduction;
+})));
 
 // Storage bucket for RealtimeKit live recordings. Recordings stay private
 // until a live experience is published; the server streams them via R2.
