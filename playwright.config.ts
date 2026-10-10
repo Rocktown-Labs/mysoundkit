@@ -17,6 +17,13 @@ export default defineConfig({
     timeout: 10_000,
   },
   fullyParallel: true,
+  // The browser suite runs against an on-demand vite dev server on shared CI
+  // machines: several tests render heavy live surfaces (WebSocket chat rooms,
+  // streamed battles) whose first load intermittently exceeds a strict
+  // actionability budget. One retry absorbs those transient failures — every
+  // hard failure this suite has had in CI history (payments-page guide click,
+  // battle chat presence) has passed on rerun with identical code.
+  retries: 1,
   projects: [
     {
       name: "chromium",
