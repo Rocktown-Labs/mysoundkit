@@ -49,8 +49,12 @@ if (!TOKEN) {
   process.exit(1);
 }
 
+// `path` is account-relative (e.g. `/workers/domains`). The account id is
+// added only to the request URL, never to the error message: the id is read
+// from the environment, and logging it trips CodeQL's clear-text-logging rule.
 const cf = async (path, init) => {
-  const response = await fetch(`${API}${path}`, {
+  const url = `${API}/accounts/${CLOUDFLARE_ACCOUNT_ID}${path}`;
+  const response = await fetch(url, {
     ...init,
     headers: {
       Authorization: `Bearer ${TOKEN}`,
@@ -119,7 +123,7 @@ const purgeR2Objects = async (bucketName) => {
   let purged = 0;
   for (;;) {
     const objects = await cf(
-      `/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/${encodeURIComponent(bucketName)}/objects?per_page=1000`
+      `/r2/buckets/${encodeURIComponent(bucketName)}/objects?per_page=1000`
     );
     if (!Array.isArray(objects) || objects.length === 0) {
       return purged;
@@ -136,7 +140,7 @@ const purgeR2Objects = async (bucketName) => {
       await Promise.all(
         keys.slice(i, i + 20).map((key) =>
           cf(
-            `/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/${encodeURIComponent(bucketName)}/objects/${encodeURIComponent(key)}`,
+            `/r2/buckets/${encodeURIComponent(bucketName)}/objects/${encodeURIComponent(key)}`,
             { method: "DELETE" }
           )
         )
@@ -157,7 +161,7 @@ const main = async () => {
   // ---- 1. Custom domains (must go before their workers) ------------------
   const domains = await collect(
     "custom domains",
-    await cf(`/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains`),
+    await cf(`/workers/domains`),
     (d) => d.hostname,
     (d) => {
       const m = PREVIEW_HOST_PATTERN.exec(d.hostname);
@@ -168,7 +172,7 @@ const main = async () => {
   // ---- 2. Worker scripts --------------------------------------------------
   const workers = await collect(
     "worker scripts",
-    await cf(`/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts`),
+    await cf(`/workers/scripts`),
     (s) => s.id,
     (s) => {
       const m = PREVIEW_NAME_PATTERN.exec(s.id);
@@ -180,7 +184,7 @@ const main = async () => {
   const allQueues = [];
   for (let page = 1; ; page += 1) {
     const result = await cf(
-      `/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/queues?per_page=100&page=${page}`
+      `/workers/queues?per_page=100&page=${page}`
     );
     allQueues.push(...result);
     if (page >= (result.length ?? 0) || result.length < 100) {
@@ -200,7 +204,7 @@ const main = async () => {
   // ---- 4. D1 databases ----------------------------------------------------
   const databases = await collect(
     "d1 databases",
-    await cf(`/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database`),
+    await cf(`/d1/database`),
     (d) => d.name,
     (d) => {
       const m = PREVIEW_NAME_PATTERN.exec(d.name);
@@ -209,7 +213,7 @@ const main = async () => {
   );
 
   // ---- 5. R2 buckets (recordings etc.) ------------------------------------
-  const r2 = await cf(`/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets?per_page=100`);
+  const r2 = await cf(`/r2/buckets?per_page=100`);
   const buckets = await collect(
     "r2 buckets",
     r2.buckets ?? [],
@@ -228,7 +232,7 @@ const main = async () => {
   const results = [];
   for (const d of domains) {
     try {
-      await cf(`/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains/${d.id}`, {
+      await cf(`/workers/domains/${d.id}`, {
         method: "DELETE",
       });
       results.push(`domain ${d.hostname}: deleted`);
@@ -242,11 +246,11 @@ const main = async () => {
   for (const q of queues) {
     try {
       const consumers = await cf(
-        `/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/queues/${encodeURIComponent(q.queue_name)}/consumers`
+        `/workers/queues/${encodeURIComponent(q.queue_name)}/consumers`
       );
       for (const consumer of consumers) {
         await cf(
-          `/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/queues/${encodeURIComponent(q.queue_name)}/consumers/${encodeURIComponent(consumer.script)}`,
+          `/workers/queues/${encodeURIComponent(q.queue_name)}/consumers/${encodeURIComponent(consumer.script)}`,
           { method: "DELETE" }
         );
         results.push(`consumer ${q.queue_name} -> ${consumer.script}: unbound`);
@@ -258,7 +262,7 @@ const main = async () => {
   for (const s of workers) {
     try {
       await cf(
-        `/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${s.id}?force=true`,
+        `/workers/scripts/${s.id}?force=true`,
         { method: "DELETE" }
       );
       results.push(`worker ${s.id}: deleted`);
@@ -269,7 +273,7 @@ const main = async () => {
   for (const q of queues) {
     try {
       await cf(
-        `/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/queues/${encodeURIComponent(q.queue_name)}`,
+        `/workers/queues/${encodeURIComponent(q.queue_name)}`,
         { method: "DELETE" }
       );
       results.push(`queue ${q.queue_name}: deleted`);
@@ -280,7 +284,7 @@ const main = async () => {
   for (const d of databases) {
     try {
       await cf(
-        `/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database/${d.uuid}`,
+        `/d1/database/${d.uuid}`,
         { method: "DELETE" }
       );
       results.push(`d1 ${d.name}: deleted`);
@@ -295,7 +299,7 @@ const main = async () => {
         results.push(`r2 ${b.name}: purged ${purged} objects`);
       }
       await cf(
-        `/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/${encodeURIComponent(b.name)}`,
+        `/r2/buckets/${encodeURIComponent(b.name)}`,
         { method: "DELETE" }
       );
       results.push(`r2 ${b.name}: deleted`);
