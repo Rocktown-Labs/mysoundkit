@@ -170,11 +170,6 @@ export function CredentialsForm({
           <span>or use email</span>
           <Separator className="flex-1" />
         </div>
-        <TurnstileWidget
-          action={isSignup ? "signup" : "login"}
-          onTokenChange={setTurnstileToken}
-          resetKey={turnstileResetKey}
-        />
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <Label htmlFor={`${mode}-email`}>Email</Label>
@@ -225,6 +220,11 @@ export function CredentialsForm({
               </label>
             </>
           ) : null}
+          <TurnstileWidget
+            action={isSignup ? "signup" : "login"}
+            onTokenChange={setTurnstileToken}
+            resetKey={turnstileResetKey}
+          />
           {errorMessage ? (
             <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {errorMessage}

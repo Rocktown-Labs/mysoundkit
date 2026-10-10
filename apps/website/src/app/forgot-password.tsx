@@ -88,11 +88,6 @@ function ForgotPasswordPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <TurnstileWidget
-            action="forgot_password"
-            onTokenChange={setTurnstileToken}
-            resetKey={turnstileResetKey}
-          />
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <Label htmlFor="forgot-email">Email</Label>
@@ -106,6 +101,11 @@ function ForgotPasswordPage() {
                 value={email}
               />
             </div>
+            <TurnstileWidget
+              action="forgot_password"
+              onTokenChange={setTurnstileToken}
+              resetKey={turnstileResetKey}
+            />
             {message ? (
               <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
                 {message}
