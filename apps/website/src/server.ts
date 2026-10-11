@@ -16,7 +16,16 @@ import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 const SSR_CACHED_AT_HEADER = "x-soundkit-ssr-cached-at",
   SSR_CACHE_MAX_AGE_MS = 120_000,
   SSR_CACHE_STORE_CONTROL = "public, max-age=120",
-  SSR_SESSION_COOKIE_PATTERN = /(?:^|;\s*)better-auth\.session_token=/u,
+  // better-auth emits its cookies under the `__Secure-` prefix in
+  // production (dynamic baseURL protocol "https") and unprefixed in local
+  // dev, and more cookies than the session token exist (csrf_token on
+  // sign-in attempts, plugin cookies). Any better-auth cookie means the
+  // visitor may be session-scoped, so bypass the cache rather than trying
+  // to name every cookie exactly — matching only `better-auth.session_token`
+  // missed the `__Secure-` prefix and let signed-in navigations cache as
+  // anonymous.
+  SSR_SESSION_COOKIE_PATTERN =
+    /(?:^|;\s*)(?:__Secure-|__Host-)?better-auth\.[^=;]+=/u,
   buildServedResponse = (cached: Response) => {
     const ageSeconds = Math.round(
         (Date.now() - Number(cached.headers.get(SSR_CACHED_AT_HEADER) || 0)) /
