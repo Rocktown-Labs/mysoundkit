@@ -81,7 +81,12 @@ const prState = (number) => {
     );
     return JSON.parse(out).state;
   } catch {
-    return "NOT_FOUND";
+    // PRs cannot be deleted from GitHub, so a soundkit pr-<n> resource
+    // always maps to a real PR. A gh failure here is auth, rate limiting,
+    // or network — never a missing PR — and must fail CLOSED: treating it
+    // as deletable would let a transient CI error delete an open PR's
+    // preview resources.
+    return "UNKNOWN";
   }
 };
 
@@ -89,13 +94,10 @@ const deletablePrNumbers = new Map();
 const isClosedPreviewPr = (number) => {
   if (!deletablePrNumbers.has(number)) {
     const state = prState(number);
-    deletablePrNumbers.set(
-      number,
-      state === "MERGED" || state === "CLOSED" || state === "NOT_FOUND"
-    );
-    if (state === "NOT_FOUND") {
+    deletablePrNumbers.set(number, state === "MERGED" || state === "CLOSED");
+    if (state !== "MERGED" && state !== "CLOSED") {
       console.warn(
-        `  ! pr-${number}: no PR in ${GITHUB_REPO} matches — treating as closed`
+        `  ! pr-${number}: PR state is ${state} — skipping (verify gh auth/network)`
       );
     }
   }
