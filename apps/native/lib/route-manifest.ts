@@ -80,7 +80,7 @@ export const CANONICAL_ROUTES = [
     id: "track-detail",
     nativeHref: "/tracks/:id",
     owner: "explore-stack",
-    status: "planned",
+    status: "native",
     webPath: "/tracks/$id",
   },
   {
@@ -94,7 +94,7 @@ export const CANONICAL_ROUTES = [
     id: "project-detail",
     nativeHref: "/projects/:id",
     owner: "explore-stack",
-    status: "planned",
+    status: "native",
     webPath: "/projects/$id",
   },
   {
@@ -108,7 +108,7 @@ export const CANONICAL_ROUTES = [
     id: "video-detail",
     nativeHref: "/videos/:id",
     owner: "explore-stack",
-    status: "planned",
+    status: "native",
     webPath: "/videos/$id",
   },
   {
@@ -122,7 +122,7 @@ export const CANONICAL_ROUTES = [
     id: "artist-detail",
     nativeHref: "/artists/:username",
     owner: "explore-stack",
-    status: "planned",
+    status: "native",
     webPath: "/artist/$username",
   },
   {
@@ -227,7 +227,7 @@ export const CANONICAL_ROUTES = [
     id: "battle-detail",
     nativeHref: "/live/battles/:id",
     owner: "live-stack",
-    status: "planned",
+    status: "native",
     webPath: "/live/battles/$id",
   },
   {
