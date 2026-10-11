@@ -17,6 +17,18 @@ export default defineConfig({
     timeout: 10_000,
   },
   fullyParallel: true,
+  // The browser suite runs against an on-demand vite dev server on shared CI
+  // machines: several tests render heavy live surfaces (WebSocket chat rooms,
+  // streamed battles) whose first load intermittently exceeds a strict
+  // actionability budget. One retry absorbs those transient failures — every
+  // hard failure this suite has had in CI history (payments-page guide click,
+  // battle chat presence) has passed on rerun with identical code. The
+  // real-backend suite is excluded: it runs a serial flow against production
+  // that creates real records (tracks, projects, open verses, listening
+  // parties, Stripe checkout sessions), so a retried assertion would duplicate
+  // them — and it is skipped entirely without SOUNDKIT_REAL_E2E, making the
+  // correlation exact.
+  retries: process.env.SOUNDKIT_REAL_E2E === "true" ? 0 : 1,
   projects: [
     {
       name: "chromium",
