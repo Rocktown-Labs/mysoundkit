@@ -212,7 +212,10 @@ export default function DashboardHomeScreen() {
           updatedAt: project.updatedAt ?? new Date().toISOString(),
         })),
       ]
-        .toSorted(
+        // Hermes (RN's JS engine) lacks ES2023 Array#toSorted; sorting a
+        // freshly-created literal, so in-place sort is safe.
+        // eslint-disable-next-line unicorn/no-array-sort
+        .sort(
           (left, right) =>
             new Date(right.updatedAt).getTime() -
             new Date(left.updatedAt).getTime()
