@@ -16,37 +16,51 @@ import React, { useEffect, useState } from "react";
 
 import { BioAvatarImage } from "@/components/bio-avatar-image";
 import { BioMap } from "@/components/bio-map";
-import { getCurrentSessionUser, loadArtistDiscoveryPage } from "@/lib/api";
+import {
+  getCurrentSessionUser,
+  getBioAuthToken,
+  loadArtistDiscoveryPage,
+} from "@/lib/api";
 import type { BioArtistSearchResult } from "@/lib/api";
 import { exploreRegionSlug, regionTypeForMapScope } from "@/lib/explore-region";
 import type { MapScope } from "@/lib/map-scopes";
-import { resolveBioSessionUserId } from "@/lib/session.functions";
 
 export const Route = createFileRoute("/")({
   component: BioHomePage,
-  loader: async () => {
-    // Resolving the session here lets the hero render in the initial HTML —
-    // resolving it in a client effect made the hero appear after hydration,
-    // shifting the map section by 0.36 CLS and delaying LCP by ~1.8s. During
-    // SSR the serverFn forwards the incoming cookie/Authorization to the API;
-    // on the client (SPA navigation) it falls back to the shared session
-    // helper.
-    if (typeof window === "undefined") {
-      return { currentUserId: await resolveBioSessionUserId() };
-    }
-    const user = await getCurrentSessionUser();
-    return { currentUserId: user?.id ?? null };
-  },
 });
 
 function BioHomePage() {
-  const { currentUserId: currentUser } = Route.useLoaderData(),
+  const [currentUser, setCurrentUser] = useState<string | null>(null),
     [mapScope, setMapScope] = useState<MapScope>("usa"),
     [selectedRegion, setSelectedRegion] = useState<string>("Arkansas"),
     [artists, setArtists] = useState<BioArtistSearchResult[]>([]),
     [isLoading, setIsLoading] = useState(false),
     [loadError, setLoadError] = useState<string | null>(null),
     [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    // Hide the hero for signed-in users (they carry a handoff token in
+    // localStorage — the bio is a cross-site app, so better-auth's
+    // SameSite=Lax session cookies never reach it and SSR cannot see the
+    // session). Gated on token presence: anonymous visitors make no request
+    // at all, which keeps the browser console free of the 401 that this call
+    // produces for signed-out users.
+    if (!getBioAuthToken()) {
+      return;
+    }
+    let cancelled = false;
+    const loadCurrentUser = async () => {
+      const user = await getCurrentSessionUser();
+      if (!cancelled) {
+        setCurrentUser(user?.id ?? null);
+      }
+    };
+
+    void loadCurrentUser();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let isCancelled = false;
