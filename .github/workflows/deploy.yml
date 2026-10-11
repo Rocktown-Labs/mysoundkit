@@ -602,3 +602,17 @@ jobs:
           STRIPE_BETTER_AUTH_WEBHOOK_SECRET: ${{ secrets.STRIPE_BETTER_AUTH_WEBHOOK_SECRET }}
           STRIPE_COMMERCE_WEBHOOK_SECRET: ${{ secrets.STRIPE_COMMERCE_WEBHOOK_SECRET }}
           STRIPE_CONNECT_WEBHOOK_SECRET: ${{ secrets.STRIPE_CONNECT_WEBHOOK_SECRET }}
+
+      - name: Sweep leaked preview resources
+        # A preview deploy that fails partway leaves cloud resources that
+        # Alchemy never recorded in the stage state, so no destroy can ever
+        # reach them (#360). This sweep deletes soundkit pr-<n> resources
+        # whose PRs are already closed. Best-effort hygiene: it must never
+        # fail or block the destroy pipeline.
+        if: always()
+        continue-on-error: true
+        run: node scripts/cleanup-leaked-previews.mjs --apply
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GH_TOKEN: ${{ github.token }}
