@@ -1026,11 +1026,38 @@ app.openapi(
                 )
               )
           : [],
+      lastMessageMeta =
+        conversationIds.length > 0
+          ? await db
+              .select({
+                conversationId: messages.conversationId,
+                lastCreatedAt: sql<string>`max(${messages.createdAt})`,
+              })
+              .from(messages)
+              .where(inArray(messages.conversationId, conversationIds))
+              .groupBy(messages.conversationId)
+          : [],
+      lastMessageRows =
+        lastMessageMeta.length > 0
+          ? await db
+              .selectDistinctOn([messages.conversationId], {
+                body: messages.body,
+                conversationId: messages.conversationId,
+                createdAt: messages.createdAt,
+                senderUserId: messages.senderUserId,
+              })
+              .from(messages)
+              .where(inArray(messages.conversationId, conversationIds))
+              .orderBy(asc(messages.conversationId), desc(messages.createdAt))
+          : [],
       participantByConversationId = new Map(
         otherParticipants.map((participant) => [
           participant.conversationId,
           participant,
         ])
+      ),
+      lastMessageByConversationId = new Map(
+        lastMessageRows.map((row) => [row.conversationId, row])
       ),
       unreadEntries = rows.map((row) => ({
         conversationId: row.id,
@@ -1065,6 +1092,8 @@ app.openapi(
       const participantAvatarUrl =
         participant?.profileAvatarUrl ?? participant?.authAvatarUrl ?? null;
 
+      const lastMessage = lastMessageByConversationId.get(row.id);
+
       const displayTitle =
         row.title && row.title !== "Untitled conversation"
           ? row.title
@@ -1080,6 +1109,9 @@ app.openapi(
       summaries.push({
         conversationType: row.conversationType,
         id: row.id,
+        lastMessageAt: lastMessage ? toIso(lastMessage.createdAt) : null,
+        lastMessageBody: lastMessage?.body ?? null,
+        lastMessageSenderId: lastMessage?.senderUserId ?? null,
         participantAvatarUrl,
         participantId,
         participantName,
@@ -1135,6 +1167,9 @@ app.openapi(
         {
           conversationType,
           id: "conv_new",
+          lastMessageAt: null,
+          lastMessageBody: null,
+          lastMessageSenderId: null,
           participantAvatarUrl: null,
           participantName: null,
           participantUsername: null,
@@ -1321,6 +1356,9 @@ app.openapi(
             {
               conversationType: "direct" as const,
               id: existingParticipant.conversationId,
+              lastMessageAt: null,
+              lastMessageBody: null,
+              lastMessageSenderId: null,
               participantAvatarUrl:
                 participantProfile?.profileAvatar ??
                 participantProfile?.authAvatar ??
@@ -1393,6 +1431,9 @@ app.openapi(
       {
         conversationType,
         id: conversation?.id ?? conversationId,
+        lastMessageAt: null,
+        lastMessageBody: null,
+        lastMessageSenderId: null,
         participantAvatarUrl: null,
         participantId: requestedParticipantUserIds[0] ?? null,
         participantName: initialTitle,
