@@ -21,13 +21,15 @@ function DashboardLayout() {
   const pathname = useRouterState({
       select: (state) => state.location.pathname,
     }),
-    isArtistBattleRoom = pathname.startsWith("/dashboard/live/battles/join/");
+    isArtistBattleRoom = pathname.startsWith("/dashboard/live/battles/join/"),
+    isChatRoute = pathname.startsWith("/dashboard/messages"),
+    isFullBleed = isArtistBattleRoom || isChatRoute;
 
   return (
     <SidebarProvider defaultOpen={true}>
       <div
         className={
-          isArtistBattleRoom
+          isFullBleed
             ? "flex h-svh max-h-svh w-full overflow-hidden"
             : "flex min-h-screen w-full"
         }
@@ -35,7 +37,7 @@ function DashboardLayout() {
         <AppSidebar />
         <div
           className={
-            isArtistBattleRoom
+            isFullBleed
               ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
               : "flex flex-1 flex-col"
           }
@@ -47,7 +49,7 @@ function DashboardLayout() {
           </ClientOnly>
           <main
             className={
-              isArtistBattleRoom
+              isFullBleed
                 ? "min-h-0 flex-1 overflow-hidden"
                 : "flex-1 p-4 pb-32 md:p-6 md:pb-28"
             }
@@ -56,7 +58,7 @@ function DashboardLayout() {
           </main>
         </div>
       </div>
-      <MobileNav />
+      {!isChatRoute && <MobileNav />}
     </SidebarProvider>
   );
 }
