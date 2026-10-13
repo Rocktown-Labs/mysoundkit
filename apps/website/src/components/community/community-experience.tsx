@@ -117,12 +117,15 @@ export function CommunityExperience({
   backTo,
   communityId,
   creatorMode = false,
+  initialChannel = "chat",
   ownerActions,
 }: {
   /** Optional route the header back button navigates to (e.g. /communities). */
   backTo?: string;
   communityId: string;
   creatorMode?: boolean;
+  /** Channel selected on first render (e.g. "members" for owner management). */
+  initialChannel?: CommunityChannel;
   /** Owner-only actions rendered in the community header (e.g. membership settings). */
   ownerActions?: ReactNode;
 }) {
@@ -243,6 +246,7 @@ export function CommunityExperience({
         name: user.displayName,
         username: user.username,
       }}
+      initialChannel={initialChannel}
       ownerActions={ownerActions}
     />
   );
@@ -368,6 +372,7 @@ function CommunityMemberExperience({
   backTo,
   community,
   currentUser,
+  initialChannel = "chat",
   ownerActions,
 }: {
   backTo?: string;
@@ -378,9 +383,10 @@ function CommunityMemberExperience({
     name: string;
     username: string;
   };
+  initialChannel?: CommunityChannel;
   ownerActions?: ReactNode;
 }) {
-  const [channel, setChannel] = useState<CommunityChannel>("chat"),
+  const [channel, setChannel] = useState<CommunityChannel>(initialChannel),
     { data: members } = useDbCommunityMembers(community.id),
     notificationSettingsQuery = useNotificationSettingsQuery(),
     updateNotificationSettings = useUpdateNotificationSettingsMutation(),

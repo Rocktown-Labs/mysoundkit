@@ -74,8 +74,10 @@ function CommunityDashboard() {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       <CommunityExperience
+        backTo={`/communities/${ownedCommunity.id}`}
         communityId={ownedCommunity.id}
         creatorMode
+        initialChannel="members"
         ownerActions={<CommunitySettings community={ownedCommunity} />}
       />
     </div>

@@ -21,10 +21,14 @@ function DashboardLayout() {
   const pathname = useRouterState({
       select: (state) => state.location.pathname,
     }),
-    isArtistBattleRoom = pathname.startsWith("/dashboard/live/battles/join/"),
+    // Battle rooms and listening party artist rooms render the same
+    // immersive LiveTwitchShell, so they share the full-bleed treatment.
+    isArtistLiveRoom =
+      pathname.startsWith("/dashboard/live/battles/join/") ||
+      pathname.startsWith("/dashboard/live/parties/join/"),
     isChatRoute = pathname.startsWith("/dashboard/messages"),
     isCommunityRoute = pathname === "/dashboard/community",
-    isFullBleed = isArtistBattleRoom || isChatRoute || isCommunityRoute;
+    isFullBleed = isArtistLiveRoom || isChatRoute || isCommunityRoute;
 
   return (
     <SidebarProvider defaultOpen={true}>
