@@ -11,6 +11,8 @@ import { StatusBar } from "expo-status-bar";
 import { StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+import { NowPlayingModal } from "@/components/now-playing-modal";
+import { AudioPlayerProvider } from "@/contexts/audio-player-context";
 import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
@@ -39,14 +41,17 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-        <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
-        <GestureHandlerRootView style={styles.container}>
-          <Stack>
-            <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-          </Stack>
-        </GestureHandlerRootView>
-      </ThemeProvider>
+      <AudioPlayerProvider>
+        <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+          <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+          <GestureHandlerRootView style={styles.container}>
+            <Stack>
+              <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
+            </Stack>
+            <NowPlayingModal />
+          </GestureHandlerRootView>
+        </ThemeProvider>
+      </AudioPlayerProvider>
     </QueryClientProvider>
   );
 }
