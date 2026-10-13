@@ -172,6 +172,7 @@ export function FloatingChatBar() {
     pathname.startsWith("/dashboard/messages") ||
     pathname === "/dashboard/community" ||
     pathname.startsWith("/dashboard/live/battles/join/") ||
+    pathname.startsWith("/dashboard/live/parties/join/") ||
     isImmersiveExploreRoute(pathname) ||
     pathname.startsWith("/live/")
   ) {
@@ -482,6 +483,7 @@ function FloatingChatBarClient() {
     pathname.startsWith("/dashboard/messages") ||
     pathname === "/dashboard/community" ||
     pathname.startsWith("/dashboard/live/battles/join/") ||
+    pathname.startsWith("/dashboard/live/parties/join/") ||
     isImmersiveExploreRoute(pathname) ||
     pathname.startsWith("/live/")
   ) {
