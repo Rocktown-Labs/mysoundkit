@@ -55,6 +55,8 @@ const meGet = apiClient.v1.me.index.$get,
   merchDesignPatch = apiClient.v1.merch.designs[":id"].$patch,
   merchDesignDelete = apiClient.v1.merch.designs[":id"].$delete,
   merchDesignMockupsGet = apiClient.v1.merch.designs[":id"].mockups.$get,
+  publicMerchGet = apiClient.v1.merch.public.$get,
+  publicMerchDesignGet = apiClient.v1.merch.public[":designId"].$get,
   artistOnboardingPost = apiClient.v1.onboarding.artist.$post,
   artistsGet = apiClient.v1.artists.index.$get,
   artistGet = apiClient.v1.artists[":username"].$get,
@@ -763,7 +765,9 @@ export const useAdminMerchCatalogQuery = (enabled = true) =>
   useQuery({
     enabled,
     queryFn: async () =>
-      (await rpcJson(await adminMerchCatalogGet())) as unknown as AdminMerchCatalogItem[],
+      (await rpcJson(
+        await adminMerchCatalogGet()
+      )) as unknown as AdminMerchCatalogItem[],
     queryKey: adminMerchCatalogKey,
   });
 
@@ -824,6 +828,7 @@ export const useRefreshMerchProductMutation = () => {
       queryClient.invalidateQueries({ queryKey: adminMerchCatalogKey }),
   });
 };
+
 
 export interface MerchCatalogProduct {
   brand: string | null;
@@ -975,6 +980,62 @@ export const useMerchDesignMockupsQuery = (
         await merchDesignMockupsGet({ param: { id: designId ?? "" } })
       )) as unknown as MerchMockup[],
     queryKey: ["merch", "designs", designId, "mockups"],
+  });
+
+export interface PublicMerchDesign {
+  artistName: string | null;
+  artistUsername: string | null;
+  catalogProductId: string;
+  description: string | null;
+  id: string;
+  previewMockupUrl: string | null;
+  projectId: string | null;
+  retailPriceCents: number;
+  title: string;
+  trackId: string | null;
+  variantDetails: {
+    color: string | null;
+    colorCode: string | null;
+    id: string;
+    inStock: boolean;
+    size: string | null;
+  }[];
+}
+
+export const usePublicMerchQuery = (
+  filters?: {
+    artistUsername?: string;
+    catalogProductId?: string;
+    projectId?: string;
+    trackId?: string;
+  },
+  enabled = true
+) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      (await rpcJson(
+        await publicMerchGet({
+          query: {
+            ...(filters?.artistUsername
+              ? { artistUsername: filters.artistUsername }
+              : {}),
+            ...(filters?.catalogProductId
+              ? { catalogProductId: filters.catalogProductId }
+              : {}),
+            ...(filters?.projectId ? { projectId: filters.projectId } : {}),
+            ...(filters?.trackId ? { trackId: filters.trackId } : {}),
+          },
+        })
+      )) as unknown as PublicMerchDesign[],
+    queryKey: [
+      "public",
+      "merch",
+      filters?.artistUsername ?? "",
+      filters?.projectId ?? "",
+      filters?.trackId ?? "",
+    ],
+
   });
 
 export interface AudioSpikeReport {

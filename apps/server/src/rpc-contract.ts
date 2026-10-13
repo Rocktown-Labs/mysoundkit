@@ -1484,6 +1484,24 @@ export const rpcContract = new Hono()
   .get("/v1/merch/designs/:id/mockups", (c) =>
     c.json([] as Record<string, unknown>[])
   )
+  .get(
+    "/v1/merch/public",
+    validator("query", (value) =>
+      z
+        .object({
+          artistUsername: z.string().optional(),
+          catalogProductId: z.string().optional(),
+          limit: z.string().optional(),
+          projectId: z.string().optional(),
+          trackId: z.string().optional(),
+        })
+        .parse(value)
+    ),
+    (c) => c.json([] as Record<string, unknown>[])
+  )
+  .get("/v1/merch/public/:designId", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
   .get("/v1/payments/tips", (c) =>
     c.json({} as z.infer<typeof artistTipsOverviewSchema>)
   )

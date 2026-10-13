@@ -21,6 +21,7 @@ import {
 } from "@/lib/fulfillment-printful";
 import { createKunakiClient } from "@/lib/kunaki";
 import { logError } from "@/middleware/structured-logging";
+import { listPublicMerch } from "@/lib/public-merch";
 import {
   messageResponseSchema,
   shippingQuoteRequestSchema,
@@ -793,6 +794,84 @@ app.openapi(
         HttpStatusCodes.INTERNAL_SERVER_ERROR
       );
     }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Public merch storefront (fan-facing, no auth required)
+// ---------------------------------------------------------------------------
+
+const publicMerchQuerySchema = z.object({
+  artistUsername: z.string().trim().max(120).optional(),
+  catalogProductId: z.string().trim().optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(24),
+  projectId: z.string().trim().optional(),
+  trackId: z.string().trim().optional(),
+});
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/public",
+    request: {
+      query: publicMerchQuerySchema,
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.array(z.record(z.string(), z.unknown())),
+        "Published merch designs with mockups and variants"
+      ),
+    },
+    tags: ["Merch"],
+  }),
+  async (c) => {
+    const query = c.req.valid("query"),
+      merch = await listPublicMerch({
+        artistUsername: query.artistUsername,
+        catalogProductId: query.catalogProductId,
+        limit: query.limit,
+        projectId: query.projectId,
+        trackId: query.trackId,
+      });
+
+    return c.json(merch, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/public/{designId}",
+    request: {
+      params: z.object({ designId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.record(z.string(), z.unknown()),
+        "Single published merch design"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        z.object({ message: z.string() }),
+        "Design not found or not published"
+      ),
+    },
+    tags: ["Merch"],
+  }),
+  async (c) => {
+    const { designId } = c.req.valid("param"),
+      merch = await listPublicMerch({
+        designId,
+        limit: 1,
+      });
+
+    if (merch.length === 0) {
+      return c.json(
+        { message: "Design not found or not published." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    return c.json(merch[0], HttpStatusCodes.OK);
   }
 );
 
