@@ -1,113 +1,354 @@
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
-import { NativeMenuList } from "@/components/native-menu-list";
-import { NativeSectionScreen } from "@/components/native-section-screen";
+import { ArtistCard } from "@/components/cards/artist-card";
+import { BattleCard } from "@/components/cards/battle-card";
+import { PartyCard } from "@/components/cards/party-card";
+import { ProjectCard } from "@/components/cards/project-card";
+import { StreamCard } from "@/components/cards/stream-card";
+import { TrackCard } from "@/components/cards/track-card";
+import { VideoCard } from "@/components/cards/video-card";
+import { Container } from "@/components/container";
+import { NativeEmptyState } from "@/components/native-collection-grid";
+import { NativeMap } from "@/components/native-map";
+import { NativeRail } from "@/components/native-rail";
+import { NativeSection } from "@/components/native-section";
+import { SoundKitBrand } from "@/components/soundkit-brand";
 import { NAV_THEME } from "@/lib/constants";
-import { EXPLORE_MENU_ITEMS } from "@/lib/native-navigation";
-import { useExploreTracksQuery } from "@/lib/soundkit-api";
+import {
+  exploreLocationPhrase,
+  exploreRegionLabel,
+  exploreRegionQuery,
+  type MapScope,
+} from "@/lib/explore-region";
+import {
+  useArtistsQuery,
+  useBattlesQuery,
+  useListeningPartiesQuery,
+  usePublicLiveExperiencesQuery,
+  usePublicProjectsQuery,
+  useTracksQuery,
+  useVideosQuery,
+} from "@/lib/soundkit-api";
+import type { TrackSummary } from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
+
+const styles = StyleSheet.create({
+    brandRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 12,
+    },
+    input: {
+      borderRadius: 12,
+      borderWidth: 1,
+      fontSize: 15,
+      marginBottom: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    locationText: { fontSize: 12, marginBottom: 10 },
+    searchRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: 8,
+    },
+    sectionGap: { gap: 26 },
+    title: {
+      fontSize: 34,
+      fontWeight: "800",
+      letterSpacing: -0.8,
+      marginBottom: 4,
+    },
+  }),
+  PUBLIC_QUERY = { limit: 12, scope: "public" } as const;
 
 export default function ExploreScreen() {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-    tracksQuery = useExploreTracksQuery();
+    queryClient = useQueryClient(),
+    [mapScope, setMapScope] = useState<MapScope>("global"),
+    [region, setRegion] = useState<string | null>(null),
+    [search, setSearch] = useState(""),
+    regionQuery = useMemo(
+      () => exploreRegionQuery({ mapScope, region }),
+      [mapScope, region]
+    ),
+    locationPhrase = exploreLocationPhrase({ mapScope, region }),
+    tracksQuery = useTracksQuery({
+      ...regionQuery,
+      limit: 12,
+      scope: "public",
+      sort: "plays-desc",
+    }),
+    newTracksQuery = useTracksQuery({
+      ...regionQuery,
+      limit: 12,
+      scope: "public",
+      sort: "date-desc",
+    }),
+    battlesQuery = useBattlesQuery(regionQuery),
+    artistsQuery = useArtistsQuery({
+      ...regionQuery,
+      category: "top",
+      limit: 10,
+      sort: "rank-asc",
+    }),
+    videosQuery = useVideosQuery({
+      ...regionQuery,
+      limit: 12,
+      scope: "public",
+    }),
+    streamsQuery = usePublicLiveExperiencesQuery("stream", regionQuery),
+    projectsQuery = usePublicProjectsQuery({
+      ...regionQuery,
+      limit: 12,
+      sort: "date-desc",
+    }),
+    partiesQuery = useListeningPartiesQuery(regionQuery),
+    searchTracksQuery = useTracksQuery({
+      ...regionQuery,
+      limit: 12,
+      q: search.trim() || undefined,
+      scope: "public",
+      sort: "plays-desc",
+    }),
+    refresh = () => {
+      void queryClient.invalidateQueries();
+    };
 
   return (
-    <NativeSectionScreen
-      description="Discover tracks, artists, scenes, and live moments from across SoundKit."
-      eyebrow="Discover"
-      title="Explore"
+    <ScrollView
+      contentContainerStyle={styles.sectionGap}
+      contentInsetAdjustmentBehavior="automatic"
+      showsVerticalScrollIndicator={false}
+      style={{ backgroundColor: theme.background }}
+      refreshControl={
+        <RefreshControl
+          onRefresh={refresh}
+          refreshing={false}
+          tintColor={theme.primary}
+        />
+      }
     >
-      <View style={styles.introCard}>
-        <Text selectable style={[styles.introTitle, { color: theme.text }]}>
-          Find your next favorite sound.
-        </Text>
-        <Text selectable style={[styles.introCopy, { color: theme.mutedText }]}>
-          Start with the catalog, then follow the scene wherever it leads.
-        </Text>
-      </View>
-
-      <NativeMenuList items={EXPLORE_MENU_ITEMS} label="Browse SoundKit" />
-
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          New tracks
-        </Text>
-        {tracksQuery.isLoading ? (
-          <ActivityIndicator color={theme.primary} />
-        ) : null}
-        {tracksQuery.error ? (
-          <Text
-            selectable
-            style={[styles.message, { color: theme.destructive }]}
-          >
-            Explore is unavailable right now.
+      <Container>
+        <View style={styles.brandRow}>
+          <SoundKitBrand />
+          <Text style={[styles.locationText, { color: theme.mutedText }]}>
+            MOBILE APP
           </Text>
-        ) : null}
-        {tracksQuery.data?.map((track) => (
-          <View
-            key={track.id}
+        </View>
+        <Text style={[styles.title, { color: theme.text }]}>
+          Discover Music
+        </Text>
+        <Text style={[styles.locationText, { color: theme.mutedText }]}>
+          {`Top music ${locationPhrase}. Tap the map to focus a region.`}
+        </Text>
+
+        <NativeMap
+          onRegionSelect={(nextRegion) => {
+            setRegion((current) =>
+              current === nextRegion ? null : nextRegion
+            );
+          }}
+          onScopeChange={(scope) => {
+            setMapScope(scope);
+            setRegion(null);
+          }}
+          scope={mapScope}
+          selectedRegion={region}
+        />
+
+        <View style={styles.searchRow}>
+          <TextInput
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+            onChangeText={setSearch}
+            placeholder="Search songs…"
+            placeholderTextColor={theme.mutedText}
+            returnKeyType="search"
             style={[
-              styles.trackCard,
-              { backgroundColor: theme.card, borderColor: theme.border },
+              styles.input,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                color: theme.text,
+              },
             ]}
-          >
-            <View
-              style={[styles.trackArtwork, { backgroundColor: theme.muted }]}
-            >
-              <Text style={[styles.trackArtworkText, { color: theme.primary }]}>
-                ♫
-              </Text>
-            </View>
-            <View style={styles.trackCopy}>
-              <Text
-                selectable
-                style={[styles.trackTitle, { color: theme.text }]}
-              >
-                {track.title}
-              </Text>
-              <Text
-                selectable
-                style={[styles.artist, { color: theme.mutedText }]}
-              >
-                {track.artistName}
-              </Text>
-            </View>
-          </View>
-        ))}
-      </View>
-    </NativeSectionScreen>
+            value={search}
+          />
+        </View>
+
+        {search.trim().length > 0 ? (
+          <NativeSection title={`Results for “${search.trim()}”`}>
+            <NativeRail>
+              {(searchTracksQuery.data ?? []).map((track: TrackSummary) => (
+                <TrackCard key={track.id} track={track} />
+              ))}
+              {searchTracksQuery.data?.length === 0 ? (
+                <NativeEmptyState>
+                  No songs matched your search.
+                </NativeEmptyState>
+              ) : null}
+            </NativeRail>
+          </NativeSection>
+        ) : null}
+
+        <NativeSection
+          description={
+            region == null && mapScope === "global"
+              ? "Most played tracks across the app this week"
+              : `Most played tracks in ${exploreRegionLabel({ mapScope, region })} this week`
+          }
+          title={`Top Songs ${locationPhrase}`}
+          viewAllHref={`/tracks?regionType=${regionQuery.regionType}&region=${regionQuery.region}&sort=plays-desc`}
+        >
+          <NativeRail>
+            {tracksQuery.isLoading ? <RailLoading /> : null}
+            {(tracksQuery.data ?? []).map((track: TrackSummary) => (
+              <TrackCard key={track.id} track={track} />
+            ))}
+            {tracksQuery.data?.length === 0 ? (
+              <NativeEmptyState>
+                No songs are live for this view yet.
+              </NativeEmptyState>
+            ) : null}
+          </NativeRail>
+        </NativeSection>
+
+        <NativeSection
+          description="Fresh drops from every active scene"
+          title={`New Releases ${locationPhrase}`}
+          viewAllHref={`/tracks?regionType=${regionQuery.regionType}&region=${regionQuery.region}&sort=date-desc`}
+        >
+          <NativeRail>
+            {newTracksQuery.isLoading ? <RailLoading /> : null}
+            {(newTracksQuery.data ?? []).map((track: TrackSummary) => (
+              <TrackCard key={track.id} track={track} />
+            ))}
+          </NativeRail>
+        </NativeSection>
+
+        <NativeSection
+          description="Vote in head-to-head producer matchups"
+          title={`Live Battles ${locationPhrase}`}
+          viewAllHref="/live/battles"
+        >
+          <NativeRail>
+            {battlesQuery.isLoading ? <RailLoading /> : null}
+            {(battlesQuery.data ?? []).map((battle) => (
+              <BattleCard battle={battle} key={battle.id} />
+            ))}
+            {battlesQuery.data?.length === 0 ? (
+              <NativeEmptyState>
+                No battles are live for this view yet.
+              </NativeEmptyState>
+            ) : null}
+          </NativeRail>
+        </NativeSection>
+
+        <NativeSection
+          description="Rising stars and top performers"
+          title={`Top Artists ${locationPhrase}`}
+          viewAllHref="/artist"
+        >
+          <NativeRail>
+            {artistsQuery.isLoading ? <RailLoading /> : null}
+            {(artistsQuery.data ?? []).map((artist) => (
+              <ArtistCard artist={artist} key={artist.username} />
+            ))}
+          </NativeRail>
+        </NativeSection>
+
+        <NativeSection
+          description="Official music videos, studio sessions, and live drops"
+          title={`Featured Videos ${locationPhrase}`}
+          viewAllHref="/videos"
+        >
+          <NativeRail>
+            {videosQuery.isLoading ? <RailLoading /> : null}
+            {(videosQuery.data ?? []).map((video) => (
+              <VideoCard key={video.id} video={video} />
+            ))}
+            {videosQuery.data?.length === 0 ? (
+              <NativeEmptyState>
+                No videos are live for this view yet.
+              </NativeEmptyState>
+            ) : null}
+          </NativeRail>
+        </NativeSection>
+
+        <NativeSection
+          description="Real-time broadcasts and DJ sets live right now"
+          title={`Live Streams ${locationPhrase}`}
+          viewAllHref="/live/streams"
+        >
+          <NativeRail>
+            {streamsQuery.isLoading ? <RailLoading /> : null}
+            {(streamsQuery.data ?? []).map((stream) => (
+              <StreamCard key={stream.id} stream={stream} />
+            ))}
+            {streamsQuery.data?.length === 0 ? (
+              <NativeEmptyState>
+                No live streams currently broadcasting.
+              </NativeEmptyState>
+            ) : null}
+          </NativeRail>
+        </NativeSection>
+
+        <NativeSection
+          description="Albums, EPs, beat kits, and mixtapes"
+          title={`Featured Projects ${locationPhrase}`}
+          viewAllHref="/projects"
+        >
+          <NativeRail>
+            {projectsQuery.isLoading ? <RailLoading /> : null}
+            {(projectsQuery.data ?? []).map((project) => (
+              <ProjectCard key={project.id} project={project} />
+            ))}
+            {projectsQuery.data?.length === 0 ? (
+              <NativeEmptyState>
+                No featured projects are live for this view yet.
+              </NativeEmptyState>
+            ) : null}
+          </NativeRail>
+        </NativeSection>
+
+        <NativeSection
+          description="Community listening parties and track premieres"
+          title={`Listening Parties ${locationPhrase}`}
+          viewAllHref="/live/parties"
+        >
+          <NativeRail>
+            {partiesQuery.isLoading ? <RailLoading /> : null}
+            {(partiesQuery.data ?? []).map((party) => (
+              <PartyCard key={party.id} party={party} />
+            ))}
+            {partiesQuery.data?.length === 0 ? (
+              <NativeEmptyState>
+                No upcoming listening parties scheduled.
+              </NativeEmptyState>
+            ) : null}
+          </NativeRail>
+        </NativeSection>
+      </Container>
+    </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  artist: { fontSize: 13 },
-  introCard: {
-    borderLeftWidth: 3,
-    gap: 8,
-    paddingLeft: 15,
-  },
-  introCopy: { fontSize: 14, lineHeight: 21 },
-  introTitle: { fontSize: 19, fontWeight: "800" },
-  message: { fontSize: 14 },
-  section: { gap: 10 },
-  sectionTitle: { fontSize: 20, fontWeight: "800" },
-  trackArtwork: {
-    alignItems: "center",
-    borderRadius: 10,
-    height: 48,
-    justifyContent: "center",
-    width: 48,
-  },
-  trackArtworkText: { fontSize: 25 },
-  trackCard: {
-    alignItems: "center",
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 12,
-    padding: 12,
-  },
-  trackCopy: { flex: 1, gap: 3 },
-  trackTitle: { fontSize: 16, fontWeight: "700" },
-});
+function RailLoading() {
+  const { colorScheme } = useColorScheme(),
+    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+
+  return <ActivityIndicator color={theme.primary} style={{ padding: 16 }} />;
+}

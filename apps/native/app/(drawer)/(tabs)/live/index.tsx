@@ -1,66 +1,140 @@
-import { StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
-import { NativeMenuList } from "@/components/native-menu-list";
-import { NativeSectionScreen } from "@/components/native-section-screen";
+import { BattleCard } from "@/components/cards/battle-card";
+import { PartyCard } from "@/components/cards/party-card";
+import { StreamCard } from "@/components/cards/stream-card";
+import { Container } from "@/components/container";
+import { NativeEmptyState } from "@/components/native-collection-grid";
+import { NativeRail } from "@/components/native-rail";
+import { NativeSection } from "@/components/native-section";
+import { SoundKitBrand } from "@/components/soundkit-brand";
 import { NAV_THEME } from "@/lib/constants";
-import { LIVE_MENU_ITEMS } from "@/lib/native-navigation";
+import {
+  useBattlesQuery,
+  useListeningPartiesQuery,
+  usePublicLiveExperiencesQuery,
+} from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
+
+const styles = StyleSheet.create({
+  brandRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  locationText: { fontSize: 12, marginBottom: 10 },
+  sectionGap: { gap: 26 },
+  title: {
+    fontSize: 34,
+    fontWeight: "800",
+    letterSpacing: -0.8,
+    marginBottom: 4,
+  },
+});
+
+const GLOBAL_REGION = { region: "all", regionType: "global" } as const;
 
 export default function LiveScreen() {
   const { colorScheme } = useColorScheme(),
-    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
+    battles = useBattlesQuery(GLOBAL_REGION),
+    streams = usePublicLiveExperiencesQuery("stream", GLOBAL_REGION),
+    parties = useListeningPartiesQuery(GLOBAL_REGION);
 
   return (
-    <NativeSectionScreen
-      description="Watch battles, join listening parties, and find creator streams happening on SoundKit."
-      eyebrow="SoundKit Live"
-      title="Live"
-    >
-      <View style={[styles.featureCard, { backgroundColor: theme.text }]}>
-        <View style={[styles.liveBadge, { backgroundColor: theme.accent }]}>
-          <View
-            style={[
-              styles.liveDot,
-              { backgroundColor: theme.accentForeground },
-            ]}
-          />
-          <Text
-            style={[styles.liveBadgeText, { color: theme.accentForeground }]}
-          >
+    <Container>
+      <ScrollView
+        contentContainerStyle={styles.sectionGap}
+        showsVerticalScrollIndicator={false}
+        style={{ backgroundColor: theme.background }}
+      >
+        <View style={styles.brandRow}>
+          <SoundKitBrand />
+          <Text style={[styles.locationText, { color: theme.mutedText }]}>
             LIVE
           </Text>
         </View>
-        <Text
-          selectable
-          style={[styles.featureTitle, { color: theme.background }]}
-        >
-          The room is yours.
+        <Text style={[styles.title, { color: theme.text }]}>SoundKit Live</Text>
+        <Text style={[styles.locationText, { color: theme.mutedText }]}>
+          Battles, listening parties, and creator streams happening on SoundKit.
         </Text>
-        <Text
-          selectable
-          style={[styles.featureCopy, { color: `${theme.background}B8` }]}
+
+        <NativeSection
+          description="Vote in head-to-head producer matchups"
+          title="Live Battles"
+          viewAllHref="/live/battles"
         >
-          See what is happening now and choose a live experience to explore.
-        </Text>
-      </View>
-      <NativeMenuList items={LIVE_MENU_ITEMS} label="Live menu" />
-    </NativeSectionScreen>
+          <NativeRail>
+            {battles.isLoading ? (
+              <ActivityIndicator
+                color={theme.primary}
+                style={{ padding: 16 }}
+              />
+            ) : null}
+            {(battles.data ?? []).map((battle) => (
+              <BattleCard battle={battle} key={battle.id} />
+            ))}
+            {battles.data?.length === 0 ? (
+              <NativeEmptyState>
+                No battles are live right now.
+              </NativeEmptyState>
+            ) : null}
+          </NativeRail>
+        </NativeSection>
+
+        <NativeSection
+          description="Real-time broadcasts and DJ sets"
+          title="Streams"
+          viewAllHref="/live/streams"
+        >
+          <NativeRail>
+            {streams.isLoading ? (
+              <ActivityIndicator
+                color={theme.primary}
+                style={{ padding: 16 }}
+              />
+            ) : null}
+            {(streams.data ?? []).map((stream) => (
+              <StreamCard key={stream.id} stream={stream} />
+            ))}
+            {streams.data?.length === 0 ? (
+              <NativeEmptyState>
+                No live streams currently broadcasting.
+              </NativeEmptyState>
+            ) : null}
+          </NativeRail>
+        </NativeSection>
+
+        <NativeSection
+          description="Community listening parties and premieres"
+          title="Listening Parties"
+          viewAllHref="/live/parties"
+        >
+          <NativeRail>
+            {parties.isLoading ? (
+              <ActivityIndicator
+                color={theme.primary}
+                style={{ padding: 16 }}
+              />
+            ) : null}
+            {(parties.data ?? []).map((party) => (
+              <PartyCard key={party.id} party={party} />
+            ))}
+            {parties.data?.length === 0 ? (
+              <NativeEmptyState>
+                No upcoming listening parties scheduled.
+              </NativeEmptyState>
+            ) : null}
+          </NativeRail>
+        </NativeSection>
+      </ScrollView>
+    </Container>
   );
 }
-
-const styles = StyleSheet.create({
-  featureCard: { borderRadius: 18, gap: 14, padding: 18 },
-  featureCopy: { fontSize: 14, lineHeight: 21 },
-  featureTitle: { fontSize: 21, fontWeight: "800" },
-  liveBadge: {
-    alignItems: "center",
-    alignSelf: "flex-start",
-    borderRadius: 999,
-    flexDirection: "row",
-    gap: 6,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  liveBadgeText: { fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
-  liveDot: { borderRadius: 4, height: 8, width: 8 },
-});
