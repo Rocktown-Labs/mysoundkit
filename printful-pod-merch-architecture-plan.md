@@ -21,7 +21,9 @@
 | Packing slips | **SoundKit co-brand.** `customization.packing_slip` = `{ store_name: "SoundKit — {artistName}", logo_url: <SoundKit logo>, custom_order_id: <SoundKit order id> }`. |
 | Mockup strategy | **All in-stock color variants** of the chosen blank get real mockups at design save, queue-paced (no subset/lazy tiers). |
 | Shipping-cost drift | **Flag, don't stop.** Confirmed-vs-quoted shipping deltas ≤ $1.00 are absorbed by the platform and logged; larger deltas are flagged in the admin ops view but the order still ships. |
-| Fan surfaces (v1) | **Everywhere** — project page, artist profile, **new `/shop` route**, and soundkit.bio, all rendering the same shared merch card grid. |
+| Fan surfaces (v1) | **Everywhere** — project page, track page, artist profile, **new `/shop` route**, and soundkit.bio, all rendering the same shared merch card grid. |
+| Merch entity model | **Standalone-first** — merch is created in its own studio and can optionally link to **one project or one track**. Unlike #408's Kunaki releases (configured inside the project release flow), merch exists independently and links are optional. |
+| Mixed carts | **Supported** — one checkout may carry digital + Kunaki media + Printful merch from the same artist; shipping is quoted per provider, pre-selected to each recommended option, charged as one summed line, and split back per provider at dispatch. |
 | Access gating | **`canSellProducts`** (existing entitlement, true for paid artist plans) — no new entitlement machinery. |
 
 ---
@@ -163,7 +165,8 @@ export const mockupTaskStatusEnum = pgEnum("mockup_task_status", [
 | --- | --- | --- |
 | `id` | `text PK` (uuid) | |
 | `owner_user_id` | `text FK → user ON DELETE CASCADE` | Artist |
-| `project_id` | `text FK → projects ON DELETE SET NULL` | Optional project tie-in (surfaces on the project page) |
+| `project_id` | `text FK → projects ON DELETE SET NULL` | Optional link — merch is standalone by default; a linked design surfaces on the project page |
+| `track_id` | `text FK → tracks ON DELETE SET NULL` | Optional track link (same standalone-first rule; the designer UI offers one primary link — project **or** track — while the schema tolerates both for future flexibility) |
 | `title`, `description` | `text NOT NULL` / `text` | Fan-facing |
 | `status` | `merchStatusEnum default 'draft'` | Draft → ready (mockups done) → published |
 | `printful_catalog_product_id` | `text FK → merch_catalog_products` | Blank style |
@@ -177,7 +180,7 @@ export const mockupTaskStatusEnum = pgEnum("mockup_task_status", [
 | `platform_fee_bps` | `integer default 1200` | 12% (Kunaki parity) |
 | `published_at`, `created_at`, `updated_at` | `timestamp` | |
 
-Indexes: `owner_user_id`, `project_id`, `status`, unique partial index `(owner_user_id, printful_catalog_product_id, placement, design_file_object_key) WHERE status != 'archived'`.
+Indexes: `owner_user_id`, `project_id`, `track_id`, `status`, unique partial index `(owner_user_id, printful_catalog_product_id, placement, design_file_object_key) WHERE status != 'archived'`.
 
 **`merch_mockups`** — photorealistic preview per variant:
 
@@ -219,6 +222,18 @@ Indexes: `owner_user_id`, `project_id`, `status`, unique partial index `(owner_u
 | `tracking_events` | `jsonb` | `[{triggeredAt, description}]` |
 | `departure_country`, `is_reshipment` | `text`, `boolean` | |
 | `created_at`, `updated_at` | `timestamp` | |
+
+**`order_shipping_selections`** — the fan's per-provider shipping choice at checkout (makes mixed Kunaki+Printful carts first-class):
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `text PK` | |
+| `order_id` | `text FK → orders ON DELETE CASCADE` (+ index) | One row per physical provider present in the cart |
+| `provider` | `fulfillmentProviderEnum` (`kunaki` \| `printful`) | Each dispatch step reads its own provider's row |
+| `option_code` | `text NOT NULL` | Kunaki: normalized quote `code`; Printful: shipping method key (e.g. `STANDARD`) |
+| `label` | `text NOT NULL` | Display text incl. EDD |
+| `price_cents` | `integer NOT NULL` | Server re-verified against the cached quote — never client-trusted |
+| `created_at` | `timestamp` | `orders.shippingFeeCents` = Σ rows; the Kunaki label also mirrors into `orders.shippingDescription` so #408's dispatch uses the fan's chosen option instead of defaulting to "Economy" |
 
 ### 3.4 Additive columns on existing tables
 
@@ -264,22 +279,27 @@ Indexes: `owner_user_id`, `project_id`, `status`, unique partial index `(owner_u
 │               printfulVariantId, priceCents snapshot) → cart                │
 └─────────────────────────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ 4. CHECKOUT WITH LIVE SHIPPING                                              │
-│  Cart drawer detects physical items → address form (US)                     │
-│    → POST /v1/payments/shipping-quote {recipient, items}                     │
-│    → server → POST /v2/shipping-rates → rates (carrier, cost, EDD)          │
-│  Fan selects a rate → POST /v1/payments/checkout                            │
-│    {cancelUrl, successUrl, idempotencyKey, shippingAddress, shippingRateId}  │
-│  Server (single-seller + one-physical-provider rules):                        │
-│    orders (checkout_pending) + #405 shipping fields + shippingFeeCents      │
-│    orderItems snapshots: retail, base, platformFee, artistPayout             │
-│    Stripe destination checkout: line_items = items + "Shipping" line;      │
-│    application_fee_amount = 12%·retail + Σbase + shipping  ──────────────── │
+│ 4. CHECKOUT WITH LIVE SHIPPING (mixed Kunaki + Printful OK)                 │
+│  Cart drawer detects physical items → address form (US), then quotes        │
+│  per provider present (most carts: just one):                               │
+│    Kunaki items   → POST /v1/merch/shipping-quote (#408, existing)          │
+│    Printful items → POST /v1/merch/shipping-rates → /v2/shipping-rates      │
+│  Grouped rate UI, recommended pre-selected → one click to continue          │
+│  POST /v1/payments/checkout {…, shippingAddress?,                          │
+│                              shippingSelections: [{provider, optionCode}]} │
+│  Server (single-seller rule; digital + Kunaki + Printful may mix):          │
+│    orders (checkout_pending) + #405 shipping fields + shippingFeeCents = Σ │
+│    order_shipping_selections rows (per provider, price re-verified)        │
+│    orderItems snapshots: retail, base, platformFee, artistPayout            │
+│    Stripe: line_items = items + "Shipping" line;                           │
+│    application_fee = Σcuts + Σbases + Σshipping (both providers) ────────── │
 └─────────────────────────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ 5. PAID → PRINTFUL (durable)                                                │
 │  Stripe webhook → orders.paid → PurchaseFulfillmentWorkflow                 │
-│    existing steps (digital purchases/emails/notifications) + NEW steps:     │
+│    existing steps (digital purchases/emails/notifications, Kunaki dispatch   │
+│    for release items) + NEW Printful steps; each dispatch reads its own      │
+│    provider's row from order_shipping_selections:                            │
 │    "create printful draft"  POST /v2/orders (external_id = orderId,          │
 │                              items external_id = orderItemId, retail_price,  │
 │                              placements layers url = design_file_url)        │
@@ -313,7 +333,7 @@ Indexes: `owner_user_id`, `project_id`, `status`, unique partial index `(owner_u
 | Platform keeps | $5.40, pays Printful invoice (base + shipping + tax) from the master Printful wallet |
 
 Rules:
-- **Exact shipping pass-through** (Kunaki parity): `orders.shippingFeeCents` = the rate the fan selected; Printful invoices that shipping amount. Drift between quote and confirm is a known Printful edge — the confirm step compares the cost snapshot: deltas ≤ $1.00 are absorbed by the platform and logged; larger deltas are flagged in the admin ops view, and the order still ships (confirmed policy).
+- **Exact shipping pass-through** (Kunaki parity): `orders.shippingFeeCents` = the sum of the fan-confirmed per-provider selections; each provider invoices its own portion. Drift between quote and confirm is a known Printful edge — the confirm step compares the cost snapshot: deltas ≤ $1.00 are absorbed by the platform and logged; larger deltas are flagged in the admin ops view, and the order still ships (confirmed policy).
 - **Printful's sales tax** is a merchant-of-record cost SoundKit absorbs inside its 12% in v1 (US-only, confirmed) — the artist payout formula stays state-independent. Follow-up: enable Stripe Tax for explicit fan-facing tax collection, then route the tax line into the charge.
 - Retail bounds per blank (`retail_min/max_cents`) guarantee `artistPayout ≥ floor`; the designer UI shows a live payout preview (mirrors the #405 "Monetize Slot" preview).
 - `transactions.artistAmountCents` = Σ artist payouts + 0·shipping; `platformFees` row keeps the 12%; COGS lives in `orderItems.manufacturingBaseCentsSnapshot` so finance dashboards can reconcile Printful invoices against order rows.
@@ -324,11 +344,13 @@ Rules:
 
 All fan-facing surfaces ship behind `featureFlags.merch` (`VITE_ENABLE_MERCH=true` per environment).
 
+**UX principle — pre-defaulted, never in the way:** the fan's default path is *review → continue*. Recommended shipping options are pre-selected, the address form appears only when physical items exist, merch cards look and behave identically everywhere, and carts never force splitting between physical providers. On the artist side, merch is created in a standalone studio — no project required — with an optional link picker; the project form only shows a subtle CTA into the studio.
+
 ### 5.1 New components
 
 | Component | Location | Purpose |
 | --- | --- | --- |
-| `merch-designer.tsx` | `apps/website/src/components/dashboard/` | Artist studio: curated blank picker (cards with blank images), artwork upload (better-upload flow with `merch/` intent, DPI/size/transparency validation + errors), placement selector, retail price input with bounds + **live payout preview**, "Generate mockups" action, mockup gallery with per-variant previews, publish toggle. |
+| `merch-designer.tsx` | `apps/website/src/components/dashboard/` | **Standalone** artist studio: curated blank picker (cards with blank images), artwork upload (better-upload flow with `merch/` intent, DPI/size/transparency validation + errors), placement selector, retail price input with bounds + **live payout preview**, optional **"Link to project / track" picker** (merch needs no link; entering from the project form just prefills it), "Generate mockups" action, mockup gallery with per-variant previews, publish toggle. |
 | `merch-card.tsx` | `apps/website/src/components/explore/` | The single fan-facing merch product card: mockup image, title, artist credit, price, size + color selectors (variant resolution from the catalog cache payload), add-to-cart. Every surface renders this same card so merch always looks identical. |
 | `merch-shelf.tsx` | `apps/website/src/components/explore/` | Grid wrapper that renders `merch-card`s with empty/loading states; dropped into the project page, artist profile, `/shop`, and bio as a related section. |
 | `app/shop.tsx` (`/shop` route) | `apps/website/src/app/` | New public browsable shop route in the `_explore` style: grid of all published merch with artist + category filter chips at launch (unified search integration is a follow-up via `search.ts`). |
@@ -343,6 +365,7 @@ All fan-facing surfaces ship behind `featureFlags.merch` (`VITE_ENABLE_MERCH=tru
 | `components/cart-provider.tsx` | `CartItem` extends: `productType: "physical_merch"`, `purchaseMode: "physical_merch"`, `merchDesignId`, `printfulVariantId`, `size`, `color`, `previewImageUrl`, `requiresShipping`. Claim/merge logic extended. |
 | `components/cart-drawer.tsx` | Physical badges ("Apparel — printed on demand", like #405's `[Audio CD]` badges), shipping-required banner, the new address + rate steps before the existing checkout POST (payload gains `shippingAddress` + `shippingRateId`), shipping shown as a line before total. |
 | `app/_explore/projects/$id/index.tsx` | "Merch" section (published designs for the project via the public project payload) rendering `merch-shelf.tsx` next to the existing Buy/digital CTA. |
+| Track detail pages | Same shared merch section for track-linked designs (public track payload gains a `merch` array, mirroring the project pattern). |
 | Public artist profile (`/artist/$username`) | "Merch" related section rendering `merch-shelf.tsx` from the artist-scoped public merch list, presented like the project placement so merch cards look the same everywhere. |
 | `apps/bio` (soundkit.bio profile) | Merch section on the bio profile page consuming the same public merch endpoints via `VITE_SERVER_URL`, styled to the bio app's card conventions (consistent with how bio surfaces tracks/projects today). |
 | `app/dashboard/career/payments.tsx` | Unit-sales breakdown gains merch rows (base cost, platform fee, artist payout) + fulfillment status — extends the #405 breakdown so physical media and apparel share one view. |
@@ -366,7 +389,7 @@ Route surfaces: **extend `apps/server/src/routes/merch.ts`** — created by #408
 | Method & path | Body / response | Behavior |
 | --- | --- | --- |
 | `GET /v1/merch/catalog` | → curated blanks + variants + placements + bounds | Served from `merch_catalog_*` cache only. Requires auth + `canSellProducts`. |
-| `POST /v1/merch/designs` | `{projectId?, printfulCatalogProductId, placement, technique?, designFileObjectKey, retailPriceCents, title, description?}` → `merchDesign` | Validates bounds + print-file rules against cache; registers file with Printful (`POST /v2/files`); inserts `merch_designs` (draft); enqueues mockup rows for all in-stock variants of the blank. |
+| `POST /v1/merch/designs` | `{projectId?, trackId?, printfulCatalogProductId, placement, technique?, designFileObjectKey, retailPriceCents, title, description?}` → `merchDesign` | Validates bounds + print-file rules against cache; registers file with Printful (`POST /v2/files`); inserts `merch_designs` (draft; links are optional — standalone by default); enqueues mockup rows for all in-stock variants of the blank. |
 | `GET /v1/merch/designs` | → artist's designs + mockup statuses | Owner-scoped. |
 | `PATCH /v1/merch/designs/{id}` | `{title?, description?, retailPriceCents?, status?}` | Draft/ready edits; `published` only when mockups completed; price re-bounds check. |
 | `DELETE /v1/merch/designs/{id}` | | Archive (soft) — fan shop hides; existing order items unaffected (snapshots). |
@@ -378,7 +401,7 @@ Route surfaces: **extend `apps/server/src/routes/merch.ts`** — created by #408
 | Method & path | Behavior |
 | --- | --- |
 | `GET /v1/projects/public/{projectId}` | Response gains `merch: [{id, title, retailPriceCents, previewMockupUrl, catalogProductId, variants: [{id, size, color, colorCode, image, inStock}]}]` for published designs (mirrors #405's physical editions addition). Cached responses invalidated on publish. |
-| `GET /v1/merch/public` | Paged list of all published merch — backs the `/shop` grid and the bio section; filters `artistUsername`, `catalogProductId` (category), cursor + limit (uniform pagination). Artist profile pages use the `artistUsername` filter for their related section. |
+| `GET /v1/merch/public` | Paged list of all published merch — backs the `/shop` grid, artist profile, and bio sections; filters `artistUsername`, `catalogProductId` (category), `projectId`, `trackId` (linked designs for the project/track pages), cursor + limit (uniform pagination). Unlinked merch appears in artist-scope surfaces (`/shop`, profile, bio). |
 | `GET /v1/merch/{designId}/public` | Single-design detail (card detail views across surfaces). |
 
 ### 6.3 Cart & checkout
@@ -387,7 +410,7 @@ Route surfaces: **extend `apps/server/src/routes/merch.ts`** — created by #408
 | --- | --- |
 | `POST /v1/cart/items` + `POST /v1/cart/claim` (`routes/cart.ts`, `lib/schemas.ts`) | `addCartItemBodySchema` gains `productType: "physical_merch"` with `merchDesignId` + `printfulVariantId`; server re-snapshots retail from `merch_designs` (never trusts client price), stores variant binding, sets `sellerUserId` from the design owner. `toCartResponse` surfaces merch fields + `requiresShipping` on the cart. |
 | `POST /v1/merch/shipping-rates` (new — sibling of #408's Kunaki `POST /v1/merch/shipping-quote`) | `{recipient{name, address1, address2?, city, stateCode, zip}, items?}` — defaults items to the caller's cart. Server → `POST /v2/shipping-rates` with the cart's variant/quantity set + currency USD; response **reuses #408's `shippingQuoteResponseSchema`** (`{currency, options: [{code, description, deliveryTimeDescription, priceCents}], recommended}`) with Printful's `min/max_delivery_date` folded into `deliveryTimeDescription`, so one rate-selector component serves both providers. Quotes cached briefly per (recipient hash + cart hash) to respect the leaky bucket on repeated edits. |
-| `POST /v1/payments/checkout` (extended) | Body gains optional `shippingAddress` + `shippingRateId` — **required** when the cart contains Printful merch items (400 otherwise); carts mixing Kunaki releases and Printful merch are rejected with a split-cart message (checkout-policy extension alongside `getSingleCheckoutSellerId`). Order creation persists #405's shipping columns + `shippingFeeCents` from the cached quote; order-item economics snapshots join #408's `enrichedItems` pattern (third branch: merch). Stripe session adds a "Shipping" line item, sets `application_fee_amount = platformCut + Σbase + shipping`, and refines #408's flag to `collectShippingAddress = hasPhysicalItems && !hasMerchItems`. Digital-only and Kunaki-only carts flow unchanged from #408. |
+| `POST /v1/payments/checkout` (extended) | Body gains `shippingAddress?` (required when Printful merch items exist — needed to quote live rates) and `shippingSelections: [{provider, optionCode}]` (required for each physical provider present). Selections are re-verified server-side against the cached quotes; `orders.shippingFeeCents` = Σ selections, one `order_shipping_selections` row per provider, and the Kunaki label mirrors into `orders.shippingDescription`. Order-item economics snapshots join #408's `enrichedItems` pattern (merch branch). Stripe session adds one "Shipping" line item, sets `application_fee_amount = Σcuts + Σbases + Σshipping` (both providers), and refines #408's flag to `collectShippingAddress = hasPhysicalItems && !hasMerchItems`. Digital-only and Kunaki-only carts flow unchanged from #408. |
 | `GET /v1/payments/orders/{orderId}` (new) | Authenticated buyer/seller view: order + items + `merch_fulfillments` status + `merch_shipments` tracking — powers `order-tracking.tsx`. |
 
 ### 6.4 Webhooks & admin
@@ -402,7 +425,7 @@ Route surfaces: **extend `apps/server/src/routes/merch.ts`** — created by #408
 
 | Surface | Change |
 | --- | --- |
-| `PurchaseFulfillmentWorkflow` (`workflows/purchase-fulfillment.ts`) | New steps after "grant purchases": `create printful draft order` → `await printful costs` (poll w/ step-sleep) → `confirm printful order` → upsert `merch_fulfillments`, set `orders.fulfillmentStatus = printful_processing`. All steps idempotent (skip when `printfulOrderId` already exists / already confirmed). Digital-only orders skip via a cheap order-item check. |
+| `PurchaseFulfillmentWorkflow` (`workflows/purchase-fulfillment.ts`) | New steps after "grant purchases": `create printful draft order` (shipping method from the order's `printful` `order_shipping_selections` row) → `await printful costs` (poll w/ step-sleep) → `confirm printful order` → upsert `merch_fulfillments`, set `orders.fulfillmentStatus = printful_processing`. All steps idempotent (skip when `printfulOrderId` already exists / already confirmed). M5 also narrows #408's Kunaki step to `physicalReleaseId` items (its shipping option comes from the same selections table, falling back to `orders.shippingDescription ?? "Economy"`). Digital-only orders skip via a cheap order-item check. |
 | New CF Queue `merch-mockup-tasks` (+ DLQ) | Consumer (maxConcurrency 1, small batches) creates Printful mockup tasks below the 2–10/min ceiling; `merch_mockups` rows are the durable backlog; consumer also polls recently-pending tasks. |
 | `scheduled` handler (`index.ts`) | Add `runPrintfulFulfillmentReconciliation()` (status pull for in-flight orders — webhook safety net, mirrors `runCheckoutReconciliation`), `runPrintfulCatalogSync()` (daily), and a stale-mockup-task poll. |
 | `alchemy.run.ts` (`packages/infra`) | New bindings: `PRINTFUL_API_KEY`, `PRINTFUL_STORE_ID`, `PRINTFUL_WEBHOOK_SECRET` — bound **production-only** (`...(d.isProduction ? optionalEnvBinding("…") : {})`) so dev and `pr-<n>` previews carry no Printful credentials at all; non-prod routes answer explicit "not configured" errors (upload-routes pattern), and production adds a required-secrets deploy check mirroring `requireR2UploadCredentials`. Plus the mockup queue + consumer resources and `.env.example` entries for `apps/server`. |
@@ -426,14 +449,41 @@ Each PR: branch off updated `master`, `bun run verify` green, `CHANGELOG.md` ent
 
 | PR | Scope | Key files |
 | --- | --- | --- |
-| **M1 — Schema** (after #408 merges; takes migration `0065`) | `fulfillment.ts` schema + enums + cart/order-item columns + `webhookProviderEnum`/`physicalFulfillmentStatusEnum` extensions + `upload-intents` merch type | `packages/db/src/schema/fulfillment.ts`, `app.ts`, `commerce.test.ts`-style `fulfillment.test.ts`, migrations |
+| **M1 — Schema** (after #408 merges; takes migration `0065`) | `fulfillment.ts` schema (incl. `order_shipping_selections`) + enums + cart/order-item columns + `webhookProviderEnum`/`physicalFulfillmentStatusEnum` extensions + `upload-intents` merch type | `packages/db/src/schema/fulfillment.ts`, `app.ts`, `commerce.test.ts`-style `fulfillment.test.ts`, migrations |
 | **M2 — Client + catalog cache** | `lib/printful.ts` (v2 client, 429/Retry-After, header-aware), curated catalog sync job + admin route, env/alchemy bindings | `apps/server/src/lib/printful.ts`, `routes/admin.ts`, `packages/infra/alchemy.run.ts` |
 | **M3 — Designer + mockups** | Upload intent `merch/`, design CRUD routes, File Library registration, mockup queue + consumer + poll sweep, webhook `mockup_task_finished` | `routes/merch.ts`, `lib/fulfillment-printful.ts`, queue consumer, `webhooks-printful.ts` |
-| **M4 — Storefront + cart** | Public merch payloads + paged public list endpoint, project-page and artist-profile merch sections, **`/shop` route**, cart provider/drawer merch fields + badges | `routes/projects.ts`, `routes/merch.ts` (public), `schemas.ts`, `cart.ts`, `app/shop.tsx`, website components |
-| **M5 — Checkout + fulfillment** | Shipping-rates route, checkout extension (address, shipping line item, app-fee math, `collectShippingAddress` refinement, webhook address-capture guard, mixed-cart rejection), `calculateMerchPricing` (mirrors `calculatePhysicalPricing` invariants), workflow changes (narrow Kunaki step to `physicalReleaseId` items + add Printful step keyed on `merchDesignId`), fulfillment/shipment persistence, order-level webhooks, notifications/emails, tracking UI | `routes/payments.ts`, `routes/merch.ts`, `lib/merch-pricing.ts`, `workflows/purchase-fulfillment.ts`, `webhooks-printful.ts`, `webhooks-stripe.ts` (capture guard only), website checkout components |
+| **M4 — Storefront + cart** | Public merch payloads (project, track, artist-scoped) + paged public list endpoint, project-page / track-page / artist-profile merch sections, **`/shop` route**, cart provider/drawer merch fields + badges | `routes/projects.ts`, `routes/tracks.ts`, `routes/merch.ts` (public), `schemas.ts`, `cart.ts`, `app/shop.tsx`, website components |
+| **M5 — Checkout + fulfillment** | Shipping-rates route, checkout extension (address, per-provider `shippingSelections`, shipping line item, app-fee math, `collectShippingAddress` refinement, webhook address-capture guard, mixed-cart support via `order_shipping_selections`), `calculateMerchPricing` (mirrors `calculatePhysicalPricing` invariants), workflow changes (narrow Kunaki step to `physicalReleaseId` items + add Printful step keyed on `merchDesignId`, both reading their provider's selection), fulfillment/shipment persistence, order-level webhooks, notifications/emails, tracking UI | `routes/payments.ts`, `routes/merch.ts`, `lib/merch-pricing.ts`, `workflows/purchase-fulfillment.ts`, `webhooks-printful.ts`, `webhooks-stripe.ts` (capture guard only), website checkout components |
 | **M6 — Bio + analytics + polish + flag flip** | soundkit.bio merch section (same public endpoints), career/payments breakdown, admin ops view, reconciliation sweep hardening, `VITE_ENABLE_MERCH=true` in alchemy for production | `apps/bio`, `payments.tsx`, `alchemy.run.ts` |
 
 **Testing strategy (every milestone):** unit tests for pricing/fee math (bounds, app-fee composition, payout snapshot), printful client (429 backoff, Retry-After, RFC 9457 errors, header parsing), HMAC verification vectors; worker tests (`@cloudflare/vitest-pool-workers`) for routes with mocked `fetch`; cart/checkout flow tests incl. mixed digital+merch carts; Playwright E2E for shop → cart → address → rate selection with a mocked Printful. `bun run verify` is the gate.
+
+### 8.1 Idempotency & scalability map (digital + physical + merch in one checkout)
+
+The mixed-checkout system is **provider-pluggable by design**: `fulfillmentProviderEnum` drives cart badges, `order_shipping_selections` rows, and per-provider dispatch steps; each provider contributes a quote adapter and a fulfillment record table. Adding a future provider means one enum value, one dispatch step, and one quote adapter — carts, checkout, payment math, and the fan UX don't change.
+
+**Every mutation point is idempotent:**
+
+| Mutation | Mechanism | On retry / redelivery |
+| --- | --- | --- |
+| Cart add (merch item) | Existing merge-by-key cart logic + server-side price/variant re-snapshot | No duplicates, no client-trusted prices |
+| Checkout | `orders.idempotencyKey` unique index + Stripe `Idempotency-Key: checkout:{transactionId}` (existing pattern) | Same order + session returned |
+| Shipping selection | `order_shipping_selections` price re-verified against the cached quote (keyed by recipient + cart hash) | Never over-charged by a stale/edited cart |
+| Printful draft order | `external_id` = `orders.id` (Printful-side dedupe) + workflow guard on `printfulOrderId` | Retried dispatches cannot duplicate orders |
+| Printful confirm | Workflow step skips when already confirmed; gated on `costs.calculation_status = done` | No double-charge, no premature confirm |
+| Kunaki dispatch | #408's `order.kunakiOrderId` guard (unchanged) | No duplicate dispatch |
+| Mockup generation | Unique `(merch_design_id, catalog_variant_id)` + stored `printful_task_id` + durable queue backlog rows | No duplicate tasks or rows |
+| Webhook events | HMAC-SHA256 verify + `webhookEvents` dedupe + set-based handlers | Printful `retries` re-deliveries are safe no-ops |
+| Catalog sync | Upsert-by-PK refresh into cache tables | Convergent regardless of run count |
+| Money math | Fixed at checkout via `orderItems` economics snapshots; fulfillment webhooks update status/tracking only, never money | Late/replayed events can't move funds |
+
+**Scalability properties:**
+
+- Fan and artist hot paths **never call Printful** — catalog reads hit the DB cache; only the scheduled sync, stock/price webhooks, the address-triggered quote, and post-payment dispatch touch the API.
+- Mockup generation runs through a dedicated queue (`maxConcurrency: 1`, small batches, DLQ) bounded below the 2–10 tasks/min ceiling, so bursty design publishes can't starve the shared 120/min bucket.
+- Order dispatch runs on durable Cloudflare Workflows — one instance per order, auto-retried, nothing in-request — so fulfillment scales linearly with order volume.
+- The webhook receiver is stateless and cheap (verify → dedupe → set-based update); the scheduled reconciliation sweep is the missed-webhook safety net.
+- The Printful client is leaky-bucket-aware (`X-Ratelimit-*` / `Retry-After` + jittered backoff), so 429s self-heal instead of cascading.
 
 ---
 
@@ -451,7 +501,7 @@ Each PR: branch off updated `master`, `bun run verify` green, `CHANGELOG.md` ent
 | Checkout enrichment | `enrichedItems` computes per-item `{artistPayout, manufacturingCost, platformFee}`; `applicationFeeCents = Σ(platformFee + mfgBase)` | M5 adds the merch branch: base from `merch_catalog_variants.base_price_cents`, cut from `merch_designs.platformFeeBps` (default `PHYSICAL_PLATFORM_FEE_BPS` = 1200, single source of truth), shipping at the order level. `platformFees` rows record the actual 1200 bps for merch. |
 | Unit economics | `lib/physical-pricing.ts`: balance invariant `fanTotal − appFee = artistPayout` | `lib/merch-pricing.ts` mirrors the same invariant; retail bounds come from `merch_catalog_products.retail_min/max_cents` (DB) rather than a code constant. |
 | Cart + drawer | `purchaseMode: physical_merch` badge + "address collected during Stripe Checkout" note | Shared `physical_merch` presentation path; merch subtext differs ("Enter your shipping address for live rates"). `CartItem` type extension lands in one coordinated edit with #408's fields. |
-| Mixed physical carts | Not handled (single physical provider per cart in practice) | **V1 rule: digital items may mix with one physical provider** — a cart holding both Kunaki releases and Printful merch is rejected at checkout with a split-cart message. Two dispatch pipelines and two shipping charges in one order are a v2 problem. |
+| Mixed physical carts | Not handled (one physical provider per cart in practice); Kunaki dispatch reads `orders.shippingDescription ?? "Economy"` | **Supported in v1** (round-4 decision): one checkout may carry digital + Kunaki + Printful items from the same artist. New `order_shipping_selections` stores the fan's per-provider choice (the Kunaki label mirrors into `shippingDescription`, so #408's dispatch uses the chosen option); `orders.shippingFeeCents` = Σ; each dispatch step reads its own provider's row. #408's step changes only by the item-filter narrowing. |
 | career/payments breakdown | Physical unit-sales rows over snapshot columns | Merch rows flow through the same query once M6 lands. |
 | Gating | #408 gates physical media behind a premium tier | Merch gates on `canSellProducts` (round-2 decision) — documented asymmetry, not drift. |
 
@@ -473,10 +523,17 @@ Each PR: branch off updated `master`, `bun run verify` green, `CHANGELOG.md` ent
 **Resolved — round 3 (post-#408 coordination, 2026-10-13):**
 
 - **Unified quote contract** → Printful rates reuse #408's `shippingQuoteResponseSchema` through a sibling route `POST /v1/merch/shipping-rates`; one rate-selector component serves both providers.
-- **Mixed physical carts** → v1 allows digital items + one physical provider per checkout; a cart containing both Kunaki releases and Printful merch is rejected with a split-cart message (checkout-policy extension).
+- **Mixed physical carts** → rejected with a split-cart message *(superseded by round 4 — mixed carts are now supported)*.
 - **Address capture split** → merch carts collect the address pre-checkout (required for live rates); Kunaki carts keep #408's Stripe-collected flow; the Stripe webhook capture is guarded to never overwrite an existing order address.
 - **Shipping mechanism ownership** → M5 wires shipping-fee charging (Stripe line item + `orders.shippingFeeCents` + app-fee inclusion) for merch carts; #408's checkout currently passes `shippingFeeCents: 0` (scaffolded, unwired) — the mechanism is designed so the Kunaki flow can adopt it later.
 - **Fulfillment step split** → #408's Kunaki workflow step narrows to `physicalReleaseId` items; the parallel Printful step keys on `merchDesignId` with `external_id` idempotency.
+
+**Resolved — round 4 (merch entity model + cross-system checkout, 2026-10-13):**
+
+- **Merch is standalone-first** (not release-anchored like #408's Kunaki media): created in its own studio with an **optional** link to one project **or** one track; the project form keeps only a subtle CTA into the studio.
+- **Mixed carts supported** (supersedes round 3): one checkout can carry digital + Kunaki media + Printful merch from the same artist — shipping quoted per provider, recommended options pre-selected, charged as a single summed "Shipping" line, then split back per provider at dispatch via new `order_shipping_selections`.
+- **Track-linked merch** surfaces on track detail pages via the same shared shelf and public track payload.
+- **UX principle locked:** pre-defaulted shipping, address form only when physical items exist, identical merch cards everywhere, no forced cart splitting.
 
 **Remaining open:**
 
