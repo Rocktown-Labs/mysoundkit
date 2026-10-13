@@ -29,6 +29,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { AudioDiagnosticsPanel } from "@/components/admin/audio-diagnostics-panel";
+import { MerchCatalogPanel } from "@/components/admin/merch-catalog-panel";
 import { AdCreativeUploader } from "@/components/ads/ad-creative-uploader";
 import type { AdSlotKind } from "@/components/ads/ad-creative-uploader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -210,6 +211,7 @@ function AdminDashboard() {
             <TabsTrigger value="coupons">Coupons</TabsTrigger>
             <TabsTrigger value="operations">Operations</TabsTrigger>
             <TabsTrigger value="audio">Audio</TabsTrigger>
+            <TabsTrigger value="merch">Merch</TabsTrigger>
             <TabsTrigger className="scroll-mt-20" value="genres">
               Genres
             </TabsTrigger>
@@ -241,6 +243,9 @@ function AdminDashboard() {
         </TabsContent>
         <TabsContent value="audio" className="mt-6">
           <AudioDiagnosticsPanel />
+        </TabsContent>
+        <TabsContent value="merch" className="mt-6">
+          <MerchCatalogPanel />
         </TabsContent>
         <TabsContent value="genres" className="mt-6">
           <GenreCatalogPanel />

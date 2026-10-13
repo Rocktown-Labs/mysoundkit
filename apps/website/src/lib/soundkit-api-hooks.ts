@@ -44,6 +44,11 @@ const meGet = apiClient.v1.me.index.$get,
     apiClient.v1.admin.tracks["backfill-durations"].status.$get,
   adminSyncStripePlansPost =
     apiClient.v1.admin.finance.payments["sync-plans"].$post,
+  adminMerchCatalogGet = apiClient.v1.admin.merch.$get,
+  adminMerchCatalogPost = apiClient.v1.admin.merch.$post,
+  adminMerchCatalogPatch = apiClient.v1.admin.merch[":id"].$patch,
+  adminMerchCatalogRefreshPost = apiClient.v1.admin.merch[":id"].refresh.$post,
+  adminPrintfulProductsGet = apiClient.v1.admin.merch["printful-products"].$get,
   artistOnboardingPost = apiClient.v1.onboarding.artist.$post,
   artistsGet = apiClient.v1.artists.index.$get,
   artistGet = apiClient.v1.artists[":username"].$get,
@@ -717,6 +722,100 @@ export const useAdminEmbeddingBackfillMutation = () => {
       queryClient.invalidateQueries({
         queryKey: ["admin", "embeddings", "status"],
       }),
+  });
+};
+
+export interface AdminMerchCatalogItem {
+  brand: string | null;
+  description: string | null;
+  id: string;
+  image: string | null;
+  inStockCount: number;
+  isCurated: boolean;
+  isDiscontinued: boolean;
+  minBasePriceCents: number;
+  name: string;
+  retailMaxCents: number;
+  retailMinCents: number;
+  syncedAt: string;
+  type: string | null;
+  variantCount: number;
+}
+
+export interface AdminPrintfulProduct {
+  id: number;
+  image: string | null;
+  isDiscontinued: boolean;
+  name: string;
+  type: string | null;
+  variantCount: number | null;
+}
+
+const adminMerchCatalogKey = ["admin", "merch", "catalog"] as const;
+
+export const useAdminMerchCatalogQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      (await rpcJson(await adminMerchCatalogGet())) as unknown as AdminMerchCatalogItem[],
+    queryKey: adminMerchCatalogKey,
+  });
+
+export const useSearchPrintfulProductsMutation = () =>
+  useMutation({
+    mutationFn: async (textSearch: string) =>
+      (await rpcJson(
+        await adminPrintfulProductsGet({ query: { textSearch } })
+      )) as unknown as AdminPrintfulProduct[],
+  });
+
+export interface EnableMerchProductBody {
+  printfulProductId: number;
+  retailMaxCents?: number;
+  retailMinCents?: number;
+}
+
+export const useEnableMerchProductMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: EnableMerchProductBody) =>
+      rpcJson(
+        await adminMerchCatalogPost({
+          json: body as unknown as Record<string, unknown>,
+        })
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: adminMerchCatalogKey }),
+  });
+};
+
+export const useUpdateMerchProductMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...body
+    }: {
+      curated?: boolean;
+      id: string;
+      retailMaxCents?: number;
+      retailMinCents?: number;
+    }) => rpcJson(await adminMerchCatalogPatch({ json: body, param: { id } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: adminMerchCatalogKey }),
+  });
+};
+
+export const useRefreshMerchProductMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) =>
+      rpcJson(await adminMerchCatalogRefreshPost({ param: { id } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: adminMerchCatalogKey }),
   });
 };
 

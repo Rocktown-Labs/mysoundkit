@@ -1165,6 +1165,23 @@ export const rpcContract = new Hono()
     jsonValidator(communityCheckoutSchema),
     (c) => c.json({ checkoutUrl: null as string | null, setupRequired: false })
   )
+  .get("/v1/admin/merch", (c) => c.json([] as Record<string, unknown>[]))
+  .post("/v1/admin/merch", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>, 201)
+  )
+  .patch("/v1/admin/merch/:id", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .post("/v1/admin/merch/:id/refresh", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .get(
+    "/v1/admin/merch/printful-products",
+    validator("query", (value) =>
+      z.object({ textSearch: z.string().optional() }).parse(value)
+    ),
+    (c) => c.json([] as Record<string, unknown>[])
+  )
   .get("/v1/admin/finance/summary", (c) =>
     c.json({} as z.infer<typeof adminFinanceSummarySchema>)
   )

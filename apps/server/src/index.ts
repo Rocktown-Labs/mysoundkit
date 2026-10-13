@@ -47,6 +47,7 @@ import type { NotificationQueueMessage } from "@/lib/notifications";
 import { sendDueOnboardingReminders } from "@/lib/onboarding-reminders";
 import { runOpenVerseSweep } from "@/lib/open-verse-sweep";
 import { runOrphanedUploadSweep } from "@/lib/orphan-sweep";
+import { runPrintfulCatalogSweep } from "@/lib/printful-catalog";
 import { publishDueTrackReleases } from "@/lib/release-notifications";
 import { withRetry } from "@/lib/retry";
 import { isScheduledJobsEnabled } from "@/lib/scheduled-jobs";
@@ -62,6 +63,7 @@ import {
 import adminRoutes from "@/routes/admin";
 import adminAudioDiagnosticsRoutes from "@/routes/admin-audio-diagnostics";
 import adminFinanceRoutes from "@/routes/admin-finance";
+import adminMerchRoutes from "@/routes/admin-merch";
 import adsRoutes from "@/routes/ads";
 import analyticsRoutes from "@/routes/analytics";
 import artistSetupGuideRoutes from "@/routes/artist-setup-guide";
@@ -271,6 +273,7 @@ app
   .route("/v1/admin", adminRoutes)
   .route("/v1/admin", adminAudioDiagnosticsRoutes)
   .route("/v1/admin/finance", adminFinanceRoutes)
+  .route("/v1/admin/merch", adminMerchRoutes)
   .route("/v1/ads", adsRoutes)
   .route("/v1/analytics", analyticsRoutes)
   .route("/v1/artist-setup-guide", artistSetupGuideRoutes)
@@ -410,6 +413,7 @@ export default {
           ...buildWeeklyDigestJobs(workerEnv, now),
           ...buildMonthlyDigestJobs(workerEnv, now),
           runCheckoutReconciliation(),
+          runPrintfulCatalogSweep(),
           runOrphanedUploadSweep({ bucket: workerEnv.MEDIA_BUCKET }),
           scheduleDuePayoutRuns({
             workflow: workerEnv.PAYOUT_RUN_WORKFLOW,
