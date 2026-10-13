@@ -182,7 +182,7 @@ function SignIn() {
                   styles.button,
                   {
                     backgroundColor: theme.primary,
-                    opacity: isSubmitting ? 0.5 : pressed ? 0.85 : 1,
+                    opacity: isSubmitting ? 0.5 : (pressed ? 0.85 : 1),
                   },
                 ]}
               >
