@@ -5,7 +5,7 @@ export default function ProjectsScreen() {
     <NativePlaceholderScreen
       description="Explore albums, EPs, mixtapes, and bundles."
       route="/projects"
-      section="Explore"
+      section="Discover"
       sectionHref="/"
       title="Projects"
     />

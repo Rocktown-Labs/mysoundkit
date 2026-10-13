@@ -5,7 +5,7 @@ export default function ArtistsScreen() {
     <NativePlaceholderScreen
       description="Discover artist profiles and rising talent."
       route="/artist"
-      section="Explore"
+      section="Discover"
       sectionHref="/"
       title="Artists"
     />

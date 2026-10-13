@@ -5,7 +5,7 @@ export default function VideosScreen() {
     <NativePlaceholderScreen
       description="Find music videos and visual releases."
       route="/videos"
-      section="Explore"
+      section="Discover"
       sectionHref="/"
       title="Videos"
     />

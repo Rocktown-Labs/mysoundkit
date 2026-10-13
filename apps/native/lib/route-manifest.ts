@@ -1,7 +1,7 @@
 /* eslint-disable one-var */
 export type NativeRouteOwner =
   | "dashboard-stack"
-  | "explore-stack"
+  | "discover-stack"
   | "library-stack"
   | "live-stack"
   | "root-stack"
@@ -20,136 +20,164 @@ export interface CanonicalRoute {
 export interface NativeTabRoute {
   expoFile: string;
   href: string;
-  icon: "compass" | "microphone" | "music" | "th-large";
-  id: "dashboard" | "explore" | "library" | "live";
-  screen: "(explore)" | "dashboard" | "library" | "live";
+  icon:
+    | "compass"
+    | "microphone"
+    | "musical-notes"
+    | "people"
+    | "radio"
+    | "search";
+  id: "artists" | "discover" | "live" | "music" | "search";
+  screen: "(discover)" | "artists" | "live" | "music" | "search";
   title: string;
 }
 
 export const NATIVE_TAB_ROUTES = [
   {
-    expoFile: "app/(drawer)/(tabs)/(explore)/index.tsx",
+    expoFile: "app/(drawer)/(tabs)/(discover)/index.tsx",
     href: "/",
     icon: "compass",
-    id: "explore",
-    screen: "(explore)",
-    title: "Explore",
+    id: "discover",
+    screen: "(discover)",
+    title: "Discover",
   },
   {
-    expoFile: "app/(drawer)/(tabs)/library/index.tsx",
-    href: "/library",
-    icon: "music",
-    id: "library",
-    screen: "library",
-    title: "Library",
+    expoFile: "app/(drawer)/(tabs)/music/index.tsx",
+    href: "/music",
+    icon: "musical-notes",
+    id: "music",
+    screen: "music",
+    title: "Music",
+  },
+  {
+    expoFile: "app/(drawer)/(tabs)/artists/index.tsx",
+    href: "/artists",
+    icon: "people",
+    id: "artists",
+    screen: "artists",
+    title: "Artists",
   },
   {
     expoFile: "app/(drawer)/(tabs)/live/index.tsx",
     href: "/live",
-    icon: "microphone",
+    icon: "radio",
     id: "live",
     screen: "live",
     title: "Live",
   },
   {
-    expoFile: "app/(drawer)/(tabs)/dashboard/index.tsx",
-    href: "/dashboard",
-    icon: "th-large",
-    id: "dashboard",
-    screen: "dashboard",
-    title: "Dashboard",
+    expoFile: "app/(drawer)/(tabs)/search/index.tsx",
+    href: "/search",
+    icon: "search",
+    id: "search",
+    screen: "search",
+    title: "Search",
   },
 ] as const satisfies readonly NativeTabRoute[];
 
 export const CANONICAL_ROUTES = [
   {
-    id: "explore",
+    id: "discover",
     nativeHref: "/",
-    owner: "explore-stack",
+    owner: "discover-stack",
     status: "native",
     webPath: "/",
   },
   {
+    id: "music",
+    nativeHref: "/music",
+    owner: "discover-stack",
+    status: "native",
+    webPath: "/music",
+  },
+  {
+    id: "search",
+    nativeHref: "/search",
+    owner: "discover-stack",
+    status: "native",
+    webPath: "/search",
+  },
+  {
     id: "tracks",
     nativeHref: "/tracks",
-    owner: "explore-stack",
+    owner: "discover-stack",
     status: "native",
     webPath: "/tracks",
   },
   {
     id: "track-detail",
     nativeHref: "/tracks/:id",
-    owner: "explore-stack",
+    owner: "discover-stack",
     status: "planned",
     webPath: "/tracks/$id",
   },
   {
     id: "projects",
     nativeHref: "/projects",
-    owner: "explore-stack",
+    owner: "discover-stack",
     status: "native",
     webPath: "/projects",
   },
   {
     id: "project-detail",
     nativeHref: "/projects/:id",
-    owner: "explore-stack",
+    owner: "discover-stack",
     status: "planned",
     webPath: "/projects/$id",
   },
   {
     id: "videos",
     nativeHref: "/videos",
-    owner: "explore-stack",
+    owner: "discover-stack",
     status: "native",
     webPath: "/videos",
   },
   {
     id: "video-detail",
     nativeHref: "/videos/:id",
-    owner: "explore-stack",
+    owner: "discover-stack",
     status: "planned",
     webPath: "/videos/$id",
   },
   {
     id: "artists",
     nativeHref: "/artists",
-    owner: "explore-stack",
+    owner: "discover-stack",
     status: "native",
     webPath: "/artist",
   },
   {
     id: "artist-detail",
     nativeHref: "/artists/:username",
-    owner: "explore-stack",
+    owner: "discover-stack",
     status: "planned",
     webPath: "/artist/$username",
   },
   {
     id: "communities",
     nativeHref: "/communities",
-    owner: "explore-stack",
+    owner: "discover-stack",
     status: "native",
     webPath: "/communities",
   },
   {
     id: "community-detail",
     nativeHref: "/communities/:communityId",
-    owner: "explore-stack",
+    owner: "discover-stack",
     status: "planned",
     webPath: "/communities/$communityId",
   },
   {
     id: "shop",
     nativeHref: "/shop",
-    owner: "explore-stack",
+    owner: "discover-stack",
     status: "native",
     webPath: "/shop",
   },
   {
     id: "genres",
     nativeHref: "/genres",
-    owner: "explore-stack",
+    owner: "discover-stack",
     status: "native",
     webPath: "/genres",
   },

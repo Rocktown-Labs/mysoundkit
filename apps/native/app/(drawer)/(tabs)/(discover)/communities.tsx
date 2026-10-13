@@ -5,7 +5,7 @@ export default function CommunitiesScreen() {
     <NativePlaceholderScreen
       description="Join artist-led spaces, posts, and member chat."
       route="/communities"
-      section="Explore"
+      section="Discover"
       sectionHref="/"
       title="Communities"
     />

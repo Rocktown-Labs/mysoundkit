@@ -5,7 +5,7 @@ export default function GenresScreen() {
     <NativePlaceholderScreen
       description="Browse SoundKit by genre, sound, scene, and style."
       route="/genres"
-      section="Explore"
+      section="Discover"
       sectionHref="/"
       title="Genres"
     />

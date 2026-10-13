@@ -5,7 +5,7 @@ export default function TracksScreen() {
     <NativePlaceholderScreen
       description="Browse songs by sound, scene, and region."
       route="/tracks"
-      section="Explore"
+      section="Discover"
       sectionHref="/"
       title="Songs"
     />

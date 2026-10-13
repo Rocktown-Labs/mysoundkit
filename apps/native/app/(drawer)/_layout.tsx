@@ -1,5 +1,6 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { Ionicons } from "@expo/vector-icons";
+import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { Drawer } from "expo-router/drawer";
 
 import { NAV_THEME } from "@/lib/constants";
@@ -12,39 +13,45 @@ function DrawerLayout() {
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
   return (
-    <Drawer
-      screenOptions={{
-        drawerActiveTintColor: theme.primary,
-        drawerInactiveTintColor: theme.mutedText,
-        drawerLabelStyle: { color: theme.text, fontWeight: "700" },
-        drawerStyle: { backgroundColor: theme.background },
-        headerShadowVisible: false,
-        headerStyle: { backgroundColor: theme.background },
-        headerTintColor: theme.text,
-        headerTitleStyle: { color: theme.text, fontWeight: "800" },
-      }}
-    >
-      <Drawer.Screen
-        name="(tabs)"
-        options={{
-          drawerIcon: ({ color, size }) => (
-            <Ionicons color={color} name="musical-notes-outline" size={size} />
-          ),
-          drawerLabel: "SoundKit",
-          headerTitle: "SoundKit",
+    <BottomSheetModalProvider>
+      <Drawer
+        screenOptions={{
+          drawerActiveTintColor: theme.primary,
+          drawerInactiveTintColor: theme.mutedText,
+          drawerLabelStyle: { color: theme.text, fontWeight: "700" },
+          drawerStyle: { backgroundColor: theme.background },
+          headerShown: false,
         }}
-      />
-      <Drawer.Screen
-        name="account"
-        options={{
-          drawerIcon: ({ color, size }) => (
-            <Ionicons color={color} name="person-outline" size={size} />
-          ),
-          drawerLabel: "Account",
-          headerTitle: "Account",
-        }}
-      />
-    </Drawer>
+      >
+        <Drawer.Screen
+          name="(tabs)"
+          options={{
+            drawerIcon: ({ color, size }) => (
+              <Ionicons color={color} name="compass-outline" size={size} />
+            ),
+            drawerLabel: "SoundKit",
+          }}
+        />
+        <Drawer.Screen
+          name="library"
+          options={{
+            drawerIcon: ({ color, size }) => (
+              <Ionicons color={color} name="library-outline" size={size} />
+            ),
+            drawerLabel: "Library",
+          }}
+        />
+        <Drawer.Screen
+          name="dashboard"
+          options={{
+            drawerIcon: ({ color, size }) => (
+              <Ionicons color={color} name="speedometer-outline" size={size} />
+            ),
+            drawerLabel: "Dashboard",
+          }}
+        />
+      </Drawer>
+    </BottomSheetModalProvider>
   );
 }
 
