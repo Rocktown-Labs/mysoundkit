@@ -76,6 +76,9 @@ export interface AppEnv {
     TURNSTILE_SECRET?: string;
     SOUNDKIT_ALLOW_MOCK_REALTIME?: string;
     SOUNDKIT_SCHEDULED_JOBS_ENABLED?: string;
+    KUNAKI_USER_ID?: string;
+    KUNAKI_PASSWORD?: string;
+    KUNAKI_MODE?: string;
   };
   Variables: AppVariables;
 }
