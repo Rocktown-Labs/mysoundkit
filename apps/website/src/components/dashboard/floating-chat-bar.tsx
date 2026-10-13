@@ -74,12 +74,11 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
-import { isImmersiveExploreRoute } from "@/lib/immersive-route";
 import {
   artistSetupProgress,
   buildArtistSetupGuideTasks,
 } from "@/lib/artist-setup-guide";
-import { reconcileCollaborationMessages } from "@/lib/message-reconciliation";
+import { isImmersiveExploreRoute } from "@/lib/immersive-route";
 import {
   useCreateMessageCollectionMutation,
   useMarkConversationReadMutation,
@@ -90,6 +89,7 @@ import {
   useStartCollaborationMutation,
   useStartConversationMutation,
 } from "@/lib/message-db";
+import { reconcileCollaborationMessages } from "@/lib/message-reconciliation";
 import { usePresence } from "@/lib/presence-context";
 import {
   useArtistSetupGuideQuery,
@@ -170,6 +170,8 @@ export function FloatingChatBar() {
     meQuery.isPending ||
     !isArtist ||
     pathname.startsWith("/dashboard/messages") ||
+    pathname === "/dashboard/community" ||
+    pathname.startsWith("/dashboard/live/battles/join/") ||
     isImmersiveExploreRoute(pathname) ||
     pathname.startsWith("/live/")
   ) {
@@ -238,8 +240,8 @@ function FloatingChatBarClient() {
     }, [setupGuideQuery.data]),
     hasIncompleteSetup = Boolean(
       isDashboardRoute &&
-        setupGuideProgress &&
-        setupGuideProgress.completed < setupGuideProgress.total
+      setupGuideProgress &&
+      setupGuideProgress.completed < setupGuideProgress.total
     ),
     conversationsQuery = useMessagingConversations(),
     friendsQuery = useFriendsQuery(),
@@ -478,6 +480,8 @@ function FloatingChatBarClient() {
   if (
     !isArtist ||
     pathname.startsWith("/dashboard/messages") ||
+    pathname === "/dashboard/community" ||
+    pathname.startsWith("/dashboard/live/battles/join/") ||
     isImmersiveExploreRoute(pathname) ||
     pathname.startsWith("/live/")
   ) {
@@ -595,7 +599,7 @@ function FloatingChatBarClient() {
       : "bottom-20 sm:bottom-6 sm:right-6";
   const floatingPositionStyle = useMemo(() => {
     if (!visualViewportMetrics) {
-      return undefined;
+      return;
     }
 
     const rightCorrection = Math.max(
@@ -612,12 +616,18 @@ function FloatingChatBarClient() {
       );
 
     if (rightCorrection === 0 && bottomCorrection === 0) {
-      return undefined;
+      return;
     }
 
     const isDesktop = window.matchMedia("(min-width: 640px)").matches,
       baseRight = isDesktop ? 24 : 16,
-      baseBottom = isDesktop ? (currentTrack ? 112 : 24) : currentTrack ? 144 : 80;
+      baseBottom = isDesktop
+        ? currentTrack
+          ? 112
+          : 24
+        : currentTrack
+          ? 144
+          : 80;
 
     return {
       bottom: `${baseBottom + bottomCorrection}px`,
