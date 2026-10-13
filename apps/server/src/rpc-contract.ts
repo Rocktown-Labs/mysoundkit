@@ -1502,6 +1502,11 @@ export const rpcContract = new Hono()
   .get("/v1/merch/public/:designId", (c) =>
     c.json({} as Record<string, unknown>)
   )
+  .post(
+    "/v1/merch/shipping-rates",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
   .get("/v1/payments/tips", (c) =>
     c.json({} as z.infer<typeof artistTipsOverviewSchema>)
   )
