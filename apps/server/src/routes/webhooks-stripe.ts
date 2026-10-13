@@ -6,8 +6,6 @@ import {
   sellerAccounts,
   userNotifications,
 } from "@soundkit/db/schema/app";
-import { logWarn } from "@/middleware/structured-logging";
-import { ensurePurchaseFulfillmentWorkflow } from "@/workflows/purchase-fulfillment";
 import {
   communityMembers,
   communitySubscriptions,
@@ -36,6 +34,8 @@ import {
   verifyStripeSignatureWithSecrets,
 } from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
+import { logWarn } from "@/middleware/structured-logging";
+import { ensurePurchaseFulfillmentWorkflow } from "@/workflows/purchase-fulfillment";
 
 const app = new OpenAPIHono<AppEnv>(),
   getEnvValue = (key: string) =>
@@ -71,9 +71,38 @@ interface StripeObject {
     eventually_due?: string[];
     past_due?: string[];
   };
+  customer_details?: {
+    address?: {
+      city?: string | null;
+      country?: string | null;
+      line1?: string | null;
+      line2?: string | null;
+      postal_code?: string | null;
+      state?: string | null;
+    } | null;
+    email?: string | null;
+    name?: string | null;
+  } | null;
+  payment_status?: string;
+  shipping_cost?: {
+    amount_subtotal?: number | null;
+    amount_tax?: number | null;
+    amount_total?: number | null;
+    shipping_rate?: string | null;
+  } | null;
+  shipping_details?: {
+    address?: {
+      city?: string | null;
+      country?: string | null;
+      line1?: string | null;
+      line2?: string | null;
+      postal_code?: string | null;
+      state?: string | null;
+    } | null;
+    name?: string | null;
+  } | null;
   status?: string;
   subscription?: string;
-  payment_status?: string;
 }
 
 interface StripeEvent {
@@ -321,9 +350,45 @@ const processConnectAccountEvent = async ({
         if (object.metadata?.tipDelivery === "transfers") {
           await settleTipTransfers({ db, transactionId });
         }
+
+        const shippingDetails =
+            object.shipping_details ?? object.customer_details,
+          shippingAddress = shippingDetails?.address,
+          shippingCostCents =
+            typeof object.shipping_cost?.amount_total === "number"
+              ? object.shipping_cost.amount_total
+              : undefined,
+          shippingDescription =
+            object.metadata?.shippingDescription || undefined;
+
         await db
           .update(orders)
           .set({
+            ...(shippingAddress?.city
+              ? { shippingCity: shippingAddress.city }
+              : {}),
+            ...(shippingAddress?.country
+              ? { shippingCountry: shippingAddress.country }
+              : {}),
+            ...(shippingAddress?.line1
+              ? { shippingAddress1: shippingAddress.line1 }
+              : {}),
+            ...(shippingAddress?.line2
+              ? { shippingAddress2: shippingAddress.line2 }
+              : {}),
+            ...(shippingAddress?.postal_code
+              ? { shippingPostalCode: shippingAddress.postal_code }
+              : {}),
+            ...(shippingAddress?.state
+              ? { shippingStateProvince: shippingAddress.state }
+              : {}),
+            ...(shippingDetails?.name
+              ? { shippingName: shippingDetails.name }
+              : {}),
+            ...(shippingCostCents !== undefined
+              ? { shippingFeeCents: shippingCostCents }
+              : {}),
+            ...(shippingDescription ? { shippingDescription } : {}),
             status: "paid",
             stripePaymentIntentId: object.payment_intent,
           })
@@ -333,11 +398,10 @@ const processConnectAccountEvent = async ({
         // fulfillment workflow so a failure retries without depending on
         // Stripe re-delivering this webhook.
         if (order) {
-          const fulfillmentOutcome =
-            await ensurePurchaseFulfillmentWorkflow({
-              orderId: order.id,
-              workflow: purchaseFulfillmentWorkflow,
-            });
+          const fulfillmentOutcome = await ensurePurchaseFulfillmentWorkflow({
+            orderId: order.id,
+            workflow: purchaseFulfillmentWorkflow,
+          });
 
           if (!fulfillmentOutcome.launched) {
             logWarn({

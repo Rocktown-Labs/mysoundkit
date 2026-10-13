@@ -11,8 +11,18 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
+import { physicalReleases } from "@soundkit/db/schema/commerce";
 import { platformFees, tips, transactions } from "@soundkit/db/schema/payments";
-import { and, count, countDistinct, desc, eq, or, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  inArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -24,6 +34,7 @@ import {
   PRODUCT_PLATFORM_FEE_BPS,
   TIP_PLATFORM_FEE_BPS,
 } from "@/lib/fees";
+import { calculatePhysicalPricing } from "@/lib/physical-pricing";
 import { artistTipsOverviewSchema, messageResponseSchema } from "@/lib/schemas";
 import { isSellerReadyForTips, refreshSellerAccount } from "@/lib/seller";
 import {
@@ -153,6 +164,8 @@ const resolveTipEvent = async ({
     // order and Stripe session instead of creating duplicates.
     cancelUrl: z.url(),
     idempotencyKey: z.uuid().optional(),
+    shippingDescription: z.string().trim().optional(),
+    shippingFeeCents: z.number().int().nonnegative().optional(),
     successUrl: z.url(),
   }),
   tipBodySchema = checkoutBodySchema.extend({
@@ -306,48 +319,125 @@ app.openapi(
       );
     }
 
-    const amountCents = items.reduce(
-        (sum, item) => sum + item.priceCentsSnapshot * item.quantity,
-        0
+    const hasPhysicalItems = items.some(
+        (item) =>
+          item.productType === "physical_merch" ||
+          Boolean(item.physicalReleaseId)
       ),
-      platformFeeCents = calculateFeeCents({
-        amountCents,
-        basisPoints: PRODUCT_PLATFORM_FEE_BPS,
+      physicalReleaseIds = items
+        .filter((item) => item.physicalReleaseId)
+        .map((item) => item.physicalReleaseId as string),
+      physicalReleaseRows =
+        physicalReleaseIds.length > 0
+          ? await db
+              .select()
+              .from(physicalReleases)
+              .where(inArray(physicalReleases.id, physicalReleaseIds))
+          : [],
+      releaseMap = new Map(
+        physicalReleaseRows.map((release) => [release.id, release])
+      );
+
+    let totalAmountCents = 0,
+      totalApplicationFeeCents = 0,
+      totalPlatformFeeCents = 0;
+
+    const enrichedItems = items.map((item) => {
+        const itemTotal = item.priceCentsSnapshot * item.quantity;
+        totalAmountCents += itemTotal;
+
+        if (
+          item.productType === "physical_merch" ||
+          Boolean(item.physicalReleaseId)
+        ) {
+          const release = item.physicalReleaseId
+              ? releaseMap.get(item.physicalReleaseId)
+              : null,
+            mediaFormat = release?.mediaFormat ?? "cd",
+            pricing = calculatePhysicalPricing({
+              mediaFormat,
+              quantity: item.quantity,
+              retailPriceCents: item.priceCentsSnapshot,
+            }),
+            mfgCost = pricing.manufacturingBaseCents,
+            platformCut = pricing.platformCutCents,
+            artistPayout = pricing.artistPayoutCents,
+            applicationFee = mfgCost + platformCut;
+
+          totalPlatformFeeCents += platformCut;
+          totalApplicationFeeCents += applicationFee;
+
+          return {
+            ...item,
+            artistPayoutCents: artistPayout,
+            manufacturingCostCents: mfgCost,
+            platformFeeCents: platformCut,
+          };
+        }
+
+        const platformFee = calculateFeeCents({
+          amountCents: itemTotal,
+          basisPoints: PRODUCT_PLATFORM_FEE_BPS,
+        });
+
+        totalPlatformFeeCents += platformFee;
+        totalApplicationFeeCents += platformFee;
+
+        return {
+          ...item,
+          artistPayoutCents: itemTotal - platformFee,
+          manufacturingCostCents: 0,
+          platformFeeCents: platformFee,
+        };
       }),
+      shippingFeeCents = hasPhysicalItems ? (body.shippingFeeCents ?? 500) : 0,
+      shippingDescription = hasPhysicalItems
+        ? (body.shippingDescription ?? "USPS First Class Mail")
+        : null,
+      artistAmountCents = totalAmountCents - totalApplicationFeeCents,
+      totalChargedCents = totalAmountCents + shippingFeeCents,
+      stripeApplicationFeeCents = totalApplicationFeeCents + shippingFeeCents,
       transactionId = crypto.randomUUID(),
       orderId = crypto.randomUUID();
 
     await db.insert(transactions).values({
-      amountCents,
-      artistAmountCents: amountCents - platformFeeCents,
+      amountCents: totalChargedCents,
+      artistAmountCents,
       buyerUserId: user.id,
       id: transactionId,
-      platformFeeCents,
+      platformFeeCents: totalPlatformFeeCents,
       sellerUserId: sellerId,
       transactionType: "product_purchase",
     });
     await db.insert(platformFees).values({
-      amountCents: platformFeeCents,
+      amountCents: totalPlatformFeeCents,
       basisPoints: PRODUCT_PLATFORM_FEE_BPS,
       id: crypto.randomUUID(),
       transactionId,
     });
     await db.insert(orders).values({
       buyerUserId: user.id,
+      fulfillmentStatus: hasPhysicalItems ? "pending" : "not_applicable",
       id: orderId,
       idempotencyKey: body.idempotencyKey ?? null,
       sellerUserId: sellerId,
+      shippingDescription,
+      shippingFeeCents,
       status: "checkout_pending",
-      subtotal: (amountCents / 100).toFixed(2),
-      total: (amountCents / 100).toFixed(2),
-      totalCents: amountCents,
+      subtotal: (totalAmountCents / 100).toFixed(2),
+      total: (totalChargedCents / 100).toFixed(2),
+      totalCents: totalChargedCents,
       transactionId,
     });
     await db.insert(orderItems).values(
-      items.map((item) => ({
+      enrichedItems.map((item) => ({
+        artistPayoutCentsSnapshot: item.artistPayoutCents,
         id: crypto.randomUUID(),
         licenseOptionId: item.licenseOptionId,
+        manufacturingBaseCentsSnapshot: item.manufacturingCostCents,
         orderId,
+        physicalReleaseId: item.physicalReleaseId,
+        platformFeeCentsSnapshot: item.platformFeeCents,
         priceSnapshot: (item.priceCentsSnapshot / 100).toFixed(2),
         productType: item.productType,
         projectId: item.projectId,
@@ -358,8 +448,9 @@ app.openapi(
     );
 
     const checkout = await createDestinationCheckout({
-      applicationFeeCents: platformFeeCents,
+      applicationFeeCents: stripeApplicationFeeCents,
       cancelUrl: body.cancelUrl,
+      collectShippingAddress: hasPhysicalItems,
       customerEmail: user.email,
       destinationAccountId: seller.stripeAccountId,
       lineItems: items.map((item) => ({
@@ -368,7 +459,24 @@ app.openapi(
         priceCents: item.priceCentsSnapshot,
         quantity: item.quantity,
       })),
-      metadata: { transactionId, transactionType: "product_purchase" },
+      metadata: {
+        shippingDescription: shippingDescription ?? "",
+        shippingFeeCents: String(shippingFeeCents),
+        transactionId,
+        transactionType: "product_purchase",
+      },
+      shippingOptions: hasPhysicalItems
+        ? [
+            {
+              amountCents: shippingFeeCents,
+              deliveryEstimate: {
+                maximum: { unit: "business_day", value: 5 },
+                minimum: { unit: "business_day", value: 3 },
+              },
+              displayName: shippingDescription ?? "USPS First Class Mail",
+            },
+          ]
+        : undefined,
       successUrl: body.successUrl,
     });
 

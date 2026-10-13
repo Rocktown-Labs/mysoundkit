@@ -5,14 +5,19 @@ import {
   purchases,
   userNotifications,
 } from "@soundkit/db/schema/app";
+import { physicalReleases } from "@soundkit/db/schema/commerce";
 import { WorkflowEntrypoint } from "cloudflare:workers";
 import type { WorkflowEvent, WorkflowStep } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, or } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { notifyPurchaseEmails } from "@/lib/email-events";
+import { createKunakiClient } from "@/lib/kunaki";
+import { logError, logInfo, logWarn } from "@/middleware/structured-logging";
 
-interface PurchaseFulfillmentPayload { orderId: string }
+interface PurchaseFulfillmentPayload {
+  orderId: string;
+}
 
 const stepRetryConfig = {
     retries: {
@@ -79,7 +84,7 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
     event: WorkflowEvent<PurchaseFulfillmentPayload>,
     step: WorkflowStep
   ) {
-    const {orderId} = event.payload;
+    const { orderId } = event.payload;
 
     if (!isDatabaseConfigured()) {
       return { fulfilled: false as const, reason: "no_database" };
@@ -136,6 +141,156 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
         )
         .onConflictDoNothing();
     });
+
+    const physicalOrderResult = await step.do(
+      "submit physical order to kunaki",
+      async () => {
+        const db = createDb(),
+          [order] = await db
+            .select()
+            .from(orders)
+            .where(eq(orders.id, orderId))
+            .limit(1);
+
+        if (!order || order.kunakiOrderId) {
+          return { kunakiOrderId: order?.kunakiOrderId ?? null, skipped: true };
+        }
+
+        const physicalItems = await db
+          .select()
+          .from(orderItems)
+          .where(
+            and(
+              eq(orderItems.orderId, orderId),
+              or(
+                eq(orderItems.productType, "physical_merch"),
+                isNotNull(orderItems.physicalReleaseId)
+              )
+            )
+          );
+
+        if (physicalItems.length === 0) {
+          return { kunakiOrderId: null, skipped: true };
+        }
+
+        if (
+          !order.shippingName ||
+          !order.shippingAddress1 ||
+          !order.shippingCity ||
+          !order.shippingPostalCode ||
+          !order.shippingCountry
+        ) {
+          logWarn({
+            event: "kunaki_fulfillment_missing_address",
+            message:
+              "Cannot fulfill Kunaki order: shipping address missing on order.",
+            orderId,
+          });
+          await db
+            .update(orders)
+            .set({ fulfillmentStatus: "failed" })
+            .where(eq(orders.id, orderId));
+          return { kunakiOrderId: null, skipped: true };
+        }
+
+        const releaseIds = physicalItems
+            .map((item) => item.physicalReleaseId)
+            .filter((id): id is string => Boolean(id)),
+          releaseRows =
+            releaseIds.length > 0
+              ? await db
+                  .select()
+                  .from(physicalReleases)
+                  .where(inArray(physicalReleases.id, releaseIds))
+              : [],
+          releaseMap = new Map(releaseRows.map((r) => [r.id, r])),
+          kunakiItems: { productId: string; quantity: number }[] = [];
+
+        for (const item of physicalItems) {
+          const release = item.physicalReleaseId
+            ? releaseMap.get(item.physicalReleaseId)
+            : null;
+
+          if (!release?.kunakiProductId) {
+            logError({
+              event: "kunaki_fulfillment_missing_product_id",
+              message: `Cannot fulfill Kunaki order: release ${item.physicalReleaseId ?? "unknown"} has no Kunaki product ID configured for format ${release?.mediaFormat ?? "unknown"}.`,
+              orderId,
+            });
+            await db
+              .update(orders)
+              .set({ fulfillmentStatus: "failed" })
+              .where(eq(orders.id, orderId));
+            return { kunakiOrderId: null, skipped: true };
+          }
+
+          kunakiItems.push({
+            productId: release.kunakiProductId,
+            quantity: item.quantity,
+          });
+        }
+
+        // Persist an in-flight marker before initiating outbound API call
+        if (order.fulfillmentStatus !== "kunaki_processing") {
+          await db
+            .update(orders)
+            .set({ fulfillmentStatus: "kunaki_processing" })
+            .where(eq(orders.id, orderId));
+        }
+
+        const kunaki = createKunakiClient();
+        try {
+          const kunakiOrderId = await kunaki.createOrder({
+            address1: order.shippingAddress1,
+            address2: order.shippingAddress2 ?? undefined,
+            city: order.shippingCity,
+            country: order.shippingCountry,
+            items: kunakiItems,
+            name: order.shippingName,
+            postalCode: order.shippingPostalCode,
+            shippingDescription:
+              order.shippingDescription ?? "USPS First Class Mail",
+            stateProvince: order.shippingStateProvince ?? undefined,
+          });
+
+          return { kunakiOrderId, skipped: false };
+        } catch (error) {
+          logError({
+            error: error instanceof Error ? error.message : String(error),
+            event: "kunaki_order_failed",
+            orderId,
+          });
+          await db
+            .update(orders)
+            .set({ fulfillmentStatus: "failed" })
+            .where(eq(orders.id, orderId));
+          throw error;
+        }
+      }
+    );
+
+    if (physicalOrderResult?.kunakiOrderId) {
+      await step.do(
+        "record kunaki order confirmation",
+        stepRetryConfig,
+        async () => {
+          const db = createDb();
+          await db
+            .update(orders)
+            .set({
+              fulfillmentStatus: "kunaki_processing",
+              kunakiOrderId: physicalOrderResult.kunakiOrderId,
+            })
+            .where(eq(orders.id, orderId));
+
+          logInfo({
+            event: "kunaki_order_created",
+            kunakiOrderId: physicalOrderResult.kunakiOrderId,
+            orderId,
+          });
+        }
+      );
+    }
 
     await step.do("send purchase delivery emails", stepRetryConfig, () =>
       notifyPurchaseEmails({ orderId, queue: emailQueue })

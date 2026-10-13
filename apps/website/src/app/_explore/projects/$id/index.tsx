@@ -14,6 +14,7 @@ import {
   Image,
   Layers,
   Music,
+  Package,
   Play,
   Plus,
   Share2,
@@ -40,6 +41,19 @@ export const Route = createFileRoute("/_explore/projects/$id/")({
 type ProjectTrack = PublicProjectDetail["tracks"][number];
 
 type ProjectAsset = PublicProjectDetail["assets"][number];
+
+const formatMediaLabel = (format: string, detailed = false): string => {
+  if (format === "vinyl_12") {
+    return detailed ? '12" Vinyl LP' : '12" Vinyl';
+  }
+  if (format === "vinyl_7") {
+    return detailed ? '7" Vinyl Single' : '7" Vinyl';
+  }
+  if (format === "dvd") {
+    return detailed ? "Video DVD" : "DVD";
+  }
+  return "Audio CD";
+};
 
 function PublicProjectDetailPage() {
   const { id } = Route.useParams(),
@@ -169,6 +183,30 @@ function PublicProjectDetailPage() {
       });
       toast({
         description: `Added "${project.title}" to cart.`,
+        title: "Added to Cart",
+      });
+    },
+    publishedPhysicalReleases = (project.physicalReleases ?? []).filter(
+      (release) => release.status === "published"
+    ),
+    handleBuyPhysicalRelease = (
+      release: NonNullable<PublicProjectDetail["physicalReleases"]>[number]
+    ) => {
+      const formatName = formatMediaLabel(release.mediaFormat);
+
+      addItem({
+        artistName: project.artistName ?? "SoundKit Artist",
+        coverArtUrl: project.coverArtUrl ?? undefined,
+        mediaFormat: release.mediaFormat,
+        physicalReleaseId: release.id,
+        priceCents: release.retailPriceCents,
+        productType: "physical_merch",
+        projectId: project.id,
+        purchaseMode: "physical_merch",
+        title: `${project.title} (${formatName})`,
+      });
+      toast({
+        description: `Added "${project.title}" (${formatName}) to your cart.`,
         title: "Added to Cart",
       });
     },
@@ -343,10 +381,25 @@ function PublicProjectDetailPage() {
                     onClick={handleBuyProject}
                     size="lg"
                   >
-                    <ShoppingCart className="mr-2 size-5" /> Buy{" "}
+                    <ShoppingCart className="mr-2 size-5" /> Buy Digital{" "}
                     {projectPriceLabel}
                   </Button>
                 ) : null}
+                {publishedPhysicalReleases.map((release) => {
+                  const formatLabel = formatMediaLabel(release.mediaFormat);
+                  return (
+                    <Button
+                      className="h-12 flex-1 rounded-lg border-primary/40 bg-primary/10 px-6 font-black text-primary uppercase tracking-[0.1em] hover:bg-primary/20 sm:flex-none"
+                      key={release.id}
+                      onClick={() => handleBuyPhysicalRelease(release)}
+                      size="lg"
+                      variant="outline"
+                    >
+                      <Package className="mr-2 size-5" /> Buy {formatLabel} $
+                      {(release.retailPriceCents / 100).toFixed(2)}
+                    </Button>
+                  );
+                })}
                 <Button
                   aria-label={
                     isProjectLiked ? "Unlike project" : "Like project"
@@ -380,6 +433,14 @@ function PublicProjectDetailPage() {
               </div>
             </div>
           </section>
+
+          {publishedPhysicalReleases.length > 0 ? (
+            <ProjectPhysicalReleasesSection
+              onBuyRelease={handleBuyPhysicalRelease}
+              project={project}
+              releases={publishedPhysicalReleases}
+            />
+          ) : null}
 
           <ProjectTracklist
             onPlayTrack={handlePlayTrack}
@@ -623,6 +684,83 @@ function formatReleaseDate(value: string) {
     month: "short",
     year: "numeric",
   });
+}
+
+function ProjectPhysicalReleasesSection({
+  onBuyRelease,
+  project,
+  releases,
+}: {
+  onBuyRelease: (
+    release: NonNullable<PublicProjectDetail["physicalReleases"]>[number]
+  ) => void;
+  project: PublicProjectDetail;
+  releases: NonNullable<PublicProjectDetail["physicalReleases"]>;
+}) {
+  return (
+    <section className="space-y-4">
+      <div className="flex items-center justify-between gap-3 px-2">
+        <h2 className="flex items-center gap-2 font-black text-xl uppercase tracking-tight">
+          <Package className="size-5 text-primary" />
+          Physical Editions ({releases.length})
+        </h2>
+        <span className="hidden text-muted-foreground text-xs sm:block">
+          Manufactured on demand via Kunaki • Instant digital access included
+        </span>
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {releases.map((release) => {
+          const formatLabel = formatMediaLabel(release.mediaFormat, true);
+
+          return (
+            <div
+              className="flex flex-col justify-between rounded-lg border border-border/40 bg-card/60 p-5 backdrop-blur-sm"
+              key={release.id}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      className="rounded-none font-black text-[10px] uppercase tracking-widest"
+                      variant="secondary"
+                    >
+                      {formatLabel}
+                    </Badge>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      Print-on-Demand
+                    </span>
+                  </div>
+                  <h3 className="font-black text-lg uppercase tracking-tight">
+                    {release.title || `${project.title} (${formatLabel})`}
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {release.description ??
+                      "Manufactured direct to order in high-fidelity quality with custom artwork. Includes instant digital download in your library."}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 flex items-center justify-between border-t border-border/20 pt-4">
+                <div>
+                  <p className="font-black text-2xl tabular-nums">
+                    ${(release.retailPriceCents / 100).toFixed(2)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    + shipping calculated at checkout
+                  </p>
+                </div>
+                <Button
+                  className="font-black uppercase tracking-wider"
+                  onClick={() => onBuyRelease(release)}
+                >
+                  <ShoppingCart className="mr-2 size-4" /> Order Edition
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 function trackHref(track: ProjectTrack) {

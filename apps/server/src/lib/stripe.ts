@@ -399,9 +399,26 @@ interface CheckoutLineItem {
   quantity: number;
 }
 
+export interface CheckoutShippingOption {
+  amountCents: number;
+  currency?: string;
+  deliveryEstimate?: {
+    maximum?: {
+      unit: "business_day" | "day" | "hour" | "month" | "week";
+      value: number;
+    };
+    minimum?: {
+      unit: "business_day" | "day" | "hour" | "month" | "week";
+      value: number;
+    };
+  };
+  displayName: string;
+}
+
 interface CreateCheckoutSessionInput {
   applicationFeeCents?: number;
   cancelUrl?: string;
+  collectShippingAddress?: boolean;
   connectedAccountId?: string;
   customerEmail?: string | null;
   destinationAccountId?: string;
@@ -410,6 +427,8 @@ interface CreateCheckoutSessionInput {
   managedPaymentsEnabled?: boolean;
   metadata: Record<string, string>;
   returnUrl?: string;
+  shippingCountries?: string[];
+  shippingOptions?: CheckoutShippingOption[];
   successUrl?: string;
   transferGroup?: string;
 }
@@ -417,6 +436,7 @@ interface CreateCheckoutSessionInput {
 export const buildCheckoutSessionParams = ({
   applicationFeeCents,
   cancelUrl,
+  collectShippingAddress,
   customerEmail,
   destinationAccountId,
   embedded = false,
@@ -424,6 +444,8 @@ export const buildCheckoutSessionParams = ({
   managedPaymentsEnabled,
   metadata,
   returnUrl,
+  shippingCountries,
+  shippingOptions,
   successUrl,
   transferGroup,
 }: CreateCheckoutSessionInput) => {
@@ -436,6 +458,85 @@ export const buildCheckoutSessionParams = ({
   );
   appendValue(params, "allow_promotion_codes", true);
   appendValue(params, "customer_email", customerEmail);
+
+  if (collectShippingAddress) {
+    const countries = shippingCountries ?? [
+      "US",
+      "CA",
+      "GB",
+      "AU",
+      "DE",
+      "FR",
+      "IT",
+      "ES",
+      "NL",
+      "JP",
+      "SE",
+      "NO",
+      "DK",
+      "NZ",
+      "IE",
+      "CH",
+      "AT",
+      "BE",
+    ];
+    for (const country of countries) {
+      appendValue(
+        params,
+        "shipping_address_collection[allowed_countries][]",
+        country
+      );
+    }
+  }
+
+  if (shippingOptions && shippingOptions.length > 0) {
+    for (const [index, option] of shippingOptions.entries()) {
+      appendValue(
+        params,
+        `shipping_options[${index}][shipping_rate_data][type]`,
+        "fixed_amount"
+      );
+      appendValue(
+        params,
+        `shipping_options[${index}][shipping_rate_data][display_name]`,
+        option.displayName
+      );
+      appendValue(
+        params,
+        `shipping_options[${index}][shipping_rate_data][fixed_amount][amount]`,
+        option.amountCents
+      );
+      appendValue(
+        params,
+        `shipping_options[${index}][shipping_rate_data][fixed_amount][currency]`,
+        (option.currency ?? "usd").toLowerCase()
+      );
+      if (option.deliveryEstimate?.minimum) {
+        appendValue(
+          params,
+          `shipping_options[${index}][shipping_rate_data][delivery_estimate][minimum][unit]`,
+          option.deliveryEstimate.minimum.unit
+        );
+        appendValue(
+          params,
+          `shipping_options[${index}][shipping_rate_data][delivery_estimate][minimum][value]`,
+          option.deliveryEstimate.minimum.value
+        );
+      }
+      if (option.deliveryEstimate?.maximum) {
+        appendValue(
+          params,
+          `shipping_options[${index}][shipping_rate_data][delivery_estimate][maximum][unit]`,
+          option.deliveryEstimate.maximum.unit
+        );
+        appendValue(
+          params,
+          `shipping_options[${index}][shipping_rate_data][delivery_estimate][maximum][value]`,
+          option.deliveryEstimate.maximum.value
+        );
+      }
+    }
+  }
 
   if (embedded) {
     appendValue(params, "ui_mode", "embedded");
@@ -512,27 +613,36 @@ const createCheckoutSession = (input: CreateCheckoutSessionInput) =>
 export const createDestinationCheckout = ({
   applicationFeeCents,
   cancelUrl,
-  destinationAccountId,
+  collectShippingAddress,
   customerEmail,
+  destinationAccountId,
   lineItems,
   metadata,
+  shippingCountries,
+  shippingOptions,
   successUrl,
 }: {
   applicationFeeCents: number;
   cancelUrl: string;
+  collectShippingAddress?: boolean;
   customerEmail?: string | null;
   destinationAccountId: string;
   lineItems: CheckoutLineItem[];
   metadata: Record<string, string>;
+  shippingCountries?: string[];
+  shippingOptions?: CheckoutShippingOption[];
   successUrl: string;
 }) =>
   createCheckoutSession({
     applicationFeeCents,
     cancelUrl,
+    collectShippingAddress,
     customerEmail,
     destinationAccountId,
     lineItems,
     metadata,
+    shippingCountries,
+    shippingOptions,
     successUrl,
   });
 

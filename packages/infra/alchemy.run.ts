@@ -608,6 +608,9 @@ export const server = Cloudflare.Worker(
         ),
         ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID"),
         ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID"),
+        ...optionalEnvBinding("KUNAKI_USER_ID"),
+        ...optionalEnvBinding("KUNAKI_PASSWORD"),
+        ...optionalEnvBinding("KUNAKI_MODE"),
       },
       // NOTE (v2 migration): v1 declared `placement: { region:
       // "aws:us-east-1" }`, but without a `mode` that value cannot enable

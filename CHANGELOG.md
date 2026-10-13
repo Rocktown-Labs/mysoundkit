@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added Print-on-Demand Physical Merchandise integration via Kunaki XML Web Services (#405): artists can offer Audio CDs, 12" Vinyl, 7" Vinyl, and Video DVDs directly from their project monetize flow. Features enforced price boundaries and artist earnings calculations, Kunaki live shipping rate estimation API (`POST /v1/merch/shipping-quote`), Stripe destination charges with 100% pass-through shipping to protect platform margins, Stripe shipping address capture, automated idempotent fulfillment workflow dispatching to Kunaki's XML order API upon checkout, and storefront physical merchandise purchasing with instant digital downloads.
+
 - Rebuilt the native Discover experience (#396): five public bottom tabs (Discover, Music, Artists, Live, Search) on `expo-router/unstable-native-tabs`, a Discover screen with the mobile-web section order (Top Songs, New Releases, Live Battles, Top Artists, Featured Videos, Live Streams, Featured Projects, Listening Parties) driven by real public API hooks and a compact region-selector card (global + eight scopes), a header avatar (single tap opens a library menu sheet, double tap opens `/library`), a Discover tab double-tap menu sheet, an Apple Music-style Search tab with genre grid and live search, public Music/Artists overviews, the library page hosting account + artist dashboard/Settings links, and a global mini-player in the tab bar bottom accessory. Library and dashboard stacks moved out of the tab group, the route manifest/validator now cover the five-tab set, and `expo-av` + `@gorhom/bottom-sheet` were added.
 
 

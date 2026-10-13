@@ -27,8 +27,9 @@ export function CartDrawer() {
       try {
         // Stable across retries so double-clicks/network failures resolve to
         // the same order and Stripe session instead of creating duplicates.
-        let idempotencyKey: null | string =
-          sessionStorage.getItem("soundkit_checkout_intent");
+        let idempotencyKey: null | string = sessionStorage.getItem(
+          "soundkit_checkout_intent"
+        );
         if (!idempotencyKey) {
           idempotencyKey = crypto.randomUUID();
           sessionStorage.setItem("soundkit_checkout_intent", idempotencyKey);
@@ -103,8 +104,23 @@ export function CartDrawer() {
                       <p className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                         {item.purchaseMode === "license"
                           ? (item.licenseName ?? "Beat License")
-                          : "Digital Download"}
+                          : (item.purchaseMode === "physical_merch"
+                            ? `${
+                                item.mediaFormat === "vinyl_12"
+                                  ? '12" Vinyl LP'
+                                  : item.mediaFormat === "vinyl_7"
+                                    ? '7" Vinyl Single'
+                                    : item.mediaFormat === "dvd"
+                                      ? "DVD Video"
+                                      : "Audio CD"
+                              } • Print-on-Demand`
+                            : "Digital Download")}
                       </p>
+                      {item.purchaseMode === "physical_merch" ? (
+                        <p className="mt-0.5 text-[9px] text-muted-foreground/80">
+                          Includes instant digital library access
+                        </p>
+                      ) : null}
                     </div>
                     <Button
                       type="button"
@@ -164,6 +180,13 @@ export function CartDrawer() {
         <div className="border-t border-border/40 p-6">
           {checkoutError ? (
             <p className="mb-4 text-sm text-destructive">{checkoutError}</p>
+          ) : null}
+          {cart.items.some((item) => item.purchaseMode === "physical_merch") ? (
+            <div className="mb-4 rounded border border-border/40 bg-muted/40 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
+              📦 Physical merch includes print-on-demand fulfillment. Live
+              shipping rates and delivery address are collected during Stripe
+              checkout.
+            </div>
           ) : null}
           <div className="mb-5 flex items-center justify-between">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">

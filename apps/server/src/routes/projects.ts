@@ -18,6 +18,7 @@ import {
   userFollows,
   userProfiles,
 } from "@soundkit/db/schema/app";
+import { physicalReleases } from "@soundkit/db/schema/commerce";
 import { env } from "@soundkit/env/server";
 import {
   and,
@@ -65,6 +66,10 @@ import {
   ensureTrackEnrichmentWorkflow,
 } from "@/lib/media-processing-jobs";
 import { notify } from "@/lib/notifications";
+import {
+  PHYSICAL_FORMAT_RULES,
+  PHYSICAL_PLATFORM_FEE_BPS,
+} from "@/lib/physical-pricing";
 import {
   genreSlugFromExploreFilter,
   profileRegionCondition,
@@ -392,6 +397,7 @@ app.openapi(
           ...project,
           assets: [],
           collaborators: [],
+          physicalReleases: [],
           tracks: [],
         },
         HttpStatusCodes.OK
@@ -832,6 +838,27 @@ app.openapi(
         }
       }
 
+      if (body.physicalReleases && body.physicalReleases.length > 0) {
+        for (const releaseInput of body.physicalReleases) {
+          const formatRule = PHYSICAL_FORMAT_RULES[releaseInput.mediaFormat];
+          await db.insert(physicalReleases).values({
+            description: releaseInput.description ?? null,
+            id: crypto.randomUUID(),
+            includesDigitalDownload:
+              releaseInput.includesDigitalDownload ?? true,
+            kunakiProductId: releaseInput.kunakiProductId ?? null,
+            manufacturingBaseCents: formatRule.manufacturingBaseCents,
+            mediaFormat: releaseInput.mediaFormat,
+            ownerUserId: user.id,
+            platformFeeBps: PHYSICAL_PLATFORM_FEE_BPS,
+            projectId: project.id,
+            retailPriceCents: releaseInput.retailPriceCents,
+            status: releaseInput.status ?? "published",
+            title: body.title,
+          });
+        }
+      }
+
       if (body.isPublic && !hasNewTracks) {
         await publishProjectIfMediaReady({ projectId: project.id });
       }
@@ -1072,6 +1099,67 @@ app.openapi(
         objectKey: coverObjectKey,
         userId: user.id,
       });
+    }
+
+    if (body.physicalReleases) {
+      const activeFormats = new Set(
+        body.physicalReleases.map((r) => r.mediaFormat)
+      );
+
+      const existingReleases = await db
+        .select({
+          id: physicalReleases.id,
+          mediaFormat: physicalReleases.mediaFormat,
+        })
+        .from(physicalReleases)
+        .where(eq(physicalReleases.projectId, project.id));
+
+      for (const existing of existingReleases) {
+        if (!activeFormats.has(existing.mediaFormat)) {
+          await db
+            .update(physicalReleases)
+            .set({ status: "archived" })
+            .where(eq(physicalReleases.id, existing.id));
+        }
+      }
+
+      for (const releaseInput of body.physicalReleases) {
+        const formatRule = PHYSICAL_FORMAT_RULES[releaseInput.mediaFormat];
+        const existing = existingReleases.find(
+          (r) => r.mediaFormat === releaseInput.mediaFormat
+        );
+
+        if (existing) {
+          await db
+            .update(physicalReleases)
+            .set({
+              description: releaseInput.description ?? null,
+              includesDigitalDownload:
+                releaseInput.includesDigitalDownload ?? true,
+              kunakiProductId: releaseInput.kunakiProductId ?? null,
+              retailPriceCents: releaseInput.retailPriceCents,
+              status: releaseInput.status ?? "published",
+              title: body.title ?? project.title,
+            })
+            .where(eq(physicalReleases.id, existing.id));
+        } else {
+          await db.insert(physicalReleases).values({
+            description: releaseInput.description ?? null,
+            id: crypto.randomUUID(),
+            includesDigitalDownload:
+              releaseInput.includesDigitalDownload ?? true,
+            kunakiProductId: releaseInput.kunakiProductId ?? null,
+            manufacturingBaseCents: formatRule.manufacturingBaseCents,
+            mediaFormat: releaseInput.mediaFormat,
+            ownerUserId: user.id,
+            platformFeeBps: PHYSICAL_PLATFORM_FEE_BPS,
+            projectId: project.id,
+            retailPriceCents: releaseInput.retailPriceCents,
+            status: releaseInput.status ?? "published",
+            title: body.title ?? project.title,
+          });
+        }
+      }
     }
 
     if (body.isPublic) {
@@ -1819,6 +1907,7 @@ app.openapi(
           ...project,
           assets: [],
           collaborators: [],
+          physicalReleases: [],
           tracks: [],
         },
         HttpStatusCodes.OK
