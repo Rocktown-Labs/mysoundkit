@@ -33,7 +33,7 @@ export default function TrackDetailScreen() {
     { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     track = useTrackQuery(id ?? ""),
-    data = track.data;
+    {data} = track;
 
   return (
     <>
@@ -85,16 +85,16 @@ export default function TrackDetailScreen() {
                 <Text style={[styles.metaText, { color: theme.mutedText }]}>
                   {data.plays.toLocaleString()} plays
                 </Text>
-                {data.bpm != null ? (
+                {data.bpm == null ? null : (
                   <Text style={[styles.metaText, { color: theme.mutedText }]}>
                     {data.bpm} BPM
                   </Text>
-                ) : null}
-                {data.musicalKey != null ? (
+                )}
+                {data.musicalKey == null ? null : (
                   <Text style={[styles.metaText, { color: theme.mutedText }]}>
                     {data.musicalKey}
                   </Text>
-                ) : null}
+                )}
               </View>
             </View>
 
@@ -102,22 +102,23 @@ export default function TrackDetailScreen() {
               const playbackSrc = resolveApiUrl(
                 data.playbackUrl ?? data.previewUrl ?? null
               );
-              return playbackSrc != null ? (
-                <TrackAudioPlayer
-                  artistName={data.artistName}
-                  source={playbackSrc}
-                  title={data.title}
-                />
-              ) : (
+              return playbackSrc == null ? (
                 <Text style={{ color: theme.mutedText, fontSize: 13 }}>
                   This track has no public audio preview yet.
                 </Text>
+              ) : (
+                <TrackAudioPlayer
+                  artistName={data.artistName}
+                  coverArtUrl={data.coverArtUrl}
+                  source={playbackSrc}
+                  title={data.title}
+                />
               );
             })()}
 
             {(() => {
-              const links = data.streamingLinks;
-              const entries = links
+              const links = data.streamingLinks,
+               entries = links
                 ? (
                     [
                       ["Spotify", links.spotify],
