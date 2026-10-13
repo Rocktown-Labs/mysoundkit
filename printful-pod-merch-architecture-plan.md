@@ -3,7 +3,7 @@
 **Issue:** [#406 — Print-on-Demand Merch Engine - Printful API v2 Integration (Apparel & Merch)](https://github.com/Rocktown-Labs/mysoundkit/issues/406)
 **Related:** [#405 — Physical Merch (CD/Vinyl/DVD) POD with Kunaki](https://github.com/Rocktown-Labs/mysoundkit/issues/405) (in flight on `feat/physical-merch-kunaki-405`)
 **Supersedes/absorbs:** `docs/printful-readiness.md` (the reserved `printful` provider becomes real)
-**Plan status:** Approved architecture, ready for milestone implementation. No code written yet.
+**Plan status:** Approved architecture + all product decisions resolved (rounds 1–2); ready for milestone implementation. No code written yet.
 
 ---
 
@@ -16,6 +16,13 @@
 | V1 design experience | **Artwork upload + placement** — artist uploads a print file (or reuses cover art), picks a placement (front/back), we generate real Printful mockups. No canvas library in v1 (none exists in the repo today); a Fabric.js-class editor is a v2 follow-up. |
 | Economics | **Kunaki-aligned: 12% platform fee + COGS recovery.** Fan pays retail + exact shipping pass-through. Stripe `application_fee_amount` = 12% of retail + Printful base cost + shipping. Artist nets `retail − 12% − base`. |
 | Shipping scope | **US-only at launch.** Matches the platform's USD-only storefront; worldwide follows later through the same `/v2/shipping-rates` pipeline. |
+| Non-prod isolation | **Production-only Printful bindings.** `PRINTFUL_API_KEY` / `PRINTFUL_STORE_ID` / `PRINTFUL_WEBHOOK_SECRET` bind only in the prod stage (alchemy gates them under `isProduction`); dev and `pr-<n>` previews answer explicit "not configured" errors. Previews share the production DB, so this guarantees no real Printful call can ever originate outside production. |
+| Sales tax (v1) | **Absorbed inside the 12% platform fee.** No fan-facing tax line, no estimation latency; artist payout stays exactly `retail − 12% − base` in every state. Stripe Tax is the follow-up for explicit tax collection. |
+| Packing slips | **SoundKit co-brand.** `customization.packing_slip` = `{ store_name: "SoundKit — {artistName}", logo_url: <SoundKit logo>, custom_order_id: <SoundKit order id> }`. |
+| Mockup strategy | **All in-stock color variants** of the chosen blank get real mockups at design save, queue-paced (no subset/lazy tiers). |
+| Shipping-cost drift | **Flag, don't stop.** Confirmed-vs-quoted shipping deltas ≤ $1.00 are absorbed by the platform and logged; larger deltas are flagged in the admin ops view but the order still ships. |
+| Fan surfaces (v1) | **Everywhere** — project page, artist profile, **new `/shop` route**, and soundkit.bio, all rendering the same shared merch card grid. |
+| Access gating | **`canSellProducts`** (existing entitlement, true for paid artist plans) — no new entitlement machinery. |
 
 ---
 
@@ -306,8 +313,8 @@ Indexes: `owner_user_id`, `project_id`, `status`, unique partial index `(owner_u
 | Platform keeps | $5.40, pays Printful invoice (base + shipping + tax) from the master Printful wallet |
 
 Rules:
-- **Exact shipping pass-through** (Kunaki parity): `orders.shippingFeeCents` = the rate the fan selected; Printful invoices that shipping amount. Shipping price drift between quote and confirm is a known Printful edge — the confirm step's cost snapshot is compared and large deltas flag the order for review instead of silently eating margin.
-- **Printful's sales tax** is a merchant-of-record cost SoundKit absorbs inside its 12% in v1 (US-only). Follow-up: enable Stripe Tax for explicit fan-facing tax collection, then route the tax line into the charge.
+- **Exact shipping pass-through** (Kunaki parity): `orders.shippingFeeCents` = the rate the fan selected; Printful invoices that shipping amount. Drift between quote and confirm is a known Printful edge — the confirm step compares the cost snapshot: deltas ≤ $1.00 are absorbed by the platform and logged; larger deltas are flagged in the admin ops view, and the order still ships (confirmed policy).
+- **Printful's sales tax** is a merchant-of-record cost SoundKit absorbs inside its 12% in v1 (US-only, confirmed) — the artist payout formula stays state-independent. Follow-up: enable Stripe Tax for explicit fan-facing tax collection, then route the tax line into the charge.
 - Retail bounds per blank (`retail_min/max_cents`) guarantee `artistPayout ≥ floor`; the designer UI shows a live payout preview (mirrors the #405 "Monetize Slot" preview).
 - `transactions.artistAmountCents` = Σ artist payouts + 0·shipping; `platformFees` row keeps the 12%; COGS lives in `orderItems.manufacturingBaseCentsSnapshot` so finance dashboards can reconcile Printful invoices against order rows.
 
@@ -322,7 +329,9 @@ All fan-facing surfaces ship behind `featureFlags.merch` (`VITE_ENABLE_MERCH=tru
 | Component | Location | Purpose |
 | --- | --- | --- |
 | `merch-designer.tsx` | `apps/website/src/components/dashboard/` | Artist studio: curated blank picker (cards with blank images), artwork upload (better-upload flow with `merch/` intent, DPI/size/transparency validation + errors), placement selector, retail price input with bounds + **live payout preview**, "Generate mockups" action, mockup gallery with per-variant previews, publish toggle. |
-| `merch-shelf.tsx` | `apps/website/src/components/explore/` | Fan-facing product card grid: mockup image, title, price, size + color selectors (variant resolution client-side from catalog cache payload), add-to-cart. Used on the project page (and later artist bio). |
+| `merch-card.tsx` | `apps/website/src/components/explore/` | The single fan-facing merch product card: mockup image, title, artist credit, price, size + color selectors (variant resolution from the catalog cache payload), add-to-cart. Every surface renders this same card so merch always looks identical. |
+| `merch-shelf.tsx` | `apps/website/src/components/explore/` | Grid wrapper that renders `merch-card`s with empty/loading states; dropped into the project page, artist profile, `/shop`, and bio as a related section. |
+| `app/shop.tsx` (`/shop` route) | `apps/website/src/app/` | New public browsable shop route in the `_explore` style: grid of all published merch with artist + category filter chips at launch (unified search integration is a follow-up via `search.ts`). |
 | `shipping-address-form.tsx` | `apps/website/src/components/` | US address fields (name, address1/2, city, state dropdown from `country-regions.ts`, zip) with validation; part of checkout when `requiresShipping`. |
 | `shipping-rate-selector.tsx` | `apps/website/src/components/` | Rate list (method name, cost, EDD range) fetched from the shipping-quote route; selection feeds checkout. |
 | `order-tracking.tsx` | `apps/website/src/components/` | Carrier + tracking number + tracking URL + EDD + event timeline for physical purchases (fan library + artist order views). |
@@ -334,6 +343,8 @@ All fan-facing surfaces ship behind `featureFlags.merch` (`VITE_ENABLE_MERCH=tru
 | `components/cart-provider.tsx` | `CartItem` extends: `productType: "physical_merch"`, `purchaseMode: "physical_merch"`, `merchDesignId`, `printfulVariantId`, `size`, `color`, `previewImageUrl`, `requiresShipping`. Claim/merge logic extended. |
 | `components/cart-drawer.tsx` | Physical badges ("Apparel — printed on demand", like #405's `[Audio CD]` badges), shipping-required banner, the new address + rate steps before the existing checkout POST (payload gains `shippingAddress` + `shippingRateId`), shipping shown as a line before total. |
 | `app/_explore/projects/$id/index.tsx` | "Merch" section (published designs for the project via the public project payload) rendering `merch-shelf.tsx` next to the existing Buy/digital CTA. |
+| Public artist profile (`/artist/$username`) | "Merch" related section rendering `merch-shelf.tsx` from the artist-scoped public merch list, presented like the project placement so merch cards look the same everywhere. |
+| `apps/bio` (soundkit.bio profile) | Merch section on the bio profile page consuming the same public merch endpoints via `VITE_SERVER_URL`, styled to the bio app's card conventions (consistent with how bio surfaces tracks/projects today). |
 | `app/dashboard/career/payments.tsx` | Unit-sales breakdown gains merch rows (base cost, platform fee, artist payout) + fulfillment status — extends the #405 breakdown so physical media and apparel share one view. |
 | `components/dashboard/new-project-form.tsx` | Inside the monetize accordion (≈ lines 1864–1969): subtle "Sell merch of this release" CTA linking to the merch designer with the project prefilled (slots in beside #405's physical releases entry point). |
 | `app/dashboard/*` routing | Merch management route (e.g. `app/dashboard/merch.tsx`) — designer + design list (status, mockups, publish) — gated on `canSellProducts` + feature flag; sidebar nav entry. |
@@ -342,7 +353,7 @@ All fan-facing surfaces ship behind `featureFlags.merch` (`VITE_ENABLE_MERCH=tru
 ### 5.3 Not in v1 (explicit)
 
 - In-browser canvas editor (Fabric.js or Konva) — v2 follow-up; the placement/position data model (`placements[].layers[].position`) already supports it.
-- soundkit.bio merch tab, full Printful catalog browsing, international addresses.
+- Full Printful catalog browsing, international addresses, unified search integration for `/shop`, and native-app (Expo) merch surfaces — the public merch API is the seam for each.
 
 ---
 
@@ -367,7 +378,8 @@ New route files: `apps/server/src/routes/merch.ts` (mounted `/v1/merch`), `apps/
 | Method & path | Behavior |
 | --- | --- |
 | `GET /v1/projects/public/{projectId}` | Response gains `merch: [{id, title, retailPriceCents, previewMockupUrl, catalogProductId, variants: [{id, size, color, colorCode, image, inStock}]}]` for published designs (mirrors #405's physical editions addition). Cached responses invalidated on publish. |
-| `GET /v1/merch/{designId}/public` | Single-design detail (bio/standalone use later). |
+| `GET /v1/merch/public` | Paged list of all published merch — backs the `/shop` grid and the bio section; filters `artistUsername`, `catalogProductId` (category), cursor + limit (uniform pagination). Artist profile pages use the `artistUsername` filter for their related section. |
+| `GET /v1/merch/{designId}/public` | Single-design detail (card detail views across surfaces). |
 
 ### 6.3 Cart & checkout
 
@@ -393,17 +405,18 @@ New route files: `apps/server/src/routes/merch.ts` (mounted `/v1/merch`), `apps/
 | `PurchaseFulfillmentWorkflow` (`workflows/purchase-fulfillment.ts`) | New steps after "grant purchases": `create printful draft order` → `await printful costs` (poll w/ step-sleep) → `confirm printful order` → upsert `merch_fulfillments`, set `orders.fulfillmentStatus = printful_processing`. All steps idempotent (skip when `printfulOrderId` already exists / already confirmed). Digital-only orders skip via a cheap order-item check. |
 | New CF Queue `merch-mockup-tasks` (+ DLQ) | Consumer (maxConcurrency 1, small batches) creates Printful mockup tasks below the 2–10/min ceiling; `merch_mockups` rows are the durable backlog; consumer also polls recently-pending tasks. |
 | `scheduled` handler (`index.ts`) | Add `runPrintfulFulfillmentReconciliation()` (status pull for in-flight orders — webhook safety net, mirrors `runCheckoutReconciliation`), `runPrintfulCatalogSync()` (daily), and a stale-mockup-task poll. |
-| `alchemy.run.ts` (`packages/infra`) | New bindings: `PRINTFUL_API_KEY`, `PRINTFUL_STORE_ID`, `PRINTFUL_WEBHOOK_SECRET` (all `optionalEnvBinding(...)` → routes answer explicit "not configured" errors, matching the upload-routes pattern; production required-check mirrors `requireR2UploadCredentials` at deploy time), plus the mockup queue + consumer resources. `.env.example` entries for `apps/server`. |
+| `alchemy.run.ts` (`packages/infra`) | New bindings: `PRINTFUL_API_KEY`, `PRINTFUL_STORE_ID`, `PRINTFUL_WEBHOOK_SECRET` — bound **production-only** (`...(d.isProduction ? optionalEnvBinding("…") : {})`) so dev and `pr-<n>` previews carry no Printful credentials at all; non-prod routes answer explicit "not configured" errors (upload-routes pattern), and production adds a required-secrets deploy check mirroring `requireR2UploadCredentials`. Plus the mockup queue + consumer resources and `.env.example` entries for `apps/server`. |
 
 ---
 
 ## 7. Security & Secrets
 
 1. **`PRINTFUL_API_KEY`** never reaches the client. It lives in `apps/server/.env` (git-ignored), is bound through `alchemy.run.ts`, and is read server-side via `env` (`cloudflare:workers`) using the established `getEnvValue` pattern. The website only ever talks to our `/v1/*` routes.
-2. **`PRINTFUL_WEBHOOK_SECRET`** is stored server-side; verification is mandatory — events with bad/missing signatures are discarded and logged.
-3. **Token lifecycle:** Private Tokens expire and cannot be auto-refreshed — runbook: calendar reminder before expiry, rotate via Developer Portal, update the secret, redeploy. `401`s surface as structured warnings.
-4. **Client trust boundaries:** retail prices are re-snapshotted server-side on cart add; variant IDs are validated against the curated cache; webhook payloads are never trusted for money math (only for status/tracking updates — money was fixed at checkout).
-5. **No Printful keys in logs** — the printful client redacts auth headers from structured logging.
+2. **Production-only binding:** the Printful secrets are bound solely to the production stage (alchemy gates the binding under `isProduction`). Preview Workers — which share the production database — physically cannot authenticate to Printful, so no preview or dev traffic can ever create a real order.
+3. **`PRINTFUL_WEBHOOK_SECRET`** is stored server-side; verification is mandatory — events with bad/missing signatures are discarded and logged.
+4. **Token lifecycle:** Private Tokens expire and cannot be auto-refreshed — runbook: calendar reminder before expiry, rotate via Developer Portal, update the secret, redeploy. Production-only binding means exactly one token to rotate. `401`s surface as structured warnings.
+5. **Client trust boundaries:** retail prices are re-snapshotted server-side on cart add; variant IDs are validated against the curated cache; webhook payloads are never trusted for money math (only for status/tracking updates — money was fixed at checkout).
+6. **No Printful keys in logs** — the printful client redacts auth headers from structured logging.
 
 ---
 
@@ -416,9 +429,9 @@ Each PR: branch off updated `master`, `bun run verify` green, `CHANGELOG.md` ent
 | **M1 — Schema** (after #405 merges; takes migration `0065`) | `fulfillment.ts` schema + enums + cart/order-item columns + `webhookProviderEnum`/`physicalFulfillmentStatusEnum` extensions + `upload-intents` merch type | `packages/db/src/schema/fulfillment.ts`, `app.ts`, `commerce.test.ts`-style `fulfillment.test.ts`, migrations |
 | **M2 — Client + catalog cache** | `lib/printful.ts` (v2 client, 429/Retry-After, header-aware), curated catalog sync job + admin route, env/alchemy bindings | `apps/server/src/lib/printful.ts`, `routes/admin.ts`, `packages/infra/alchemy.run.ts` |
 | **M3 — Designer + mockups** | Upload intent `merch/`, design CRUD routes, File Library registration, mockup queue + consumer + poll sweep, webhook `mockup_task_finished` | `routes/merch.ts`, `lib/fulfillment-printful.ts`, queue consumer, `webhooks-printful.ts` |
-| **M4 — Storefront + cart** | Public merch payloads, project-page merch section, cart provider/drawer merch fields + badges | `routes/projects.ts`, `schemas.ts`, `cart.ts`, website components |
+| **M4 — Storefront + cart** | Public merch payloads + paged public list endpoint, project-page and artist-profile merch sections, **`/shop` route**, cart provider/drawer merch fields + badges | `routes/projects.ts`, `routes/merch.ts` (public), `schemas.ts`, `cart.ts`, `app/shop.tsx`, website components |
 | **M5 — Checkout + fulfillment** | Shipping-quote route, checkout extension (address, shipping line, app-fee math), workflow steps, fulfillment/shipment persistence, order-level webhooks, notifications/emails, tracking UI | `routes/payments.ts`, `workflows/purchase-fulfillment.ts`, `webhooks-printful.ts`, website checkout components |
-| **M6 — Analytics + polish + flag flip** | career/payments breakdown, admin ops view, reconciliation sweep hardening, `VITE_ENABLE_MERCH=true` in alchemy for production | `payments.tsx`, `alchemy.run.ts` |
+| **M6 — Bio + analytics + polish + flag flip** | soundkit.bio merch section (same public endpoints), career/payments breakdown, admin ops view, reconciliation sweep hardening, `VITE_ENABLE_MERCH=true` in alchemy for production | `apps/bio`, `payments.tsx`, `alchemy.run.ts` |
 
 **Testing strategy (every milestone):** unit tests for pricing/fee math (bounds, app-fee composition, payout snapshot), printful client (429 backoff, Retry-After, RFC 9457 errors, header parsing), HMAC verification vectors; worker tests (`@cloudflare/vitest-pool-workers`) for routes with mocked `fetch`; cart/checkout flow tests incl. mixed digital+merch carts; Playwright E2E for shop → cart → address → rate selection with a mocked Printful. `bun run verify` is the gate.
 
@@ -436,11 +449,22 @@ Each PR: branch off updated `master`, `bun run verify` green, `CHANGELOG.md` ent
 
 ---
 
-## 10. Open Questions / Follow-ups
+## 10. Decision Log & Remaining Open Items
 
-1. **Packing slips** — Printful `customization.packing_slip` supports `store_name`, `logo_url`, `custom_order_id`, and a message. Proposal: `store_name: "SoundKit — {artistName}"` with the SoundKit logo and the SoundKit order id; needs a brand call before M5.
-2. **Printful wallet funding** — Printful invoices the master account on confirm (base + shipping + tax). Ops: keep the wallet auto-topped-up; the application-fee recovery funds it. Alerting on low balance is an ops task, not code.
-3. **Sales tax** — v1 platform absorbs tax inside the 12% (US-only). Follow-up: Stripe Tax for explicit fan-facing tax lines.
-4. **Token rotation date** — record the Private Token's expiry when it's minted; add a calendar reminder (tokens are not refreshable).
-5. **Bio merch surface** — soundkit.bio merch tab deferred (the public single-design route in M4 is the seam).
-6. **Shipping-cost drift** — if Printful's confirmed shipping differs from the quoted rate, log + flag in the admin ops view; consider re-quoting at confirm for large deltas (rare, US domestic).
+**Resolved — round 2 (2026-10-13):**
+
+- **Packing slips** → SoundKit co-brand: `customization.packing_slip` = `{ store_name: "SoundKit — {artistName}", logo_url: <SoundKit logo>, custom_order_id: <SoundKit order id> }` (payload set in M5).
+- **Sales tax** → absorbed inside the 12% platform fee in v1 (US-only); Stripe Tax is the follow-up for explicit fan-facing tax lines.
+- **Non-prod isolation** → production-only Printful bindings; preview Workers carry no credentials and cannot reach Printful.
+- **Fan surfaces** → project page + artist profile + new `/shop` route + soundkit.bio, all rendering the shared `merch-card` grid.
+- **Mockups** → all in-stock color variants of the chosen blank at design save, queue-paced.
+- **Shipping drift** → absorb ≤ $1.00 (logged); flag larger deltas in the admin ops view; the order always ships.
+- **Blanks** → proposed defaults confirmed during the M2 catalog sync: Bella+Canvas 3001 (unisex tee), Bella+Canvas 3719 (pullover hoodie), plus a Bella+Canvas long-sleeve.
+- **Access gating** → existing `canSellProducts` entitlement.
+
+**Remaining open:**
+
+1. **Printful wallet funding** — Printful invoices the master account on confirm (base + shipping + tax). Ops: keep the wallet auto-topped-up; the application-fee recovery funds it. Alerting on low balance is an ops task, not code.
+2. **Token rotation date** — record the Private Token's expiry when it's minted; add a calendar reminder (tokens are not refreshable). One production token to rotate, per the prod-only binding decision.
+3. **`/shop` discoverability scope** — v1 ships the grid with artist + category filter chips. Decide later whether merch joins unified search (extend `search.ts` indexing) and gets editorial curation rails.
+4. **Native app (Expo) merch** — the public merch API is the seam; confirm whether the native app needs merch surfaces in a v2 pass.
