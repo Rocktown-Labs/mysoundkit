@@ -72,7 +72,15 @@ const artistGet = apiClient.v1.artists[":username"].$get,
   trackGet = apiClient.v1.tracks[":trackId"].$get,
   tracksGet = apiClient.v1.tracks.index.$get,
   videoGet = apiClient.v1.videos[":videoId"].$get,
-  videosGet = apiClient.v1.videos.index.$get;
+  videosGet = apiClient.v1.videos.index.$get,
+  libraryOverviewGet = apiClient.v1.library.overview.$get,
+  libraryPlaylistGet = apiClient.v1.library.playlists[":id"].$get,
+  libraryPlaylistsGet = apiClient.v1.library.playlists.$get,
+  libraryPurchasesGet = apiClient.v1.library.purchases.$get,
+  libraryRecentGet = apiClient.v1.library.recent.$get,
+  librarySavedGet = apiClient.v1.library.saved.$get,
+  libraryWatchedGet = apiClient.v1.library.watched.$get,
+  communitiesGet = apiClient.v1.communities.index.$get;
 
 // ---------------------------------------------------------------------------
 // Types (inferred from the canonical Hono RPC contract)
@@ -125,6 +133,32 @@ export type ListeningPartySummary = InferResponseType<
   200
 >[number];
 export type GenreSummary = InferResponseType<typeof genresGet, 200>[number];
+export type LibraryOverview = InferResponseType<typeof libraryOverviewGet, 200>;
+export type LibraryRecentTrack = InferResponseType<
+  typeof libraryRecentGet,
+  200
+>[number];
+export type LibrarySavedTrack = InferResponseType<
+  typeof librarySavedGet,
+  200
+>[number];
+export type LibraryWatchedItem = InferResponseType<
+  typeof libraryWatchedGet,
+  200
+>[number];
+export type PlaylistSummary = InferResponseType<
+  typeof libraryPlaylistsGet,
+  200
+>[number];
+export type PlaylistDetail = InferResponseType<typeof libraryPlaylistGet, 200>;
+export type PurchasedCatalogItem = InferResponseType<
+  typeof libraryPurchasesGet,
+  200
+>[number];
+export type CommunitySummary = InferResponseType<
+  typeof communitiesGet,
+  200
+>[number];
 
 export type {
   TracksQuery,
@@ -590,4 +624,74 @@ export const useOpenVersesInfiniteQuery = (
         await openVersesGet({ query: { ...query, cursor: pageParam } })
       ) as Promise<OpenVersesPage>,
     queryKey: ["dashboard", "open-verses", query],
+  });
+
+// ---------------------------------------------------------------------------
+// Library & Community queries
+// ---------------------------------------------------------------------------
+
+export const useLibraryOverviewQuery = () =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(await libraryOverviewGet()) as Promise<LibraryOverview>,
+    queryKey: ["library", "overview"],
+  });
+
+export const useLibraryRecentQuery = () =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(await libraryRecentGet()) as Promise<LibraryRecentTrack[]>,
+    queryKey: ["library", "recent"],
+  });
+
+export const useLibrarySavedQuery = () =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(await librarySavedGet()) as Promise<LibrarySavedTrack[]>,
+    queryKey: ["library", "saved"],
+  });
+
+export const useLibraryWatchedQuery = () =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(await libraryWatchedGet()) as Promise<LibraryWatchedItem[]>,
+    queryKey: ["library", "watched"],
+  });
+
+export const useLibraryPlaylistsQuery = () =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(await libraryPlaylistsGet()) as Promise<PlaylistSummary[]>,
+    queryKey: ["library", "playlists"],
+  });
+
+export const useLibraryPlaylistQuery = (id: string) =>
+  useQuery({
+    enabled: id.length > 0,
+    queryFn: async () =>
+      rpcJson(
+        await libraryPlaylistGet({ param: { id } })
+      ) as Promise<PlaylistDetail>,
+    queryKey: ["library", "playlist", id],
+  });
+
+export const useLibraryPurchasesQuery = () =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(await libraryPurchasesGet()) as Promise<PurchasedCatalogItem[]>,
+    queryKey: ["library", "purchases"],
+  });
+
+export const useCommunitiesQuery = (
+  query: {
+    access?: "all" | "free" | "paid";
+    genre?: string;
+    q?: string;
+    sort?: "activity-desc" | "members-desc" | "newest-desc" | "name-asc";
+  } = {}
+) =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(await communitiesGet({ query })) as Promise<CommunitySummary[]>,
+    queryKey: ["communities", query],
   });

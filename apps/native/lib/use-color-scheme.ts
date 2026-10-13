@@ -1,12 +1,9 @@
 import { useColorScheme as useRNColorScheme } from "react-native";
 
 export function useColorScheme() {
-  const systemColorScheme = useRNColorScheme(),
-    colorScheme = systemColorScheme ?? "light";
-
   return {
-    colorScheme: colorScheme as "light" | "dark",
-    isDarkColorScheme: colorScheme === "dark",
+    colorScheme: "dark" as const,
+    isDarkColorScheme: true,
     setColorScheme: () => {
       // Color scheme is managed by the system in bare mode
       console.warn(

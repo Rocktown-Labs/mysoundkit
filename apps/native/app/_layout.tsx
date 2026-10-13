@@ -35,12 +35,10 @@ const queryClient = new QueryClient(),
   });
 
 export default function RootLayout() {
-  const { isDarkColorScheme } = useColorScheme();
-
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-        <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+      <ThemeProvider value={DARK_THEME}>
+        <StatusBar style="light" />
         <GestureHandlerRootView style={styles.container}>
           <Stack>
             <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
