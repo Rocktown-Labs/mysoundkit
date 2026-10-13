@@ -5,7 +5,7 @@ export default function ShopScreen() {
     <NativePlaceholderScreen
       description="Explore paid drops, releases, and fan purchases."
       route="/shop"
-      section="Explore"
+      section="Discover"
       sectionHref="/"
       title="Shop"
     />

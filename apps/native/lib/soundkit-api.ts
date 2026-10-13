@@ -368,6 +368,159 @@ export const useListeningPartiesQuery = (query: PublicRegionQuery) =>
       staleTime: 60 * 60 * 1000,
     });
 
+/* --- Discover redesign hooks (five public tabs) --- */
+
+const PUBLIC_SCOPE = { scope: "public" } as const,
+  searchGet = apiClient.v1.search.$get;
+
+export interface DiscoverRegionQuery {
+  region: string;
+  regionType: "global" | "north-america";
+}
+
+export const useDiscoverTopSongsQuery = (region: DiscoverRegionQuery) =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(
+        await tracksGet({
+          query: {
+            ...PUBLIC_SCOPE,
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+            sort: "plays-desc",
+          },
+        })
+      ),
+    queryKey: ["native", "discover", "top-songs", region],
+  });
+
+export const useDiscoverNewReleasesQuery = (region: DiscoverRegionQuery) =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(
+        await tracksGet({
+          query: {
+            ...PUBLIC_SCOPE,
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+            sort: "date-desc",
+          },
+        })
+      ),
+    queryKey: ["native", "discover", "new-releases", region],
+  });
+
+export const useDiscoverTopArtistsQuery = (region: DiscoverRegionQuery) =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(
+        await artistsGet({
+          query: {
+            category: "top",
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+            sort: "rank-asc",
+          },
+        })
+      ),
+    queryKey: ["native", "discover", "top-artists", region],
+  });
+
+export const useDiscoverVideosQuery = (region: DiscoverRegionQuery) =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(
+        await videosGet({
+          query: {
+            ...PUBLIC_SCOPE,
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+          },
+        })
+      ),
+    queryKey: ["native", "discover", "videos", region],
+  });
+
+export const useDiscoverProjectsQuery = (region: DiscoverRegionQuery) =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(
+        await publicProjectsGet({
+          query: {
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+            sort: "date-desc",
+          },
+        })
+      ),
+    queryKey: ["native", "discover", "projects", region],
+  });
+
+export const useDiscoverBattlesQuery = (region: DiscoverRegionQuery) =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(
+        await battlesGet({
+          query: {
+            ...PUBLIC_SCOPE,
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+          },
+        })
+      ),
+    queryKey: ["native", "discover", "battles", region],
+  });
+
+export const useDiscoverStreamsQuery = (region: DiscoverRegionQuery) =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(
+        await liveExperiencesGet({
+          query: {
+            ...PUBLIC_SCOPE,
+            kind: "stream",
+            region: region.region,
+            regionType: region.regionType,
+          },
+        })
+      ),
+    queryKey: ["native", "discover", "streams", region],
+  });
+
+export const useDiscoverPartiesQuery = (region: DiscoverRegionQuery) =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(
+        await listeningPartiesGet({
+          query: {
+            ...PUBLIC_SCOPE,
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+          },
+        })
+      ),
+    queryKey: ["native", "discover", "parties", region],
+  });
+
+export type NativeSearchResult = InferResponseType<typeof searchGet, 200>;
+
+export const useNativeSearchQuery = (q: string) =>
+  useQuery({
+    enabled: q.trim().length >= 2,
+    queryFn: async () =>
+      rpcJson(
+        await searchGet({ query: { limit: "12", q: q.trim(), type: "all" } })
+      ),
+    queryKey: ["native", "search", q.trim()],
+  });
+
 // ---------------------------------------------------------------------------
 // Dashboard (authenticated): session-gated hooks for the artist's own data
 // ---------------------------------------------------------------------------

@@ -6,10 +6,11 @@ import { CANONICAL_ROUTES, NATIVE_TAB_ROUTES } from "../lib/route-manifest";
 import type { CanonicalRoute } from "../lib/route-manifest";
 
 const expectedTabs: ReadonlySet<string> = new Set([
-    "dashboard",
-    "explore",
-    "library",
+    "artists",
+    "discover",
     "live",
+    "music",
+    "search",
   ]),
   actualTabs: ReadonlySet<string> = new Set(
     NATIVE_TAB_ROUTES.map((route) => route.id)
