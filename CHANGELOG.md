@@ -4,6 +4,9 @@
 
 ### Added
 
+- Added an immersive messenger-style community experience (#401): `/communities` detail pages now render edge-to-edge like the messages route — a compact community header with back navigation to `/communities`, channel tabs that become a settings toggle on mobile, internal pane scrolling instead of page scroll, and a chat rebuilt around messenger bubbles (own messages right-aligned with primary background, relative timestamps, auto-scroll, pill input with a circular send button). `/dashboard/community` gets the same treatment with the app sidebar auto-collapsed, and its settings dialog now edits community name, description, and genre in place — not just the monthly price.
+- Added community membership visibility on browse: cards show Owner/Joined badges, and the browse page gains a "Your communities" rail at the top when the viewer belongs to any.
+
 - Added an Instagram/Slack-style full-viewport messenger to the web dashboard (#399): `/dashboard/messages` now renders edge-to-edge between the header and viewport bottom (the dashboard layout detects the route and drops page padding, switches to a full-height flex shell, and hides the mobile nav), with the desktop app sidebar auto-collapsed while messaging and restored on exit, and the active thread kept in the `conversationId` URL search param so refresh and back navigation preserve it.
 - Added conversation-list previews: the server's conversation summaries now include `lastMessageAt`/`lastMessageBody`/`lastMessageSenderId` (fetched via a single Postgres `DISTINCT ON` pass over the user's conversations), so list rows show the latest message snippet ("You: …" for your own messages) with relative timestamps, unread-count pills, and an unread-only filter toggle.
 

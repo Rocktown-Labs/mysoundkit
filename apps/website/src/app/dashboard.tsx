@@ -23,7 +23,8 @@ function DashboardLayout() {
     }),
     isArtistBattleRoom = pathname.startsWith("/dashboard/live/battles/join/"),
     isChatRoute = pathname.startsWith("/dashboard/messages"),
-    isFullBleed = isArtistBattleRoom || isChatRoute;
+    isCommunityRoute = pathname === "/dashboard/community",
+    isFullBleed = isArtistBattleRoom || isChatRoute || isCommunityRoute;
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -58,7 +59,7 @@ function DashboardLayout() {
           </main>
         </div>
       </div>
-      {!isChatRoute && <MobileNav />}
+      {!isChatRoute && !isCommunityRoute && <MobileNav />}
     </SidebarProvider>
   );
 }

@@ -3,31 +3,26 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Ban,
   ChevronDown,
+  ChevronLeft,
   Hash,
   LockKeyhole,
   MessageCircle,
   Newspaper,
   Send,
+  Settings2,
   Shield,
   ShieldMinus,
   ShieldPlus,
   UserMinus,
   Users,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +31,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,6 +82,20 @@ const defaultCommunitySearch = {
     { icon: MessageCircle, id: "chat", label: "community-chat" },
     { icon: Users, id: "members", label: "members" },
   ],
+  formatChatTimestamp = (value: string) => {
+    const date = new Date(value),
+      now = new Date(),
+      isToday = date.toDateString() === now.toDateString();
+
+    if (isToday) {
+      return date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+
+    return `${date.toLocaleDateString([], { day: "numeric", month: "short" })}, ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  },
   communityCheckoutPost = apiClient.v1["community-billing"].checkout.$post,
   beginPaidCommunityCheckout = async (communityId: string) => {
     const payload = await rpcJson(
@@ -97,11 +114,17 @@ const defaultCommunitySearch = {
   };
 
 export function CommunityExperience({
+  backTo,
   communityId,
   creatorMode = false,
+  ownerActions,
 }: {
+  /** Optional route the header back button navigates to (e.g. /communities). */
+  backTo?: string;
   communityId: string;
   creatorMode?: boolean;
+  /** Owner-only actions rendered in the community header (e.g. membership settings). */
+  ownerActions?: ReactNode;
 }) {
   const { community, isLoading, status } = useDbCommunity(communityId),
     meQuery = useMeQuery(),
@@ -125,23 +148,25 @@ export function CommunityExperience({
 
   if (isLoading || status === "idle" || status === "loading") {
     return (
-      <div className="py-16 text-center text-muted-foreground">
+      <div className="flex h-full w-full items-center justify-center text-muted-foreground">
         Loading community…
       </div>
     );
   }
   if (!community) {
     return (
-      <Card className="mx-auto max-w-xl">
-        <CardContent className="space-y-4 p-8 text-center">
-          <h1 className="font-semibold text-xl">Community not found</h1>
-          <Button asChild variant="outline">
-            <Link search={defaultCommunitySearch} to="/communities">
-              Browse communities
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="flex h-full w-full items-center justify-center px-4">
+        <Card className="w-full max-w-xl">
+          <CardContent className="space-y-4 p-8 text-center">
+            <h1 className="font-semibold text-xl">Community not found</h1>
+            <Button asChild variant="outline">
+              <Link search={defaultCommunitySearch} to="/communities">
+                Browse communities
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -184,12 +209,14 @@ export function CommunityExperience({
 
   if (!(community.isMember || hasJoined || community.isOwner || creatorMode)) {
     return (
-      <>
-        <CommunityJoinCard
-          community={community}
-          isJoining={isJoining}
-          onJoin={() => setJoinPromptOpen(true)}
-        />
+      <div className="h-full w-full overflow-y-auto px-4 py-6">
+        <div className="mx-auto max-w-3xl">
+          <CommunityJoinCard
+            community={community}
+            isJoining={isJoining}
+            onJoin={() => setJoinPromptOpen(true)}
+          />
+        </div>
         <CommunityJoinDialog
           community={community}
           isJoining={isJoining}
@@ -197,7 +224,7 @@ export function CommunityExperience({
           onOpenChange={setJoinPromptOpen}
           open={joinPromptOpen}
         />
-      </>
+      </div>
     );
   }
 
@@ -208,6 +235,7 @@ export function CommunityExperience({
 
   return (
     <CommunityMemberExperience
+      backTo={backTo}
       community={community}
       currentUser={{
         avatarUrl: user.avatarUrl,
@@ -215,6 +243,7 @@ export function CommunityExperience({
         name: user.displayName,
         username: user.username,
       }}
+      ownerActions={ownerActions}
     />
   );
 }
@@ -336,9 +365,12 @@ function CommunityJoinDialog({
 }
 
 function CommunityMemberExperience({
+  backTo,
   community,
   currentUser,
+  ownerActions,
 }: {
+  backTo?: string;
   community: DbCommunity;
   currentUser: {
     avatarUrl?: string | null;
@@ -346,6 +378,7 @@ function CommunityMemberExperience({
     name: string;
     username: string;
   };
+  ownerActions?: ReactNode;
 }) {
   const [channel, setChannel] = useState<CommunityChannel>("chat"),
     { data: members } = useDbCommunityMembers(community.id),
@@ -355,6 +388,7 @@ function CommunityMemberExperience({
       communityMentions: true,
       communityPosts: true,
     }),
+    [mobilePanelOpen, setMobilePanelOpen] = useState(false),
     canModerate = community.isOwner;
 
   useEffect(() => {
@@ -393,10 +427,23 @@ function CommunityMemberExperience({
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-card/40 shadow-xl">
-      <header className="flex flex-col gap-4 border-b bg-gradient-to-r from-primary/10 via-background to-accent/10 p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar className="size-12 border-2 border-primary/30">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-background">
+      <header className="flex items-center gap-3 border-b px-3 py-2.5 md:px-4">
+        {backTo ? (
+          <Button
+            aria-label="Back to communities"
+            asChild
+            className="size-8 shrink-0 rounded-full"
+            size="icon"
+            variant="ghost"
+          >
+            <Link to={backTo}>
+              <ChevronLeft className="size-5" />
+            </Link>
+          </Button>
+        ) : null}
+        <div className="relative shrink-0">
+          <Avatar className="size-9 border">
             <AvatarImage
               alt={`${community.artist.name} profile photo`}
               src={community.artist.avatarUrl ?? undefined}
@@ -405,33 +452,33 @@ function CommunityMemberExperience({
               {community.artist.name.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <div className="min-w-0">
-            <p className="text-muted-foreground text-[11px] uppercase tracking-wider">
-              Artist community
-            </p>
-            <h1 className="truncate font-bold text-xl">{community.name}</h1>
-            <p className="mt-1 line-clamp-2 text-muted-foreground text-sm">
-              {community.description ??
-                `Updates and conversation from ${community.artist.name}.`}
-            </p>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h1 className="truncate font-semibold text-sm">{community.name}</h1>
+            {community.isOwner ? (
+              <Badge
+                className="shrink-0 px-1.5 py-0 text-[10px]"
+                variant="secondary"
+              >
+                Owner
+              </Badge>
+            ) : null}
           </div>
+          <p className="truncate text-muted-foreground text-xs">
+            {community.memberCount.toLocaleString()} members
+            {community.genre ? ` · ${community.genre.name}` : ""}
+          </p>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs">
-          <Badge variant="secondary">{community.memberCount.toLocaleString()} members</Badge>
-          {community.genre ? <Badge variant="outline">{community.genre.name}</Badge> : null}
-        </div>
+        {ownerActions ? (
+          <div className="flex shrink-0 items-center gap-2">{ownerActions}</div>
+        ) : null}
       </header>
-      <div className="flex min-h-[calc(100vh-13rem)] flex-col lg:grid lg:grid-cols-[240px_minmax(0,1fr)_280px]">
-        <aside className="border-b bg-muted/30 p-3 lg:border-b-0 lg:border-r">
-          <div className="mb-4 rounded-lg bg-primary/10 p-3">
-            <p className="truncate font-semibold">{community.name}</p>
-            <p className="mt-1 truncate text-muted-foreground text-xs">
-              {community.memberCount.toLocaleString()} members
-            </p>
-          </div>
+      <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[240px_1fr_280px]">
+        <aside className="flex shrink-0 flex-col border-b bg-muted/30 lg:min-h-0 lg:border-b-0 lg:border-r">
           <nav
             aria-label="Community channels"
-            className="flex gap-1 overflow-x-auto lg:block lg:space-y-1"
+            className="flex items-center gap-1 overflow-x-auto p-2 lg:block lg:space-y-1"
           >
             {channels.map(({ icon: Icon, id, label }) => (
               <button
@@ -449,8 +496,27 @@ function CommunityMemberExperience({
                 {label}
               </button>
             ))}
+            <button
+              aria-expanded={mobilePanelOpen}
+              aria-label="Community notification settings"
+              className={cn(
+                "ml-auto flex shrink-0 items-center rounded-md p-2 lg:hidden",
+                mobilePanelOpen
+                  ? "bg-primary/15 text-primary"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+              onClick={() => setMobilePanelOpen((open) => !open)}
+              type="button"
+            >
+              <Settings2 className="size-4" />
+            </button>
           </nav>
-          <div className="mt-5 border-t pt-4">
+          <div
+            className={cn(
+              "border-t px-3 pb-4 pt-3 lg:block",
+              mobilePanelOpen ? "block" : "hidden"
+            )}
+          >
             <p className="mb-3 text-muted-foreground text-[10px] uppercase tracking-wider">
               Notifications
             </p>
@@ -489,7 +555,12 @@ function CommunityMemberExperience({
             </div>
           </div>
           {community.isOwner ? (
-            <div className="mt-5 border-t pt-4">
+            <div
+              className={cn(
+                "border-t px-3 pb-4 pt-3 lg:block",
+                mobilePanelOpen ? "block" : "hidden"
+              )}
+            >
               <Button
                 asChild
                 className="w-full justify-start"
@@ -505,7 +576,7 @@ function CommunityMemberExperience({
           ) : null}
         </aside>
 
-        <section className="min-w-0 bg-background/40">
+        <section className="min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
           {channel === "chat" ? (
             <CommunityChat community={community} currentUser={currentUser} />
           ) : null}
@@ -522,7 +593,7 @@ function CommunityMemberExperience({
           ) : null}
         </section>
 
-        <aside className="hidden border-l bg-muted/20 p-4 lg:block">
+        <aside className="hidden border-l bg-muted/20 lg:block lg:min-h-0 lg:overflow-y-auto lg:p-3">
           <p className="mb-3 font-semibold text-muted-foreground text-xs uppercase tracking-wide">
             Members — {members.length}
           </p>
@@ -587,50 +658,84 @@ function CommunityChat({
   };
 
   return (
-    <div className="flex h-[70vh] min-h-[560px] flex-col">
-      <div className="border-b px-5 py-4">
-        <h2 className="flex items-center gap-2 font-semibold">
-          <Hash className="size-5 text-muted-foreground" /> community-chat
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-b px-4 py-2.5">
+        <h2 className="flex items-center gap-2 font-semibold text-sm">
+          <Hash className="size-4 text-muted-foreground" /> community-chat
         </h2>
         <p className="text-muted-foreground text-xs">
           Keep conversation useful, welcoming, and on topic.
         </p>
       </div>
-      <ScrollArea className="min-h-0 flex-1 px-5 py-4">
-        {isLoading ? (
-          <p className="text-muted-foreground text-sm">Loading messages…</p>
-        ) : null}
-        <div className="space-y-5">
-          {messages.map((message) => (
-            <div className="flex items-start gap-3" key={message.id}>
-              <Avatar className="size-9">
-                <AvatarImage src={message.author.avatarUrl ?? undefined} />
-                <AvatarFallback>
-                  {message.author.name.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <span className="font-medium text-sm">
-                    {message.author.name}
-                  </span>
-                  <span className="text-muted-foreground text-[11px]">
-                    {new Date(message.createdAt).toLocaleString()}
-                  </span>
-                </div>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-                  {message.body}
-                </p>
-              </div>
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="space-y-4 px-4 py-4">
+          {isLoading ? (
+            <p className="text-muted-foreground text-sm">Loading messages…</p>
+          ) : null}
+          {!isLoading && messages.length === 0 ? (
+            <div className="py-12 text-center">
+              <MessageCircle className="mx-auto mb-3 size-8 text-muted-foreground/30" />
+              <p className="font-medium text-sm">No messages yet</p>
+              <p className="mt-1 text-muted-foreground text-xs">
+                Say hello and get the conversation started.
+              </p>
             </div>
-          ))}
+          ) : null}
+          {messages.map((message) => {
+            const mine = message.author.username === currentUser.username;
+
+            return (
+              <div
+                className={cn("flex", mine ? "justify-end" : "justify-start")}
+                key={message.id}
+              >
+                {mine ? (
+                  <div className="max-w-[75%] rounded-2xl rounded-br-md bg-primary px-4 py-2 text-primary-foreground">
+                    <p className="whitespace-pre-wrap break-words text-sm">
+                      {message.body}
+                    </p>
+                    <p className="mt-0.5 text-right text-[10px] opacity-70">
+                      {formatChatTimestamp(message.createdAt)}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex max-w-[85%] items-start gap-2">
+                    <Avatar className="mt-auto size-6 shrink-0">
+                      <AvatarImage
+                        src={message.author.avatarUrl ?? undefined}
+                      />
+                      <AvatarFallback>
+                        {message.author.name.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-semibold text-xs">
+                          {message.author.name}
+                        </span>
+                        <span className="text-muted-foreground text-[10px]">
+                          {formatChatTimestamp(message.createdAt)}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 rounded-2xl rounded-bl-md bg-muted px-3.5 py-2">
+                        <p className="whitespace-pre-wrap break-words text-sm">
+                          {message.body}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
           <div ref={endRef} />
         </div>
       </ScrollArea>
-      <div className="border-t p-4">
-        <div className="flex gap-2">
+      <div className="border-t p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+        <div className="flex items-center gap-2 rounded-full border bg-muted/40 p-1.5 pl-4">
           <Input
             aria-label={`Message ${community.name}`}
+            className="h-8 border-0 bg-transparent px-0 text-sm"
             maxLength={2000}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
@@ -642,7 +747,13 @@ function CommunityChat({
             placeholder={`Message ${community.name}`}
             value={draft}
           />
-          <Button aria-label="Send message" onClick={submit} size="icon">
+          <Button
+            aria-label="Send message"
+            className="size-9 shrink-0 rounded-full shadow-lg shadow-primary/20"
+            disabled={!draft.trim()}
+            onClick={submit}
+            size="icon"
+          >
             <Send className="size-4" />
           </Button>
         </div>
@@ -687,57 +798,61 @@ function CommunityUpdates({
       }
     };
   return (
-    <div className="space-y-5 p-5">
-      <div>
-        <h2 className="font-semibold text-xl">Community updates</h2>
-        <p className="text-muted-foreground text-sm">
-          Longer announcements and conversations that should not get lost in
-          chat.
-        </p>
-      </div>
-      <Card>
-        <CardContent className="space-y-3 p-4">
-          <Textarea
-            aria-label="Write a community update"
-            maxLength={10_000}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="Share an update with the community…"
-            value={draft}
-          />
-          <div className="flex justify-end">
-            <Button disabled={!draft.trim()} onClick={submitPost}>
-              Post update
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      {isLoading ? (
-        <p className="text-muted-foreground text-sm">Loading updates…</p>
-      ) : null}
-      {posts.map((post) => (
-        <Card key={post.id}>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <Avatar className="size-9">
-                <AvatarImage src={post.author.avatarUrl ?? undefined} />
-                <AvatarFallback>
-                  {post.author.name.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <CardTitle className="text-sm">{post.author.name}</CardTitle>
-                <p className="text-muted-foreground text-xs">
-                  {new Date(post.createdAt).toLocaleString()}
-                </p>
-              </div>
-              {post.isPinned ? <Badge className="ml-auto">Pinned</Badge> : null}
+    <div className="h-full min-h-0 overflow-y-auto">
+      <div className="space-y-5 p-4 md:p-5">
+        <div>
+          <h2 className="font-semibold text-lg">Community updates</h2>
+          <p className="text-muted-foreground text-sm">
+            Longer announcements and conversations that should not get lost in
+            chat.
+          </p>
+        </div>
+        <Card>
+          <CardContent className="space-y-3 p-4">
+            <Textarea
+              aria-label="Write a community update"
+              maxLength={10_000}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="Share an update with the community…"
+              value={draft}
+            />
+            <div className="flex justify-end">
+              <Button disabled={!draft.trim()} onClick={submitPost}>
+                Post update
+              </Button>
             </div>
-          </CardHeader>
-          <CardContent>
-            <p className="whitespace-pre-wrap text-sm">{post.body}</p>
           </CardContent>
         </Card>
-      ))}
+        {isLoading ? (
+          <p className="text-muted-foreground text-sm">Loading updates…</p>
+        ) : null}
+        {posts.map((post) => (
+          <Card key={post.id}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3">
+                <Avatar className="size-9">
+                  <AvatarImage src={post.author.avatarUrl ?? undefined} />
+                  <AvatarFallback>
+                    {post.author.name.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <CardTitle className="text-sm">{post.author.name}</CardTitle>
+                  <p className="text-muted-foreground text-xs">
+                    {new Date(post.createdAt).toLocaleString()}
+                  </p>
+                </div>
+                {post.isPinned ? (
+                  <Badge className="ml-auto">Pinned</Badge>
+                ) : null}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="whitespace-pre-wrap text-sm">{post.body}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
@@ -755,33 +870,38 @@ function CommunityMembers({
 }) {
   const moderation = useDbCommunityModeration(community.id);
   return (
-    <div className="space-y-6 p-5">
-      <div>
-        <h2 className="font-semibold text-xl">Members</h2>
-        <p className="text-muted-foreground text-sm">
-          {canModerate
-            ? "Manage access without cluttering the member experience."
-            : "People sharing this community with you."}
-        </p>
+    <div className="h-full min-h-0 overflow-y-auto">
+      <div className="space-y-6 p-4 md:p-5">
+        <div>
+          <h2 className="font-semibold text-lg">Members</h2>
+          <p className="text-muted-foreground text-sm">
+            {canModerate
+              ? "Manage access without cluttering the member experience."
+              : "People sharing this community with you."}
+          </p>
+        </div>
+        <div className="space-y-2">
+          {members.map((member) => (
+            <div
+              className="flex items-center gap-3 rounded-lg border p-3"
+              key={member.userId}
+            >
+              <MemberIdentity member={member} />
+              {canModerate &&
+              member.userId !== currentUserId &&
+              member.role !== "owner" ? (
+                <MemberActions member={member} moderation={moderation} />
+              ) : null}
+            </div>
+          ))}
+        </div>
+        {community.isOwner ? (
+          <CommunityBanList
+            communityId={community.id}
+            moderation={moderation}
+          />
+        ) : null}
       </div>
-      <div className="space-y-2">
-        {members.map((member) => (
-          <div
-            className="flex items-center gap-3 rounded-lg border p-3"
-            key={member.userId}
-          >
-            <MemberIdentity member={member} />
-            {canModerate &&
-            member.userId !== currentUserId &&
-            member.role !== "owner" ? (
-              <MemberActions member={member} moderation={moderation} />
-            ) : null}
-          </div>
-        ))}
-      </div>
-      {community.isOwner ? (
-        <CommunityBanList communityId={community.id} moderation={moderation} />
-      ) : null}
     </div>
   );
 }

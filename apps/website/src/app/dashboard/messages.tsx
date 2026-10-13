@@ -30,7 +30,7 @@ import {
   X,
 } from "lucide-react";
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { PlayerTrack } from "@/components/audio-player-provider";
 import { useAudioPlayer } from "@/components/audio-player-provider";
@@ -48,8 +48,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSidebar } from "@/components/ui/sidebar";
 import { Textarea } from "@/components/ui/textarea";
+import { useImmersiveDashboardSidebar } from "@/hooks/use-immersive-dashboard-sidebar";
 import { useMobile } from "@/hooks/use-mobile";
 import { toast } from "@/hooks/use-toast";
 import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
@@ -243,9 +243,9 @@ function MessagesPageClient() {
     [isNewChatOpen, setIsNewChatOpen] = useState(false),
     [targetFriendId, setTargetFriendId] = useState<string | undefined>(),
     navigate = Route.useNavigate(),
-    { open: isAppSidebarOpen, setOpen: setAppSidebarOpen } = useSidebar(),
-    initialSidebarOpenRef = useRef(isAppSidebarOpen),
     [showUnreadOnly, setShowUnreadOnly] = useState(false);
+
+  useImmersiveDashboardSidebar();
 
   useEffect(
     () =>
@@ -257,17 +257,6 @@ function MessagesPageClient() {
       ]),
     [conversations, messageableFriends, registerPresenceUsers]
   );
-
-  // Collapse the app sidebar while messaging; restore the prior state on exit.
-  useEffect(() => {
-    const initialSidebarOpen = isAppSidebarOpen;
-
-    setAppSidebarOpen(false);
-
-    return () => {
-      setAppSidebarOpen(initialSidebarOpen);
-    };
-  }, [isAppSidebarOpen, setAppSidebarOpen]);
 
   // Keep the selected conversation in the URL so refreshes and back
   // navigation preserve the active thread.
