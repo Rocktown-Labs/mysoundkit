@@ -1,7 +1,7 @@
 # Printful Print-on-Demand Merch Engine — Architecture & Implementation Plan
 
 **Issue:** [#406 — Print-on-Demand Merch Engine - Printful API v2 Integration (Apparel & Merch)](https://github.com/Rocktown-Labs/mysoundkit/issues/406)
-**Related:** [#405 — Physical Merch (CD/Vinyl/DVD) POD with Kunaki](https://github.com/Rocktown-Labs/mysoundkit/issues/405) — implemented by PR [#408](https://github.com/Rocktown-Labs/mysoundkit/pull/408) (open; migration `0064_pink_triton` taken). This plan's schema PR waits for #408 to merge and takes `0065`.
+**Related:** [#405 — Physical Merch (CD/Vinyl/DVD) POD with Kunaki](https://github.com/Rocktown-Labs/mysoundkit/issues/405) — **merged via PR [#408](https://github.com/Rocktown-Labs/mysoundkit/pull/408)** (migration `0064_pink_triton` landed on master). This plan's schema PR (M1) builds on it as migration `0065`.
 **Supersedes/absorbs:** `docs/printful-readiness.md` (the reserved `printful` provider becomes real)
 **Plan status:** Approved architecture + all product decisions resolved (rounds 1–2); ready for milestone implementation. No code written yet.
 
@@ -489,14 +489,14 @@ The mixed-checkout system is **provider-pluggable by design**: `fulfillmentProvi
 
 ## 9. Coordination with #408 — Kunaki physical media (PR for #405)
 
-#408 (open) ships migration `0064_pink_triton`, the `physicalReleases` table, shipping columns on `orders`, the `physical_merch` product/purchase type, `POST /v1/merch/shipping-quote` (Kunaki), `collectShippingAddress` on `createDestinationCheckout`, Stripe-webhook address capture, a Kunaki dispatch step in `PurchaseFulfillmentWorkflow`, and `calculatePhysicalPricing` with the zero-shortfall invariant. This plan consumes all of it — M1 rebases on the merge and takes `0065`.
+#408 is **merged on master** with migration `0064_pink_triton`, the `physicalReleases` table, shipping columns on `orders`, the `physical_merch` product/purchase type, `POST /v1/merch/shipping-quote` (Kunaki), `collectShippingAddress` + `shippingOptions` on `createDestinationCheckout`, Stripe-webhook address + `shipping_cost` capture, a Kunaki dispatch step in `PurchaseFulfillmentWorkflow`, and `calculatePhysicalPricing` with the zero-shortfall invariant. This plan consumes all of it — M1 takes migration `0065`.
 
 | Shared asset | #408 as shipped | This plan's rule |
 | --- | --- | --- |
 | Migration `0064` | Taken (`0064_pink_triton`) | M1 waits for the #408 merge; expected `0065`. |
 | `routes/merch.ts` (`/v1/merch`) | New file: `POST /v1/merch/shipping-quote` (Kunaki; response `{currency, options: [{code, description, deliveryTimeDescription, priceCents}], recommended}`) | **Extend the file** — designer/catalog/design routes land here; Printful rates land as `POST /v1/merch/shipping-rates` **reusing #408's response schema**, so one rate-selector component serves both providers. |
-| Shipping address capture | `createDestinationCheckout` gains `collectShippingAddress` + `shippingCountries`; the Stripe webhook maps `shipping_details ?? customer_details` onto `orders.shipping*` | Merch carts collect the address **pre-checkout** (required to quote live Printful rates). M5 sets `collectShippingAddress = hasPhysicalItems && !hasMerchItems` and guards the webhook capture to never overwrite an existing order address (without the guard, the `customer_details` fallback would clobber our pre-collected shipping address with the billing address). |
-| Shipping fee charging | `calculatePhysicalPricing` accepts `shippingFeeCents` with the pass-through invariant, but #408's checkout passes 0 and adds no shipping line item (scaffolded, unwired for Kunaki carts) | M5 owns the mechanism for merch carts: shipping line item in the Stripe session + `orders.shippingFeeCents` + app-fee inclusion via `calculateMerchPricing`. Designed so the Kunaki flow can adopt it later; #408's behavior is not changed unilaterally. |
+| Shipping address capture | `createDestinationCheckout` gains `collectShippingAddress` + `shippingCountries`; the Stripe webhook maps `shipping_details ?? customer_details` onto `orders.shipping*` (the `shipping_cost.amount_total` → `shippingFeeCents` capture is conditional — safe for carts without Stripe shipping options) | Merch carts collect the address **pre-checkout** (required to quote live Printful rates). M5 sets `collectShippingAddress = hasPhysicalItems && !hasMerchItems` and guards the webhook address capture to never overwrite an existing order address (the `customer_details` fallback would otherwise clobber our pre-collected shipping address with the billing address). |
+| Shipping fee charging | **Wired in the merged #408:** checkout accepts client-supplied `shippingFeeCents`/`shippingDescription` (default $5.00 / "USPS First Class Mail") for physical-release carts, charges it via a single Stripe `shipping_options` entry, includes it in `application_fee_amount`, and the webhook conditionally captures `shipping_cost.amount_total` | M5 adds the merch branch with **server-verified** shipping: selections re-validated against cached quotes (never client-trusted). Stripe only shows `shipping_options` when it collects the address, so merch/mixed carts (address pre-collected → `collectShippingAddress: false`) charge shipping as a **line item** instead, with `orders.shippingFeeCents` + `order_shipping_selections` written at checkout and `calculateMerchPricing` adding it to the app fee. |
 | Purchase-fulfillment workflow | Step "fulfill physical merchandise with kunaki" selects items by `productType = physical_merch OR physicalReleaseId` | Merch items also carry `physical_merch`, so M5 **narrows the Kunaki step to `physicalReleaseId` items** and adds a parallel "fulfill merch with printful" step keyed on `merchDesignId` (+ `external_id` idempotency, cost-poll, confirm). |
 | Checkout enrichment | `enrichedItems` computes per-item `{artistPayout, manufacturingCost, platformFee}`; `applicationFeeCents = Σ(platformFee + mfgBase)` | M5 adds the merch branch: base from `merch_catalog_variants.base_price_cents`, cut from `merch_designs.platformFeeBps` (default `PHYSICAL_PLATFORM_FEE_BPS` = 1200, single source of truth), shipping at the order level. `platformFees` rows record the actual 1200 bps for merch. |
 | Unit economics | `lib/physical-pricing.ts`: balance invariant `fanTotal − appFee = artistPayout` | `lib/merch-pricing.ts` mirrors the same invariant; retail bounds come from `merch_catalog_products.retail_min/max_cents` (DB) rather than a code constant. |
@@ -534,6 +534,13 @@ The mixed-checkout system is **provider-pluggable by design**: `fulfillmentProvi
 - **Mixed carts supported** (supersedes round 3): one checkout can carry digital + Kunaki media + Printful merch from the same artist — shipping quoted per provider, recommended options pre-selected, charged as a single summed "Shipping" line, then split back per provider at dispatch via new `order_shipping_selections`.
 - **Track-linked merch** surfaces on track detail pages via the same shared shelf and public track payload.
 - **UX principle locked:** pre-defaulted shipping, address form only when physical items exist, identical merch cards everywhere, no forced cart splitting.
+
+**Resolved — round 5 (post-merge #408 truing, 2026-10-13):**
+
+- **#408 merged** (migration `0064_pink_triton` on master) — M1 unblocked; all plan assumptions verified against the final merged code.
+- **Shipping is wired for Kunaki carts** (client-supplied fee → single Stripe `shipping_options` entry → conditional webhook capture); the earlier "scaffolded but unwired" note is retired.
+- **Merch/mixed carts charge shipping as a line item** — Stripe only renders `shipping_options` alongside address collection, and merch carts pre-collect the address (`collectShippingAddress: false`), so shipping rides `line_items` with `orders.shippingFeeCents` + `order_shipping_selections` written at checkout.
+- **Webhook-capture guards:** `shipping_cost.amount_total` capture is already conditional (safe as merged); the address capture (`shipping_details ?? customer_details`) still needs the M5 no-overwrite guard for pre-collected merch addresses.
 
 **Remaining open:**
 
