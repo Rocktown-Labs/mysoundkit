@@ -1,13 +1,13 @@
 import { NativePlaceholderScreen } from "@/components/native-placeholder-screen";
 
-export default function DashboardVideosScreen() {
+export default function NewOpenVerseScreen() {
   return (
     <NativePlaceholderScreen
-      description="Manage music videos and visual releases."
-      route="/dashboard/videos"
+      description="Start an open verse listing for collaborators and fans."
+      route="/dashboard/open-verses/new"
       section="Dashboard"
       sectionHref="/dashboard"
-      title="Videos"
+      title="New Open Verse"
     />
   );
 }

@@ -1,13 +1,13 @@
 import { NativePlaceholderScreen } from "@/components/native-placeholder-screen";
 
-export default function DashboardNetworkScreen() {
+export default function NewVideoScreen() {
   return (
     <NativePlaceholderScreen
-      description="Manage followers, friends, and artist relationships."
-      route="/dashboard/collaborators"
+      description="Prepare a music video for publishing."
+      route="/dashboard/videos/new"
       section="Dashboard"
       sectionHref="/dashboard"
-      title="Network"
+      title="New Video"
     />
   );
 }

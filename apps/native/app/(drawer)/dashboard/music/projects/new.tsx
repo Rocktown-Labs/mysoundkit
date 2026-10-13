@@ -1,13 +1,13 @@
 import { NativePlaceholderScreen } from "@/components/native-placeholder-screen";
 
-export default function DashboardOpenVersesScreen() {
+export default function NewProjectScreen() {
   return (
     <NativePlaceholderScreen
-      description="Create and manage open verse listings and submissions."
-      route="/dashboard/open-verses"
+      description="Create an album, EP, or mixtape."
+      route="/dashboard/projects/new"
       section="Dashboard"
       sectionHref="/dashboard"
-      title="Open Verses"
+      title="New Project"
     />
   );
 }

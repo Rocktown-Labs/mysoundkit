@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars */
 import {
   keepPreviousData,
   useInfiniteQuery,
@@ -43,7 +44,8 @@ async function rpcJson<T>(
       message?: string;
     } | null,
     message =
-      errorPayload?.message ?? `SoundKit API request failed: ${response.status}`;
+      errorPayload?.message ??
+      `SoundKit API request failed: ${response.status}`;
   throw new NativeApiError(message, response.status);
 }
 
@@ -60,6 +62,11 @@ const artistGet = apiClient.v1.artists[":username"].$get,
   listeningPartiesGet = apiClient.v1["listening-parties"].index.$get,
   liveExperienceGet = apiClient.v1.live.experiences[":experienceId"].$get,
   liveExperiencesGet = apiClient.v1.live.experiences.public.$get,
+  meEntitlementsGet = apiClient.v1.me.entitlements.$get,
+  meGet = apiClient.v1.me.index.$get,
+  networkGet = apiClient.v1.network.index.$get,
+  openVersesGet = apiClient.v1["open-verses"].index.$get,
+  projectsGet = apiClient.v1.projects.index.$get,
   publicProjectGet = apiClient.v1.projects.public[":projectId"].$get,
   publicProjectsGet = apiClient.v1.projects.public.$get,
   trackGet = apiClient.v1.tracks[":trackId"].$get,
@@ -76,12 +83,22 @@ type VideosQuery = InferRequestType<typeof videosGet>["query"];
 type PublicProjectsQuery = InferRequestType<typeof publicProjectsGet>["query"];
 type ArtistsQuery = InferRequestType<typeof artistsGet>["query"];
 type PublicRegionQuery = InferRequestType<typeof liveExperiencesGet>["query"];
+type OpenVersesQuery = InferRequestType<typeof openVersesGet>["query"];
+
+export type ProjectSummary = InferResponseType<typeof projectsGet, 200>[number];
+export type MeDetail = InferResponseType<typeof meGet, 200>;
+export type EntitlementSummary = InferResponseType<
+  typeof meEntitlementsGet,
+  200
+>;
+export type NetworkResponse = InferResponseType<typeof networkGet, 200>;
+export type OpenVersesPage = InferResponseType<typeof openVersesGet, 200>;
+export type OpenVerseListing = OpenVersesPage["items"][number];
 
 export type TrackSummary = InferResponseType<typeof tracksGet, 200>[number];
 export type TrackDetail = InferResponseType<typeof trackGet, 200>;
 export type VideoSummary = InferResponseType<typeof videosGet, 200>[number];
 export type VideoDetail = InferResponseType<typeof videoGet, 200>;
-export type ProjectSummary = PublicProjectSummary;
 export type PublicProjectSummary = InferResponseType<
   typeof publicProjectsGet,
   200
@@ -320,11 +337,11 @@ export const usePublicLiveExperiencesQuery = (
   });
 
 export const useListeningPartiesQuery = (query: PublicRegionQuery) =>
-  useQuery({
-    placeholderData: keepPreviousData,
-    queryFn: async () => rpcJson(await listeningPartiesGet({ query })),
-    queryKey: listKey("listening-parties", query),
-  }),
+    useQuery({
+      placeholderData: keepPreviousData,
+      queryFn: async () => rpcJson(await listeningPartiesGet({ query })),
+      queryKey: listKey("listening-parties", query),
+    }),
   /** Party detail is served through the list endpoint; select by id. */
   useListeningPartyQuery = (partyId: string) =>
     useQuery({
@@ -502,4 +519,75 @@ export const useNativeSearchQuery = (q: string) =>
         await searchGet({ query: { limit: "12", q: q.trim(), type: "all" } })
       ),
     queryKey: ["native", "search", q.trim()],
+  });
+
+// ---------------------------------------------------------------------------
+// Dashboard (authenticated): session-gated hooks for the artist's own data
+// ---------------------------------------------------------------------------
+
+export const useMeQuery = (enabled: boolean) =>
+  useQuery({
+    enabled,
+    queryFn: async () => rpcJson(await meGet()) as Promise<MeDetail>,
+    queryKey: ["me"],
+    staleTime: 60 * 1000,
+  });
+
+export const useMeEntitlementsQuery = (enabled: boolean) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      rpcJson(await meEntitlementsGet()) as Promise<EntitlementSummary>,
+    queryKey: ["me", "entitlements"],
+    staleTime: 60 * 1000,
+  });
+
+export const useDashboardTracksQuery = (enabled: boolean) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      rpcJson(await tracksGet({ query: {} })) as Promise<TrackSummary[]>,
+    queryKey: ["dashboard", "tracks"],
+  });
+
+export const useDashboardProjectsQuery = (enabled: boolean) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      rpcJson(await projectsGet()) as Promise<ProjectSummary[]>,
+    queryKey: ["dashboard", "projects"],
+  });
+
+export const useDashboardVideosQuery = (enabled: boolean) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      rpcJson(await videosGet({ query: { scope: "dashboard" } })) as Promise<
+        VideoSummary[]
+      >,
+    queryKey: ["dashboard", "videos"],
+  });
+
+export const useNetworkQuery = (enabled: boolean) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      rpcJson(await networkGet()) as Promise<NetworkResponse>,
+    queryKey: ["dashboard", "network"],
+  });
+
+export const useOpenVersesInfiniteQuery = (
+  enabled: boolean,
+  query: OpenVersesQuery
+) =>
+  useInfiniteQuery({
+    enabled,
+    getNextPageParam: (lastPage: OpenVersesPage) =>
+      lastPage.nextCursor ?? undefined,
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) =>
+      rpcJson(
+        await openVersesGet({ query: { ...query, cursor: pageParam } })
+      ) as Promise<OpenVersesPage>,
+    queryKey: ["dashboard", "open-verses", query],
   });

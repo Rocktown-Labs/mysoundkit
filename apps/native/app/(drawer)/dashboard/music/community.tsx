@@ -1,13 +1,13 @@
 import { NativePlaceholderScreen } from "@/components/native-placeholder-screen";
 
-export default function DashboardTracksScreen() {
+export default function DashboardCommunityScreen() {
   return (
     <NativePlaceholderScreen
-      description="Manage songs, masters, metadata, and files in your creator catalog."
-      route="/dashboard/tracks"
+      description="See community posts, fan movement, and updates."
+      route="/dashboard/community"
       section="Dashboard"
       sectionHref="/dashboard"
-      title="Tracks"
+      title="Community"
     />
   );
 }

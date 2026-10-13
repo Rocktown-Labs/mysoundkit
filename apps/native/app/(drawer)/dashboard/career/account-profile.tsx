@@ -1,13 +1,13 @@
 import { NativePlaceholderScreen } from "@/components/native-placeholder-screen";
 
-export default function DashboardProjectsScreen() {
+export default function DashboardAccountProfileScreen() {
   return (
     <NativePlaceholderScreen
-      description="Organize albums, EPs, mixtapes, and bundles."
-      route="/dashboard/projects"
+      description="Manage your private account profile and identity."
+      route="/dashboard/profile"
       section="Dashboard"
       sectionHref="/dashboard"
-      title="Projects"
+      title="Account Profile"
     />
   );
 }
