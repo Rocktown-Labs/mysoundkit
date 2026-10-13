@@ -573,6 +573,9 @@ export const sampleConversations = [
   {
     conversationType: "direct" as const,
     id: "conv_sarah",
+    lastMessageAt: new Date().toISOString(),
+    lastMessageBody: "Sounds great. I will review it tonight.",
+    lastMessageSenderId: sampleUser.id,
     title: "Sarah Johnson",
     unreadCount: 2,
     updatedAt: new Date().toISOString(),

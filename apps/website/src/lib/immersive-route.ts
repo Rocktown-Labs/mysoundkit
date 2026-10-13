@@ -37,6 +37,17 @@ export function isVideoDetailRoute(pathname: string): boolean {
   return videoDetailRegex.test(normalized) && normalized !== "/videos";
 }
 
+export function isCommunityDetailRoute(pathname: string): boolean {
+  const normalized = pathname.replace(/\/$/, ""),
+    // Matches /communities/:communityId, but NOT /communities
+    communityDetailRegex = /^\/communities\/[^/]+$/;
+  return communityDetailRegex.test(normalized);
+}
+
 export function isImmersiveExploreRoute(pathname: string): boolean {
-  return isLiveExperienceDetailRoute(pathname) || isVideoDetailRoute(pathname);
+  return (
+    isLiveExperienceDetailRoute(pathname) ||
+    isVideoDetailRoute(pathname) ||
+    isCommunityDetailRoute(pathname)
+  );
 }
