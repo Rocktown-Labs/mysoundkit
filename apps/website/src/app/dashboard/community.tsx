@@ -233,7 +233,7 @@ function CommunitySettings({ community }: { community: DbCommunity }) {
       }
       const transaction = update({
         communityId: community.id,
-        description: description.trim() || undefined,
+        description: description.trim(),
         genreId: genreId === "none" ? null : genreId,
         monthlyPriceCents:
           access === "free" ? 0 : Math.round(Number(price) * 100),

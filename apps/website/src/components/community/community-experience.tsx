@@ -682,7 +682,7 @@ function CommunityChat({
             </div>
           ) : null}
           {messages.map((message) => {
-            const mine = message.author.username === currentUser.username;
+            const mine = message.userId === currentUser.id;
 
             return (
               <div

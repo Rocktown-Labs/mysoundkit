@@ -9,7 +9,10 @@ import { ExploreAppSidebar } from "@/components/explore/explore-app-sidebar";
 import { ExploreHeader } from "@/components/explore/explore-header";
 import { ExploreMobileNav } from "@/components/explore/explore-mobile-nav";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { isImmersiveExploreRoute } from "@/lib/immersive-route";
+import {
+  isCommunityDetailRoute,
+  isImmersiveExploreRoute,
+} from "@/lib/immersive-route";
 
 export const Route = createFileRoute("/_explore")({
   component: ExploreLayout,
@@ -17,7 +20,10 @@ export const Route = createFileRoute("/_explore")({
 
 function ExploreLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname }),
-    isImmersive = isImmersiveExploreRoute(pathname);
+    isImmersive = isImmersiveExploreRoute(pathname),
+    // The community page is a full-screen chat surface; its composer sits at
+    // the bottom edge, so the fixed mobile tab bar would intercept taps.
+    hideMobileNav = isCommunityDetailRoute(pathname);
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -40,7 +46,7 @@ function ExploreLayout() {
           </main>
         </div>
       </div>
-      <ExploreMobileNav />
+      {hideMobileNav ? null : <ExploreMobileNav />}
     </SidebarProvider>
   );
 }
