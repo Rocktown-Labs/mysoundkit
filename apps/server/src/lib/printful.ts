@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 import { env } from "@soundkit/env/server";
 
 import { logWarn } from "@/middleware/structured-logging";
@@ -56,7 +57,7 @@ const getEnvValue = (key: string) =>
     new Promise<void>((resolve) => {
       setTimeout(resolve, ms);
     });
-  /* eslint-enable promise/avoid-new */
+/* eslint-enable promise/avoid-new */
 
 export const isPrintfulConfigured = () =>
   Boolean(getEnvValue("PRINTFUL_API_KEY"));
@@ -130,32 +131,30 @@ const buildPrintfulUrl = ({
     }
 
     return problem;
+  },
+  buildPrintfulHeaders = ({
+    apiKey,
+    body,
+    storeId,
+  }: {
+    apiKey: string;
+    body?: Record<string, unknown>;
+    storeId: string;
+  }) =>
+    new Headers({
+      Authorization: `Bearer ${apiKey}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(storeId ? { "X-PF-Store-Id": storeId } : {}),
+    }),
+  resolveRetryDelayMs = (response: Response, attempt: number) => {
+    const retryAfterSeconds = Number(response.headers.get("Retry-After"));
+
+    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+      return Math.min(retryAfterSeconds * 1000, MAX_RETRY_AFTER_MS);
+    }
+
+    return 500 * 2 ** attempt;
   };
-
-const buildPrintfulHeaders = ({
-  apiKey,
-  body,
-  storeId,
-}: {
-  apiKey: string;
-  body?: Record<string, unknown>;
-  storeId: string;
-}) =>
-  new Headers({
-    Authorization: `Bearer ${apiKey}`,
-    ...(body ? { "Content-Type": "application/json" } : {}),
-    ...(storeId ? { "X-PF-Store-Id": storeId } : {}),
-  });
-
-const resolveRetryDelayMs = (response: Response, attempt: number) => {
-  const retryAfterSeconds = Number(response.headers.get("Retry-After"));
-
-  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
-    return Math.min(retryAfterSeconds * 1000, MAX_RETRY_AFTER_MS);
-  }
-
-  return 500 * 2 ** attempt;
-};
 
 /**
  * Core Printful API v2 request helper.
@@ -325,7 +324,7 @@ export const getPrintfulCatalogProduct = async (productId: number) => {
 };
 
 export const getPrintfulCatalogProducts = async ({
-  limit = 20,
+  limit = 100,
   offset = 0,
   textSearch,
 }: {
@@ -338,11 +337,36 @@ export const getPrintfulCatalogProducts = async ({
     query: {
       limit,
       offset,
-      ...(textSearch ? { text_search: textSearch } : {}),
+      // v2 has no free-text name filter — we page broadly and filter
+      // client-side (or server-side in the route) instead.
+      ...(textSearch ? { sort_type: "name" } : {}),
     },
   });
 
   return unwrapPrintfulList<PrintfulCatalogProduct>(payload);
+};
+
+/**
+ * Searches Printful's catalog by fetching paged results and filtering by
+ * product name server-side, since Printful v2 has no free-text search.
+ */
+export const searchPrintfulCatalogProducts = async (
+  query: string,
+  maxResults = 10
+) => {
+  const allProducts = await getPrintfulCatalogProducts({ limit: 100 }),
+    normalized = query.toLowerCase().trim(),
+    matches =
+      normalized.length === 0
+        ? allProducts
+        : allProducts.filter(
+            (product) =>
+              product.name.toLowerCase().includes(normalized) ||
+              product.type?.toLowerCase().includes(normalized) ||
+              product.brand?.toLowerCase().includes(normalized)
+          );
+
+  return matches.slice(0, maxResults);
 };
 
 export const getPrintfulCatalogVariants = async (productId: number) => {
@@ -359,6 +383,31 @@ export const getPrintfulVariantPrice = async (variantId: number) => {
   });
 
   return unwrapPrintfulPayload<PrintfulVariantPrice | null>(payload);
+};
+
+export interface PrintfulProductPrices {
+  currency?: string;
+  product?: {
+    id?: number;
+    placements?: Record<string, unknown>[];
+  };
+  variants?: {
+    id: number;
+    techniques?: {
+      discounted_price?: string;
+      price?: string;
+      technique_display_name?: string;
+      technique_key?: string;
+    }[];
+  }[];
+}
+
+export const getPrintfulProductPrices = async (productId: number) => {
+  const payload = await printfulRequest({
+    path: `/catalog-products/${encodeURIComponent(String(productId))}/prices`,
+  });
+
+  return unwrapPrintfulPayload<PrintfulProductPrices | null>(payload);
 };
 
 export const getPrintfulMockupStyles = async (productId: number) => {

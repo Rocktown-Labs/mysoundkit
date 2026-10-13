@@ -10,8 +10,8 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 import { isAdminUser } from "@/lib/admin";
 import {
   PrintfulRequestError,
-  getPrintfulCatalogProducts,
   isPrintfulConfigured,
+  searchPrintfulCatalogProducts,
 } from "@/lib/printful";
 import {
   listPrintfulCatalogRows,
@@ -440,7 +440,7 @@ app.openapi(
     const { textSearch } = c.req.valid("query");
 
     try {
-      const products = await getPrintfulCatalogProducts({ textSearch });
+      const products = await searchPrintfulCatalogProducts(textSearch ?? "");
 
       return c.json(
         products.map((product) => ({

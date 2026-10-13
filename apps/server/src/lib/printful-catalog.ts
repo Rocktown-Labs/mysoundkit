@@ -11,6 +11,7 @@ import {
   getPrintfulCatalogVariants,
   getPrintfulMockupStyles,
   getPrintfulProductAvailability,
+  getPrintfulProductPrices,
   getPrintfulVariantPrice,
   isPrintfulConfigured,
   printfulPriceToCents,
@@ -76,10 +77,20 @@ export const validateRetailBoundsCents = ({
   return { valid: true };
 };
 
-const isUsaInStock = (entry: PrintfulAvailabilityEntry | undefined) => {
+// Printful's availability region names vary across docs and products
+// ("usa", "worldwide", "north_america"). We match any of the known US
+// labels and intentionally default to in-stock when none are present —
+// the sync runs frequently enough that stale stock self-corrects.
+const IN_STOCK_REGION_NAMES = new Set([
+    "usa",
+    "us",
+    "worldwide",
+    "north_america",
+  ]),
+  isUsaInStock = (entry: PrintfulAvailabilityEntry | undefined) => {
     for (const technique of entry?.techniques ?? []) {
       for (const region of technique.selling_regions ?? []) {
-        if (region.name === "usa") {
+        if (IN_STOCK_REGION_NAMES.has(region.name ?? "")) {
           return region.availability === "in stock";
         }
       }
@@ -165,33 +176,90 @@ const fetchSyncedCatalogData = async (
       );
     }
 
-    const variantPrices = new Map<number, number>();
+    // Bulk-fetch prices for the entire product in one request instead of
+    // one per variant (Printful v2 supports /catalog-products/{id}/prices).
+    const productPrices = await getPrintfulProductPrices(printfulProductId),
+      variantPrices = new Map<number, number>();
 
+    for (const variantPrice of productPrices?.variants ?? []) {
+      const techniquePrices = (variantPrice.techniques ?? [])
+        .map((technique) => printfulPriceToCents(technique.price))
+        .filter((cents) => Number.isInteger(cents));
+
+      if (techniquePrices.length > 0) {
+        // Cheapest technique is the conservative COGS snapshot.
+        variantPrices.set(variantPrice.id, Math.min(...techniquePrices));
+      }
+    }
+
+    // Fall back to per-variant lookup if the bulk endpoint missed any.
     for (const variant of variants) {
-      variantPrices.set(
-        variant.id,
-        await resolveVariantBasePriceCents(variant.id)
+      if (!variantPrices.has(variant.id)) {
+        variantPrices.set(
+          variant.id,
+          await resolveVariantBasePriceCents(variant.id)
+        );
+      }
+    }
+
+    if (variantPrices.size === 0) {
+      throw new Error(
+        `Printful catalog product ${printfulProductId} has no variant prices.`
       );
     }
 
     return { availability, product, styleGroups, variantPrices, variants };
   },
-  resolveCatalogBounds = ({
+  resolveCatalogBounds = async ({
+    catalogProductId,
     retailMaxCents,
     retailMinCents,
     variantPrices,
   }: {
+    catalogProductId?: string;
     retailMaxCents?: number;
     retailMinCents?: number;
     variantPrices: Map<number, number>;
   }) => {
     const cheapestBaseCents = Math.min(...variantPrices.values()),
-      defaultBounds = defaultRetailBoundsCents(cheapestBaseCents),
-      bounds = {
-        retailMaxCents: retailMaxCents ?? defaultBounds.retailMaxCents,
-        retailMinCents: retailMinCents ?? defaultBounds.retailMinCents,
-      },
-      validation = validateRetailBoundsCents(bounds);
+      defaultBounds = defaultRetailBoundsCents(cheapestBaseCents);
+
+    // A refresh/sweep passes no bounds — preserve whatever the admin set on
+    // the existing row rather than resetting to defaults.
+    if (
+      retailMinCents === undefined &&
+      retailMaxCents === undefined &&
+      catalogProductId &&
+      isDatabaseConfigured()
+    ) {
+      const db = createDb();
+      const [existing] = await db
+        .select({
+          retailMaxCents: merchCatalogProducts.retailMaxCents,
+          retailMinCents: merchCatalogProducts.retailMinCents,
+        })
+        .from(merchCatalogProducts)
+        .where(eq(merchCatalogProducts.id, catalogProductId))
+        .limit(1);
+
+      if (existing) {
+        const bounds = {
+          retailMaxCents: existing.retailMaxCents,
+          retailMinCents: existing.retailMinCents,
+        };
+        const validation = validateRetailBoundsCents(bounds);
+
+        if (validation.valid) {
+          return bounds;
+        }
+      }
+    }
+
+    const bounds = {
+      retailMaxCents: retailMaxCents ?? defaultBounds.retailMaxCents,
+      retailMinCents: retailMinCents ?? defaultBounds.retailMinCents,
+    };
+    const validation = validateRetailBoundsCents(bounds);
 
     if (!validation.valid) {
       throw new Error(validation.error);
@@ -305,7 +373,8 @@ export const syncPrintfulCatalogProduct = async ({
     availabilityByVariant = new Map(
       availability.map((entry) => [entry.catalog_variant_id, entry])
     ),
-    bounds = resolveCatalogBounds({
+    bounds = await resolveCatalogBounds({
+      catalogProductId: String(printfulProductId),
       retailMaxCents,
       retailMinCents,
       variantPrices,
