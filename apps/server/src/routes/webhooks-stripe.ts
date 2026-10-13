@@ -84,6 +84,12 @@ interface StripeObject {
     name?: string | null;
   } | null;
   payment_status?: string;
+  shipping_cost?: {
+    amount_subtotal?: number | null;
+    amount_tax?: number | null;
+    amount_total?: number | null;
+    shipping_rate?: string | null;
+  } | null;
   shipping_details?: {
     address?: {
       city?: string | null;
@@ -347,7 +353,13 @@ const processConnectAccountEvent = async ({
 
         const shippingDetails =
             object.shipping_details ?? object.customer_details,
-          shippingAddress = shippingDetails?.address;
+          shippingAddress = shippingDetails?.address,
+          shippingCostCents =
+            typeof object.shipping_cost?.amount_total === "number"
+              ? object.shipping_cost.amount_total
+              : undefined,
+          shippingDescription =
+            object.metadata?.shippingDescription || undefined;
 
         await db
           .update(orders)
@@ -373,6 +385,10 @@ const processConnectAccountEvent = async ({
             ...(shippingDetails?.name
               ? { shippingName: shippingDetails.name }
               : {}),
+            ...(shippingCostCents !== undefined
+              ? { shippingFeeCents: shippingCostCents }
+              : {}),
+            ...(shippingDescription ? { shippingDescription } : {}),
             status: "paid",
             stripePaymentIntentId: object.payment_intent,
           })

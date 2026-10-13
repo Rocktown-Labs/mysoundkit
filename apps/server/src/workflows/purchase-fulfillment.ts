@@ -142,9 +142,8 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
         .onConflictDoNothing();
     });
 
-    await step.do(
-      "fulfill physical merchandise with kunaki",
-      stepRetryConfig,
+    const physicalOrderResult = await step.do(
+      "submit physical order to kunaki",
       async () => {
         const db = createDb(),
           [order] = await db
@@ -153,8 +152,8 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
             .where(eq(orders.id, orderId))
             .limit(1);
 
-        if (!order) {
-          return;
+        if (!order || order.kunakiOrderId) {
+          return { kunakiOrderId: order?.kunakiOrderId ?? null, skipped: true };
         }
 
         const physicalItems = await db
@@ -170,8 +169,8 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
             )
           );
 
-        if (physicalItems.length === 0 || order.kunakiOrderId) {
-          return;
+        if (physicalItems.length === 0) {
+          return { kunakiOrderId: null, skipped: true };
         }
 
         if (
@@ -191,7 +190,7 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
             .update(orders)
             .set({ fulfillmentStatus: "failed" })
             .where(eq(orders.id, orderId));
-          return;
+          return { kunakiOrderId: null, skipped: true };
         }
 
         const releaseIds = physicalItems
@@ -209,13 +208,34 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
 
         for (const item of physicalItems) {
           const release = item.physicalReleaseId
-              ? releaseMap.get(item.physicalReleaseId)
-              : null,
-            productId = release?.kunakiProductId ?? "PX00LRNY2H";
+            ? releaseMap.get(item.physicalReleaseId)
+            : null;
+
+          if (!release?.kunakiProductId) {
+            logError({
+              event: "kunaki_fulfillment_missing_product_id",
+              message: `Cannot fulfill Kunaki order: release ${item.physicalReleaseId ?? "unknown"} has no Kunaki product ID configured for format ${release?.mediaFormat ?? "unknown"}.`,
+              orderId,
+            });
+            await db
+              .update(orders)
+              .set({ fulfillmentStatus: "failed" })
+              .where(eq(orders.id, orderId));
+            return { kunakiOrderId: null, skipped: true };
+          }
+
           kunakiItems.push({
-            productId,
+            productId: release.kunakiProductId,
             quantity: item.quantity,
           });
+        }
+
+        // Persist an in-flight marker before initiating outbound API call
+        if (order.fulfillmentStatus !== "kunaki_processing") {
+          await db
+            .update(orders)
+            .set({ fulfillmentStatus: "kunaki_processing" })
+            .where(eq(orders.id, orderId));
         }
 
         const kunaki = createKunakiClient();
@@ -228,23 +248,12 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
             items: kunakiItems,
             name: order.shippingName,
             postalCode: order.shippingPostalCode,
-            shippingDescription: order.shippingDescription ?? "Economy",
+            shippingDescription:
+              order.shippingDescription ?? "USPS First Class Mail",
             stateProvince: order.shippingStateProvince ?? undefined,
           });
 
-          await db
-            .update(orders)
-            .set({
-              fulfillmentStatus: "kunaki_processing",
-              kunakiOrderId,
-            })
-            .where(eq(orders.id, orderId));
-
-          logInfo({
-            event: "kunaki_order_created",
-            kunakiOrderId,
-            orderId,
-          });
+          return { kunakiOrderId, skipped: false };
         } catch (error) {
           logError({
             error: error instanceof Error ? error.message : String(error),
@@ -259,6 +268,29 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
         }
       }
     );
+
+    if (physicalOrderResult?.kunakiOrderId) {
+      await step.do(
+        "record kunaki order confirmation",
+        stepRetryConfig,
+        async () => {
+          const db = createDb();
+          await db
+            .update(orders)
+            .set({
+              fulfillmentStatus: "kunaki_processing",
+              kunakiOrderId: physicalOrderResult.kunakiOrderId,
+            })
+            .where(eq(orders.id, orderId));
+
+          logInfo({
+            event: "kunaki_order_created",
+            kunakiOrderId: physicalOrderResult.kunakiOrderId,
+            orderId,
+          });
+        }
+      );
+    }
 
     await step.do("send purchase delivery emails", stepRetryConfig, () =>
       notifyPurchaseEmails({ orderId, queue: emailQueue })

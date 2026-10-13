@@ -408,12 +408,13 @@ export const physicalReleaseStatusSchema = z.enum([
   "archived",
 ]);
 export const physicalFulfillmentStatusSchema = z.enum([
+  "not_applicable",
   "pending",
   "kunaki_processing",
   "shipped",
   "delivered",
+  "cancelled",
   "failed",
-  "canceled",
 ]);
 export const purchaseModeSchema = z.enum([
   "digital_download",
@@ -453,6 +454,7 @@ export const physicalReleaseInputSchema = z.object({
   description: z.string().optional(),
   id: z.string().optional(),
   includesDigitalDownload: z.boolean().default(true),
+  kunakiProductId: z.string().trim().optional(),
   mediaFormat: physicalMediaFormatSchema,
   retailPriceCents: z.number().int(),
   spineText: z.string().optional(),
@@ -1865,6 +1867,7 @@ export const artistMonthlyStatementSchema = z.object({
   musicSalesCents: z.number().int(),
   periodEndsAt: z.string(),
   periodStartsAt: z.string(),
+  physicalMerchCents: z.number().int().optional().default(0),
   plays: z.number().int(),
   qualifiedStreams: z.number().int(),
   tipsCents: z.number().int(),

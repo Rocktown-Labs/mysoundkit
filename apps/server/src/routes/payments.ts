@@ -164,6 +164,8 @@ const resolveTipEvent = async ({
     // order and Stripe session instead of creating duplicates.
     cancelUrl: z.url(),
     idempotencyKey: z.uuid().optional(),
+    shippingDescription: z.string().trim().optional(),
+    shippingFeeCents: z.number().int().nonnegative().optional(),
     successUrl: z.url(),
   }),
   tipBodySchema = checkoutBodySchema.extend({
@@ -388,12 +390,18 @@ app.openapi(
           platformFeeCents: platformFee,
         };
       }),
+      shippingFeeCents = hasPhysicalItems ? (body.shippingFeeCents ?? 500) : 0,
+      shippingDescription = hasPhysicalItems
+        ? (body.shippingDescription ?? "USPS First Class Mail")
+        : null,
       artistAmountCents = totalAmountCents - totalApplicationFeeCents,
+      totalChargedCents = totalAmountCents + shippingFeeCents,
+      stripeApplicationFeeCents = totalApplicationFeeCents + shippingFeeCents,
       transactionId = crypto.randomUUID(),
       orderId = crypto.randomUUID();
 
     await db.insert(transactions).values({
-      amountCents: totalAmountCents,
+      amountCents: totalChargedCents,
       artistAmountCents,
       buyerUserId: user.id,
       id: transactionId,
@@ -413,10 +421,12 @@ app.openapi(
       id: orderId,
       idempotencyKey: body.idempotencyKey ?? null,
       sellerUserId: sellerId,
+      shippingDescription,
+      shippingFeeCents,
       status: "checkout_pending",
       subtotal: (totalAmountCents / 100).toFixed(2),
-      total: (totalAmountCents / 100).toFixed(2),
-      totalCents: totalAmountCents,
+      total: (totalChargedCents / 100).toFixed(2),
+      totalCents: totalChargedCents,
       transactionId,
     });
     await db.insert(orderItems).values(
@@ -438,7 +448,7 @@ app.openapi(
     );
 
     const checkout = await createDestinationCheckout({
-      applicationFeeCents: totalApplicationFeeCents,
+      applicationFeeCents: stripeApplicationFeeCents,
       cancelUrl: body.cancelUrl,
       collectShippingAddress: hasPhysicalItems,
       customerEmail: user.email,
@@ -449,7 +459,24 @@ app.openapi(
         priceCents: item.priceCentsSnapshot,
         quantity: item.quantity,
       })),
-      metadata: { transactionId, transactionType: "product_purchase" },
+      metadata: {
+        shippingDescription: shippingDescription ?? "",
+        shippingFeeCents: String(shippingFeeCents),
+        transactionId,
+        transactionType: "product_purchase",
+      },
+      shippingOptions: hasPhysicalItems
+        ? [
+            {
+              amountCents: shippingFeeCents,
+              deliveryEstimate: {
+                maximum: { unit: "business_day", value: 5 },
+                minimum: { unit: "business_day", value: 3 },
+              },
+              displayName: shippingDescription ?? "USPS First Class Mail",
+            },
+          ]
+        : undefined,
       successUrl: body.successUrl,
     });
 

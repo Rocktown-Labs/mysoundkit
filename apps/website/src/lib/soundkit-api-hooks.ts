@@ -1890,8 +1890,7 @@ interface BattleDirectorySubscription {
 
 const BATTLE_DIRECTORY_RECONNECT_BASE_MS = 1000,
   BATTLE_DIRECTORY_RECONNECT_MAX_MS = 30_000,
-
- battleDirectorySubscriptions = new WeakMap<
+  battleDirectorySubscriptions = new WeakMap<
     QueryClient,
     BattleDirectorySubscription
   >(),
@@ -2579,6 +2578,7 @@ export interface ArtistEarningsOverview {
     musicSalesCents: number;
     periodEndsAt: string;
     periodStartsAt: string;
+    physicalMerchCents?: number;
     plays: number;
     qualifiedStreams: number;
     tipsCents: number;

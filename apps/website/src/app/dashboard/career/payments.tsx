@@ -55,30 +55,29 @@ export const Route = createFileRoute("/dashboard/career/payments")({
 });
 
 const renderCategoryIcon = (category: string) => {
-  if (category === "creator_rewards") {
-    return <Crown className="size-4 text-amber-400" />;
-  }
-  if (category === "music_sales") {
-    return <Music className="size-4 text-primary" />;
-  }
-  if (category === "physical_merch") {
-    return <Package className="size-4 text-purple-400" />;
-  }
-  return <CircleDollarSign className="size-4 text-emerald-400" />;
-},
-
- getCategoryDescription = (category: string) => {
-  if (category === "creator_rewards") {
-    return "User-centric pool allocation";
-  }
-  if (category === "music_sales") {
-    return "WAV/MP3 track purchases";
-  }
-  if (category === "physical_merch") {
-    return "Kunaki on-demand CDs & Vinyl";
-  }
-  return "Direct fan support";
-};
+    if (category === "creator_rewards") {
+      return <Crown className="size-4 text-amber-400" />;
+    }
+    if (category === "music_sales") {
+      return <Music className="size-4 text-primary" />;
+    }
+    if (category === "physical_merch") {
+      return <Package className="size-4 text-purple-400" />;
+    }
+    return <CircleDollarSign className="size-4 text-emerald-400" />;
+  },
+  getCategoryDescription = (category: string) => {
+    if (category === "creator_rewards") {
+      return "User-centric pool allocation";
+    }
+    if (category === "music_sales") {
+      return "WAV/MP3 track purchases";
+    }
+    if (category === "physical_merch") {
+      return "Kunaki on-demand CDs & Vinyl";
+    }
+    return "Direct fan support";
+  };
 
 function CareerPaymentsPage() {
   const [activeTab, setActiveTab] = useState<
@@ -541,6 +540,9 @@ function CareerPaymentsPage() {
                           Music Sales
                         </th>
                         <th className="py-2.5 font-semibold text-right">
+                          Physical Merch
+                        </th>
+                        <th className="py-2.5 font-semibold text-right">
                           Fan Tips
                         </th>
                         <th className="py-2.5 font-semibold text-right">
@@ -549,9 +551,9 @@ function CareerPaymentsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/20">
-                      {earnings.statements.map((stmt, idx) => (
+                      {earnings.statements.map((stmt) => (
                         <tr
-                          key={idx}
+                          key={`${stmt.monthLabel}-${stmt.periodStartsAt}`}
                           className="hover:bg-muted/30 transition-colors"
                         >
                           <td className="py-3 pr-4 font-bold text-foreground">
@@ -568,6 +570,9 @@ function CareerPaymentsPage() {
                           </td>
                           <td className="py-3 px-3 text-right font-mono text-foreground">
                             ${(stmt.musicSalesCents / 100).toFixed(2)}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-foreground">
+                            ${((stmt.physicalMerchCents ?? 0) / 100).toFixed(2)}
                           </td>
                           <td className="py-3 px-3 text-right font-mono text-foreground">
                             ${(stmt.tipsCents / 100).toFixed(2)}

@@ -399,6 +399,22 @@ interface CheckoutLineItem {
   quantity: number;
 }
 
+export interface CheckoutShippingOption {
+  amountCents: number;
+  currency?: string;
+  deliveryEstimate?: {
+    maximum?: {
+      unit: "business_day" | "day" | "hour" | "month" | "week";
+      value: number;
+    };
+    minimum?: {
+      unit: "business_day" | "day" | "hour" | "month" | "week";
+      value: number;
+    };
+  };
+  displayName: string;
+}
+
 interface CreateCheckoutSessionInput {
   applicationFeeCents?: number;
   cancelUrl?: string;
@@ -412,6 +428,7 @@ interface CreateCheckoutSessionInput {
   metadata: Record<string, string>;
   returnUrl?: string;
   shippingCountries?: string[];
+  shippingOptions?: CheckoutShippingOption[];
   successUrl?: string;
   transferGroup?: string;
 }
@@ -428,6 +445,7 @@ export const buildCheckoutSessionParams = ({
   metadata,
   returnUrl,
   shippingCountries,
+  shippingOptions,
   successUrl,
   transferGroup,
 }: CreateCheckoutSessionInput) => {
@@ -468,6 +486,55 @@ export const buildCheckoutSessionParams = ({
         "shipping_address_collection[allowed_countries][]",
         country
       );
+    }
+  }
+
+  if (shippingOptions && shippingOptions.length > 0) {
+    for (const [index, option] of shippingOptions.entries()) {
+      appendValue(
+        params,
+        `shipping_options[${index}][shipping_rate_data][type]`,
+        "fixed_amount"
+      );
+      appendValue(
+        params,
+        `shipping_options[${index}][shipping_rate_data][display_name]`,
+        option.displayName
+      );
+      appendValue(
+        params,
+        `shipping_options[${index}][shipping_rate_data][fixed_amount][amount]`,
+        option.amountCents
+      );
+      appendValue(
+        params,
+        `shipping_options[${index}][shipping_rate_data][fixed_amount][currency]`,
+        (option.currency ?? "usd").toLowerCase()
+      );
+      if (option.deliveryEstimate?.minimum) {
+        appendValue(
+          params,
+          `shipping_options[${index}][shipping_rate_data][delivery_estimate][minimum][unit]`,
+          option.deliveryEstimate.minimum.unit
+        );
+        appendValue(
+          params,
+          `shipping_options[${index}][shipping_rate_data][delivery_estimate][minimum][value]`,
+          option.deliveryEstimate.minimum.value
+        );
+      }
+      if (option.deliveryEstimate?.maximum) {
+        appendValue(
+          params,
+          `shipping_options[${index}][shipping_rate_data][delivery_estimate][maximum][unit]`,
+          option.deliveryEstimate.maximum.unit
+        );
+        appendValue(
+          params,
+          `shipping_options[${index}][shipping_rate_data][delivery_estimate][maximum][value]`,
+          option.deliveryEstimate.maximum.value
+        );
+      }
     }
   }
 
@@ -552,6 +619,7 @@ export const createDestinationCheckout = ({
   lineItems,
   metadata,
   shippingCountries,
+  shippingOptions,
   successUrl,
 }: {
   applicationFeeCents: number;
@@ -562,6 +630,7 @@ export const createDestinationCheckout = ({
   lineItems: CheckoutLineItem[];
   metadata: Record<string, string>;
   shippingCountries?: string[];
+  shippingOptions?: CheckoutShippingOption[];
   successUrl: string;
 }) =>
   createCheckoutSession({
@@ -573,6 +642,7 @@ export const createDestinationCheckout = ({
     lineItems,
     metadata,
     shippingCountries,
+    shippingOptions,
     successUrl,
   });
 

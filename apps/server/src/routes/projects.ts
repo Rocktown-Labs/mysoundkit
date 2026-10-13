@@ -846,6 +846,7 @@ app.openapi(
             id: crypto.randomUUID(),
             includesDigitalDownload:
               releaseInput.includesDigitalDownload ?? true,
+            kunakiProductId: releaseInput.kunakiProductId ?? null,
             manufacturingBaseCents: formatRule.manufacturingBaseCents,
             mediaFormat: releaseInput.mediaFormat,
             ownerUserId: user.id,
@@ -1101,18 +1102,32 @@ app.openapi(
     }
 
     if (body.physicalReleases) {
+      const activeFormats = new Set(
+        body.physicalReleases.map((r) => r.mediaFormat)
+      );
+
+      const existingReleases = await db
+        .select({
+          id: physicalReleases.id,
+          mediaFormat: physicalReleases.mediaFormat,
+        })
+        .from(physicalReleases)
+        .where(eq(physicalReleases.projectId, project.id));
+
+      for (const existing of existingReleases) {
+        if (!activeFormats.has(existing.mediaFormat)) {
+          await db
+            .update(physicalReleases)
+            .set({ status: "archived" })
+            .where(eq(physicalReleases.id, existing.id));
+        }
+      }
+
       for (const releaseInput of body.physicalReleases) {
         const formatRule = PHYSICAL_FORMAT_RULES[releaseInput.mediaFormat];
-        const [existing] = await db
-          .select({ id: physicalReleases.id })
-          .from(physicalReleases)
-          .where(
-            and(
-              eq(physicalReleases.projectId, project.id),
-              eq(physicalReleases.mediaFormat, releaseInput.mediaFormat)
-            )
-          )
-          .limit(1);
+        const existing = existingReleases.find(
+          (r) => r.mediaFormat === releaseInput.mediaFormat
+        );
 
         if (existing) {
           await db
@@ -1121,8 +1136,9 @@ app.openapi(
               description: releaseInput.description ?? null,
               includesDigitalDownload:
                 releaseInput.includesDigitalDownload ?? true,
+              kunakiProductId: releaseInput.kunakiProductId ?? null,
               retailPriceCents: releaseInput.retailPriceCents,
-              status: releaseInput.status,
+              status: releaseInput.status ?? "published",
               title: body.title ?? project.title,
             })
             .where(eq(physicalReleases.id, existing.id));
@@ -1132,6 +1148,7 @@ app.openapi(
             id: crypto.randomUUID(),
             includesDigitalDownload:
               releaseInput.includesDigitalDownload ?? true,
+            kunakiProductId: releaseInput.kunakiProductId ?? null,
             manufacturingBaseCents: formatRule.manufacturingBaseCents,
             mediaFormat: releaseInput.mediaFormat,
             ownerUserId: user.id,

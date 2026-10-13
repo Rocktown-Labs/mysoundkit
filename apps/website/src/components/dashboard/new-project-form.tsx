@@ -2110,7 +2110,7 @@ export function NewProjectForm({
                                         Audio CD (Standard Jewel Case)
                                       </FormLabel>
                                       <span className="text-[10px] text-muted-foreground">
-                                        Mfg base: $2.00
+                                        Mfg base: $1.75
                                       </span>
                                     </div>
                                     <p className="text-[11px] text-muted-foreground">
@@ -2134,7 +2134,7 @@ export function NewProjectForm({
                                       ),
                                       artistEarnings = Math.max(
                                         0,
-                                        retailCents - (200 + platformCut)
+                                        retailCents - (175 + platformCut)
                                       );
 
                                     return (
@@ -2167,7 +2167,7 @@ export function NewProjectForm({
                                           />
                                         </FormControl>
                                         <p className="text-[10px] text-muted-foreground">
-                                          Includes $2.00 Kunaki mfg + 12%
+                                          Includes $1.75 Kunaki mfg + 12%
                                           platform fee ($
                                           {(platformCut / 100).toFixed(2)}). Fan
                                           pays shipping at checkout.

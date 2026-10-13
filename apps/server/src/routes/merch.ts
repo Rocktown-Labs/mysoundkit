@@ -14,15 +14,7 @@ import {
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>(),
-  // Sample Kunaki test product IDs by media format used when release does not
-  // yet have an assigned Kunaki production ID.
-  DEFAULT_KUNAKI_PRODUCT_IDS: Record<string, string> = {
-    cd: "PX00LRNY2H",
-    dvd: "PX00LRNY2H",
-    vinyl_12: "PX00LRNY2H",
-    vinyl_7: "PX00LRNY2H",
-  };
+const app = new OpenAPIHono<AppEnv>();
 
 app.openapi(
   createRoute({
@@ -75,13 +67,17 @@ app.openapi(
         continue;
       }
 
-      const productId =
-        release.kunakiProductId ??
-        DEFAULT_KUNAKI_PRODUCT_IDS[release.mediaFormat] ??
-        "PX00LRNY2H";
+      if (!release.kunakiProductId) {
+        return c.json(
+          {
+            message: `Release "${release.title}" (${release.mediaFormat}) does not have an active Kunaki product ID configured.`,
+          },
+          HttpStatusCodes.BAD_REQUEST
+        );
+      }
 
       kunakiItems.push({
-        productId,
+        productId: release.kunakiProductId,
         quantity: item.quantity,
       });
     }

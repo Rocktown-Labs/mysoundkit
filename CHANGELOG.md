@@ -46,6 +46,16 @@
 - Added authenticated Bio dashboard adapters for real analytics, earnings, seller status, and fan-tip data, plus a server-backed artist tip history endpoint at `/v1/payments/tips`.
 - Added the responsive Bio creator studio with shared desktop/mobile navigation, canonical `https://soundkit.bio/{username}` links, Bio-scoped analytics, profile playback telemetry, and authenticated Recently Played history.
 
+### Fixed
+
+- Enforced pass-through shipping collection on physical merch checkouts (#408, #405): customer totals and Stripe Checkout sessions now include shipping options, retaining the shipping fee inside the Stripe destination application fee so the platform never absorbs Kunaki shipping shortfalls.
+- Persisted `shippingFeeCents` and `shippingDescription` across Stripe checkout completion and forwarded the selected shipping description directly to Kunaki fulfillment.
+- Secured Kunaki order creation against retry duplication by making workflow steps atomic, recording in-flight markers before outbound calls, and persisting confirmed `kunakiOrderId` values durably.
+- Added write paths for `kunakiProductId` on physical release creation and updates, archived omitted physical formats when disabled, and fail closed if a physical release lacks a configured Kunaki product ID.
+- Synchronized the CD manufacturing base cost in `NewProjectForm` to $1.75 (175 cents) to match `PHYSICAL_FORMAT_RULES` and payout math.
+- Excluded physical merchandise items from digital music sales analytics queries to prevent category overlap and included physical merchandise sales in monthly artist statements.
+- Aligned `physicalFulfillmentStatusSchema` enum spelling (`"cancelled"`) with database schema.
+
 ### Changed
 
 - Changed the Playwright browser suite to one retry per test (#386): every hard failure in its CI history (battle chat presence, artist-setup-guide phases) has passed on rerun with identical code, and the suite runs against an on-demand vite dev server on shared CI machines where heavy live surfaces (WebSocket chat rooms, streamed battles) intermittently miss strict actionability budgets on first load. A genuine regression still fails twice. The real-backend suite (`SOUNDKIT_REAL_E2E=true`, which creates production records) is excluded and never retries.
