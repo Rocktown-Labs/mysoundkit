@@ -7,6 +7,7 @@ import {
   trackLicenseOptions,
   tracks,
 } from "@soundkit/db/schema/app";
+import { physicalReleases } from "@soundkit/db/schema/commerce";
 import { and, eq, isNull } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
@@ -63,7 +64,8 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
       items: CartItemResponse[] = [];
 
     for (const row of rows) {
-      let licenseName: string | null = null;
+      let licenseName: string | null = null,
+        mediaFormat: "cd" | "vinyl_12" | "vinyl_7" | "dvd" | null = null;
 
       if (row.licenseOptionId) {
         const [license] = await db
@@ -73,12 +75,28 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
         licenseName = license?.name ?? null;
       }
 
-      const productId = row.trackId ?? row.projectId ?? row.id,
-        productType: "track" | "project" =
-          row.productType === "project" ? "project" : "track",
-        purchaseMode: "digital_download" | "license" = row.licenseOptionId
-          ? "license"
-          : "digital_download";
+      if (row.physicalReleaseId) {
+        const [release] = await db
+          .select({ mediaFormat: physicalReleases.mediaFormat })
+          .from(physicalReleases)
+          .where(eq(physicalReleases.id, row.physicalReleaseId));
+        mediaFormat = release?.mediaFormat ?? null;
+      }
+
+      const productId =
+          row.physicalReleaseId ?? row.trackId ?? row.projectId ?? row.id,
+        productType: "track" | "project" | "physical_merch" =
+          row.productType === "physical_merch"
+            ? "physical_merch"
+            : (row.productType === "project"
+              ? "project"
+              : "track"),
+        purchaseMode: "digital_download" | "license" | "physical_merch" =
+          row.productType === "physical_merch"
+            ? "physical_merch"
+            : (row.licenseOptionId
+              ? "license"
+              : "digital_download");
 
       items.push({
         artistName: null,
@@ -87,6 +105,8 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
         id: row.id,
         licenseName,
         licenseOptionId: row.licenseOptionId,
+        mediaFormat: mediaFormat ?? null,
+        physicalReleaseId: row.physicalReleaseId,
         priceCents: row.priceCentsSnapshot,
         productId,
         productType,
@@ -222,6 +242,66 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
         sellerUserId: track.ownerUserId,
         titleSnapshot,
         trackId: track.id,
+      });
+
+      return { error: null };
+    }
+
+    if (body.productType === "physical_merch") {
+      if (!body.physicalReleaseId) {
+        return {
+          error: "Physical merch cart items require a physicalReleaseId.",
+        };
+      }
+
+      const [release] = await db
+        .select()
+        .from(physicalReleases)
+        .where(eq(physicalReleases.id, body.physicalReleaseId));
+
+      if (!release) {
+        return { error: "Physical release was not found." };
+      }
+
+      const formatLabels: Record<string, string> = {
+          cd: "Audio CD",
+          dvd: "DVD",
+          vinyl_12: '12" Vinyl',
+          vinyl_7: '7" Vinyl',
+        },
+        formatLabel = formatLabels[release.mediaFormat] ?? release.mediaFormat,
+        titleSnapshot = `${release.title} (${formatLabel})`,
+        [existingItem] = await db
+          .select()
+          .from(cartItems)
+          .where(
+            and(
+              eq(cartItems.cartId, cart.id),
+              eq(cartItems.productType, "physical_merch"),
+              eq(cartItems.physicalReleaseId, body.physicalReleaseId)
+            )
+          );
+
+      if (existingItem) {
+        await db
+          .update(cartItems)
+          .set({ quantity: existingItem.quantity + quantity })
+          .where(eq(cartItems.id, existingItem.id));
+        return { error: null };
+      }
+
+      await db.insert(cartItems).values({
+        cartId: cart.id,
+        currency: release.currency,
+        id: crypto.randomUUID(),
+        physicalReleaseId: release.id,
+        priceCentsSnapshot: release.retailPriceCents,
+        productType: "physical_merch",
+        projectId: release.projectId,
+        quantity,
+        sellerUserId: release.ownerUserId,
+        titleSnapshot,
+        trackId: release.trackId,
       });
 
       return { error: null };

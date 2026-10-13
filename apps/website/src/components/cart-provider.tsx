@@ -14,8 +14,9 @@ import { toast } from "@/hooks/use-toast";
 import { capture } from "@/lib/analytics";
 import { API_V1_URL } from "@/lib/api";
 
-type ProductType = "track" | "project";
-type PurchaseMode = "digital_download" | "license";
+type ProductType = "track" | "project" | "physical_merch";
+type PurchaseMode = "digital_download" | "license" | "physical_merch";
+export type PhysicalMediaFormat = "cd" | "vinyl_12" | "vinyl_7" | "dvd";
 
 export interface CartItem {
   artistName?: string | null;
@@ -24,6 +25,8 @@ export interface CartItem {
   id: string;
   licenseName?: string | null;
   licenseOptionId?: string | null;
+  mediaFormat?: PhysicalMediaFormat | null;
+  physicalReleaseId?: string | null;
   priceCents: number;
   productId: string;
   productType: ProductType;
@@ -48,6 +51,8 @@ export interface AddCartItemInput {
   coverArtUrl?: string | null;
   licenseName?: string | null;
   licenseOptionId?: string;
+  mediaFormat?: PhysicalMediaFormat;
+  physicalReleaseId?: string;
   priceCents: number;
   productType: ProductType;
   projectId?: string;
@@ -177,7 +182,11 @@ const EMPTY_CART: Cart = {
     return (await response.json()) as Cart;
   },
   buildLocalCartItem = (input: AddCartItemInput): CartItem => {
-    const productId = input.trackId ?? input.projectId ?? generateUUID();
+    const productId =
+      input.physicalReleaseId ??
+      input.trackId ??
+      input.projectId ??
+      generateUUID();
 
     return {
       artistName: input.artistName,
@@ -186,6 +195,8 @@ const EMPTY_CART: Cart = {
       id: generateUUID(),
       licenseName: input.licenseName,
       licenseOptionId: input.licenseOptionId,
+      mediaFormat: input.mediaFormat,
+      physicalReleaseId: input.physicalReleaseId,
       priceCents: input.priceCents,
       productId,
       productType: input.productType,
@@ -218,6 +229,7 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
           body: JSON.stringify({
             items: localCart.items.map((item) => ({
               licenseOptionId: item.licenseOptionId ?? undefined,
+              physicalReleaseId: item.physicalReleaseId ?? undefined,
               productType: item.productType,
               projectId:
                 item.projectId ??
@@ -263,6 +275,7 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
             const apiCart = await requestCart("/items", {
               body: JSON.stringify({
                 licenseOptionId: input.licenseOptionId,
+                physicalReleaseId: input.physicalReleaseId,
                 productType: input.productType,
                 projectId: input.projectId,
                 quantity: input.quantity ?? 1,
@@ -275,6 +288,8 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
             setIsCartOpen(true);
             capture("cart_item_added", {
               artist_name: input.artistName,
+              media_format: input.mediaFormat,
+              physical_release_id: input.physicalReleaseId,
               price_cents: input.priceCents,
               product_type: input.productType,
               purchase_mode: input.purchaseMode,
@@ -291,7 +306,8 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
             (item) =>
               item.productType === nextItem.productType &&
               item.productId === nextItem.productId &&
-              item.licenseOptionId === nextItem.licenseOptionId
+              item.licenseOptionId === nextItem.licenseOptionId &&
+              item.physicalReleaseId === nextItem.physicalReleaseId
           );
 
         if (existingItem) {

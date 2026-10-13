@@ -63,6 +63,7 @@ import {
   updateProjectBodySchema,
   projectWorkspaceAssetBodySchema,
   projectLibraryAssetBodySchema,
+  shippingQuoteRequestSchema,
   updateTrackBodySchema,
   usernameAvailabilityQuerySchema,
 } from "./lib/schemas";
@@ -124,6 +125,7 @@ import type {
   respondCollaborationResponseSchema,
   sellerOnboardingResponseSchema,
   sellerStatusSchema,
+  shippingQuoteResponseSchema,
   trackDashboardDetailSchema,
   trackProcessingStatusSchema,
   trackSummarySchema,
@@ -1439,6 +1441,11 @@ export const rpcContract = new Hono()
   )
   .post("/v1/payments/checkout", jsonValidator(genericJsonBodySchema), (c) =>
     c.json({} as Record<string, unknown>)
+  )
+  .post(
+    "/v1/merch/shipping-quote",
+    jsonValidator(shippingQuoteRequestSchema),
+    (c) => c.json({} as z.infer<typeof shippingQuoteResponseSchema>)
   )
   .get("/v1/payments/tips", (c) =>
     c.json({} as z.infer<typeof artistTipsOverviewSchema>)

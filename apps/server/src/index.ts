@@ -78,6 +78,7 @@ import listeningPartiesRoutes from "@/routes/listening-parties";
 import liveRoutes from "@/routes/live";
 import meRoutes from "@/routes/me";
 import mediaRoutes from "@/routes/media";
+import merchRoutes from "@/routes/merch";
 import messagesRoutes from "@/routes/messages";
 import networkRoutes from "@/routes/network";
 import notificationsRoutes from "@/routes/notifications";
@@ -263,6 +264,7 @@ app
   .route("/v1/open-verses", openVersesRoutes)
   .route("/v1/network", networkRoutes)
   .route("/v1/cart", cartRoutes)
+  .route("/v1/merch", merchRoutes)
   .route("/v1/payments", paymentsRoutes)
   .route("/v1/communities", communitiesRoutes)
   .route("/v1/community-billing", communityBillingRoutes)

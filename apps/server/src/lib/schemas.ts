@@ -395,8 +395,69 @@ export const catalogItemTypeSchema = z.enum([
   "beat",
   "instrumental",
 ]);
-export const purchaseModeSchema = z.enum(["digital_download", "license"]);
-export const commerceProductTypeSchema = z.enum(["track", "project"]);
+export const physicalMediaFormatSchema = z.enum([
+  "cd",
+  "vinyl_12",
+  "vinyl_7",
+  "dvd",
+]);
+export const physicalReleaseStatusSchema = z.enum([
+  "draft",
+  "ready",
+  "published",
+  "archived",
+]);
+export const physicalFulfillmentStatusSchema = z.enum([
+  "pending",
+  "kunaki_processing",
+  "shipped",
+  "delivered",
+  "failed",
+  "canceled",
+]);
+export const purchaseModeSchema = z.enum([
+  "digital_download",
+  "license",
+  "physical_merch",
+]);
+export const commerceProductTypeSchema = z.enum([
+  "track",
+  "project",
+  "physical_merch",
+]);
+
+export const physicalReleaseSummarySchema = z.object({
+  artistPayoutCents: z.number().int(),
+  artistProfileId: z.string().optional(),
+  coverArtUrl: z.string().nullable().optional(),
+  createdAt: z.string().optional(),
+  description: z.string().nullable().optional(),
+  id: z.string(),
+  includesDigitalDownload: z.boolean(),
+  kunakiProductId: z.string().nullable().optional(),
+  manufacturingCostCents: z.number().int(),
+  mediaFormat: physicalMediaFormatSchema,
+  ownerUserId: z.string().optional(),
+  platformFeeCents: z.number().int(),
+  projectId: z.string().nullable().optional(),
+  retailPriceCents: z.number().int(),
+  spineText: z.string().nullable().optional(),
+  status: physicalReleaseStatusSchema,
+  title: z.string(),
+  trackId: z.string().nullable().optional(),
+  updatedAt: z.string().optional(),
+  videoId: z.string().nullable().optional(),
+});
+
+export const physicalReleaseInputSchema = z.object({
+  description: z.string().optional(),
+  id: z.string().optional(),
+  includesDigitalDownload: z.boolean().default(true),
+  mediaFormat: physicalMediaFormatSchema,
+  retailPriceCents: z.number().int(),
+  spineText: z.string().optional(),
+  status: physicalReleaseStatusSchema.default("published"),
+});
 
 export const workspaceSummarySchema = z.object({
   id: z.string(),
@@ -992,6 +1053,7 @@ export const projectSummarySchema = z.object({
 export const projectDashboardDetailSchema = projectSummarySchema.extend({
   assets: dashboardAssetSchema.array(),
   collaborators: dashboardCollaboratorSchema.array(),
+  physicalReleases: physicalReleaseSummarySchema.array().optional().default([]),
   tracks: trackSummarySchema.array(),
 });
 
@@ -2284,6 +2346,8 @@ export const cartItemSchema = z.object({
   id: z.string(),
   licenseName: z.string().nullable().optional(),
   licenseOptionId: z.string().nullable().optional(),
+  mediaFormat: physicalMediaFormatSchema.nullable().optional(),
+  physicalReleaseId: z.string().nullable().optional(),
   priceCents: z.number().int(),
   productId: z.string(),
   productType: commerceProductTypeSchema,
@@ -2305,6 +2369,8 @@ export const cartSchema = z.object({
 
 export const addCartItemBodySchema = z.object({
   licenseOptionId: z.string().optional(),
+  mediaFormat: physicalMediaFormatSchema.optional(),
+  physicalReleaseId: z.string().optional(),
   productType: commerceProductTypeSchema,
   projectId: z.string().optional(),
   quantity: z.number().int().positive().default(1),
@@ -2353,6 +2419,7 @@ export const createProjectBodySchema = z.object({
       })
     )
     .default([]),
+  physicalReleases: z.array(physicalReleaseInputSchema).default([]),
   priceCents: z.number().int().positive().optional(),
   projectType: z.enum(["album", "ep", "mixtape", "single"]),
   releaseDate: z.string().optional(),
@@ -2378,6 +2445,7 @@ export const updateProjectBodySchema = z.object({
   isForSale: z.boolean().optional(),
   isPublic: z.boolean().optional(),
   listeningAccess: z.enum(["public", "premium_or_purchased"]).optional(),
+  physicalReleases: z.array(physicalReleaseInputSchema).optional(),
   priceCents: z.number().int().positive().optional(),
   projectType: z.enum(["album", "ep", "mixtape", "single"]).optional(),
   releaseDate: z.string().optional(),
@@ -2618,3 +2686,28 @@ export const createMessageBodySchema = z
   .refine((message) => message.body.trim() || message.attachments.length > 0, {
     message: "Add a message or attachment.",
   });
+
+export const shippingQuoteItemSchema = z.object({
+  physicalReleaseId: z.string(),
+  quantity: z.number().int().positive().default(1),
+});
+
+export const shippingQuoteRequestSchema = z.object({
+  country: z.string().min(2),
+  items: z.array(shippingQuoteItemSchema).min(1),
+  postalCode: z.string().min(1),
+  stateProvince: z.string().optional(),
+});
+
+export const shippingOptionSchema = z.object({
+  code: z.string(),
+  deliveryTimeDescription: z.string(),
+  description: z.string(),
+  priceCents: z.number().int(),
+});
+
+export const shippingQuoteResponseSchema = z.object({
+  currency: z.string().default("USD"),
+  options: z.array(shippingOptionSchema),
+  recommended: shippingOptionSchema.nullable(),
+});

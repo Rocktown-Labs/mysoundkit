@@ -55,6 +55,7 @@ export const catalogItemTypeEnum = pgEnum("catalog_item_type", [
 export const purchaseModeEnum = pgEnum("purchase_mode", [
   "digital_download",
   "license",
+  "physical_merch",
 ]);
 export const releaseStrategyEnum = pgEnum("release_strategy", [
   "private",
@@ -232,7 +233,40 @@ export const productTypeEnum = pgEnum("product_type", [
   "track",
   "project",
   "video",
+  "physical_merch",
 ]);
+export const physicalMediaFormatEnum = pgEnum("physical_media_format", [
+  "cd",
+  "vinyl_12",
+  "vinyl_7",
+  "dvd",
+]);
+export type PhysicalMediaFormat =
+  (typeof physicalMediaFormatEnum.enumValues)[number];
+
+export const physicalReleaseStatusEnum = pgEnum("physical_release_status", [
+  "draft",
+  "ready",
+  "published",
+  "archived",
+]);
+export type PhysicalReleaseStatus =
+  (typeof physicalReleaseStatusEnum.enumValues)[number];
+
+export const physicalFulfillmentStatusEnum = pgEnum(
+  "physical_fulfillment_status",
+  [
+    "not_applicable",
+    "pending",
+    "kunaki_processing",
+    "shipped",
+    "delivered",
+    "cancelled",
+    "failed",
+  ]
+);
+export type PhysicalFulfillmentStatus =
+  (typeof physicalFulfillmentStatusEnum.enumValues)[number];
 export const conversationTypeEnum = pgEnum("conversation_type", [
   "direct",
   "group",
@@ -1892,17 +1926,34 @@ export const orders = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     currency: text("currency").default("USD").notNull(),
+    fulfillmentStatus: physicalFulfillmentStatusEnum("fulfillment_status")
+      .default("not_applicable")
+      .notNull(),
     id: text("id").primaryKey(),
     idempotencyKey: text("idempotency_key"),
+    kunakiOrderId: text("kunaki_order_id"),
     sellerUserId: text("seller_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
+    shippedAt: timestamp("shipped_at"),
+    shippingAddress1: text("shipping_address1"),
+    shippingAddress2: text("shipping_address2"),
+    shippingCity: text("shipping_city"),
+    shippingCompany: text("shipping_company"),
+    shippingCountry: text("shipping_country"),
+    shippingDescription: text("shipping_description"),
+    shippingFeeCents: integer("shipping_fee_cents").default(0).notNull(),
+    shippingName: text("shipping_name"),
+    shippingPostalCode: text("shipping_postal_code"),
+    shippingStateProvince: text("shipping_state_province"),
     status: orderStatusEnum("status").default("draft").notNull(),
     stripeCheckoutSessionId: text("stripe_checkout_session_id"),
     stripePaymentIntentId: text("stripe_payment_intent_id"),
     subtotal: numeric("subtotal", { precision: 10, scale: 2 }),
     total: numeric("total", { precision: 10, scale: 2 }),
     totalCents: integer("total_cents"),
+    trackingNumber: text("tracking_number"),
+    trackingType: text("tracking_type"),
     transactionId: text("transaction_id").references(() => transactions.id, {
       onDelete: "restrict",
     }),
@@ -1913,6 +1964,8 @@ export const orders = pgTable(
   },
   (table) => [
     index("orders_buyer_user_id_idx").on(table.buyerUserId),
+    index("orders_fulfillment_status_idx").on(table.fulfillmentStatus),
+    index("orders_kunaki_order_id_idx").on(table.kunakiOrderId),
     uniqueIndex("orders_transaction_id_idx").on(table.transactionId),
     uniqueIndex("orders_idempotency_key_idx").on(table.idempotencyKey),
   ]
@@ -1947,6 +2000,7 @@ export const cartItems = pgTable(
       () => trackLicenseOptions.id,
       { onDelete: "set null" }
     ),
+    physicalReleaseId: text("physical_release_id"),
     priceCentsSnapshot: integer("price_cents_snapshot").notNull(),
     productType: productTypeEnum("product_type").notNull(),
     projectId: text("project_id").references(() => projects.id, {
@@ -1969,12 +2023,14 @@ export const cartItems = pgTable(
     index("cart_items_cart_id_idx").on(table.cartId),
     index("cart_items_track_id_idx").on(table.trackId),
     index("cart_items_project_id_idx").on(table.projectId),
+    index("cart_items_physical_release_id_idx").on(table.physicalReleaseId),
   ]
 );
 
 export const orderItems = pgTable(
   "order_items",
   {
+    artistPayoutCentsSnapshot: integer("artist_payout_cents_snapshot"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     id: text("id").primaryKey(),
     licenseOptionId: text("license_option_id").references(
@@ -1983,9 +2039,14 @@ export const orderItems = pgTable(
         onDelete: "set null",
       }
     ),
+    manufacturingBaseCentsSnapshot: integer(
+      "manufacturing_base_cents_snapshot"
+    ),
     orderId: text("order_id")
       .notNull()
       .references(() => orders.id, { onDelete: "cascade" }),
+    physicalReleaseId: text("physical_release_id"),
+    platformFeeCentsSnapshot: integer("platform_fee_cents_snapshot"),
     priceSnapshot: numeric("price_snapshot", {
       precision: 10,
       scale: 2,
@@ -2003,7 +2064,10 @@ export const orderItems = pgTable(
       onDelete: "set null",
     }),
   },
-  (table) => [index("order_items_order_id_idx").on(table.orderId)]
+  (table) => [
+    index("order_items_order_id_idx").on(table.orderId),
+    index("order_items_physical_release_id_idx").on(table.physicalReleaseId),
+  ]
 );
 
 export const purchases = pgTable(

@@ -4,7 +4,7 @@
 
 import { useUploadFiles } from "@better-upload/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import {
   Plus,
   X,
@@ -22,6 +22,8 @@ import {
   LoaderCircle,
   RotateCcw,
   Info,
+  Package,
+  Sparkles,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -106,6 +108,7 @@ import { projectCoverFile } from "@/lib/project-cover";
 import {
   soundkitQueryKeys,
   useGenresQuery,
+  useMeEntitlementsQuery,
   usePeopleSearchQuery,
   useTracksQuery,
   useUpdateProjectMutation,
@@ -178,6 +181,15 @@ const isCollaboratorRole = isCollaboratorCreditRole,
         })
       )
       .default([]),
+    physicalCdEnabled: z.boolean().default(false),
+    physicalCdPriceCents: z.number().int().min(1000).max(2500).default(1500),
+    physicalVinyl12Enabled: z.boolean().default(false),
+    physicalVinyl12PriceCents: z
+      .number()
+      .int()
+      .min(4800)
+      .max(6500)
+      .default(5500),
     priceCents: z.number().int().positive().default(999),
     projectCoverObjectKey: z.string().optional(),
     releaseDate: z.string().optional(),
@@ -204,6 +216,10 @@ const projectGet = apiClient.v1.projects[":projectId"].$get,
     listeningAccess: "public",
     name: "",
     newTracks: [],
+    physicalCdEnabled: false,
+    physicalCdPriceCents: 1500,
+    physicalVinyl12Enabled: false,
+    physicalVinyl12PriceCents: 5500,
     priceCents: 999,
     projectCoverObjectKey: "",
     releaseDate: "",
@@ -387,6 +403,8 @@ export function NewProjectForm({
       isLoading: tracksLoading,
     } = useTracksQuery(),
     updateProjectMutation = useUpdateProjectMutation(projectId ?? ""),
+    entitlementsQuery = useMeEntitlementsQuery(),
+    isPremium = Boolean(entitlementsQuery.data?.isPremium),
     { data: session } = authClient.useSession(),
     peopleSearch = usePeopleSearchQuery(collaboratorQuery),
     form = useForm<ProjectFormValues>({
@@ -434,7 +452,20 @@ export function NewProjectForm({
         rawProjectType === "ep" ||
         rawProjectType === "mixtape"
           ? rawProjectType
-          : "album";
+          : "album",
+      existingReleases = Array.isArray(initialProject.physicalReleases)
+        ? (initialProject.physicalReleases as {
+            mediaFormat: string;
+            retailPriceCents: number;
+            status: string;
+          }[])
+        : [],
+      existingCd = existingReleases.find(
+        (release) => release.mediaFormat === "cd"
+      ),
+      existingVinyl12 = existingReleases.find(
+        (release) => release.mediaFormat === "vinyl_12"
+      );
 
     form.reset({
       collaborators: rawCollaborators.map((collaborator) => ({
@@ -465,6 +496,14 @@ export function NewProjectForm({
           : "public",
       name: (initialProject.title as string) ?? "",
       newTracks: [],
+      physicalCdEnabled: Boolean(
+        existingCd && existingCd.status === "published"
+      ),
+      physicalCdPriceCents: existingCd?.retailPriceCents ?? 1500,
+      physicalVinyl12Enabled: Boolean(
+        existingVinyl12 && existingVinyl12.status === "published"
+      ),
+      physicalVinyl12PriceCents: existingVinyl12?.retailPriceCents ?? 5500,
       priceCents:
         typeof initialProject.priceCents === "number"
           ? initialProject.priceCents
@@ -586,6 +625,34 @@ export function NewProjectForm({
             );
           }
 
+          const physicalReleases: {
+            includesDigitalDownload: boolean;
+            mediaFormat: "cd" | "vinyl_12";
+            retailPriceCents: number;
+            status: "published" | "draft";
+            title?: string;
+          }[] = [];
+
+          if (values.physicalCdEnabled) {
+            physicalReleases.push({
+              includesDigitalDownload: true,
+              mediaFormat: "cd",
+              retailPriceCents: values.physicalCdPriceCents,
+              status: "published",
+              title: `${values.name} (Audio CD)`,
+            });
+          }
+
+          if (values.physicalVinyl12Enabled) {
+            physicalReleases.push({
+              includesDigitalDownload: true,
+              mediaFormat: "vinyl_12",
+              retailPriceCents: values.physicalVinyl12PriceCents,
+              status: "published",
+              title: `${values.name} (12" Vinyl)`,
+            });
+          }
+
           await updateProjectMutation.mutateAsync({
             assetIds: coverKey ? [coverKey] : undefined,
             description: values.description || undefined,
@@ -593,6 +660,7 @@ export function NewProjectForm({
             isForSale: values.isForSale,
             isPublic: releaseState.isListed,
             listeningAccess: values.listeningAccess,
+            physicalReleases,
             priceCents: values.isForSale ? values.priceCents : undefined,
             projectType: values.type,
             releaseDate: releaseState.releaseDate,
@@ -716,7 +784,35 @@ export function NewProjectForm({
 
             return projectTrack;
           }),
-          projectPayload = {
+          physicalReleases: {
+            includesDigitalDownload: boolean;
+            mediaFormat: "cd" | "vinyl_12";
+            retailPriceCents: number;
+            status: "published" | "draft";
+            title?: string;
+          }[] = [];
+
+        if (values.physicalCdEnabled) {
+          physicalReleases.push({
+            includesDigitalDownload: true,
+            mediaFormat: "cd",
+            retailPriceCents: values.physicalCdPriceCents,
+            status: "published",
+            title: `${values.name} (Audio CD)`,
+          });
+        }
+
+        if (values.physicalVinyl12Enabled) {
+          physicalReleases.push({
+            includesDigitalDownload: true,
+            mediaFormat: "vinyl_12",
+            retailPriceCents: values.physicalVinyl12PriceCents,
+            status: "published",
+            title: `${values.name} (12" Vinyl)`,
+          });
+        }
+
+        const projectPayload = {
             assetIds: coverKey ? [coverKey] : [],
             collaboratorNames: values.collaborators.map(
               (collaborator) => collaborator.displayName
@@ -733,6 +829,7 @@ export function NewProjectForm({
             isPublic: false,
             listeningAccess: values.listeningAccess,
             newTracks: projectTracks,
+            physicalReleases,
             priceCents: values.isForSale ? values.priceCents : undefined,
             projectType: values.type,
             status: releaseState.status,
@@ -1968,6 +2065,233 @@ export function NewProjectForm({
                         ) : null}
                       </>
                     ) : null}
+
+                    {/* Physical Merch Print-on-Demand Section */}
+                    <div className="mt-4 pt-4 border-t border-border/30 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Package className="size-4 text-primary" />
+                          <span className="text-sm font-black uppercase tracking-wide">
+                            Physical Editions (Print-on-Demand)
+                          </span>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] uppercase font-bold tracking-wider border-primary/30 text-primary"
+                        >
+                          Kunaki Fulfillment
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Offer physical Audio CDs and 12&quot; Vinyl to fans with
+                        zero inventory overhead. Orders are manufactured and
+                        drop-shipped on demand, and fans receive instant digital
+                        access in their library.
+                      </p>
+
+                      {isPremium ? (
+                        <div className="space-y-4 pt-1">
+                          {/* Audio CD Option */}
+                          <div className="rounded-lg border border-border/40 bg-background/50 p-3.5 space-y-3">
+                            <FormField
+                              control={form.control}
+                              name="physicalCdEnabled"
+                              render={({ field }) => (
+                                <FormItem className="flex items-center gap-3">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                  <div className="flex-1">
+                                    <div className="flex items-center justify-between">
+                                      <FormLabel className="font-bold">
+                                        Audio CD (Standard Jewel Case)
+                                      </FormLabel>
+                                      <span className="text-[10px] text-muted-foreground">
+                                        Mfg base: $2.00
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">
+                                      Full color disc face, front booklet, &
+                                      tray card.
+                                    </p>
+                                  </div>
+                                </FormItem>
+                              )}
+                            />
+
+                            {form.watch("physicalCdEnabled") ? (
+                              <div className="pl-7 space-y-3 pt-1 border-t border-border/20">
+                                <FormField
+                                  control={form.control}
+                                  name="physicalCdPriceCents"
+                                  render={({ field }) => {
+                                    const retailCents = field.value || 1500,
+                                      platformCut = Math.round(
+                                        retailCents * 0.12
+                                      ),
+                                      artistEarnings = Math.max(
+                                        0,
+                                        retailCents - (200 + platformCut)
+                                      );
+
+                                    return (
+                                      <FormItem>
+                                        <div className="flex items-center justify-between">
+                                          <FormLabel className="text-xs">
+                                            Retail Price ($10.00 – $25.00)
+                                          </FormLabel>
+                                          <span className="text-xs font-black text-emerald-500">
+                                            You earn $
+                                            {(artistEarnings / 100).toFixed(2)}{" "}
+                                            / unit
+                                          </span>
+                                        </div>
+                                        <FormControl>
+                                          <Input
+                                            max="25.00"
+                                            min="10.00"
+                                            step="0.50"
+                                            type="number"
+                                            value={(field.value / 100).toFixed(
+                                              2
+                                            )}
+                                            onChange={(e) => {
+                                              const cents = Math.round(
+                                                Number(e.target.value) * 100
+                                              );
+                                              field.onChange(cents);
+                                            }}
+                                          />
+                                        </FormControl>
+                                        <p className="text-[10px] text-muted-foreground">
+                                          Includes $2.00 Kunaki mfg + 12%
+                                          platform fee ($
+                                          {(platformCut / 100).toFixed(2)}). Fan
+                                          pays shipping at checkout.
+                                        </p>
+                                      </FormItem>
+                                    );
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+
+                          {/* 12" Vinyl Option */}
+                          <div className="rounded-lg border border-border/40 bg-background/50 p-3.5 space-y-3">
+                            <FormField
+                              control={form.control}
+                              name="physicalVinyl12Enabled"
+                              render={({ field }) => (
+                                <FormItem className="flex items-center gap-3">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                  <div className="flex-1">
+                                    <div className="flex items-center justify-between">
+                                      <FormLabel className="font-bold">
+                                        12&quot; Vinyl LP (Full Jacket)
+                                      </FormLabel>
+                                      <span className="text-[10px] text-muted-foreground">
+                                        Mfg base: $36.00
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">
+                                      High-fidelity vinyl lathe cut, full color
+                                      jacket & center labels.
+                                    </p>
+                                  </div>
+                                </FormItem>
+                              )}
+                            />
+
+                            {form.watch("physicalVinyl12Enabled") ? (
+                              <div className="pl-7 space-y-3 pt-1 border-t border-border/20">
+                                <FormField
+                                  control={form.control}
+                                  name="physicalVinyl12PriceCents"
+                                  render={({ field }) => {
+                                    const retailCents = field.value || 5500,
+                                      platformCut = Math.round(
+                                        retailCents * 0.12
+                                      ),
+                                      artistEarnings = Math.max(
+                                        0,
+                                        retailCents - (3600 + platformCut)
+                                      );
+
+                                    return (
+                                      <FormItem>
+                                        <div className="flex items-center justify-between">
+                                          <FormLabel className="text-xs">
+                                            Retail Price ($48.00 – $65.00)
+                                          </FormLabel>
+                                          <span className="text-xs font-black text-emerald-500">
+                                            You earn $
+                                            {(artistEarnings / 100).toFixed(2)}{" "}
+                                            / unit
+                                          </span>
+                                        </div>
+                                        <FormControl>
+                                          <Input
+                                            max="65.00"
+                                            min="48.00"
+                                            step="1.00"
+                                            type="number"
+                                            value={(field.value / 100).toFixed(
+                                              2
+                                            )}
+                                            onChange={(e) => {
+                                              const cents = Math.round(
+                                                Number(e.target.value) * 100
+                                              );
+                                              field.onChange(cents);
+                                            }}
+                                          />
+                                        </FormControl>
+                                        <p className="text-[10px] text-muted-foreground">
+                                          Includes $36.00 Kunaki mfg + 12%
+                                          platform fee ($
+                                          {(platformCut / 100).toFixed(2)}). Fan
+                                          pays shipping at checkout.
+                                        </p>
+                                      </FormItem>
+                                    );
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3.5 space-y-2">
+                          <div className="flex items-center gap-2 text-xs font-bold text-primary">
+                            <Sparkles className="size-3.5" />
+                            <span>SoundKit Premium Artist Feature</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Physical print-on-demand fulfillment is reserved for
+                            SoundKit Premium artists. Upgrade your account to
+                            enable CD and Vinyl offerings with automated Stripe
+                            Connect payouts.
+                          </p>
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="outline"
+                            className="mt-1 h-7 border-primary/40 text-xs font-black uppercase tracking-wide text-primary hover:bg-primary/10"
+                          >
+                            <Link to="/pricing">Upgrade to Premium</Link>
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {releaseVisibility === "listed" && (

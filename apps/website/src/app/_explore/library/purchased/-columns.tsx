@@ -16,8 +16,8 @@ export interface PurchasedTrack {
   priceCents?: number;
   priceLabel: string;
   productId?: string;
-  productType?: "track" | "project";
-  purchaseMode?: "digital_download" | "license";
+  productType?: "track" | "project" | "physical_merch";
+  purchaseMode?: "digital_download" | "license" | "physical_merch";
   purchasedAt: string;
   downloadUrl?: string | null;
   regionSlug?: string | null;

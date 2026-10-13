@@ -15,6 +15,7 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
+import { physicalReleases } from "@soundkit/db/schema/commerce";
 import type { InferSelectModel } from "drizzle-orm";
 import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
 
@@ -25,6 +26,7 @@ import {
   publicAssetUrl,
   publicProjectAssetUrl,
 } from "@/lib/asset-urls";
+import { calculatePhysicalPricing } from "@/lib/physical-pricing";
 import { getDatabaseSchemaCapabilities } from "@/lib/database-schema-capabilities";
 import type { SoundKitDatabase } from "@/lib/database-schema-capabilities";
 import { canonicalGenreName } from "@/lib/genre-catalog";
@@ -858,34 +860,39 @@ export const buildProjectDetail = async (
   row: InferSelectModel<typeof projects>
 ) => {
   const db = createDb(),
-    [summary, assetRows, collaboratorRows, trackRows] = await Promise.all([
-      buildProjectSummary(row),
-      loadProjectAssets({ db, projectId: row.id }),
-      db
-        .select({
-          avatarUrl: userProfiles.avatarUrl,
-          canDelete: projectCollaborators.canDelete,
-          canEdit: projectCollaborators.canEdit,
-          canUpload: projectCollaborators.canUpload,
-          email: projectCollaborators.inviteEmail,
-          id: projectCollaborators.id,
-          name: userProfiles.displayName,
-          role: projectCollaborators.collaboratorRole,
-          status: projectCollaborators.invitationStatus,
-        })
-        .from(projectCollaborators)
-        .leftJoin(
-          userProfiles,
-          eq(userProfiles.userId, projectCollaborators.collaboratorUserId)
-        )
-        .where(eq(projectCollaborators.projectId, row.id)),
-      db
-        .select({ row: tracks })
-        .from(projectTracks)
-        .innerJoin(tracks, eq(tracks.id, projectTracks.trackId))
-        .where(eq(projectTracks.projectId, row.id))
-        .orderBy(asc(projectTracks.position)),
-    ]),
+    [summary, assetRows, collaboratorRows, trackRows, physicalRows] =
+      await Promise.all([
+        buildProjectSummary(row),
+        loadProjectAssets({ db, projectId: row.id }),
+        db
+          .select({
+            avatarUrl: userProfiles.avatarUrl,
+            canDelete: projectCollaborators.canDelete,
+            canEdit: projectCollaborators.canEdit,
+            canUpload: projectCollaborators.canUpload,
+            email: projectCollaborators.inviteEmail,
+            id: projectCollaborators.id,
+            name: userProfiles.displayName,
+            role: projectCollaborators.collaboratorRole,
+            status: projectCollaborators.invitationStatus,
+          })
+          .from(projectCollaborators)
+          .leftJoin(
+            userProfiles,
+            eq(userProfiles.userId, projectCollaborators.collaboratorUserId)
+          )
+          .where(eq(projectCollaborators.projectId, row.id)),
+        db
+          .select({ row: tracks })
+          .from(projectTracks)
+          .innerJoin(tracks, eq(tracks.id, projectTracks.trackId))
+          .where(eq(projectTracks.projectId, row.id))
+          .orderBy(asc(projectTracks.position)),
+        db
+          .select()
+          .from(physicalReleases)
+          .where(eq(physicalReleases.projectId, row.id)),
+      ]),
     trackSummaries = (
       await buildTrackSummaries(trackRows.map(({ row }) => ({ row })))
     ).map((trackSummary) => ({
@@ -905,6 +912,42 @@ export const buildProjectDetail = async (
       )
       .map(mapAssetForDashboard),
     collaborators: row.isPublic ? [] : collaboratorRows,
+    physicalReleases: physicalRows.map((r) => {
+      let artistPayoutCents = 0,
+        manufacturingCostCents = r.manufacturingBaseCents,
+        platformFeeCents = 0;
+      try {
+        const pricing = calculatePhysicalPricing({
+          mediaFormat: r.mediaFormat,
+          retailPriceCents: r.retailPriceCents,
+        });
+        artistPayoutCents = pricing.artistPayoutCents;
+        manufacturingCostCents = pricing.unitManufacturingBaseCents;
+        platformFeeCents = pricing.platformCutCents;
+      } catch {
+        const fee = Math.round((r.retailPriceCents * r.platformFeeBps) / 10_000);
+        platformFeeCents = fee;
+        artistPayoutCents = Math.max(
+          0,
+          r.retailPriceCents - (r.manufacturingBaseCents + fee)
+        );
+      }
+      return {
+        artistPayoutCents,
+        description: r.description,
+        id: r.id,
+        includesDigitalDownload: r.includesDigitalDownload,
+        kunakiProductId: r.kunakiProductId,
+        manufacturingCostCents,
+        mediaFormat: r.mediaFormat,
+        ownerUserId: r.ownerUserId,
+        platformFeeCents,
+        projectId: r.projectId,
+        retailPriceCents: r.retailPriceCents,
+        status: r.status,
+        title: r.title,
+      };
+    }),
     tracks: trackSummaries,
   };
 };

@@ -95,7 +95,7 @@ type AudioAssetKind = "master" | OptionalAudioAssetKind;
 type TrackReleaseStatus = "draft" | "published" | "scheduled";
 type TrackProductionStatus = "complete" | "demo" | "mastered" | "mixed";
 type TrackListeningAccess = "premium_or_purchased" | "public";
-type TrackPurchaseMode = "digital_download" | "license";
+type TrackPurchaseMode = "digital_download" | "license" | "physical_merch";
 
 export interface TrackEditableRecord {
   description?: null | string;

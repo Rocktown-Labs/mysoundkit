@@ -402,6 +402,7 @@ interface CheckoutLineItem {
 interface CreateCheckoutSessionInput {
   applicationFeeCents?: number;
   cancelUrl?: string;
+  collectShippingAddress?: boolean;
   connectedAccountId?: string;
   customerEmail?: string | null;
   destinationAccountId?: string;
@@ -410,6 +411,7 @@ interface CreateCheckoutSessionInput {
   managedPaymentsEnabled?: boolean;
   metadata: Record<string, string>;
   returnUrl?: string;
+  shippingCountries?: string[];
   successUrl?: string;
   transferGroup?: string;
 }
@@ -417,6 +419,7 @@ interface CreateCheckoutSessionInput {
 export const buildCheckoutSessionParams = ({
   applicationFeeCents,
   cancelUrl,
+  collectShippingAddress,
   customerEmail,
   destinationAccountId,
   embedded = false,
@@ -424,6 +427,7 @@ export const buildCheckoutSessionParams = ({
   managedPaymentsEnabled,
   metadata,
   returnUrl,
+  shippingCountries,
   successUrl,
   transferGroup,
 }: CreateCheckoutSessionInput) => {
@@ -436,6 +440,36 @@ export const buildCheckoutSessionParams = ({
   );
   appendValue(params, "allow_promotion_codes", true);
   appendValue(params, "customer_email", customerEmail);
+
+  if (collectShippingAddress) {
+    const countries = shippingCountries ?? [
+      "US",
+      "CA",
+      "GB",
+      "AU",
+      "DE",
+      "FR",
+      "IT",
+      "ES",
+      "NL",
+      "JP",
+      "SE",
+      "NO",
+      "DK",
+      "NZ",
+      "IE",
+      "CH",
+      "AT",
+      "BE",
+    ];
+    for (const country of countries) {
+      appendValue(
+        params,
+        "shipping_address_collection[allowed_countries][]",
+        country
+      );
+    }
+  }
 
   if (embedded) {
     appendValue(params, "ui_mode", "embedded");
@@ -512,27 +546,33 @@ const createCheckoutSession = (input: CreateCheckoutSessionInput) =>
 export const createDestinationCheckout = ({
   applicationFeeCents,
   cancelUrl,
-  destinationAccountId,
+  collectShippingAddress,
   customerEmail,
+  destinationAccountId,
   lineItems,
   metadata,
+  shippingCountries,
   successUrl,
 }: {
   applicationFeeCents: number;
   cancelUrl: string;
+  collectShippingAddress?: boolean;
   customerEmail?: string | null;
   destinationAccountId: string;
   lineItems: CheckoutLineItem[];
   metadata: Record<string, string>;
+  shippingCountries?: string[];
   successUrl: string;
 }) =>
   createCheckoutSession({
     applicationFeeCents,
     cancelUrl,
+    collectShippingAddress,
     customerEmail,
     destinationAccountId,
     lineItems,
     metadata,
+    shippingCountries,
     successUrl,
   });
 
