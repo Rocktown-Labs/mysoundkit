@@ -962,21 +962,21 @@ app.openapi(
     }
 
     const db = createDb(),
-     session = c.get("session"),
-     organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     { trackIds } = await getArtistTrackIds({
-      db,
-      organizationId,
-      userId: user.id,
-    }),
-     bioUsername =
-      scope === "bio"
-        ? await getArtistBioUsername({ db, userId: user.id })
-        : null,
-     playbackSourceCondition = bioPlaybackCondition(scope, bioUsername);
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      { trackIds } = await getArtistTrackIds({
+        db,
+        organizationId,
+        userId: user.id,
+      }),
+      bioUsername =
+        scope === "bio"
+          ? await getArtistBioUsername({ db, userId: user.id })
+          : null,
+      playbackSourceCondition = bioPlaybackCondition(scope, bioUsername);
 
     if (trackIds.length === 0) {
       return c.json(
@@ -992,95 +992,89 @@ app.openapi(
     }
 
     const hasTrackCondition = inArray(playbackSessions.trackId, trackIds),
-     hasCountryCondition = isNotNull(playbackSessions.countryCode),
-     hasRegionCondition = isNotNull(playbackSessions.regionCode),
-
-     [rows, regionRows] = await Promise.all([
-      db
-        .select({
-          city: playbackSessions.city,
-          countryCode: playbackSessions.countryCode,
-          listeners: sql<number>`count(distinct coalesce(${playbackSessions.userId}, ${playbackSessions.sessionTokenHash}))::int`,
-          plays: count(),
-          regionCode: playbackSessions.regionCode,
-        })
-        .from(playbackSessions)
-        .where(
-          and(
-            hasTrackCondition,
-            hasCountryCondition,
-            playConditionSql,
-            playbackSourceCondition
+      hasCountryCondition = isNotNull(playbackSessions.countryCode),
+      hasRegionCondition = isNotNull(playbackSessions.regionCode),
+      [rows, regionRows] = await Promise.all([
+        db
+          .select({
+            city: playbackSessions.city,
+            countryCode: playbackSessions.countryCode,
+            listeners: sql<number>`count(distinct coalesce(${playbackSessions.userId}, ${playbackSessions.sessionTokenHash}))::int`,
+            plays: count(),
+            regionCode: playbackSessions.regionCode,
+          })
+          .from(playbackSessions)
+          .where(
+            and(
+              hasTrackCondition,
+              hasCountryCondition,
+              playConditionSql,
+              playbackSourceCondition
+            )
           )
-        )
-        .groupBy(
-          playbackSessions.countryCode,
-          playbackSessions.regionCode,
-          playbackSessions.city
-        ),
-      db
-        .select({
-          countryCode: playbackSessions.countryCode,
-          listeners: sql<number>`count(distinct coalesce(${playbackSessions.userId}, ${playbackSessions.sessionTokenHash}))::int`,
-          plays: count(),
-          regionCode: playbackSessions.regionCode,
-        })
-        .from(playbackSessions)
-        .where(
-          and(
-            hasTrackCondition,
-            hasCountryCondition,
-            hasRegionCondition,
-            playConditionSql,
-            playbackSourceCondition
+          .groupBy(
+            playbackSessions.countryCode,
+            playbackSessions.regionCode,
+            playbackSessions.city
+          ),
+        db
+          .select({
+            countryCode: playbackSessions.countryCode,
+            listeners: sql<number>`count(distinct coalesce(${playbackSessions.userId}, ${playbackSessions.sessionTokenHash}))::int`,
+            plays: count(),
+            regionCode: playbackSessions.regionCode,
+          })
+          .from(playbackSessions)
+          .where(
+            and(
+              hasTrackCondition,
+              hasCountryCondition,
+              hasRegionCondition,
+              playConditionSql,
+              playbackSourceCondition
+            )
           )
-        )
-        .groupBy(playbackSessions.countryCode, playbackSessions.regionCode),
-    ]),
+          .groupBy(playbackSessions.countryCode, playbackSessions.regionCode),
+      ]),
+      totalPlays = rows.reduce((acc, r) => acc + Number(r.plays), 0),
+      totalListeners = rows.reduce((acc, r) => acc + Number(r.listeners), 0),
+      regions = regionRows
+        .map((r) => {
+          const plays = Number(r.plays),
+            listeners = Number(r.listeners),
+            regionCode = r.regionCode ?? "other",
+            countryCode = r.countryCode ?? "US",
+            regionName =
+              resolveRegionName(countryCode, regionCode) ?? regionCode;
 
-     totalPlays = rows.reduce((acc, r) => acc + Number(r.plays), 0),
-     totalListeners = rows.reduce(
-      (acc, r) => acc + Number(r.listeners),
-      0
-    ),
-
-     regions = regionRows
-      .map((r) => {
+          return {
+            countryCode,
+            listeners,
+            percentage:
+              totalPlays > 0 ? Math.round((plays / totalPlays) * 100) : 0,
+            plays,
+            regionCode,
+            regionName,
+          };
+        })
+        .toSorted((a, b) => b.plays - a.plays),
+      safeLocations = rows.map((r) => {
         const plays = Number(r.plays),
-         listeners = Number(r.listeners),
-         regionCode = r.regionCode ?? "other",
-         countryCode = r.countryCode ?? "US",
-         regionName =
-          resolveRegionName(countryCode, regionCode) ?? regionCode;
+          listeners = Number(r.listeners),
+          regionName = resolveRegionName(r.countryCode, r.regionCode);
 
         return {
-          countryCode,
+          city: r.city,
+          countryCode: r.countryCode,
+          hasEnoughData: true,
           listeners,
           percentage:
             totalPlays > 0 ? Math.round((plays / totalPlays) * 100) : 0,
           plays,
-          regionCode,
+          regionCode: r.regionCode,
           regionName,
         };
-      })
-      .toSorted((a, b) => b.plays - a.plays),
-
-     safeLocations = rows.map((r) => {
-      const plays = Number(r.plays),
-       listeners = Number(r.listeners),
-       regionName = resolveRegionName(r.countryCode, r.regionCode);
-
-      return {
-        city: r.city,
-        countryCode: r.countryCode,
-        hasEnoughData: true,
-        listeners,
-        percentage: totalPlays > 0 ? Math.round((plays / totalPlays) * 100) : 0,
-        plays,
-        regionCode: r.regionCode,
-        regionName,
-      };
-    });
+      });
 
     return c.json(
       {
@@ -1233,6 +1227,11 @@ app.openapi(
               category: "music_sales",
               label: "Direct Music Sales",
             },
+            {
+              amountCents: 0,
+              category: "physical_merch",
+              label: "Physical Merch (CD/Vinyl)",
+            },
             { amountCents: 0, category: "tips", label: "Fan Tips" },
           ],
           estimatedThisMonthCents: 0,
@@ -1274,37 +1273,55 @@ app.openapi(
         .from(creatorEarnings)
         .where(eq(creatorEarnings.artistUserId, user.id))
         .groupBy(creatorEarnings.status, creatorEarnings.earningType),
-      // 2. Real Direct Music Sales and Tips in the current accounting period
-      [monthOrdersResult] = await db
-        .select({
-          totalCents: sql<number>`coalesce(sum(round(${orderItems.priceSnapshot} * 100)), 0)::int`,
-        })
-        .from(orders)
-        .innerJoin(orderItems, eq(orderItems.orderId, orders.id))
-        .where(
-          and(
-            inArray(
-              orderItems.trackId,
-              trackIds.length > 0 ? trackIds : ["_none"]
+      // 2. Real Direct Music Sales, Physical Merch Sales, and Tips in current accounting period
+      [[monthOrdersResult], [monthPhysicalOrdersResult], [monthTipsResult]] =
+        await Promise.all([
+          db
+            .select({
+              totalCents: sql<number>`coalesce(sum(round(${orderItems.priceSnapshot} * 100)), 0)::int`,
+            })
+            .from(orders)
+            .innerJoin(orderItems, eq(orderItems.orderId, orders.id))
+            .where(
+              and(
+                inArray(
+                  orderItems.trackId,
+                  trackIds.length > 0 ? trackIds : ["_none"]
+                ),
+                eq(orders.status, "paid"),
+                gte(orders.createdAt, monthStart)
+              )
             ),
-            eq(orders.status, "paid"),
-            gte(orders.createdAt, monthStart)
-          )
-        ),
-      [monthTipsResult] = await db
-        .select({
-          totalCents: sql<number>`coalesce(sum(${tips.artistAmountCents}), 0)::int`,
-        })
-        .from(tips)
-        .innerJoin(transactions, eq(tips.transactionId, transactions.id))
-        .where(
-          and(
-            eq(tips.artistUserId, user.id),
-            eq(transactions.status, "succeeded"),
-            gte(tips.createdAt, monthStart)
-          )
-        ),
+          db
+            .select({
+              totalCents: sql<number>`coalesce(sum(${orderItems.artistPayoutCentsSnapshot}), 0)::int`,
+            })
+            .from(orders)
+            .innerJoin(orderItems, eq(orderItems.orderId, orders.id))
+            .where(
+              and(
+                eq(orders.sellerUserId, user.id),
+                eq(orderItems.productType, "physical_merch"),
+                eq(orders.status, "paid"),
+                gte(orders.createdAt, monthStart)
+              )
+            ),
+          db
+            .select({
+              totalCents: sql<number>`coalesce(sum(${tips.artistAmountCents}), 0)::int`,
+            })
+            .from(tips)
+            .innerJoin(transactions, eq(tips.transactionId, transactions.id))
+            .where(
+              and(
+                eq(tips.artistUserId, user.id),
+                eq(transactions.status, "succeeded"),
+                gte(tips.createdAt, monthStart)
+              )
+            ),
+        ]),
       musicSalesCents = Number(monthOrdersResult?.totalCents ?? 0),
+      physicalSalesCents = Number(monthPhysicalOrdersResult?.totalCents ?? 0),
       tipsCents = Number(monthTipsResult?.totalCents ?? 0),
       // Creator rewards estimated in the current open accounting period only
       openPeriod = await getOpenAccountingPeriod(db, now),
@@ -1324,7 +1341,10 @@ app.openapi(
         : [undefined],
       estimatedRewardsCents = Number(estimatedRewardsResult?.totalCents ?? 0),
       estimatedThisMonthCents =
-        estimatedRewardsCents + musicSalesCents + tipsCents,
+        estimatedRewardsCents +
+        musicSalesCents +
+        physicalSalesCents +
+        tipsCents,
       // Pending / Reserve balance (Held inside 30-day reserve window)
       pendingReserveCents = earningStatusRows
         .filter((r) => r.status === "held" || r.status === "finalized")
@@ -1359,6 +1379,11 @@ app.openapi(
           amountCents: musicSalesCents,
           category: "music_sales",
           label: "Direct Music Sales",
+        },
+        {
+          amountCents: physicalSalesCents,
+          category: "physical_merch",
+          label: "Physical Merch (CD/Vinyl)",
         },
         {
           amountCents: tipsCents,
