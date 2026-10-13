@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars, no-nested-ternary, default-case, react/preserve-manual-memoization */
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import type { Href } from "expo-router";
@@ -85,7 +86,7 @@ function ArtistRankedRow({
       switch (type) {
         case "rising": {
           const plays =
-            artist.weeklyPlays ?? (rank === 1 ? 2 : (rank === 2 ? 1 : 6));
+            artist.weeklyPlays ?? (rank === 1 ? 2 : rank === 2 ? 1 : 6);
           return `${plays} plays this week`;
         }
         case "new": {
@@ -98,8 +99,8 @@ function ArtistRankedRow({
     }, [artist, rank, type]);
 
   let statColor = "#c084fc",
-   statIcon: "people-outline" | "trending-up" | "trophy-outline" =
-    "trending-up";
+    statIcon: "people-outline" | "trending-up" | "trophy-outline" =
+      "trending-up";
   if (type === "new") {
     statColor = "#4ade80";
     statIcon = "people-outline";
@@ -109,7 +110,7 @@ function ArtistRankedRow({
   }
 
   let rankBadgeStyle = styles.rankBadgeOther,
-   rankTextColor = "#71717a";
+    rankTextColor = "#71717a";
   if (rank === 1) {
     rankBadgeStyle = styles.rankBadge1;
     rankTextColor = "#c084fc";
@@ -256,6 +257,7 @@ export default function ArtistsScreen() {
     [searchQuery, setSearchQuery] = useState(""),
     [naIndex, setNaIndex] = useState(0),
     [continentIndex, setContinentIndex] = useState(0),
+    [activeScope, setActiveScope] = useState<"global" | "na">("na"),
     [genreFilter, setGenreFilter] = useState("all"),
     [sortFilter, setSortFilter] = useState("rank-asc"),
     [activePicker, setActivePicker] = useState<
@@ -265,15 +267,15 @@ export default function ArtistsScreen() {
     genres = genresQuery.data ?? [],
     activeNa = NORTH_AMERICA_LOCATIONS[naIndex] ?? NORTH_AMERICA_LOCATIONS[0],
     activeContinent = GLOBAL_CONTINENTS[continentIndex] ?? GLOBAL_CONTINENTS[0],
-    // Default to NA location
+    activeLocation = activeScope === "global" ? activeContinent : activeNa,
     queryPayload = useMemo(
       () => ({
         genre: genreFilter === "all" ? undefined : genreFilter,
-        region: activeNa.region,
-        regionType: activeNa.regionType,
+        region: activeLocation.region,
+        regionType: activeLocation.regionType,
         sort: sortFilter,
       }),
-      [activeNa, genreFilter, sortFilter]
+      [activeLocation, genreFilter, sortFilter]
     ),
     risingQuery = useArtistsQuery({
       category: "rising",
@@ -344,17 +346,20 @@ export default function ArtistsScreen() {
           key={loc.label}
           onPress={() => {
             setNaIndex(idx);
+            setActiveScope("na");
             setActivePicker(null);
           }}
           style={[
             styles.pickerItem,
-            naIndex === idx && styles.pickerItemActive,
+            naIndex === idx && activeScope === "na" && styles.pickerItemActive,
           ]}
         >
           <Text
             style={[
               styles.pickerItemText,
-              naIndex === idx && styles.pickerItemTextActive,
+              naIndex === idx &&
+                activeScope === "na" &&
+                styles.pickerItemTextActive,
             ]}
           >
             {loc.label}
@@ -368,17 +373,22 @@ export default function ArtistsScreen() {
           key={cont.label}
           onPress={() => {
             setContinentIndex(idx);
+            setActiveScope("global");
             setActivePicker(null);
           }}
           style={[
             styles.pickerItem,
-            continentIndex === idx && styles.pickerItemActive,
+            continentIndex === idx &&
+              activeScope === "global" &&
+              styles.pickerItemActive,
           ]}
         >
           <Text
             style={[
               styles.pickerItemText,
-              continentIndex === idx && styles.pickerItemTextActive,
+              continentIndex === idx &&
+                activeScope === "global" &&
+                styles.pickerItemTextActive,
             ]}
           >
             {cont.label}
@@ -500,7 +510,10 @@ export default function ArtistsScreen() {
               onPress={() =>
                 setActivePicker(activePicker === "na" ? null : "na")
               }
-              style={styles.filterDropdown}
+              style={[
+                styles.filterDropdown,
+                activeScope === "na" && styles.filterDropdownActive,
+              ]}
             >
               <Text numberOfLines={1} style={styles.filterDropdownText}>
                 {activeNa.label}
@@ -518,7 +531,10 @@ export default function ArtistsScreen() {
                   activePicker === "continent" ? null : "continent"
                 )
               }
-              style={styles.filterDropdown}
+              style={[
+                styles.filterDropdown,
+                activeScope === "global" && styles.filterDropdownActive,
+              ]}
             >
               <Text numberOfLines={1} style={styles.filterDropdownText}>
                 {activeContinent.label}
@@ -772,6 +788,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  filterDropdownActive: {
+    backgroundColor: "#1e1b2e",
+    borderColor: "#a855f7",
   },
   filterDropdownText: {
     color: "#f4f4f5",

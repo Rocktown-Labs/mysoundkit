@@ -1,2 +1,2 @@
-export const isScheduledJobsEnabled = (value?: string): boolean =>
+export const isScheduledJobsEnabled = (value: string | undefined): boolean =>
   value === "true";

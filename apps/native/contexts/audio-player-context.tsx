@@ -1,10 +1,10 @@
 /* eslint-disable one-var, sort-vars, sort-keys, react/immutability, react/set-state-in-effect */
-import * as Haptics from "expo-haptics";
 import {
   setAudioModeAsync,
   useAudioPlayer,
   useAudioPlayerStatus,
 } from "expo-audio";
+import * as Haptics from "expo-haptics";
 import {
   createContext,
   useCallback,
@@ -65,7 +65,8 @@ export const DEFAULT_DEMO_TRACKS: PlayerTrack[] = [
   {
     album: "Millionaire Era",
     artist: "CG Stewart, Matt Alvis",
-    cover: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80",
+    cover:
+      "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80",
     duration: 176,
     id: "track_millionaire_millennials",
     lyrics: `Cruising through the city under amber lights
@@ -81,7 +82,8 @@ Time for some prioritizing`,
   {
     album: "Certified Classics",
     artist: "Drake",
-    cover: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80",
+    cover:
+      "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80",
     duration: 233,
     id: "track_prioritizing",
     lyrics: `Anxiety and high depression
@@ -97,7 +99,8 @@ Only giving them the truth`,
   {
     album: "Midnight Vibes",
     artist: "Luna Eclipse",
-    cover: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80",
+    cover:
+      "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80",
     duration: 218,
     id: "track_fantasy_26",
     lyrics: `Midnight echoes on the radio
@@ -111,7 +114,8 @@ Lost together on the midnight street`,
   {
     album: "Electric Dreams",
     artist: "Neon Pulse",
-    cover: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&auto=format&fit=crop&q=80",
+    cover:
+      "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&auto=format&fit=crop&q=80",
     duration: 245,
     id: "track_long_way",
     lyrics: `Long way home through digital skies
@@ -136,11 +140,11 @@ export function AudioPlayerProvider({
   const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(
     () => initialTracks[0] ?? null
   );
-  const [queue, setQueue] = useState<PlayerTrack[]>(
-    () => initialTracks.slice(1)
+  const [queue, setQueue] = useState<PlayerTrack[]>(() =>
+    initialTracks.slice(1)
   );
-  const [originalQueue, setOriginalQueue] = useState<PlayerTrack[]>(
-    () => initialTracks.slice(1)
+  const [originalQueue, setOriginalQueue] = useState<PlayerTrack[]>(() =>
+    initialTracks.slice(1)
   );
   const [isShuffle, setIsShuffle] = useState(false);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("off");
@@ -149,19 +153,20 @@ export function AudioPlayerProvider({
   const [isQueueVisible, setIsQueueVisible] = useState(false);
   const [isLyricsVisible, setIsLyricsVisible] = useState(false);
 
-  // Initialize audio player with active track source or first default
-  const activeSource = currentTrack?.src ?? DEFAULT_DEMO_TRACKS[0]?.src ?? "";
-  const player = useAudioPlayer(activeSource, { updateInterval: 250 });
+  // Keep the hook source stable (null): useAudioPlayer recreates the native
+  // player whenever its `source` argument changes, which would discard the
+  // replace()+play() calls below and silently pause playback on every track
+  // switch. replace() on this persistent instance is the only source switch.
+  const player = useAudioPlayer(null, { updateInterval: 250 });
   const status = useAudioPlayerStatus(player);
 
   const isPlaying = Boolean(status.playing);
   const isBuffering = Boolean(status.isBuffering);
   const playbackPosition = status.currentTime ?? 0;
   const duration =
-    status.duration > 0
-      ? status.duration
-      : (currentTrack?.duration ?? 0);
-  const progress = duration > 0 ? Math.min(1, Math.max(0, playbackPosition / duration)) : 0;
+    status.duration > 0 ? status.duration : (currentTrack?.duration ?? 0);
+  const progress =
+    duration > 0 ? Math.min(1, Math.max(0, playbackPosition / duration)) : 0;
 
   // Configure audio session on mount
   useEffect(() => {
@@ -224,23 +229,63 @@ export function AudioPlayerProvider({
     }
 
     if (advanceResult.nextTrack) {
-      setCurrentTrack(advanceResult.nextTrack);
+      const next = advanceResult.nextTrack;
+      if (currentTrack) {
+        historyRef.current = [...historyRef.current, currentTrack].slice(-50);
+      }
+      setCurrentTrack(next);
       setQueue(advanceResult.queue);
-      player.replace(advanceResult.nextTrack.src);
+      // Keep the unshuffle order in sync as tracks advance so toggling
+      // shuffle off never restores played tracks or the one already playing.
+      if (isShuffle) {
+        if (repeatMode !== "all") {
+          setOriginalQueue((prev) => prev.filter((t) => t.id !== next.id));
+        }
+      } else {
+        setOriginalQueue(advanceResult.queue);
+      }
+      player.replace(next.src);
       player.play();
     } else {
       player.pause();
     }
-  }, [currentTrack, player, queue, repeatMode]);
+  }, [currentTrack, isShuffle, player, queue, repeatMode]);
 
   const previousTrack = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    player.seekTo(0);
+    // Apple Music behavior: mid-track restarts the current track; near the
+    // start it goes back to the previously played track (if there is one).
+    if (playbackPosition > 3 || historyRef.current.length === 0) {
+      player.seekTo(0);
+      player.play();
+      return;
+    }
+    const previous = historyRef.current.pop();
+    if (!previous) {
+      player.seekTo(0);
+      player.play();
+      return;
+    }
+    if (currentTrack) {
+      const resumeCurrent = currentTrack;
+      setQueue((prev) => [
+        resumeCurrent,
+        ...prev.filter((t) => t.id !== resumeCurrent.id),
+      ]);
+      setOriginalQueue((prev) => [
+        resumeCurrent,
+        ...prev.filter((t) => t.id !== resumeCurrent.id),
+      ]);
+    }
+    setCurrentTrack(previous);
+    player.replace(previous.src);
     player.play();
-  }, [player]);
+  }, [currentTrack, playbackPosition, player]);
 
   // Handle track finished automatically
   const hasFinishedRef = useRef(false);
+  // Tracks played before the current one, oldest first, for previousTrack().
+  const historyRef = useRef<PlayerTrack[]>([]);
   useEffect(() => {
     if (status.didJustFinish && !hasFinishedRef.current) {
       hasFinishedRef.current = true;
@@ -258,6 +303,12 @@ export function AudioPlayerProvider({
   const playTrack = useCallback(
     (track: PlayerTrack, newQueue?: PlayerTrack[]) => {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if (newQueue) {
+        // Fresh queue context — playback history no longer applies.
+        historyRef.current = [];
+      } else if (currentTrack) {
+        historyRef.current = [...historyRef.current, currentTrack].slice(-50);
+      }
       setCurrentTrack(track);
       if (newQueue) {
         const filtered = newQueue.filter((t) => t.id !== track.id);
@@ -267,7 +318,7 @@ export function AudioPlayerProvider({
       player.replace(track.src);
       player.play();
     },
-    [player]
+    [currentTrack, player]
   );
 
   const addToQueue = useCallback((track: PlayerTrack) => {
@@ -290,16 +341,14 @@ export function AudioPlayerProvider({
 
   const toggleShuffle = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsShuffle((prev) => {
-      const nextShuffle = !prev;
-      if (nextShuffle) {
-        setQueue((curr) => shuffleTracks(curr));
-      } else {
-        setQueue([...originalQueue]);
-      }
-      return nextShuffle;
-    });
-  }, [originalQueue]);
+    const nextShuffle = !isShuffle;
+    setIsShuffle(nextShuffle);
+    if (nextShuffle) {
+      setQueue((curr) => shuffleTracks(curr));
+    } else {
+      setQueue([...originalQueue]);
+    }
+  }, [isShuffle, originalQueue]);
 
   const toggleRepeat = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

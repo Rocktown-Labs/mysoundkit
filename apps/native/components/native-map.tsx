@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars, sort-keys, no-nested-ternary, eqeqeq, no-eq-null */
 import { Ionicons } from "@expo/vector-icons";
 import { geoAlbersUsa, geoMercator, geoPath } from "d3-geo";
 import type { FeatureCollection, Geometry } from "geojson";
@@ -7,9 +8,8 @@ import Svg, { Path } from "react-native-svg";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 
-import { NAV_THEME } from "@/lib/constants";
+import { mapScopeLabel } from "@/lib/explore-region";
 import type { MapScope } from "@/lib/explore-region";
-import { useColorScheme } from "@/lib/use-color-scheme";
 
 import usTopo from "../assets/maps/us-states-10m.json";
 import worldTopo from "../assets/maps/world-countries-110m.json";
@@ -28,6 +28,18 @@ export const COUNTRY_OPTIONS = [
   { id: "australia", label: "Australia" },
   { id: "global", label: "Worldwide" },
 ] as const;
+
+const COUNTRY_ID_TO_SCOPE: Readonly<Record<string, MapScope>> = {
+  australia: "oceania",
+  canada: "canada",
+  france: "europe",
+  germany: "europe",
+  global: "global",
+  japan: "asia",
+  mexico: "mexico",
+  uk: "europe",
+  usa: "usa",
+};
 
 const geographyName = (properties: unknown, id: unknown): string | null => {
   const props = properties as Record<string, unknown> | undefined,
@@ -58,7 +70,7 @@ function useGeographies(scope: MapScope) {
 export interface NativeMapProps {
   onRegionSelect: (regionName: string | null) => void;
   onResetGlobal?: () => void;
-  onScopeChange: (scope: MapScope) => void;
+  onScopeChange: (scope: MapScope, regionName?: null | string) => void;
   scope: MapScope;
   selectedRegion: null | string;
 }
@@ -70,9 +82,7 @@ export function NativeMap({
   scope,
   selectedRegion,
 }: NativeMapProps) {
-  const { colorScheme } = useColorScheme(),
-    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-    [countryPickerOpen, setCountryPickerOpen] = useState(false),
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false),
     { collection, view } = useGeographies(scope),
     paths = useMemo(() => {
       const projection = scope === "usa" ? geoAlbersUsa() : geoMercator();
@@ -84,9 +94,7 @@ export function NativeMap({
         name: geographyName(geography.properties, geography.id),
       }));
     }, [collection, scope, view.height, view.width]),
-    activeCountryLabel =
-      COUNTRY_OPTIONS.find((c) => c.id === scope)?.label ??
-      (scope === "usa" ? "USA" : "Worldwide"),
+    activeCountryLabel = mapScopeLabel(scope),
     displayRegionName =
       selectedRegion ?? (scope === "usa" ? "Arkansas" : "Global");
 
@@ -98,8 +106,7 @@ export function NativeMap({
           accessibilityLabel="Reset to Global View"
           accessibilityRole="button"
           onPress={() => {
-            onScopeChange("global");
-            onRegionSelect(null);
+            onScopeChange("global", null);
             onResetGlobal?.();
           }}
           style={({ pressed }) => [
@@ -149,41 +156,46 @@ export function NativeMap({
         {/* Floating dropdown options when open */}
         {countryPickerOpen ? (
           <View style={styles.dropdownMenu}>
-            {COUNTRY_OPTIONS.map((country) => (
-              <Pressable
-                key={country.id}
-                onPress={() => {
-                  onScopeChange(country.id as MapScope);
-                  setCountryPickerOpen(false);
-                  if (country.id !== "usa") {
-                    onRegionSelect(country.label);
-                  }
-                }}
-                style={({ pressed }) => [
-                  styles.dropdownMenuItem,
-                  {
-                    backgroundColor:
-                      scope === country.id
+            {COUNTRY_OPTIONS.map((country) => {
+              const targetScope = COUNTRY_ID_TO_SCOPE[country.id] ?? "global",
+                isSelected = scope === targetScope;
+              return (
+                <Pressable
+                  key={country.id}
+                  onPress={() => {
+                    onScopeChange(
+                      targetScope,
+                      country.id === "usa" || targetScope === "global"
+                        ? null
+                        : country.label
+                    );
+                    setCountryPickerOpen(false);
+                  }}
+                  style={({ pressed }) => [
+                    styles.dropdownMenuItem,
+                    {
+                      backgroundColor: isSelected
                         ? "#a855f725"
-                        : (pressed
+                        : pressed
                           ? "#27272a"
-                          : "transparent"),
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.dropdownMenuItemText,
-                    scope === country.id && {
-                      color: "#c084fc",
-                      fontWeight: "700",
+                          : "transparent",
                     },
                   ]}
                 >
-                  {country.label}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text
+                    style={[
+                      styles.dropdownMenuItemText,
+                      isSelected && {
+                        color: "#c084fc",
+                        fontWeight: "700",
+                      },
+                    ]}
+                  >
+                    {country.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         ) : null}
 

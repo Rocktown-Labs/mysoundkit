@@ -1,3 +1,4 @@
+/* oxlint-disable one-var */
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -83,8 +84,8 @@ function RegionPickerSheetBase(
           onResetGlobal={() => {
             onRegionChange("global", null);
           }}
-          onScopeChange={(newScope) => {
-            onRegionChange(newScope, null);
+          onScopeChange={(newScope, regionName) => {
+            onRegionChange(newScope, regionName ?? null);
           }}
           scope={scope}
           selectedRegion={selectedRegion}

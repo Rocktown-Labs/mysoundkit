@@ -292,11 +292,7 @@ const styles = StyleSheet.create({
   },
 });
 
-function NowPlayingHeader({
-  onDismiss,
-}: {
-  onDismiss: () => void;
-}) {
+function NowPlayingHeader({ onDismiss }: { onDismiss: () => void }) {
   const [isFavorite, setIsFavorite] = useState(false);
 
   return (
@@ -372,9 +368,7 @@ function NowPlayingLyricsView({
             <Text
               key={`lyric-${line}`}
               style={
-                isActive
-                  ? styles.activeLyricLine
-                  : styles.inactiveLyricLine
+                isActive ? styles.activeLyricLine : styles.inactiveLyricLine
               }
             >
               {line}
@@ -424,16 +418,21 @@ function NowPlayingScrubber({
   duration,
   onSeekRelease,
   onSeekTouch,
+  onTrackLayout,
 }: {
   displayPosition: number;
   displayProgress: number;
   duration: number;
   onSeekRelease: () => void;
   onSeekTouch: (x: number) => void;
+  onTrackLayout: (width: number) => void;
 }) {
   return (
     <View style={styles.scrubberContainer}>
       <View
+        onLayout={(e) => {
+          onTrackLayout(e.nativeEvent.layout.width);
+        }}
         onResponderGrant={(e) => {
           onSeekTouch(e.nativeEvent.locationX);
         }}
@@ -515,7 +514,7 @@ function NowPlayingTransportControls({
 
       {/* Previous */}
       <Pressable
-        accessibilityHint="Plays previous track"
+        accessibilityHint="Restarts the track, or plays the previous one when pressed near the start"
         accessibilityLabel="Previous"
         accessibilityRole="button"
         hitSlop={10}
@@ -619,7 +618,10 @@ function NowPlayingQueueDrawer({
         </View>
       </View>
 
-      <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={true}>
+      <ScrollView
+        style={{ maxHeight: 320 }}
+        showsVerticalScrollIndicator={true}
+      >
         {queue.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 32 }}>
             <Text style={{ color: "#a1a1aa", fontSize: 13 }}>
@@ -738,6 +740,7 @@ export function NowPlayingModal() {
 
   const [seekingPosition, setSeekingPosition] = useState<number | null>(null);
   const scrubberWidthRef = useRef<number>(SCREEN_WIDTH - 48);
+  const volumeTrackWidthRef = useRef<number>(0);
 
   const translateY = useSharedValue(0);
 
@@ -799,6 +802,14 @@ export function NowPlayingModal() {
     }
   };
 
+  const handleVolumeTouch = (x: number) => {
+    const width = volumeTrackWidthRef.current;
+    if (width <= 0) {
+      return;
+    }
+    setVolume(Math.max(0, Math.min(1, x / width)));
+  };
+
   const displayPosition = seekingPosition ?? playbackPosition;
   const displayProgress =
     duration > 0 ? Math.min(1, Math.max(0, displayPosition / duration)) : 0;
@@ -825,10 +836,7 @@ export function NowPlayingModal() {
       visible={isNowPlayingVisible}
     >
       <View
-        style={[
-          styles.rootOverlay,
-          { paddingTop: Math.max(12, insets.top) },
-        ]}
+        style={[styles.rootOverlay, { paddingTop: Math.max(12, insets.top) }]}
       >
         <GestureDetector gesture={panGesture}>
           <Animated.View style={[styles.sheetContainer, animatedSheetStyle]}>
@@ -907,6 +915,9 @@ export function NowPlayingModal() {
                 duration={duration}
                 onSeekRelease={handleScrubberRelease}
                 onSeekTouch={handleScrubberTouch}
+                onTrackLayout={(width) => {
+                  scrubberWidthRef.current = width;
+                }}
               />
 
               {/* Transport Controls Row */}
@@ -929,19 +940,14 @@ export function NowPlayingModal() {
                   size={16}
                 />
                 <View
+                  onLayout={(e) => {
+                    volumeTrackWidthRef.current = e.nativeEvent.layout.width;
+                  }}
                   onResponderGrant={(e) => {
-                    const ratio = Math.max(
-                      0,
-                      Math.min(1, e.nativeEvent.locationX / 220)
-                    );
-                    setVolume(ratio);
+                    handleVolumeTouch(e.nativeEvent.locationX);
                   }}
                   onResponderMove={(e) => {
-                    const ratio = Math.max(
-                      0,
-                      Math.min(1, e.nativeEvent.locationX / 220)
-                    );
-                    setVolume(ratio);
+                    handleVolumeTouch(e.nativeEvent.locationX);
                   }}
                   onStartShouldSetResponder={() => true}
                   style={styles.volumeTrack}

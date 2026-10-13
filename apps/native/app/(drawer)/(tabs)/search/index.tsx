@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars, sort-keys, react-hooks/refs */
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import type { Href } from "expo-router";
@@ -6,6 +7,7 @@ import {
   ActivityIndicator,
   Animated,
   Image,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -28,53 +30,38 @@ interface GenreCardDef {
 }
 
 const DEFAULT_GENRES: GenreCardDef[] = [
-    { count: 36, emoji: "🎤", id: "hip-hop", name: "Hip-Hop", slug: "hip-hop" },
-    { count: 0, emoji: "🎵", id: "rb-soul", name: "R&B/Soul", slug: "rb-soul" },
-    {
-      count: 0,
-      emoji: "🎹",
-      id: "electronic",
-      name: "Electronic",
-      slug: "electronic",
-    },
-    { count: 0, emoji: "⭐", id: "pop", name: "Pop", slug: "pop" },
-    {
-      count: 0,
-      emoji: "🎙️",
-      id: "spoken-word",
-      name: "Spoken Word",
-      slug: "spoken-word",
-    },
-    { count: 0, emoji: "🎸", id: "rock", name: "Rock", slug: "rock" },
-    { count: 0, emoji: "🎺", id: "jazz", name: "Jazz", slug: "jazz" },
-    {
-      count: 0,
-      emoji: "🥁",
-      id: "afrobeats",
-      name: "Afrobeats",
-      slug: "afrobeats",
-    },
-    { count: 0, emoji: "💃", id: "latin", name: "Latin", slug: "latin" },
-    { count: 0, emoji: "🤠", id: "country", name: "Country", slug: "country" },
-    { count: 0, emoji: "🌴", id: "reggae", name: "Reggae", slug: "reggae" },
-    { count: 0, emoji: "🎧", id: "indie", name: "Indie", slug: "indie" },
-    { count: 0, emoji: "🤘", id: "metal", name: "Metal", slug: "metal" },
-  ],
-  GENRE_EMOJIS: Record<string, string> = {
-    afrobeats: "🥁",
-    country: "🤠",
-    electronic: "🎹",
-    "hip-hop": "🎤",
-    indie: "🎧",
-    jazz: "🎺",
-    latin: "💃",
-    metal: "🤘",
-    pop: "⭐",
-    "rb-soul": "🎵",
-    reggae: "🌴",
-    rock: "🎸",
-    "spoken-word": "🎙️",
-  };
+  { count: 36, emoji: "🎤", id: "hip-hop", name: "Hip-Hop", slug: "hip-hop" },
+  { count: 0, emoji: "🎵", id: "rb-soul", name: "R&B/Soul", slug: "rb-soul" },
+  {
+    count: 0,
+    emoji: "🎹",
+    id: "electronic",
+    name: "Electronic",
+    slug: "electronic",
+  },
+  { count: 0, emoji: "⭐", id: "pop", name: "Pop", slug: "pop" },
+  {
+    count: 0,
+    emoji: "🎙️",
+    id: "spoken-word",
+    name: "Spoken Word",
+    slug: "spoken-word",
+  },
+  { count: 0, emoji: "🎸", id: "rock", name: "Rock", slug: "rock" },
+  { count: 0, emoji: "🎺", id: "jazz", name: "Jazz", slug: "jazz" },
+  {
+    count: 0,
+    emoji: "🥁",
+    id: "afrobeats",
+    name: "Afrobeats",
+    slug: "afrobeats",
+  },
+  { count: 0, emoji: "💃", id: "latin", name: "Latin", slug: "latin" },
+  { count: 0, emoji: "🤠", id: "country", name: "Country", slug: "country" },
+  { count: 0, emoji: "🌴", id: "reggae", name: "Reggae", slug: "reggae" },
+  { count: 0, emoji: "🎧", id: "indie", name: "Indie", slug: "indie" },
+  { count: 0, emoji: "🤘", id: "metal", name: "Metal", slug: "metal" },
+];
 
 export default function SearchScreen() {
   const { colorScheme } = useColorScheme(),
@@ -124,18 +111,35 @@ export default function SearchScreen() {
       !searchResults.isLoading &&
       debouncedQuery.length >= 2 &&
       artists.length === 0 &&
-      songs.length === 0;
+      songs.length === 0,
+    cancelWidth = focusAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 64],
+    }),
+    cancelOpacity = focusAnim.interpolate({
+      inputRange: [0, 0.4, 1],
+      outputRange: [0, 0, 1],
+    }),
+    cancelPadding = focusAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 10],
+    }),
+    searchBarScale = focusAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 0.995],
+    });
 
   return (
     <Container>
       <View style={styles.container}>
         {/* Top Search Bar */}
         <View style={styles.searchBarWrapper}>
-          <View
+          <Animated.View
             style={[
               styles.searchBar,
               {
                 borderColor: isFocused ? "#a855f7" : "#27272a",
+                transform: [{ scale: searchBarScale }],
               },
             ]}
           >
@@ -164,7 +168,29 @@ export default function SearchScreen() {
                 <Ionicons color="#a1a1aa" name="close-circle" size={18} />
               </Pressable>
             ) : null}
-          </View>
+          </Animated.View>
+          <Animated.View
+            style={[
+              styles.cancelButtonWrapper,
+              {
+                opacity: cancelOpacity,
+                paddingLeft: cancelPadding,
+                width: cancelWidth,
+              },
+            ]}
+          >
+            <Pressable
+              hitSlop={8}
+              onPress={() => {
+                setRawInput("");
+                setDebouncedQuery("");
+                setIsFocused(false);
+                Keyboard.dismiss();
+              }}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </Pressable>
+          </Animated.View>
         </View>
 
         {/* Floating Autocomplete Dropdown (Matching Image 1 & Apple Music style) */}
@@ -528,17 +554,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
   },
+  cancelButtonText: {
+    color: "#c084fc",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  cancelButtonWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
   searchBar: {
     alignItems: "center",
     backgroundColor: "#141417",
     borderRadius: 14,
     borderWidth: 1,
+    flex: 1,
     flexDirection: "row",
     gap: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   searchBarWrapper: {
+    alignItems: "center",
+    flexDirection: "row",
     paddingHorizontal: 20,
     paddingTop: 14,
     zIndex: 10,
