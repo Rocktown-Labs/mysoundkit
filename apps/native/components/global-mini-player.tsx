@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Audio } from "expo-av";
-import { useEffect, useRef, useState } from "react";
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { NAV_THEME } from "@/lib/constants";
@@ -35,73 +35,22 @@ const RADIO_STREAM_URL =
     },
     subtitle: { fontSize: 11 },
     title: { fontSize: 12, fontWeight: "800" },
-  }),
-  unloadQuietly = async (sound: Audio.Sound) => {
-    try {
-      await sound.unloadAsync();
-    } catch {
-      // Ignore unload failures during teardown.
-    }
-  };
+  });
 
 /**
  * Compact global mini-player rendered in the tab bar's bottom accessory.
  * Plays a public demo stream with play/pause controls.
  */
 export function GlobalMiniPlayer() {
-  const { colorScheme } = useColorScheme(),
-    [isLoaded, setIsLoaded] = useState(false),
-    [isPlaying, setIsPlaying] = useState(false),
-    soundRef = useRef<Audio.Sound | null>(null),
-    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-    togglePlayback = async () => {
-      const sound = soundRef.current;
-      if (!sound) {
-        return;
-      }
-      await sound.setStatusAsync({ shouldPlay: !isPlaying });
-    };
+  const player = useAudioPlayer(RADIO_STREAM_URL, { updateInterval: 1000 }),
+    status = useAudioPlayerStatus(player),
+    { colorScheme } = useColorScheme(),
+    isLoaded = Boolean(status.isLoaded),
+    isPlaying = Boolean(status.playing),
+    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
   useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-        });
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: RADIO_STREAM_URL },
-          { progressUpdateIntervalMillis: 1000, shouldPlay: false },
-          (status) => {
-            if (cancelled) {
-              return;
-            }
-            setIsLoaded(Boolean(status.isLoaded));
-            setIsPlaying(Boolean(status.isLoaded && status.isPlaying));
-          }
-        );
-        if (cancelled) {
-          await unloadQuietly(sound);
-          return;
-        }
-        soundRef.current = sound;
-        setIsLoaded(true);
-      } catch {
-        // The player stays inert if the stream cannot be reached.
-      }
-    };
-
-    void load();
-
-    return () => {
-      cancelled = true;
-      const sound = soundRef.current;
-      soundRef.current = null;
-      if (sound) {
-        void unloadQuietly(sound);
-      }
-    };
+    void setAudioModeAsync({ playsInSilentMode: true });
   }, []);
 
   return (
@@ -130,7 +79,11 @@ export function GlobalMiniPlayer() {
         accessibilityRole="button"
         disabled={!isLoaded}
         onPress={() => {
-          void togglePlayback();
+          if (isPlaying) {
+            player.pause();
+          } else {
+            player.play();
+          }
         }}
         style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
       >
