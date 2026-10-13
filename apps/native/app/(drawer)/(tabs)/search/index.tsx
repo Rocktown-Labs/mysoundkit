@@ -170,6 +170,7 @@ export default function SearchScreen() {
             ) : null}
           </Animated.View>
           <Animated.View
+            pointerEvents={isFocused || rawInput.length > 0 ? "auto" : "none"}
             style={[
               styles.cancelButtonWrapper,
               {
