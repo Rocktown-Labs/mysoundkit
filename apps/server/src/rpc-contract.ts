@@ -1464,6 +1464,26 @@ export const rpcContract = new Hono()
     jsonValidator(shippingQuoteRequestSchema),
     (c) => c.json({} as z.infer<typeof shippingQuoteResponseSchema>)
   )
+  .get("/v1/merch/catalog", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .get("/v1/merch/designs", (c) =>
+    c.json([] as Record<string, unknown>[])
+  )
+  .post("/v1/merch/designs", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>, 201)
+  )
+  .patch(
+    "/v1/merch/designs/:id",
+    jsonValidator(genericJsonBodySchema),
+    (c) => c.json({} as Record<string, unknown>)
+  )
+  .delete("/v1/merch/designs/:id", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .get("/v1/merch/designs/:id/mockups", (c) =>
+    c.json([] as Record<string, unknown>[])
+  )
   .get("/v1/payments/tips", (c) =>
     c.json({} as z.infer<typeof artistTipsOverviewSchema>)
   )
