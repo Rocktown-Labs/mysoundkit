@@ -45,6 +45,16 @@ export function CommunityCard({ community }: { community: DbCommunity }) {
         <Badge className="absolute top-3 left-3" variant="secondary">
           {formatPrice(community.monthlyPriceCents)}
         </Badge>
+        {community.isOwner ? (
+          <Badge className="absolute top-3 right-3" variant="default">
+            Owner
+          </Badge>
+        ) : null}
+        {!community.isOwner && community.isMember ? (
+          <Badge className="absolute top-3 right-3" variant="default">
+            Joined
+          </Badge>
+        ) : null}
       </PublicCardThumbnail>
       <PublicCardMeta className="space-y-4 p-4">
         <div className="flex items-start gap-3">

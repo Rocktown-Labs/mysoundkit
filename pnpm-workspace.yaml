@@ -30,6 +30,11 @@ overrides:
   hono: ^4.13.7
   next: ^16.3.3
   vitest: ^4.1.11
+  # Expo SDK 57 transitives: pnpm satisfied expo@57/expo-router@57 peer specs
+  # with stale SDK 55 resolutions left in the lockfile by the upgrade (#392).
+  # Pin to the SDK 57 expected versions; drop or bump at the next SDK upgrade.
+  "@expo/dom-webview": ~57.0.1
+  "@expo/metro-runtime": ~57.0.16
 
 catalog:
   dotenv: ^17.2.2

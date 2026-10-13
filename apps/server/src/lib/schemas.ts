@@ -1270,6 +1270,9 @@ export const playlistSchema = z.object({
 export const conversationSummarySchema = z.object({
   conversationType: z.enum(["direct", "group", "battle_live"]),
   id: z.string(),
+  lastMessageAt: z.string().nullable(),
+  lastMessageBody: z.string().nullable(),
+  lastMessageSenderId: z.string().nullable(),
   participantAvatarUrl: z.string().nullable(),
   participantId: z.string().nullable().optional(),
   participantName: z.string().nullable(),

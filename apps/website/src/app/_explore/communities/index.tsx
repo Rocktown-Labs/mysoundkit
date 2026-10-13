@@ -194,6 +194,14 @@ function CommunitiesPage() {
         </section>
       ) : (
         <div className="space-y-10">
+          <YourCommunitiesRail
+            communities={communities}
+            onViewAll={() =>
+              void navigate({
+                search: (previous) => ({ ...previous, view: "all" }),
+              })
+            }
+          />
           <CommunityRail
             communities={filteredCommunities.slice(0, 12)}
             isLoading={isLoading}
@@ -219,6 +227,44 @@ function CommunitiesPage() {
         </div>
       )}
     </main>
+  );
+}
+
+function YourCommunitiesRail({
+  communities,
+  onViewAll,
+}: {
+  communities: DbCommunity[];
+  onViewAll: () => void;
+}) {
+  const memberships = communities
+    .filter((community) => community.isMember || community.isOwner)
+    .toSorted((left, right) => {
+      if (left.isOwner !== right.isOwner) {
+        return left.isOwner ? -1 : 1;
+      }
+      return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
+    })
+    .slice(0, 12);
+
+  if (memberships.length === 0) {
+    return null;
+  }
+
+  return (
+    <section>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-xl">Your communities</h2>
+        <Button onClick={onViewAll} size="sm" variant="ghost">
+          Browse all
+        </Button>
+      </div>
+      <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-3 md:mx-0 md:px-0">
+        {memberships.map((community) => (
+          <CommunityCard community={community} key={community.id} />
+        ))}
+      </div>
+    </section>
   );
 }
 
