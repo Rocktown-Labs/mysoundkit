@@ -48,6 +48,7 @@ import { sendDueOnboardingReminders } from "@/lib/onboarding-reminders";
 import { runOpenVerseSweep } from "@/lib/open-verse-sweep";
 import { runOrphanedUploadSweep } from "@/lib/orphan-sweep";
 import { runPrintfulCatalogSweep } from "@/lib/printful-catalog";
+import { runMockupPollSweep } from "@/lib/fulfillment-printful";
 import { publishDueTrackReleases } from "@/lib/release-notifications";
 import { withRetry } from "@/lib/retry";
 import { isScheduledJobsEnabled } from "@/lib/scheduled-jobs";
@@ -414,6 +415,7 @@ export default {
           ...buildMonthlyDigestJobs(workerEnv, now),
           runCheckoutReconciliation(),
           runPrintfulCatalogSweep(),
+          runMockupPollSweep(),
           runOrphanedUploadSweep({ bucket: workerEnv.MEDIA_BUCKET }),
           scheduleDuePayoutRuns({
             workflow: workerEnv.PAYOUT_RUN_WORKFLOW,

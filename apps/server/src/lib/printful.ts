@@ -5,6 +5,7 @@ import { logWarn } from "@/middleware/structured-logging";
 
 const MAX_PRINTFUL_ATTEMPTS = 4,
   MAX_RETRY_AFTER_MS = 60_000,
+  MOCKUP_DEFAULT_FORMAT = "jpg" as const,
   PRINTFUL_API_BASE_URL = "https://api.printful.com/v2";
 
 export class PrintfulNotConfiguredError extends Error {
@@ -424,4 +425,90 @@ export const getPrintfulProductAvailability = async (productId: number) => {
   });
 
   return unwrapPrintfulList<PrintfulAvailabilityEntry>(payload);
+};
+
+// ---------------------------------------------------------------------------
+// Files v2 (print file library)
+// ---------------------------------------------------------------------------
+
+export interface PrintfulFile {
+  created?: string;
+  filename?: string;
+  hash?: string;
+  id: number;
+  mime_type?: string;
+  preview_url?: string | null;
+  status?: string;
+  type?: string;
+  url: string;
+  visible?: boolean;
+}
+
+export const registerPrintfulFile = async ({
+  filename,
+  url,
+}: {
+  filename?: string;
+  url: string;
+}) => {
+  const payload = await printfulRequest({
+    body: { filename, url },
+    method: "POST",
+    path: "/files",
+  });
+
+  return unwrapPrintfulPayload<PrintfulFile | null>(payload);
+};
+
+// ---------------------------------------------------------------------------
+// Mockup Generator v2 (async tasks)
+// ---------------------------------------------------------------------------
+
+export interface PrintfulMockupTask {
+  catalog_variant_mockups: Array<{
+    catalog_variant_id: number;
+    mockups: Array<{
+      catalog_variant_id: number;
+      display_name?: string;
+      id?: string;
+      mockup_style_id?: number;
+      placement?: string;
+      rendering?: string;
+      url?: string;
+    }>;
+  }>;
+  failure_reasons: string[];
+  id: number;
+  status: "completed" | "failed" | "pending";
+}
+
+export const createPrintfulMockupTask = async ({
+  format = MOCKUP_DEFAULT_FORMAT,
+  products,
+}: {
+  format?: "jpg" | "png";
+  products: Array<{
+    catalog_product_id: number;
+    catalog_variant_ids: number[];
+    mockup_style_ids: number[];
+    placements: Array<Record<string, unknown>>;
+    source: "catalog";
+  }>;
+}) => {
+  const payload = await printfulRequest({
+    body: { format, products },
+    method: "POST",
+    path: "/mockup-tasks",
+  });
+
+  return unwrapPrintfulPayload<PrintfulMockupTask>(payload);
+};
+
+export const getPrintfulMockupTask = async (taskId: number) => {
+  const payload = await printfulRequest({
+    path: "/mockup-tasks",
+    query: { id: taskId },
+  });
+
+  return unwrapPrintfulPayload<PrintfulMockupTask | null>(payload);
 };

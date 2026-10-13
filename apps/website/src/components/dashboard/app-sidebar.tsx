@@ -17,6 +17,7 @@ import {
   CalendarDays,
   CircleDollarSign,
   Compass,
+  Shirt,
 } from "lucide-react";
 
 import { SidebarNavGroup } from "@/components/sidebar-nav-group";
@@ -69,6 +70,7 @@ const myMusicNavigation: SidebarNavItem[] = [
       icon: CircleDollarSign,
       name: "Payments",
     },
+    { href: "/dashboard/career/merch", icon: Shirt, name: "Merch" },
   ].map(({ href, icon, name }) => ({ icon, title: name, url: href }));
 
 export function AppSidebar() {

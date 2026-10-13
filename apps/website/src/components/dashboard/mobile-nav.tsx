@@ -16,6 +16,7 @@ import {
   Plus,
   Radio,
   Settings,
+  Shirt,
   Trophy,
   User,
   UserRoundPlus,
@@ -94,6 +95,12 @@ const sectionRoutes: Record<
           icon: Landmark,
           name: "Finance",
           to: "/dashboard/career/payments",
+        },
+        {
+          description: "Design and sell apparel and accessories",
+          icon: Shirt,
+          name: "Merch",
+          to: "/dashboard/career/merch",
         },
         {
           description: "Plan, subscription, and payment settings",
