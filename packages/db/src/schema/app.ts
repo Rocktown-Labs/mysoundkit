@@ -259,6 +259,7 @@ export const physicalFulfillmentStatusEnum = pgEnum(
     "not_applicable",
     "pending",
     "kunaki_processing",
+    "printful_processing",
     "shipped",
     "delivered",
     "cancelled",
@@ -411,6 +412,7 @@ export const webhookProviderEnum = pgEnum("webhook_provider", [
   "resend",
   "realtimekit",
   "cloudflare_stream",
+  "printful",
 ]);
 
 export const liveExperienceStatusEnum = pgEnum("live_experience_status", [
@@ -2000,8 +2002,10 @@ export const cartItems = pgTable(
       () => trackLicenseOptions.id,
       { onDelete: "set null" }
     ),
+    merchDesignId: text("merch_design_id"),
     physicalReleaseId: text("physical_release_id"),
     priceCentsSnapshot: integer("price_cents_snapshot").notNull(),
+    printfulVariantId: text("printful_variant_id"),
     productType: productTypeEnum("product_type").notNull(),
     projectId: text("project_id").references(() => projects.id, {
       onDelete: "set null",
@@ -2024,6 +2028,8 @@ export const cartItems = pgTable(
     index("cart_items_track_id_idx").on(table.trackId),
     index("cart_items_project_id_idx").on(table.projectId),
     index("cart_items_physical_release_id_idx").on(table.physicalReleaseId),
+    index("cart_items_merch_design_id_idx").on(table.merchDesignId),
+    index("cart_items_printful_variant_id_idx").on(table.printfulVariantId),
   ]
 );
 
@@ -2042,6 +2048,7 @@ export const orderItems = pgTable(
     manufacturingBaseCentsSnapshot: integer(
       "manufacturing_base_cents_snapshot"
     ),
+    merchDesignId: text("merch_design_id"),
     orderId: text("order_id")
       .notNull()
       .references(() => orders.id, { onDelete: "cascade" }),
@@ -2051,6 +2058,7 @@ export const orderItems = pgTable(
       precision: 10,
       scale: 2,
     }).notNull(),
+    printfulVariantId: text("printful_variant_id"),
     productType: productTypeEnum("product_type").notNull(),
     projectId: text("project_id").references(() => projects.id, {
       onDelete: "set null",
@@ -2067,6 +2075,8 @@ export const orderItems = pgTable(
   (table) => [
     index("order_items_order_id_idx").on(table.orderId),
     index("order_items_physical_release_id_idx").on(table.physicalReleaseId),
+    index("order_items_merch_design_id_idx").on(table.merchDesignId),
+    index("order_items_printful_variant_id_idx").on(table.printfulVariantId),
   ]
 );
 
