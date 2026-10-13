@@ -635,6 +635,15 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { exact: true, name: "Luna Eclipse Circle" })
     ).toBeVisible({ timeout: 60_000 });
+
+    // Notification settings live behind a toggle in the channel strip on
+    // narrow viewports; desktop shows them inline.
+    const settingsToggle = page.getByRole("button", {
+      name: "Community notification settings",
+    });
+    if (await settingsToggle.isVisible()) {
+      await settingsToggle.click();
+    }
     await expect(
       page.getByRole("switch", { name: "Receive creator post notifications" })
     ).toBeVisible();

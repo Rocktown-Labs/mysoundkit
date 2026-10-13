@@ -22,15 +22,15 @@ import {
   Paperclip,
   Pause,
   Play,
-  Plus,
   Search,
   Send,
+  SquarePen,
   Terminal,
   UserRoundPlus,
   X,
 } from "lucide-react";
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { PlayerTrack } from "@/components/audio-player-provider";
 import { useAudioPlayer } from "@/components/audio-player-provider";
@@ -39,7 +39,6 @@ import type { CollaborationResponseAction } from "@/components/dashboard/message
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -50,10 +49,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useImmersiveDashboardSidebar } from "@/hooks/use-immersive-dashboard-sidebar";
 import { useMobile } from "@/hooks/use-mobile";
 import { toast } from "@/hooks/use-toast";
 import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
-import { reconcileCollaborationMessages } from "@/lib/message-reconciliation";
 import {
   useCreateMessageCollectionMutation,
   useMarkConversationReadMutation,
@@ -64,6 +63,7 @@ import {
   useStartCollaborationMutation,
   useStartConversationMutation,
 } from "@/lib/message-db";
+import { reconcileCollaborationMessages } from "@/lib/message-reconciliation";
 import { usePresence } from "@/lib/presence-context";
 import {
   useFriendsQuery,
@@ -105,6 +105,39 @@ const initials = (value: string) =>
       .join("")
       .slice(0, 2)
       .toUpperCase(),
+  formatRelativeTime = (value: string | null) => {
+    if (!value) {
+      return "";
+    }
+
+    const deltaMs = Date.now() - new Date(value).getTime(),
+      minutes = Math.floor(deltaMs / 60_000);
+
+    if (minutes < 1) {
+      return "now";
+    }
+
+    if (minutes < 60) {
+      return `${minutes}m`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+
+    if (hours < 24) {
+      return `${hours}h`;
+    }
+
+    const days = Math.floor(hours / 24);
+
+    if (days < 7) {
+      return `${days}d`;
+    }
+
+    return new Date(value).toLocaleDateString([], {
+      day: "numeric",
+      month: "short",
+    });
+  },
   SLASH_COMMANDS = [
     {
       command: "/collab",
@@ -208,7 +241,11 @@ function MessagesPageClient() {
     [isShareMediaOpen, setIsShareMediaOpen] = useState(false),
     [isHelpOpen, setIsHelpOpen] = useState(false),
     [isNewChatOpen, setIsNewChatOpen] = useState(false),
-    [targetFriendId, setTargetFriendId] = useState<string | undefined>();
+    [targetFriendId, setTargetFriendId] = useState<string | undefined>(),
+    navigate = Route.useNavigate(),
+    [showUnreadOnly, setShowUnreadOnly] = useState(false);
+
+  useImmersiveDashboardSidebar();
 
   useEffect(
     () =>
@@ -219,6 +256,19 @@ function MessagesPageClient() {
         ),
       ]),
     [conversations, messageableFriends, registerPresenceUsers]
+  );
+
+  // Keep the selected conversation in the URL so refreshes and back
+  // navigation preserve the active thread.
+  const selectConversation = useCallback(
+    (conversationId: string) => {
+      setSelectedId(conversationId);
+      void navigate({
+        replace: true,
+        search: { conversationId: conversationId || undefined },
+      });
+    },
+    [navigate, setSelectedId]
   );
 
   // Handle URL search params (friendId or conversationId)
@@ -298,8 +348,10 @@ function MessagesPageClient() {
       },
       route: "media",
     }),
-    filteredConversations = conversations.filter((conversation) =>
-      conversation.title.toLowerCase().includes(searchQuery.toLowerCase())
+    filteredConversations = conversations.filter(
+      (conversation) =>
+        conversation.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        (!showUnreadOnly || conversation.unreadCount > 0)
     ),
     isSlashActive = composerText.startsWith("/"),
     matchingCommands = isSlashActive
@@ -431,7 +483,7 @@ function MessagesPageClient() {
       );
 
       if (existing) {
-        setSelectedId(existing.id);
+        selectConversation(existing.id);
         return;
       }
 
@@ -450,40 +502,66 @@ function MessagesPageClient() {
     : false;
 
   return (
-    <div className="flex h-[calc(100vh-8.5rem)] gap-4 p-4 md:p-6">
+    <div className="flex h-full w-full overflow-hidden">
       {/* Sidebar - conversations & contacts */}
-      <Card
+      <aside
         className={cn(
-          "flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl md:w-80 lg:w-96",
-          selectedId ? "hidden md:flex" : "flex w-full"
+          "flex w-full shrink-0 flex-col border-r bg-background md:w-[390px]",
+          selectedId ? "hidden md:flex" : "flex"
         )}
       >
-        <div className="border-b border-border/20 p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="font-bold text-lg tracking-tight">Messages</h2>
-              <p className="text-xs text-muted-foreground">
-                Collaborate and chat with artists
-              </p>
-            </div>
+        <div className="border-b px-4 pb-3 pt-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold text-lg tracking-tight">Messages</h2>
             <Button
+              aria-label="Start new chat"
               className="size-8 rounded-full"
               onClick={() => setIsNewChatOpen(true)}
               size="icon"
-              variant="outline"
+              variant="ghost"
             >
-              <Plus className="size-4" />
+              <SquarePen className="size-4" />
             </Button>
           </div>
 
           <div className="relative">
             <Search className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground" />
             <Input
-              className="h-9 bg-background/50 pl-9 text-xs"
+              className="h-9 rounded-full border-0 bg-muted pl-9 text-xs"
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search conversations..."
               value={searchQuery}
             />
+          </div>
+
+          <div className="mt-2 flex gap-1">
+            <button
+              className={cn(
+                "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                showUnreadOnly
+                  ? "text-muted-foreground hover:bg-muted"
+                  : "bg-primary/10 text-primary"
+              )}
+              onClick={() => setShowUnreadOnly(false)}
+              type="button"
+            >
+              All
+            </button>
+            <button
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                showUnreadOnly
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted"
+              )}
+              onClick={() => setShowUnreadOnly(true)}
+              type="button"
+            >
+              Unread
+              {conversations.some(
+                (conversation) => conversation.unreadCount > 0
+              ) && <span className="size-1.5 rounded-full bg-primary" />}
+            </button>
           </div>
         </div>
 
@@ -518,7 +596,7 @@ function MessagesPageClient() {
         )}
 
         {/* Conversations list */}
-        <div className="custom-scrollbar flex-1 space-y-1 overflow-y-auto p-2">
+        <div className="custom-scrollbar flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
           {conversationsQuery.isError ? (
             <div className="space-y-3 py-8 text-center text-xs text-muted-foreground">
               <p>Messages are unavailable right now.</p>
@@ -537,7 +615,9 @@ function MessagesPageClient() {
             </p>
           ) : filteredConversations.length === 0 ? (
             <div className="py-8 text-center text-xs text-muted-foreground">
-              No conversations found
+              {searchQuery || showUnreadOnly
+                ? "No matching conversations"
+                : "No conversations yet"}
             </div>
           ) : null}
           {filteredConversations.map((conversation) => (
@@ -545,26 +625,27 @@ function MessagesPageClient() {
               conversation={conversation}
               isSelected={selectedId === conversation.id}
               key={conversation.id}
-              onClick={() => setSelectedId(conversation.id)}
+              meId={meQuery.data?.user.id}
+              onClick={() => selectConversation(conversation.id)}
             />
           ))}
         </div>
-      </Card>
+      </aside>
 
       {/* Chat area */}
-      <Card
+      <section
         className={cn(
-          "flex-1 flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl",
+          "flex min-w-0 flex-1 flex-col bg-background",
           selectedId ? "flex" : "hidden md:flex"
         )}
       >
         {selectedConversation ? (
           <>
-            <div className="flex items-center justify-between border-b border-border/20 bg-white/[0.02] p-4">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between gap-2 border-b p-3 md:p-4">
+              <div className="flex min-w-0 items-center gap-3">
                 <Button
                   className="size-9 shrink-0 rounded-full md:hidden"
-                  onClick={() => setSelectedId("")}
+                  onClick={() => selectConversation("")}
                   size="icon"
                   variant="ghost"
                   aria-label="Back to conversations"
@@ -623,7 +704,7 @@ function MessagesPageClient() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <Button
                   onClick={() => setIsShareMediaOpen(true)}
                   size="sm"
@@ -631,7 +712,7 @@ function MessagesPageClient() {
                   className="text-xs gap-1.5"
                 >
                   <Music className="size-3.5" />
-                  Share Music
+                  <span className="hidden sm:inline">Share Music</span>
                 </Button>
                 <Button
                   onClick={() => setIsCollaborationOpen(true)}
@@ -640,7 +721,7 @@ function MessagesPageClient() {
                   className="text-xs gap-1.5 bg-primary"
                 >
                   <FolderKanban className="size-3.5" />
-                  Start Collaboration
+                  <span className="hidden sm:inline">Start Collaboration</span>
                 </Button>
               </div>
             </div>
@@ -652,7 +733,7 @@ function MessagesPageClient() {
             >
               <MessageScroller>
                 <MessageScrollerViewport>
-                  <MessageScrollerContent className="gap-4 p-6">
+                  <MessageScrollerContent className="gap-3 px-4 py-6 md:px-6">
                     {messagesQuery.isError && (
                       <MessageScrollerItem messageId="messages-error">
                         <div className="space-y-3 py-12 text-center">
@@ -725,10 +806,10 @@ function MessagesPageClient() {
                             ) : (
                               <div
                                 className={cn(
-                                  "max-w-[75%] rounded-2xl px-4 py-3 text-sm shadow-sm border",
+                                  "max-w-[70%] rounded-2xl px-4 py-2.5 text-sm",
                                   isMine
-                                    ? "bg-primary text-primary-foreground border-primary/30 rounded-br-none"
-                                    : "bg-muted/80 text-foreground border-border/20 rounded-bl-none"
+                                    ? "rounded-br-md bg-primary text-primary-foreground"
+                                    : "rounded-bl-md bg-muted text-foreground"
                                 )}
                               >
                                 {message.body ? (
@@ -862,7 +943,7 @@ function MessagesPageClient() {
             </MessageScrollerProvider>
 
             <form
-              className="border-t border-border/20 bg-white/[0.01] p-4"
+              className="border-t p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:p-4 md:pb-4"
               onSubmit={handleSendMessage}
             >
               {attachments.length > 0 ? (
@@ -1129,7 +1210,7 @@ function MessagesPageClient() {
                 </div>
               )}
 
-              <div className="flex items-center gap-2 rounded-2xl border border-border/20 bg-muted/40 p-1.5 pl-3 backdrop-blur-xl transition-all focus-within:ring-1 focus-within:ring-primary/20">
+              <div className="flex items-center gap-2 rounded-full border border-border bg-muted/40 p-1.5 pl-4 backdrop-blur-xl transition-all focus-within:ring-1 focus-within:ring-primary/20">
                 <Input
                   className="h-10 border-none bg-transparent px-1 text-sm focus-visible:ring-0"
                   onChange={(event) => setComposerText(event.target.value)}
@@ -1140,14 +1221,14 @@ function MessagesPageClient() {
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="size-10 rounded-xl"
+                  className="size-10 rounded-full"
                   onClick={() => setShowMusicPicker((prev) => !prev)}
                   title="Share music from library (/share)"
                 >
                   <Music className="size-4" />
                 </Button>
                 <label
-                  className="inline-flex size-10 cursor-pointer items-center justify-center rounded-xl text-muted-foreground hover:bg-muted"
+                  className="inline-flex size-10 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
                   title="Upload file attachment"
                 >
                   <Paperclip className="size-4" />
@@ -1164,7 +1245,7 @@ function MessagesPageClient() {
                   />
                 </label>
                 <Button
-                  className="size-10 shrink-0 rounded-xl shadow-lg shadow-primary/20"
+                  className="size-10 shrink-0 rounded-full shadow-lg shadow-primary/20"
                   disabled={
                     (!composerText.trim() && attachments.length === 0) ||
                     sendMessage.isPending ||
@@ -1200,7 +1281,7 @@ function MessagesPageClient() {
             </Button>
           </div>
         )}
-      </Card>
+      </section>
 
       {/* Collaboration Dialog */}
       <CollaborationDialog
@@ -1804,33 +1885,36 @@ function NewChatDialog({
 function ConversationItem({
   conversation,
   isSelected,
+  meId,
   onClick,
 }: {
   conversation: ConversationSummary;
   isSelected: boolean;
+  meId?: string;
   onClick: () => void;
 }) {
   const { isUserOnline } = usePresence(),
     online = conversation.participantId
       ? isUserOnline(conversation.participantId)
-      : false;
+      : false,
+    isUnread = conversation.unreadCount > 0,
+    snippet = conversation.lastMessageBody
+      ? conversation.lastMessageSenderId === meId
+        ? `You: ${conversation.lastMessageBody}`
+        : conversation.lastMessageBody
+      : "No messages yet";
 
   return (
     <button
       className={cn(
-        "group relative flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-all",
-        isSelected
-          ? "border-primary/20 bg-primary/10 shadow-sm"
-          : "border-transparent hover:bg-muted/50"
+        "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
+        isSelected ? "bg-primary/10" : "hover:bg-muted/60"
       )}
       onClick={onClick}
       type="button"
     >
-      {isSelected && (
-        <div className="-left-1 absolute top-1/2 h-6 w-1.5 -translate-y-1/2 rounded-full bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" />
-      )}
-      <div className="relative">
-        <Avatar className="size-11 border-2 border-border/10 transition-colors group-hover:border-primary/20">
+      <div className="relative shrink-0">
+        <Avatar className="size-10">
           <AvatarImage src={conversation.participantAvatarUrl ?? undefined} />
           <AvatarFallback className="bg-muted text-xs">
             {initials(
@@ -1838,43 +1922,49 @@ function ConversationItem({
             )}
           </AvatarFallback>
         </Avatar>
-        <span
-          className={cn(
-            "absolute bottom-0 right-0 size-2.5 rounded-full ring-2 ring-background transition-colors",
-            online
-              ? "bg-emerald-500 shadow-sm animate-pulse"
-              : "bg-muted-foreground/30"
-          )}
-        />
+        {online && (
+          <span className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full bg-emerald-500 ring-2 ring-background" />
+        )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="mb-0.5 flex items-center justify-between">
-          <p
+        <div className="flex items-center justify-between gap-2">
+          <span
             className={cn(
-              "font-semibold text-xs transition-colors",
-              isSelected ? "text-primary" : "text-foreground"
+              "truncate text-sm",
+              isUnread ? "font-semibold text-foreground" : "font-medium"
             )}
           >
             {conversation.participantName ||
               (conversation.title === "Untitled conversation"
                 ? "Direct Message"
                 : conversation.title)}
-          </p>
-          <span className="font-medium text-[10px] text-muted-foreground/60">
-            {new Date(conversation.updatedAt).toLocaleDateString()}
+          </span>
+          <span className="shrink-0 text-[11px] text-muted-foreground">
+            {formatRelativeTime(
+              conversation.lastMessageAt ?? conversation.updatedAt
+            )}
           </span>
         </div>
-        <p className="truncate pr-4 text-[11px] text-muted-foreground/80 leading-normal">
-          {conversation.conversationType}
-        </p>
-        {conversation.unreadCount > 0 && (
-          <Badge
-            aria-label={`${conversation.unreadCount} unread messages`}
-            className="mt-1 flex size-4 items-center justify-center rounded-full bg-primary p-0 text-[9px] text-primary-foreground"
+        <div className="mt-0.5 flex items-center justify-between gap-2">
+          <span
+            className={cn(
+              "truncate text-xs",
+              isUnread
+                ? "font-medium text-foreground/80"
+                : "text-muted-foreground"
+            )}
           >
-            {conversation.unreadCount}
-          </Badge>
-        )}
+            {snippet}
+          </span>
+          {isUnread && (
+            <span
+              aria-label={`${conversation.unreadCount} unread messages`}
+              className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground"
+            >
+              {conversation.unreadCount}
+            </span>
+          )}
+        </div>
       </div>
     </button>
   );
