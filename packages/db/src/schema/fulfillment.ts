@@ -155,7 +155,9 @@ export const merchDesigns = pgTable(
         table.placement,
         table.designFileObjectKey
       )
-      .where(sql`status <> 'archived'`),
+      .where(
+        sql`status <> 'archived' AND printful_catalog_product_id IS NOT NULL`
+      ),
   ]
 );
 

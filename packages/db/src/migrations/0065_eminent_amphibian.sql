@@ -137,7 +137,7 @@ CREATE INDEX "merch_designs_owner_user_id_idx" ON "merch_designs" USING btree ("
 CREATE INDEX "merch_designs_project_id_idx" ON "merch_designs" USING btree ("project_id");--> statement-breakpoint
 CREATE INDEX "merch_designs_track_id_idx" ON "merch_designs" USING btree ("track_id");--> statement-breakpoint
 CREATE INDEX "merch_designs_status_idx" ON "merch_designs" USING btree ("status");--> statement-breakpoint
-CREATE UNIQUE INDEX "merch_designs_active_owner_blank_placement_file_idx" ON "merch_designs" USING btree ("owner_user_id","printful_catalog_product_id","placement","design_file_object_key") WHERE status <> 'archived';--> statement-breakpoint
+CREATE UNIQUE INDEX "merch_designs_active_owner_blank_placement_file_idx" ON "merch_designs" USING btree ("owner_user_id","printful_catalog_product_id","placement","design_file_object_key") WHERE status <> 'archived' AND printful_catalog_product_id IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "merch_fulfillments_external_id_idx" ON "merch_fulfillments" USING btree ("external_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "merch_fulfillments_order_id_idx" ON "merch_fulfillments" USING btree ("order_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "merch_fulfillments_printful_order_id_idx" ON "merch_fulfillments" USING btree ("printful_order_id");--> statement-breakpoint

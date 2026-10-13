@@ -1,5 +1,5 @@
 {
-  "id": "b5279b03-fa34-4583-9271-a420f93ec017",
+  "id": "fc6d31a6-0333-48de-a99f-41824b0d3ded",
   "prevId": "af1823a1-b86c-4552-8421-cb0a844ab628",
   "version": "7",
   "dialect": "postgresql",
@@ -18748,7 +18748,7 @@
             }
           ],
           "isUnique": true,
-          "where": "status <> 'archived'",
+          "where": "status <> 'archived' AND printful_catalog_product_id IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
