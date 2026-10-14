@@ -1,4 +1,4 @@
-/* oxlint-disable one-var, sort-vars, sort-keys, complexity, eqeqeq, no-eq-null */
+/* oxlint-disable one-var, sort-vars, sort-keys, complexity, eqeqeq, no-eq-null, no-nested-ternary */
 import { Ionicons } from "@expo/vector-icons";
 import { Link, Stack, useLocalSearchParams } from "expo-router";
 import {
@@ -17,13 +17,18 @@ import { useCommunitiesQuery } from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 export default function CommunityDetailScreen() {
-  const { "community-id": communityId } = useLocalSearchParams<{ "community-id": string }>(),
+  const { "community-id": communityId } = useLocalSearchParams<{
+      "community-id": string;
+    }>(),
     { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-    communitiesQuery = useCommunitiesQuery({}),
+    // Same key as the communities list screen so deep links share its cache
+    // and land on a populated room instead of "could not be found".
+    communitiesQuery = useCommunitiesQuery({ sort: "members-desc" }),
     community = (communitiesQuery.data ?? []).find(
       (item) => item.id === communityId
-    );
+    ),
+    { isLoading } = communitiesQuery;
 
   return (
     <>
@@ -37,138 +42,132 @@ export default function CommunityDetailScreen() {
         }}
       />
       <Container>
-        {(communitiesQuery.isLoading || community == null) &&
-        !communitiesQuery.isLoading ? (
+        {!isLoading && community == null ? (
           <View style={[styles.emptyBox, { borderColor: theme.border }]}>
             <Ionicons color="#8F8F8F" name="people-outline" size={36} />
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
               This community could not be found.
             </Text>
           </View>
+        ) : isLoading || community == null ? (
+          <ActivityIndicator color={theme.primary} style={styles.loader} />
         ) : (
           <ScrollView
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
             style={{ backgroundColor: theme.background }}
           >
-            {communitiesQuery.isLoading || community == null ? (
-              <ActivityIndicator color={theme.primary} style={styles.loader} />
-            ) : (
-              <>
-                <View style={styles.hero}>
-                  <NativeImage
-                    source={community.coverImageUrl ?? undefined}
-                    style={styles.heroImage}
+            <>
+              <View style={styles.hero}>
+                <NativeImage
+                  source={community.coverImageUrl ?? undefined}
+                  style={styles.heroImage}
+                />
+                <View
+                  style={[
+                    styles.heroScrim,
+                    { backgroundColor: theme.background },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.card}>
+                <View style={styles.identityRow}>
+                  <View style={styles.avatar}>
+                    <NativeImage
+                      source={community.artist.avatarUrl ?? undefined}
+                      style={styles.avatarImage}
+                    />
+                  </View>
+                  <View style={styles.identityText}>
+                    <Text style={styles.name}>{community.name}</Text>
+                    <Link asChild href={`/artist/${community.artist.username}`}>
+                      <Pressable>
+                        <Text style={styles.artistLink}>
+                          {community.artist.name}
+                        </Text>
+                      </Pressable>
+                    </Link>
+                  </View>
+                </View>
+
+                <View style={styles.statRow}>
+                  <StatChip
+                    icon="people-outline"
+                    label="Members"
+                    value={community.memberCount.toLocaleString()}
                   />
-                  <View
-                    style={[
-                      styles.heroScrim,
-                      { backgroundColor: theme.background },
-                    ]}
+                  <StatChip
+                    icon="musical-notes-outline"
+                    label="Genre"
+                    value={community.genre?.name ?? "—"}
+                  />
+                  <StatChip
+                    icon="card-outline"
+                    label="Price"
+                    value={
+                      community.monthlyPriceCents > 0
+                        ? `$${(community.monthlyPriceCents / 100).toFixed(2)}/mo`
+                        : "Free"
+                    }
                   />
                 </View>
 
-                <View style={styles.card}>
-                  <View style={styles.identityRow}>
-                    <View style={styles.avatar}>
-                      <NativeImage
-                        source={community.artist.avatarUrl ?? undefined}
-                        style={styles.avatarImage}
-                      />
-                    </View>
-                    <View style={styles.identityText}>
-                      <Text style={styles.name}>{community.name}</Text>
-                      <Link
-                        asChild
-                        href={`/artist/${community.artist.username}`}
-                      >
-                        <Pressable>
-                          <Text style={styles.artistLink}>
-                            {community.artist.name}
-                          </Text>
-                        </Pressable>
-                      </Link>
-                    </View>
-                  </View>
+                {community.description ? (
+                  <Text style={styles.description}>
+                    {community.description}
+                  </Text>
+                ) : null}
 
-                  <View style={styles.statRow}>
-                    <StatChip
-                      icon="people-outline"
-                      label="Members"
-                      value={community.memberCount.toLocaleString()}
-                    />
-                    <StatChip
-                      icon="musical-notes-outline"
-                      label="Genre"
-                      value={community.genre?.name ?? "—"}
-                    />
-                    <StatChip
-                      icon="card-outline"
-                      label="Price"
-                      value={
-                        community.monthlyPriceCents > 0
-                          ? `$${(community.monthlyPriceCents / 100).toFixed(2)}/mo`
-                          : "Free"
-                      }
-                    />
-                  </View>
-
-                  {community.description ? (
-                    <Text style={styles.description}>
-                      {community.description}
-                    </Text>
-                  ) : null}
-
-                  <Pressable
-                    accessibilityHint={
-                      community.isMember
-                        ? "You are already a member"
-                        : "Joins this community"
+                <Pressable
+                  accessibilityHint={
+                    community.isMember
+                      ? "You are already a member"
+                      : "Joins this community"
+                  }
+                  accessibilityLabel={community.isMember ? "Joined" : "Join"}
+                  accessibilityRole="button"
+                  onPress={() => {
+                    // Membership checkout lands with the billing phase.
+                  }}
+                  style={({ pressed }) => [
+                    styles.joinButton,
+                    community.isMember && styles.joinButtonSecondary,
+                    pressed && {
+                      opacity: 0.85,
+                      transform: [{ scale: 0.97 }],
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    color={community.isMember ? "#B8A3FF" : "#171717"}
+                    name={
+                      community.isMember ? "checkmark-circle" : "add-circle"
                     }
-                    accessibilityLabel={community.isMember ? "Joined" : "Join"}
-                    accessibilityRole="button"
-                    onPress={() => {
-                      // Membership checkout lands with the billing phase.
-                    }}
-                    style={({ pressed }) => [
-                      styles.joinButton,
-                      community.isMember && styles.joinButtonSecondary,
-                      pressed && {
-                        opacity: 0.85,
-                        transform: [{ scale: 0.97 }],
-                      },
+                    size={18}
+                  />
+                  <Text
+                    style={[
+                      styles.joinButtonText,
+                      community.isMember && { color: "#B8A3FF" },
                     ]}
                   >
-                    <Ionicons
-                      color={community.isMember ? "#B8A3FF" : "#171717"}
-                      name={
-                        community.isMember ? "checkmark-circle" : "add-circle"
-                      }
-                      size={18}
-                    />
-                    <Text
-                      style={[
-                        styles.joinButtonText,
-                        community.isMember && { color: "#B8A3FF" },
-                      ]}
-                    >
-                      {community.isMember ? "Joined" : "Join Community"}
-                    </Text>
-                  </Pressable>
+                    {community.isMember ? "Joined" : "Join Community"}
+                  </Text>
+                </Pressable>
 
-                  <View style={styles.chatNote}>
-                    <Ionicons
-                      color="#8F8F8F"
-                      name="chatbubble-ellipses-outline"
-                      size={16}
-                    />
-                    <Text style={styles.chatNoteText}>
-                      Member chat, posts, and drops open here once you join.
-                    </Text>
-                  </View>
+                <View style={styles.chatNote}>
+                  <Ionicons
+                    color="#8F8F8F"
+                    name="chatbubble-ellipses-outline"
+                    size={16}
+                  />
+                  <Text style={styles.chatNoteText}>
+                    Member chat, posts, and drops open here once you join.
+                  </Text>
                 </View>
-              </>
-            )}
+              </View>
+            </>
           </ScrollView>
         )}
       </Container>

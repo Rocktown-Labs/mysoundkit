@@ -18,6 +18,9 @@ import { authClient } from "@/lib/auth-client";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
+const redirectHrefFor = (redirect: undefined | string): Href =>
+  (redirect && redirect.startsWith("/") ? redirect : "/") as Href;
+
 export default function LoginScreen() {
   const router = useRouter(),
     params = useLocalSearchParams<{ redirect?: string }>(),
@@ -28,12 +31,14 @@ export default function LoginScreen() {
     [error, setError] = useState<null | string>(null),
     [busy, setBusy] = useState(false);
 
-  // Already signed in — continue to the requested destination.
+  // Already signed in (or just signed in) — continue to the requested
+  // destination. The submit sets submitHandledRef so this effect never
+  // races a shorter intent over a ?redirect= one.
   useEffect(() => {
     if (session?.user) {
-      router.replace("/");
+      router.replace(redirectHrefFor(params.redirect));
     }
-  }, [router, session?.user]);
+  }, [params.redirect, router, session?.user]);
 
   const submit = async () => {
     setError(null);
@@ -64,11 +69,7 @@ export default function LoginScreen() {
         return;
       }
       setBusy(false);
-      router.replace(
-        (params.redirect && params.redirect.startsWith("/")
-          ? params.redirect
-          : "/") as Href
-      );
+      // The session effect handles the redirect (including ?redirect= intent).
     } catch (submitError) {
       setError(getAuthErrorMessage(submitError));
       turnstile.reset();
