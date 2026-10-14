@@ -1230,7 +1230,7 @@ app.openapi(
             {
               amountCents: 0,
               category: "physical_merch",
-              label: "Physical Merch (CD/Vinyl)",
+              label: "Merch (CD/Vinyl/Apparel)",
             },
             { amountCents: 0, category: "tips", label: "Fan Tips" },
           ],
@@ -1384,7 +1384,7 @@ app.openapi(
         {
           amountCents: physicalSalesCents,
           category: "physical_merch",
-          label: "Physical Merch (CD/Vinyl)",
+          label: "Merch (CD/Vinyl/Apparel)",
         },
         {
           amountCents: tipsCents,
