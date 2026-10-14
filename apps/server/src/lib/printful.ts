@@ -355,9 +355,9 @@ export const searchPrintfulCatalogProducts = async (
   query: string,
   maxResults = 10
 ) => {
-  const allProducts = await getPrintfulCatalogProducts({ limit: 100 }),
-    normalized = query.toLowerCase().trim(),
-    matches =
+  const allProducts = await getPrintfulCatalogProducts({ limit: 100 });
+  const normalized = query.toLowerCase().trim();
+  const matches =
       normalized.length === 0
         ? allProducts
         : allProducts.filter(
@@ -465,9 +465,9 @@ export const registerPrintfulFile = async ({
 // ---------------------------------------------------------------------------
 
 export interface PrintfulMockupTask {
-  catalog_variant_mockups: Array<{
+  catalog_variant_mockups: {
     catalog_variant_id: number;
-    mockups: Array<{
+    mockups: {
       catalog_variant_id: number;
       display_name?: string;
       id?: string;
@@ -475,8 +475,8 @@ export interface PrintfulMockupTask {
       placement?: string;
       rendering?: string;
       url?: string;
-    }>;
-  }>;
+    }[];
+  }[];
   failure_reasons: string[];
   id: number;
   status: "completed" | "failed" | "pending";
@@ -487,13 +487,13 @@ export const createPrintfulMockupTask = async ({
   products,
 }: {
   format?: "jpg" | "png";
-  products: Array<{
+  products: {
     catalog_product_id: number;
     catalog_variant_ids: number[];
     mockup_style_ids: number[];
-    placements: Array<Record<string, unknown>>;
+    placements: Record<string, unknown>[];
     source: "catalog";
-  }>;
+  }[];
 }) => {
   const payload = await printfulRequest({
     body: { format, products },
@@ -511,4 +511,134 @@ export const getPrintfulMockupTask = async (taskId: number) => {
   });
 
   return unwrapPrintfulPayload<PrintfulMockupTask | null>(payload);
+};
+
+export interface PrintfulShippingRate {
+  currency: string;
+  custom_fees_possible?: boolean;
+  max_delivery_date?: string;
+  max_delivery_days?: number;
+  min_delivery_date?: string;
+  min_delivery_days?: number;
+  rate: string;
+  shipments?: {
+    customs_fees_possible?: boolean;
+    departure_country?: string;
+    shipment_items?: { catalog_variant_id: number; quantity: number }[];
+  }[];
+  shipping: string;
+  shipping_method_name: string;
+}
+
+export const calculatePrintfulShippingRates = async ({
+  items,
+  recipient,
+  retailCosts,
+}: {
+  items: {
+    catalog_variant_id: number;
+    quantity: number;
+  }[];
+  recipient: {
+    address1: string;
+    address2?: string;
+    city: string;
+    country_code: string;
+    state_code?: string;
+    zip: string;
+  };
+  retailCosts?: {
+    currency?: string;
+    shipping?: string;
+  };
+}) => {
+  const payload = await printfulRequest({
+    body: {
+      order_items: items.map((item) => ({
+        catalog_variant_id: item.catalog_variant_id,
+        quantity: item.quantity,
+        source: "catalog",
+      })),
+      recipient,
+      retail_costs: retailCosts,
+    },
+    method: "POST",
+    path: "/shipping-rates",
+  });
+
+  return unwrapPrintfulList<PrintfulShippingRate>(payload);
+};
+
+// ---------------------------------------------------------------------------
+// Orders v2 (draft → confirm lifecycle)
+// ---------------------------------------------------------------------------
+
+export interface PrintfulOrderDraft {
+  costs?: {
+    currency?: string;
+    discount?: string;
+    shipping?: string;
+    subtotal?: string;
+    tax?: string;
+    total?: string;
+  };
+  created_at?: string;
+  external_id?: string;
+  id: number;
+  order_items?: Record<string, unknown>[];
+  status?: string;
+  store_id?: number;
+  updated_at?: string;
+}
+
+export const createPrintfulDraftOrder = async ({
+  externalId,
+  items,
+  recipient,
+  retailCosts,
+  shippingMethod,
+}: {
+  externalId: string;
+  items: {
+    catalog_variant_id: number;
+    external_id: string;
+    name: string;
+    placements: Record<string, unknown>[];
+    quantity: number;
+    retail_price: string;
+  }[];
+  recipient: Record<string, string>;
+  retailCosts?: Record<string, string>;
+  shippingMethod?: string;
+}) => {
+  const payload = await printfulRequest({
+    body: {
+      external_id: externalId,
+      order_items: items,
+      recipient,
+      retail_costs: retailCosts,
+      shipping: shippingMethod,
+    },
+    method: "POST",
+    path: "/orders",
+  });
+
+  return unwrapPrintfulPayload<PrintfulOrderDraft>(payload);
+};
+
+export const confirmPrintfulOrder = async (orderId: number) => {
+  const payload = await printfulRequest({
+    method: "POST",
+    path: `/orders/${encodeURIComponent(String(orderId))}/confirm`,
+  });
+
+  return unwrapPrintfulPayload<PrintfulOrderDraft>(payload);
+};
+
+export const getPrintfulOrderShipments = async (orderId: number) => {
+  const payload = await printfulRequest({
+    path: `/orders/${encodeURIComponent(String(orderId))}/shipments`,
+  });
+
+  return unwrapPrintfulList<Record<string, unknown>>(payload);
 };

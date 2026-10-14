@@ -1,5 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Shirt, Trash2 } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  ArrowRight,
+  Disc3,
+  Plus,
+  Shirt,
+  Trash2,
+  TrendingUp,
+} from "lucide-react";
 import { useState } from "react";
 
 import { AppImage } from "@/components/ui/app-image";
@@ -28,19 +35,34 @@ import {
   useMerchCatalogQuery,
   useMerchDesignMockupsQuery,
   useMerchDesignsQuery,
+  usePhysicalReleasesQuery,
   useUpdateMerchDesignMutation,
 } from "@/lib/soundkit-api-hooks";
-import type { MerchCatalogProduct, MerchDesign } from "@/lib/soundkit-api-hooks";
+import type {
+  MerchCatalogProduct,
+  MerchDesign,
+  PhysicalReleaseCard,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/career/merch")({
   component: MerchStudioPage,
 });
 
+const MEDIA_FORMAT_LABELS: Record<PhysicalReleaseCard["mediaFormat"], string> = {
+  cd: "Audio CD",
+  dvd: "Video DVD",
+  vinyl_12: '12" Vinyl',
+  vinyl_7: '7" Vinyl',
+};
+
+const formatPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
 function MerchStudioPage() {
-  const [isCreating, setIsCreating] = useState(false),
+  const [isCreatingApparel, setIsCreatingApparel] = useState(false),
     [selectedDesignId, setSelectedDesignId] = useState<string | null>(null),
     { data: catalogData } = useMerchCatalogQuery(),
-    { data: designs = [], isLoading } = useMerchDesignsQuery();
+    { data: designs = [], isLoading: designsLoading } = useMerchDesignsQuery(),
+    { data: physicalReleases = [] } = usePhysicalReleasesQuery();
 
   return (
     <div className="space-y-6">
@@ -50,62 +72,160 @@ function MerchStudioPage() {
             Merch Studio
           </h1>
           <p className="text-muted-foreground text-sm">
-            Design apparel and accessories, preview photorealistic mockups,
-            and publish them to your fans.
+            Create and manage everything your fans can buy — physical media,
+            apparel, and accessories, all in one place.
           </p>
         </div>
-        <Button onClick={() => setIsCreating(!isCreating)} variant="outline">
-          <Plus className="mr-2 size-4" />
-          {isCreating ? "Close" : "New Design"}
-        </Button>
       </section>
 
-      {isCreating ? (
-        <MerchDesigner
-          products={catalogData?.products ?? []}
-          variants={catalogData?.variants ?? []}
-        />
-      ) : null}
-
+      {/* Physical Media (Kunaki) — horizontal scroll */}
       <section className="space-y-3">
-        <h2 className="font-black text-lg uppercase tracking-tight">
-          Your Designs ({designs.length})
-        </h2>
-        {isLoading ? (
-          <p className="text-muted-foreground text-sm">Loading designs…</p>
-        ) : designs.length === 0 ? (
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Disc3 className="text-primary size-5" />
+            <h2 className="font-black text-lg uppercase tracking-tight">
+              Physical Media
+            </h2>
+            <Badge className="text-[10px]" variant="outline">
+              {physicalReleases.length}
+            </Badge>
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/dashboard/projects">
+              Create from a project
+              <ArrowRight className="ml-2 size-4" />
+            </Link>
+          </Button>
+        </div>
+        {physicalReleases.length === 0 ? (
           <Card>
-            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-              <Shirt className="text-muted-foreground size-12" />
+            <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-8 text-center">
+              <Disc3 className="size-8" />
               <div>
-                <p className="font-black uppercase tracking-tight">
-                  No designs yet
+                <p className="text-sm font-semibold">
+                  No physical media yet
                 </p>
-                <p className="text-muted-foreground text-sm">
-                  Create your first merch design — upload artwork, pick a
-                  blank, set your price, and Printful handles the rest.
+                <p className="text-xs">
+                  CDs, vinyl, and DVDs are created from your project's
+                  monetize settings. Open a project and enable physical
+                  editions.
                 </p>
               </div>
-              <Button onClick={() => setIsCreating(true)}>
-                <Plus className="mr-2 size-4" />
-                Create a design
-              </Button>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {designs.map((design) => (
-              <DesignCard
-                design={design}
-                isSelected={selectedDesignId === design.id}
-                key={design.id}
-                onSelect={() =>
-                  setSelectedDesignId(
-                    selectedDesignId === design.id ? null : design.id
-                  )
-                }
-              />
-            ))}
+          <div className="scrollbar-thin overflow-x-auto pb-2">
+            <div className="flex gap-3">
+              {physicalReleases.map((release) => (
+                <div
+                  className="w-44 shrink-0 overflow-hidden rounded-lg border border-border/40"
+                  key={release.id}
+                >
+                  <div className="bg-muted/40 flex h-28 items-center justify-center">
+                    <Disc3 className="text-muted-foreground/40 size-10" />
+                  </div>
+                  <div className="space-y-1 p-3">
+                    <p className="truncate text-sm font-semibold">
+                      {release.title}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {MEDIA_FORMAT_LABELS[release.mediaFormat]}
+                      {release.projectTitle
+                        ? ` · ${release.projectTitle}`
+                        : ""}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold tabular-nums">
+                        {formatPrice(release.retailPriceCents)}
+                      </span>
+                      <Badge
+                        className="text-[9px]"
+                        variant={
+                          release.status === "published"
+                            ? "default"
+                            : "outline"
+                        }
+                      >
+                        {release.status}
+                      </Badge>
+                    </div>
+                    {!release.kunakiProductId ? (
+                      <p className="text-destructive text-[10px]">
+                        Needs Kunaki product ID
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Apparel & Merch (Printful) — horizontal scroll */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Shirt className="text-primary size-5" />
+            <h2 className="font-black text-lg uppercase tracking-tight">
+              Apparel & Merch
+            </h2>
+            <Badge className="text-[10px]" variant="outline">
+              {designs.length}
+            </Badge>
+          </div>
+          <Button
+            onClick={() => setIsCreatingApparel(!isCreatingApparel)}
+            size="sm"
+            variant="outline"
+          >
+            <Plus className="mr-2 size-4" />
+            {isCreatingApparel ? "Close" : "New design"}
+          </Button>
+        </div>
+        {isCreatingApparel ? (
+          <MerchDesigner
+            products={catalogData?.products ?? []}
+            variants={catalogData?.variants ?? []}
+          />
+        ) : null}
+        {designsLoading ? (
+          <p className="text-muted-foreground text-sm">Loading designs…</p>
+        ) : designs.length === 0 ? (
+          <Card>
+            <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-8 text-center">
+              <Shirt className="size-8" />
+              <div>
+                <p className="text-sm font-semibold">No merch designs yet</p>
+                <p className="text-xs">
+                  Upload artwork, pick a blank, set your price — Printful
+                  handles the rest.
+                </p>
+              </div>
+              {!isCreatingApparel ? (
+                <Button onClick={() => setIsCreatingApparel(true)} size="sm">
+                  <Plus className="mr-2 size-4" />
+                  Create a design
+                </Button>
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="scrollbar-thin overflow-x-auto pb-2">
+            <div className="flex gap-3">
+              {designs.map((design) => (
+                <DesignCard
+                  design={design}
+                  isSelected={selectedDesignId === design.id}
+                  key={design.id}
+                  onSelect={() =>
+                    setSelectedDesignId(
+                      selectedDesignId === design.id ? null : design.id
+                    )
+                  }
+                />
+              ))}
+            </div>
           </div>
         )}
       </section>
@@ -164,7 +284,8 @@ function MerchDesigner({
       retailPriceCents < (selectedProduct?.retailMinCents ?? 1200)
     ) {
       toast({
-        description: "Fill in the title, pick a blank, and set a valid price.",
+        description:
+          "Fill in the title, pick a blank, and set a valid price.",
         title: "Missing details",
         variant: "destructive",
       });
@@ -178,7 +299,9 @@ function MerchDesigner({
         printfulCatalogProductId: selectedProductId,
         retailPriceCents,
         title: title.trim(),
-        ...(description.trim() ? { description: description.trim() } : {}),
+        ...(description.trim()
+          ? { description: description.trim() }
+          : {}),
         ...(projectId.trim() ? { projectId: projectId.trim() } : {}),
         ...(trackId.trim() ? { trackId: trackId.trim() } : {}),
       },
@@ -186,7 +309,9 @@ function MerchDesigner({
         onError: (error) => {
           toast({
             description:
-              error instanceof Error ? error.message : "Failed to create.",
+              error instanceof Error
+                ? error.message
+                : "Failed to create.",
             title: "Creation failed",
             variant: "destructive",
           });
@@ -209,7 +334,7 @@ function MerchDesigner({
     <Card>
       <CardHeader>
         <CardTitle className="font-black uppercase tracking-tight">
-          New merch design
+          New apparel design
         </CardTitle>
         <CardDescription>
           Upload artwork, pick a blank, set your price. Mockups generate
@@ -252,7 +377,10 @@ function MerchDesigner({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(placements.length > 0 ? placements : ["front"]).map((p) => (
+                {(placements.length > 0
+                  ? placements
+                  : ["front"]
+                ).map((p) => (
                   <SelectItem key={p} value={p}>
                     {p}
                   </SelectItem>
@@ -322,16 +450,9 @@ function MerchDesigner({
               </p>
               <p className="text-muted-foreground text-xs">
                 ${((retailPriceCents - baseCost) / 100).toFixed(2)} after
-                blank cost (${(baseCost / 100).toFixed(2)}) minus 12% platform
-                fee (${(platformCut / 100).toFixed(2)}). Shipping is
-                pass-through — the fan pays it.
-              </p>
-            </div>
-          ) : null}
-          {selectedVariants.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-muted-foreground text-xs">
-                {selectedVariants.length} variants available for this blank.
+                blank cost (${(baseCost / 100).toFixed(2)}) minus 12%
+                platform fee (${(platformCut / 100).toFixed(2)}). Shipping
+                is pass-through.
               </p>
             </div>
           ) : null}
@@ -365,150 +486,141 @@ function DesignCard({
   );
   const completedMockups = mockups.filter((m) => m.status === "completed");
 
-  const statusColor =
-    design.status === "published"
-      ? "bg-emerald-600"
-      : design.status === "ready"
-        ? "bg-primary"
-        : design.status === "archived"
-          ? "bg-muted-foreground"
-          : "bg-muted";
-
   return (
-    <Card
-      className={`cursor-pointer transition-all ${isSelected ? "ring-primary ring-2" : ""}`}
+    <div
+      className={`w-44 shrink-0 cursor-pointer overflow-hidden rounded-lg border transition-all ${
+        isSelected
+          ? "border-primary ring-primary/30 ring-2"
+          : "border-border/40 hover:border-border/60 hover:shadow-lg"
+      }`}
+      onClick={onSelect}
     >
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-2">
-          <CardTitle className="line-clamp-2 text-sm font-semibold">
-            {design.title}
-          </CardTitle>
-          <Badge className="shrink-0 text-[10px]" variant="outline">
-            {design.status}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
+      <div className="bg-muted relative aspect-square overflow-hidden">
         {completedMockups.length > 0 ? (
-          <div className="grid grid-cols-3 gap-1">
-            {completedMockups.slice(0, 3).map((m) => (
-              <AppImage
-                alt={`${design.title} mockup`}
-                className="aspect-square rounded-md border border-border/40 object-cover"
-                height={160}
-                key={m.id}
-                src={m.mockupUrl ?? ""}
-                width={160}
-              />
-            ))}
-          </div>
+          <AppImage
+            alt={`${design.title} mockup`}
+            className="size-full object-cover"
+            height={240}
+            src={completedMockups[0]?.mockupUrl ?? ""}
+            width={240}
+          />
         ) : (
-          <div className="bg-muted text-muted-foreground flex aspect-square items-center justify-center rounded-md text-xs">
+          <div className="text-muted-foreground flex size-full items-center justify-center text-xs">
             {design.mockupCount > 0
-              ? `Generating ${design.mockupCount} mockups…`
-              : "No mockups yet"}
+              ? `Generating ${design.mockupCount}…`
+              : "No mockups"}
           </div>
         )}
-        <div className="flex items-center justify-between text-sm">
+      </div>
+      <div className="space-y-1.5 p-3">
+        <p className="truncate text-sm font-semibold">{design.title}</p>
+        <div className="flex items-center justify-between">
           <span className="font-semibold tabular-nums">
-            ${(design.retailPriceCents / 100).toFixed(2)}
+            {formatPrice(design.retailPriceCents)}
           </span>
-          <span className="text-muted-foreground text-xs">
+          <span className="text-muted-foreground text-[10px]">
             {design.readyMockupCount}/{design.mockupCount} ready
           </span>
         </div>
-        <div className="flex gap-1">
-          {design.status !== "published" ? (
-            <Button
-              className="h-8 flex-1 text-xs"
-              disabled={
-                design.readyMockupCount === 0 || updateDesign.isPending
-              }
-              onClick={() =>
-                updateDesign.mutate(
-                  { id: design.id, status: "published" },
-                  {
-                    onError: (error) =>
-                      toast({
-                        description:
-                          error instanceof Error
-                            ? error.message
-                            : "Failed to publish.",
-                        title: "Publish failed",
-                        variant: "destructive",
-                      }),
-                    onSuccess: () =>
-                      toast({
-                        description: `"${design.title}" is live in your shop.`,
-                        title: "Published",
-                      }),
-                  }
-                )
-              }
-              size="sm"
-            >
-              Publish
-            </Button>
-          ) : (
-            <Button
-              className="h-8 flex-1 text-xs"
-              onClick={() =>
-                updateDesign.mutate({ id: design.id, status: "draft" })
-              }
-              size="sm"
-              variant="outline"
-            >
-              Unpublish
-            </Button>
-          )}
-          <Button
-            aria-label={`Delete ${design.title}`}
-            className="h-8"
-            onClick={() =>
-              deleteDesign.mutate(design.id, {
-                onSuccess: () =>
-                  toast({
-                    description: `"${design.title}" archived.`,
-                    title: "Deleted",
-                  }),
-              })
+        <div className="flex items-center justify-between">
+          <Badge
+            className="text-[9px]"
+            variant={
+              design.status === "published" ? "default" : "outline"
             }
-            size="icon"
-            variant="ghost"
           >
-            <Trash2 className="size-4" />
-          </Button>
+            {design.status}
+          </Badge>
+          <div className="flex gap-1">
+            {design.status !== "published" ? (
+              <Button
+                className="h-6 px-2 text-[10px]"
+                disabled={
+                  design.readyMockupCount === 0 || updateDesign.isPending
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateDesign.mutate(
+                    { id: design.id, status: "published" },
+                    {
+                      onError: (error) =>
+                        toast({
+                          description:
+                            error instanceof Error
+                              ? error.message
+                              : "Failed to publish.",
+                          title: "Publish failed",
+                          variant: "destructive",
+                        }),
+                      onSuccess: () =>
+                        toast({
+                          description: `"${design.title}" is live.`,
+                          title: "Published",
+                        }),
+                    }
+                  );
+                }}
+                size="sm"
+              >
+                Publish
+              </Button>
+            ) : (
+              <Button
+                className="h-6 px-2 text-[10px]"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateDesign.mutate({ id: design.id, status: "draft" });
+                }}
+                size="sm"
+                variant="outline"
+              >
+                Unpublish
+              </Button>
+            )}
+            <Button
+              aria-label={`Delete ${design.title}`}
+              className="h-6 size-6"
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteDesign.mutate(design.id, {
+                  onSuccess: () =>
+                    toast({
+                      description: `"${design.title}" archived.`,
+                      title: "Deleted",
+                    }),
+                });
+              }}
+              size="icon"
+              variant="ghost"
+            >
+              <Trash2 className="size-3" />
+            </Button>
+          </div>
         </div>
-        {isSelected ? (
-          <div className="space-y-2 border-border/30 border-t pt-3">
-            <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+        {isSelected && completedMockups.length > 0 ? (
+          <div className="border-border/30 mt-2 space-y-1 border-t pt-2">
+            <p className="text-muted-foreground text-[9px] font-semibold uppercase tracking-wide">
               Mockup gallery
             </p>
-            <div className="grid grid-cols-4 gap-1">
-              {mockups.map((m) => (
+            <div className="flex gap-1 overflow-x-auto">
+              {completedMockups.slice(0, 8).map((m) => (
                 <div
-                  className="relative aspect-square overflow-hidden rounded border border-border/40"
+                  className="relative h-14 w-14 shrink-0 overflow-hidden rounded border border-border/30"
                   key={m.id}
                 >
-                  {m.mockupUrl ? (
-                    <AppImage
-                      alt="mockup"
-                      className="size-full object-cover"
-                      height={80}
-                      src={m.mockupUrl}
-                      width={80}
-                    />
-                  ) : (
-                    <div className="bg-muted text-muted-foreground flex size-full items-center justify-center text-[9px]">
-                      {m.status}
-                    </div>
-                  )}
+                  <AppImage
+                    alt="mockup"
+                    className="size-full object-cover"
+                    height={56}
+                    src={m.mockupUrl ?? ""}
+                    width={56}
+                  />
                 </div>
               ))}
             </div>
           </div>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

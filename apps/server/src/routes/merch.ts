@@ -1,13 +1,14 @@
-/* eslint-disable unicorn/max-nested-calls, sort-vars, one-var */
+/* eslint-disable unicorn/max-nested-calls, sort-vars, one-var, complexity, require-unicode-regexp, no-nested-ternary */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
+import { physicalReleases } from "@soundkit/db/schema/commerce";
+import { projects as projectsTable } from "@soundkit/db/schema/app";
 import {
   merchCatalogProducts,
   merchCatalogVariants,
   merchDesigns,
   merchMockups,
 } from "@soundkit/db/schema/fulfillment";
-import { physicalReleases } from "@soundkit/db/schema/commerce";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
@@ -20,15 +21,19 @@ import {
   registerDesignFile,
 } from "@/lib/fulfillment-printful";
 import { createKunakiClient } from "@/lib/kunaki";
-import { logError } from "@/middleware/structured-logging";
+import {
+  calculatePrintfulShippingRates,
+  isPrintfulConfigured,
+  printfulPriceToCents,
+} from "@/lib/printful";
 import { listPublicMerch } from "@/lib/public-merch";
 import {
   messageResponseSchema,
   shippingQuoteRequestSchema,
   shippingQuoteResponseSchema,
 } from "@/lib/schemas";
-
 import type { AppEnv } from "@/lib/types";
+import { logError } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>(),
   catalogProductSchema = z.object({
@@ -81,9 +86,20 @@ const app = new OpenAPIHono<AppEnv>(),
     mockupUrl: z.string().nullable(),
     status: z.enum(["completed", "failed", "pending", "queued"]),
   }),
+  physicalReleaseCardSchema = z.object({
+    id: z.string(),
+    includesDigitalDownload: z.boolean(),
+    kunakiProductId: z.string().nullable(),
+    mediaFormat: z.enum(["cd", "dvd", "vinyl_12", "vinyl_7"]),
+    projectId: z.string().nullable(),
+    projectTitle: z.string().nullable(),
+    retailPriceCents: z.number().int(),
+    status: z.enum(["archived", "draft", "published", "ready"]),
+    title: z.string(),
+  }),
   createDesignBodySchema = z.object({
-    designFileObjectKey: z.string().min(1),
     description: z.string().max(2000).optional(),
+    designFileObjectKey: z.string().min(1),
     placement: z.string().min(1),
     printfulCatalogProductId: z.string().min(1),
     printfulFileId: z.string().optional(),
@@ -177,7 +193,7 @@ app.openapi(
           image: p.image,
           isDiscontinued: p.isDiscontinued,
           name: p.name,
-          placements: p.placements as Array<Record<string, unknown>>,
+          placements: p.placements as Record<string, unknown>[],
           retailMaxCents: p.retailMaxCents,
           retailMinCents: p.retailMinCents,
           type: p.type,
@@ -198,6 +214,59 @@ app.openapi(
       },
       HttpStatusCodes.OK
     );
+  }
+);
+
+// GET /v1/merch/physical-releases — the artist's Kunaki releases across all projects
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/physical-releases",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.array(physicalReleaseCardSchema),
+        "Artist physical releases (Kunaki)"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Authentication required"
+      ),
+    },
+    tags: ["Merch"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+
+    const db = createDb(),
+      releases = await db
+        .select({
+          id: physicalReleases.id,
+          includesDigitalDownload: physicalReleases.includesDigitalDownload,
+          kunakiProductId: physicalReleases.kunakiProductId,
+          mediaFormat: physicalReleases.mediaFormat,
+          projectId: physicalReleases.projectId,
+          projectTitle: projectsTable.title,
+          retailPriceCents: physicalReleases.retailPriceCents,
+          status: physicalReleases.status,
+          title: physicalReleases.title,
+        })
+        .from(physicalReleases)
+        .leftJoin(
+          projectsTable,
+          eq(projectsTable.id, physicalReleases.projectId)
+        )
+        .where(eq(physicalReleases.ownerUserId, user.id))
+        .orderBy(desc(physicalReleases.createdAt));
+
+    return c.json(releases, HttpStatusCodes.OK);
   }
 );
 
@@ -464,10 +533,7 @@ app.openapi(
       params: z.object({ id: z.string() }),
     },
     responses: {
-      [HttpStatusCodes.OK]: jsonContent(
-        merchDesignSchema,
-        "Updated design"
-      ),
+      [HttpStatusCodes.OK]: jsonContent(merchDesignSchema, "Updated design"),
       [HttpStatusCodes.BAD_REQUEST]: jsonContent(
         z.object({ message: z.string() }),
         "Invalid update"
@@ -565,22 +631,20 @@ app.openapi(
     const [updated] = await db
       .update(merchDesigns)
       .set({
-        ...(body.description !== undefined
-          ? { description: body.description }
-          : {}),
-        ...(body.retailPriceCents !== undefined
-          ? { retailPriceCents: body.retailPriceCents }
-          : {}),
-        ...(body.status !== undefined
-          ? {
+        ...(body.description === undefined
+          ? {}
+          : { description: body.description }),
+        ...(body.retailPriceCents === undefined
+          ? {}
+          : { retailPriceCents: body.retailPriceCents }),
+        ...(body.status === undefined
+          ? {}
+          : {
               publishedAt:
-                body.status === "published"
-                  ? new Date()
-                  : existing.publishedAt,
+                body.status === "published" ? new Date() : existing.publishedAt,
               status: body.status,
-            }
-          : {}),
-        ...(body.title !== undefined ? { title: body.title } : {}),
+            }),
+        ...(body.title === undefined ? {} : { title: body.title }),
       })
       .where(eq(merchDesigns.id, id))
       .returning();
@@ -593,10 +657,10 @@ app.openapi(
     }
 
     const [mockupCount] = await db
-      .select({ count: merchMockups.id })
-      .from(merchMockups)
-      .where(eq(merchMockups.merchDesignId, id))
-      .limit(1),
+        .select({ count: merchMockups.id })
+        .from(merchMockups)
+        .where(eq(merchMockups.merchDesignId, id))
+        .limit(1),
       [readyCount] = await db
         .select({ count: merchMockups.id })
         .from(merchMockups)
@@ -872,6 +936,142 @@ app.openapi(
     }
 
     return c.json(merch[0], HttpStatusCodes.OK);
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Printful shipping rates (POST /v1/merch/shipping-rates)
+// ---------------------------------------------------------------------------
+
+const shippingRatesBodySchema = z.object({
+  items: z
+    .array(
+      z.object({
+        printfulVariantId: z.string().min(1),
+        quantity: z.number().int().min(1).max(100),
+      })
+    )
+    .min(1)
+    .max(20),
+  recipient: z.object({
+    address1: z.string().min(1).max(200),
+    address2: z.string().max(200).optional(),
+    city: z.string().min(1).max(100),
+    countryCode: z.string().length(2),
+    // Printful treats state_code as optional for countries without a
+    // state/province (UK, much of the EU, etc.)
+    stateCode: z.string().min(2).max(2).optional(),
+    zip: z.string().min(3).max(20),
+  }),
+});
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/shipping-rates",
+    request: {
+      body: jsonContentRequired(
+        shippingRatesBodySchema,
+        "Printful shipping rate request"
+      ),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        shippingQuoteResponseSchema,
+        "Available Printful shipping options with EDD"
+      ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        z.object({ message: z.string() }),
+        "Invalid request or no available rates"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        z.object({ message: z.string() }),
+        "Printful is not configured"
+      ),
+      [HttpStatusCodes.BAD_GATEWAY]: jsonContent(
+        z.object({ message: z.string() }),
+        "Printful rates failed"
+      ),
+    },
+    tags: ["Merch"],
+  }),
+  async (c) => {
+    if (!isPrintfulConfigured()) {
+      return c.json(
+        {
+          message:
+            "Printful is not configured. Merch shipping is only available in production.",
+        },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const body = c.req.valid("json");
+
+    try {
+      const rates = await calculatePrintfulShippingRates({
+        items: body.items.map((item) => ({
+          catalog_variant_id: Number(item.printfulVariantId),
+          quantity: item.quantity,
+        })),
+        recipient: {
+          address1: body.recipient.address1,
+          address2: body.recipient.address2,
+          city: body.recipient.city,
+          country_code: body.recipient.countryCode.toUpperCase(),
+          state_code: body.recipient.stateCode?.toUpperCase(),
+          zip: body.recipient.zip,
+        },
+      });
+
+      if (rates.length === 0) {
+        return c.json(
+          { message: "No shipping options available for this address." },
+          HttpStatusCodes.BAD_REQUEST
+        );
+      }
+
+      const formatDeliveryTime = (rate: (typeof rates)[number]) => {
+        if (rate.min_delivery_days && rate.max_delivery_days) {
+          return `${rate.min_delivery_days}-${rate.max_delivery_days} business days`;
+        }
+
+        if (rate.max_delivery_date && rate.min_delivery_date) {
+          return `arrives ${rate.min_delivery_date} — ${rate.max_delivery_date}`;
+        }
+
+        return "Standard delivery";
+      };
+
+      // Normalize into the same response shape as the Kunaki shipping-quote
+      // so one rate-selector component serves both providers.
+      const options = rates.map((rate) => ({
+          code: rate.shipping,
+          deliveryTimeDescription: formatDeliveryTime(rate),
+          description: rate.shipping_method_name,
+          priceCents: printfulPriceToCents(rate.rate),
+        })),
+        recommended = options[0] ?? null;
+
+      return c.json(
+        {
+          currency: rates[0]?.currency ?? "USD",
+          options,
+          recommended,
+        },
+        HttpStatusCodes.OK
+      );
+    } catch (error) {
+      return c.json(
+        {
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to get Printful shipping rates.",
+        },
+        HttpStatusCodes.BAD_GATEWAY
+      );
+    }
   }
 );
 

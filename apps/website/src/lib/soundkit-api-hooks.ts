@@ -57,6 +57,7 @@ const meGet = apiClient.v1.me.index.$get,
   merchDesignMockupsGet = apiClient.v1.merch.designs[":id"].mockups.$get,
   publicMerchGet = apiClient.v1.merch.public.$get,
   publicMerchDesignGet = apiClient.v1.merch.public[":designId"].$get,
+  physicalReleasesGet = apiClient.v1.merch["physical-releases"].$get,
   artistOnboardingPost = apiClient.v1.onboarding.artist.$post,
   artistsGet = apiClient.v1.artists.index.$get,
   artistGet = apiClient.v1.artists[":username"].$get,
@@ -904,6 +905,30 @@ export const useMerchDesignsQuery = (enabled = true) =>
     queryFn: async () =>
       (await rpcJson(await merchDesignsGet())) as unknown as MerchDesign[],
     queryKey: merchDesignsKey,
+  });
+
+export interface PhysicalReleaseCard {
+  id: string;
+  includesDigitalDownload: boolean;
+  kunakiProductId: string | null;
+  mediaFormat: "cd" | "dvd" | "vinyl_12" | "vinyl_7";
+  projectId: string | null;
+  projectTitle: string | null;
+  retailPriceCents: number;
+  status: "archived" | "draft" | "published" | "ready";
+  title: string;
+}
+
+const physicalReleasesKey = ["merch", "physical-releases"] as const;
+
+export const usePhysicalReleasesQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      (await rpcJson(
+        await physicalReleasesGet()
+      )) as unknown as PhysicalReleaseCard[],
+    queryKey: physicalReleasesKey,
   });
 
 export interface CreateMerchDesignBody {

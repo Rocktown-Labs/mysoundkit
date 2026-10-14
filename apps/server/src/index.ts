@@ -65,6 +65,7 @@ import adminRoutes from "@/routes/admin";
 import adminAudioDiagnosticsRoutes from "@/routes/admin-audio-diagnostics";
 import adminFinanceRoutes from "@/routes/admin-finance";
 import adminMerchRoutes from "@/routes/admin-merch";
+import printfulWebhookRoutes from "@/routes/webhooks-printful";
 import adsRoutes from "@/routes/ads";
 import analyticsRoutes from "@/routes/analytics";
 import artistSetupGuideRoutes from "@/routes/artist-setup-guide";
@@ -283,7 +284,8 @@ app
   .route("/v1/battles", battlesRoutes)
   .route("/v1/uploads", uploadsRoutes)
   .route("/v1/webhooks", webhookRoutes)
-  .route("/v1/webhooks/stripe-commerce", stripeWebhookRoutes);
+  .route("/v1/webhooks/stripe-commerce", stripeWebhookRoutes)
+  .route("/v1/webhooks/printful", printfulWebhookRoutes);
 
 app.notFound(notFound);
 // Hono's onError API is callback-based.
