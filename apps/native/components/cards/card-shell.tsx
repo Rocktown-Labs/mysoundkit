@@ -7,6 +7,14 @@ import { createAnimatedComponent } from "react-native-reanimated";
 import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
+// Reanimated CSS-transition props are not part of stock RN's ViewStyle, so
+// they live outside StyleSheet.create (which type-checks against ViewStyle).
+// The AnimatedPressable style array accepts them via Reanimated's types.
+const PRESS_TRANSITION = {
+  transitionDuration: 120,
+  transitionProperty: "transform, opacity",
+} as const;
+
 const AnimatedPressable = createAnimatedComponent(Pressable),
   styles = StyleSheet.create({
     badge: {
@@ -28,11 +36,6 @@ const AnimatedPressable = createAnimatedComponent(Pressable),
     meta: {
       gap: 2,
       padding: 10,
-    },
-    pressTransition: {
-      // Apple-style press-in feedback: quick settle, no overshoot.
-      transitionDuration: 120,
-      transitionProperty: "transform, opacity",
     },
     subtitle: { fontSize: 12, lineHeight: 16 },
     thumb: { width: "100%" },
@@ -61,7 +64,7 @@ export function NativeCardShell({
         styles.card,
         { backgroundColor: theme.card, borderColor: theme.border },
         width > 0 ? { width } : null,
-        styles.pressTransition,
+        PRESS_TRANSITION,
         pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
       ]}
     >
