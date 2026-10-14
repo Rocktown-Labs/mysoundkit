@@ -6,7 +6,6 @@ import { useState } from "react";
 
 import { AuthShell } from "@/components/auth/auth-shell";
 import {
-  isDesktopClient,
   isTurnstileConfigured,
   TurnstileWidget,
 } from "@/components/auth/turnstile-widget";
@@ -37,8 +36,7 @@ function ForgotPasswordPage() {
       event.preventDefault();
       setMessage(null);
       setError(null);
-      const isDesktop = isDesktopClient();
-      if (isTurnstileConfigured && !isDesktop && !turnstileToken) {
+      if (isTurnstileConfigured && !turnstileToken) {
         setError("Complete the security check before continuing.");
         return;
       }

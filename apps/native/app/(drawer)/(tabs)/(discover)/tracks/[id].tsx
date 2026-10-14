@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import { Container } from "@/components/container";
+import { NativeEmptyState } from "@/components/native-collection-grid";
 import { NativeImage } from "@/components/native-image";
 import { useAudioPlayerContext } from "@/contexts/audio-player-context";
 import { useCart } from "@/contexts/cart-context";
@@ -56,6 +57,39 @@ export default function TrackDetailScreen() {
     [isSaved, setIsSaved] = useState(false),
     { addToQueue, playTrack } = useAudioPlayerContext(),
     { addItem } = useCart(),
+    rawArtist =
+      data && "artist" in data
+        ? (data.artist as {
+            avatarUrl?: string | null;
+            handle?: string;
+            name?: string;
+            verified?: boolean;
+          })
+        : undefined,
+    artistName =
+      (typeof rawArtist?.name === "string" && rawArtist.name.length > 0
+        ? rawArtist.name
+        : undefined) ??
+      (data &&
+      "artistName" in data &&
+      typeof data.artistName === "string" &&
+      data.artistName.length > 0
+        ? data.artistName
+        : "SoundKit Artist"),
+    artistUsername =
+      (typeof rawArtist?.handle === "string" && rawArtist.handle.length > 0
+        ? rawArtist.handle
+        : undefined) ??
+      (data &&
+      "artistUsername" in data &&
+      typeof data.artistUsername === "string" &&
+      data.artistUsername.length > 0
+        ? data.artistUsername
+        : null),
+    isArtistVerified =
+      typeof rawArtist?.verified === "boolean"
+        ? rawArtist.verified
+        : Boolean(data && "verified" in data && data.verified),
     relatedQuery = useTracksQuery({
       limit: 100,
       region: "all",
@@ -64,13 +98,13 @@ export default function TrackDetailScreen() {
       sort: "title-desc",
     }),
     relatedTracks = useMemo(() => {
-      if (data?.artistUsername == null) {
+      if (artistUsername == null || data?.id == null) {
         return [];
       }
       return (relatedQuery.data ?? [])
         .filter(
           (item) =>
-            item.id !== data.id && item.artistUsername === data.artistUsername
+            item.id !== data.id && item.artistUsername === artistUsername
         )
         .toSorted(
           (a, b) =>
@@ -78,9 +112,9 @@ export default function TrackDetailScreen() {
             new Date(a.updatedAt ?? 0).getTime()
         )
         .slice(0, RELATED_ARTIST_LIMIT);
-    }, [data?.artistUsername, data?.id, relatedQuery.data]);
+    }, [artistUsername, data?.id, relatedQuery.data]);
 
-  if (track.isLoading || data == null) {
+  if (track.isLoading) {
     return (
       <>
         <Stack.Screen
@@ -99,12 +133,33 @@ export default function TrackDetailScreen() {
     );
   }
 
+  if (data == null) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            headerBackTitle: "Back",
+            headerShown: true,
+            headerStyle: { backgroundColor: theme.background },
+            headerTintColor: theme.text,
+            title: "Track Not Found",
+          }}
+        />
+        <Container>
+          <NativeEmptyState>
+            We couldn&apos;t find a track with that ID.
+          </NativeEmptyState>
+        </Container>
+      </>
+    );
+  }
+
   const playbackSrc = resolveApiUrl(
       data.playbackUrl ?? data.previewUrl ?? null
     ),
     canPlay = playbackSrc != null,
     playerTrack: PlayerTrack = {
-      artist: data.artistName,
+      artist: artistName,
       cover: data.coverArtUrl ?? null,
       duration: null,
       id: data.id,
@@ -186,25 +241,33 @@ export default function TrackDetailScreen() {
                 </Text>
               </View>
               <Text style={styles.titleLarge}>{data.title.toUpperCase()}</Text>
-              {data.artistUsername ? (
-                <Link href={`/artist/${data.artistUsername}` as never} asChild>
+              {artistUsername ? (
+                <Link href={`/artist/${artistUsername}` as never} asChild>
                   <Pressable style={styles.artistRow}>
                     <Text style={styles.artistNameLarge}>
-                      {data.artistName.toUpperCase()}
+                      {artistName.toUpperCase()}
                     </Text>
-                    <Ionicons
-                      color="#B8A3FF"
-                      name="checkmark-circle"
-                      size={17}
-                    />
+                    {isArtistVerified ? (
+                      <Ionicons
+                        color="#B8A3FF"
+                        name="checkmark-circle"
+                        size={17}
+                      />
+                    ) : null}
                   </Pressable>
                 </Link>
               ) : (
                 <View style={styles.artistRow}>
                   <Text style={styles.artistNameLarge}>
-                    {data.artistName.toUpperCase()}
+                    {artistName.toUpperCase()}
                   </Text>
-                  <Ionicons color="#B8A3FF" name="checkmark-circle" size={17} />
+                  {isArtistVerified ? (
+                    <Ionicons
+                      color="#B8A3FF"
+                      name="checkmark-circle"
+                      size={17}
+                    />
+                  ) : null}
                 </View>
               )}
             </View>
@@ -256,7 +319,7 @@ export default function TrackDetailScreen() {
                 accessibilityRole="button"
                 onPress={() => {
                   addItem({
-                    artistName: data.artistName,
+                    artistName,
                     coverArtUrl: data.coverArtUrl,
                     id: data.id,
                     priceCents: priceCents ?? 199,
@@ -305,11 +368,24 @@ export default function TrackDetailScreen() {
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionEyebrow}>INCLUDED FILES</Text>
             <View style={styles.includedFilesCard}>
-              {data.assets.length > 0 ? (
+              {data.assets && data.assets.length > 0 ? (
                 data.assets.map((asset, idx) => {
-                  const downloadUrl = asset.downloadUrl
-                    ? resolveApiUrl(asset.downloadUrl)
-                    : null;
+                  const rawAsset = asset as Record<string, unknown>,
+                    assetKind =
+                      typeof rawAsset.assetKind === "string"
+                        ? rawAsset.assetKind
+                        : typeof rawAsset.kind === "string"
+                          ? rawAsset.kind
+                          : "master",
+                    assetFileName =
+                      typeof rawAsset.fileName === "string"
+                        ? rawAsset.fileName
+                        : typeof rawAsset.objectKey === "string"
+                          ? rawAsset.objectKey.split("/").pop()
+                          : null,
+                    downloadUrl = asset.downloadUrl
+                      ? resolveApiUrl(asset.downloadUrl)
+                      : null;
                   return (
                     <View
                       key={asset.id}
@@ -318,24 +394,24 @@ export default function TrackDetailScreen() {
                       <View style={styles.fileIconBadge}>
                         <Ionicons
                           color="#8F8F8F"
-                          name={assetIconFor(asset.assetKind)}
+                          name={assetIconFor(assetKind)}
                           size={18}
                         />
                       </View>
                       <View style={styles.fileInfo}>
                         <Text numberOfLines={1} style={styles.fileName}>
                           {(
-                            asset.objectKey?.split("/").pop() ??
-                            `${data.title.replaceAll(/\s+/gu, "-").toUpperCase()}.${asset.assetKind.toLowerCase()}`
+                            assetFileName ??
+                            `${data.title.replaceAll(/\s+/gu, "-").toUpperCase()}.${assetKind.toLowerCase()}`
                           ).toUpperCase()}
                         </Text>
                         <Text style={styles.fileType}>
-                          {asset.assetKind.replaceAll("_", " ").toUpperCase()}
+                          {assetKind.replaceAll("_", " ").toUpperCase()}
                         </Text>
                       </View>
                       {downloadUrl ? (
                         <Pressable
-                          accessibilityLabel={`Download ${asset.assetKind}`}
+                          accessibilityLabel={`Download ${assetKind}`}
                           accessibilityRole="button"
                           onPress={() => {
                             void Linking.openURL(downloadUrl);
@@ -428,11 +504,8 @@ export default function TrackDetailScreen() {
             <View style={styles.sectionBlock}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionEyebrow}>MORE FROM THIS ARTIST</Text>
-                {data.artistUsername ? (
-                  <Link
-                    href={`/artist/${data.artistUsername}` as never}
-                    asChild
-                  >
+                {artistUsername ? (
+                  <Link href={`/artist/${artistUsername}` as never} asChild>
                     <Pressable>
                       <Text style={styles.viewAllText}>View All →</Text>
                     </Pressable>
@@ -479,7 +552,7 @@ export default function TrackDetailScreen() {
             <Text style={styles.creditCategory}>SONGWRITING</Text>
             <View style={styles.creditCardBox}>
               <Text style={styles.creditCardRole}>Written by</Text>
-              <Text style={styles.creditCardName}>{data.artistName}</Text>
+              <Text style={styles.creditCardName}>{artistName}</Text>
             </View>
           </View>
         </ScrollView>

@@ -7,7 +7,6 @@ import { useState } from "react";
 import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { PasswordField } from "@/components/auth/password-field";
 import {
-  isDesktopClient,
   isTurnstileConfigured,
   TurnstileWidget,
 } from "@/components/auth/turnstile-widget";
@@ -76,9 +75,7 @@ export function CredentialsForm({
       event.preventDefault();
       setErrorMessage(null);
 
-      const isDesktop = isDesktopClient();
-
-      if (isTurnstileConfigured && !isDesktop && !turnstileToken) {
+      if (isTurnstileConfigured && !turnstileToken) {
         setErrorMessage("Complete the security check before continuing.");
         return;
       }

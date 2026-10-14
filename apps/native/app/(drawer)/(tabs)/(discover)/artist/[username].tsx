@@ -53,10 +53,11 @@ export default function ArtistDetailScreen() {
       username: string;
       tab?: string;
     }>(),
+    cleanUsername = (username ?? "").replace(/^@/u, ""),
     { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-    artist = useArtistQuery(username ?? ""),
-    media = useArtistMediaQuery(username ?? ""),
+    artist = useArtistQuery(cleanUsername),
+    media = useArtistMediaQuery(cleanUsername),
     [activeTab, setActiveTab] = useState<ProfileTab>(
       TABS.some((t) => t.id === tab) ? (tab as ProfileTab) : "feed"
     ),
@@ -67,7 +68,7 @@ export default function ArtistDetailScreen() {
     // sync — the override wins until the server value changes identities).
     isFollowing = followOverride ?? Boolean(data?.isFollowing);
 
-  if (artist.isLoading || data == null) {
+  if (artist.isLoading) {
     return (
       <>
         <Stack.Screen
@@ -81,6 +82,27 @@ export default function ArtistDetailScreen() {
         />
         <Container>
           <ActivityIndicator color={theme.primary} style={styles.loaderWrap} />
+        </Container>
+      </>
+    );
+  }
+
+  if (data == null) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            headerBackTitle: "Back",
+            headerShown: true,
+            headerStyle: { backgroundColor: theme.background },
+            headerTintColor: theme.text,
+            title: "Artist Not Found",
+          }}
+        />
+        <Container>
+          <NativeEmptyState>
+            We couldn&apos;t find an artist with that username.
+          </NativeEmptyState>
         </Container>
       </>
     );

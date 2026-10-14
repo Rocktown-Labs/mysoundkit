@@ -108,7 +108,7 @@ export const CANONICAL_ROUTES = [
     id: "track-detail",
     nativeHref: "/tracks/:id",
     owner: "discover-stack",
-    status: "planned",
+    status: "native",
     webPath: "/tracks/$id",
   },
   {
@@ -122,7 +122,7 @@ export const CANONICAL_ROUTES = [
     id: "project-detail",
     nativeHref: "/projects/:id",
     owner: "discover-stack",
-    status: "planned",
+    status: "native",
     webPath: "/projects/$id",
   },
   {
@@ -136,7 +136,7 @@ export const CANONICAL_ROUTES = [
     id: "video-detail",
     nativeHref: "/videos/:id",
     owner: "discover-stack",
-    status: "planned",
+    status: "native",
     webPath: "/videos/$id",
   },
   {
@@ -148,9 +148,9 @@ export const CANONICAL_ROUTES = [
   },
   {
     id: "artist-detail",
-    nativeHref: "/artists/:username",
+    nativeHref: "/artist/:username",
     owner: "discover-stack",
-    status: "planned",
+    status: "native",
     webPath: "/artist/$username",
   },
   {

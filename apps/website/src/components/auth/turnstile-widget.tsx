@@ -49,7 +49,7 @@ export function TurnstileWidget({
     siteKey = env.VITE_TURNSTILE_SITE_KEY;
 
   useEffect(() => {
-    if (!siteKey || isDesktopClient()) {
+    if (!siteKey) {
       onTokenChange("");
       return;
     }
@@ -94,7 +94,7 @@ export function TurnstileWidget({
     };
   }, [action, onTokenChange, resetKey, siteKey]);
 
-  if (!siteKey || isDesktopClient()) {
+  if (!siteKey) {
     return null;
   }
 
