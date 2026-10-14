@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Fixed Hermes engine crash on native track detail screen: replaced ES2023 `Array#toSorted` with `Array#sort` on the filtered related tracks array in `apps/native/app/(drawer)/(tabs)/(discover)/tracks/[id].tsx`, resolving `Render Error: undefined is not a function` (#437).
 - Fixed Cloudflare Turnstile verification on desktop: allowed `TurnstileWidget` to render inside the Electron desktop shell when `siteKey` is configured so that desktop users obtain a valid `X-Turnstile-Token` rather than bypassing client-side and failing server-side authentication (#435).
 - Fixed Cloudflare Turnstile in native mobile app WebView bridge: configured `originWhitelist={["*"]}`, enabled DOM storage, and prevented window breakout so that Turnstile challenges run smoothly within the in-app WebView without launching Safari to `challenges.cloudflare.com` (#435).
 - Fixed mobile app dynamic track and artist ID screens: migrated routes from unregistered `(explore)` group into the `(discover)` tab stack (`apps/native/app/(drawer)/(tabs)/(discover)/tracks/[id].tsx` and `artist/[username].tsx`) with native Stack layout and back navigation; added route alias `artists/[username].tsx`; safely extracted artist metadata for public catalog tracks preventing `TypeError` on mount and handled not-found states gracefully (#435).
