@@ -18,7 +18,7 @@ export default function StreamsScreen() {
         empty="No live streams currently broadcasting."
         items={streams.data ?? []}
         keyForItem={(stream) => stream.id}
-        renderItem={(stream) => <StreamCard stream={stream} />}
+        renderItem={(stream) => <StreamCard stream={stream} fluid />}
         isLoading={streams.isLoading}
       />
     </NativePageScreen>

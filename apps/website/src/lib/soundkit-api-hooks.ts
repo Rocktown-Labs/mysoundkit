@@ -44,6 +44,20 @@ const meGet = apiClient.v1.me.index.$get,
     apiClient.v1.admin.tracks["backfill-durations"].status.$get,
   adminSyncStripePlansPost =
     apiClient.v1.admin.finance.payments["sync-plans"].$post,
+  adminMerchCatalogGet = apiClient.v1.admin.merch.$get,
+  adminMerchCatalogPost = apiClient.v1.admin.merch.$post,
+  adminMerchCatalogPatch = apiClient.v1.admin.merch[":id"].$patch,
+  adminMerchCatalogRefreshPost = apiClient.v1.admin.merch[":id"].refresh.$post,
+  adminPrintfulProductsGet = apiClient.v1.admin.merch["printful-products"].$get,
+  merchCatalogGet = apiClient.v1.merch.catalog.$get,
+  merchDesignsGet = apiClient.v1.merch.designs.$get,
+  merchDesignPost = apiClient.v1.merch.designs.$post,
+  merchDesignPatch = apiClient.v1.merch.designs[":id"].$patch,
+  merchDesignDelete = apiClient.v1.merch.designs[":id"].$delete,
+  merchDesignMockupsGet = apiClient.v1.merch.designs[":id"].mockups.$get,
+  publicMerchGet = apiClient.v1.merch.public.$get,
+  publicMerchDesignGet = apiClient.v1.merch.public[":designId"].$get,
+  physicalReleasesGet = apiClient.v1.merch["physical-releases"].$get,
   artistOnboardingPost = apiClient.v1.onboarding.artist.$post,
   artistsGet = apiClient.v1.artists.index.$get,
   artistGet = apiClient.v1.artists[":username"].$get,
@@ -719,6 +733,335 @@ export const useAdminEmbeddingBackfillMutation = () => {
       }),
   });
 };
+
+export interface AdminMerchCatalogItem {
+  brand: string | null;
+  description: string | null;
+  id: string;
+  image: string | null;
+  inStockCount: number;
+  isCurated: boolean;
+  isDiscontinued: boolean;
+  minBasePriceCents: number;
+  name: string;
+  retailMaxCents: number;
+  retailMinCents: number;
+  syncedAt: string;
+  type: string | null;
+  variantCount: number;
+}
+
+export interface AdminPrintfulProduct {
+  id: number;
+  image: string | null;
+  isDiscontinued: boolean;
+  name: string;
+  type: string | null;
+  variantCount: number | null;
+}
+
+const adminMerchCatalogKey = ["admin", "merch", "catalog"] as const;
+
+export const useAdminMerchCatalogQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      (await rpcJson(
+        await adminMerchCatalogGet()
+      )) as unknown as AdminMerchCatalogItem[],
+    queryKey: adminMerchCatalogKey,
+  });
+
+export const useSearchPrintfulProductsMutation = () =>
+  useMutation({
+    mutationFn: async (textSearch: string) =>
+      (await rpcJson(
+        await adminPrintfulProductsGet({ query: { textSearch } })
+      )) as unknown as AdminPrintfulProduct[],
+  });
+
+export interface EnableMerchProductBody {
+  printfulProductId: number;
+  retailMaxCents?: number;
+  retailMinCents?: number;
+}
+
+export const useEnableMerchProductMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: EnableMerchProductBody) =>
+      rpcJson(
+        await adminMerchCatalogPost({
+          json: body as unknown as Record<string, unknown>,
+        })
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: adminMerchCatalogKey }),
+  });
+};
+
+export const useUpdateMerchProductMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...body
+    }: {
+      curated?: boolean;
+      id: string;
+      retailMaxCents?: number;
+      retailMinCents?: number;
+    }) => rpcJson(await adminMerchCatalogPatch({ json: body, param: { id } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: adminMerchCatalogKey }),
+  });
+};
+
+export const useRefreshMerchProductMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) =>
+      rpcJson(await adminMerchCatalogRefreshPost({ param: { id } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: adminMerchCatalogKey }),
+  });
+};
+
+
+export interface MerchCatalogProduct {
+  brand: string | null;
+  id: string;
+  image: string | null;
+  isDiscontinued: boolean;
+  name: string;
+  placements: Array<Record<string, unknown>>;
+  retailMaxCents: number;
+  retailMinCents: number;
+  type: string | null;
+}
+
+export interface MerchCatalogVariant {
+  basePriceCents: number;
+  catalogProductId: string;
+  color: string | null;
+  colorCode: string | null;
+  id: string;
+  image: string | null;
+  inStock: boolean;
+  name: string;
+  size: string | null;
+}
+
+export interface MerchDesign {
+  createdAt: string;
+  description: string | null;
+  designFileObjectKey: string;
+  designFileUrl: string | null;
+  id: string;
+  mockupCount: number;
+  ownerUserId: string;
+  placement: string;
+  platformFeeBps: number;
+  printfulCatalogProductId: string | null;
+  printfulFileId: string | null;
+  projectId: string | null;
+  publishedAt: string | null;
+  readyMockupCount: number;
+  retailPriceCents: number;
+  status: "archived" | "draft" | "published" | "ready";
+  technique: string;
+  title: string;
+  trackId: string | null;
+}
+
+export interface MerchMockup {
+  catalogVariantId: string;
+  error: string | null;
+  id: string;
+  mockupUrl: string | null;
+  status: "completed" | "failed" | "pending" | "queued";
+}
+
+const merchCatalogKey = ["merch", "catalog"] as const;
+const merchDesignsKey = ["merch", "designs"] as const;
+
+export const useMerchCatalogQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      (await rpcJson(await merchCatalogGet())) as unknown as {
+        products: MerchCatalogProduct[];
+        variants: MerchCatalogVariant[];
+      },
+    queryKey: merchCatalogKey,
+  });
+
+export const useMerchDesignsQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      (await rpcJson(await merchDesignsGet())) as unknown as MerchDesign[],
+    queryKey: merchDesignsKey,
+  });
+
+export interface PhysicalReleaseCard {
+  id: string;
+  includesDigitalDownload: boolean;
+  kunakiProductId: string | null;
+  mediaFormat: "cd" | "dvd" | "vinyl_12" | "vinyl_7";
+  projectId: string | null;
+  projectTitle: string | null;
+  retailPriceCents: number;
+  status: "archived" | "draft" | "published" | "ready";
+  title: string;
+}
+
+const physicalReleasesKey = ["merch", "physical-releases"] as const;
+
+export const usePhysicalReleasesQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      (await rpcJson(
+        await physicalReleasesGet()
+      )) as unknown as PhysicalReleaseCard[],
+    queryKey: physicalReleasesKey,
+  });
+
+export interface CreateMerchDesignBody {
+  designFileObjectKey: string;
+  description?: string;
+  placement: string;
+  printfulCatalogProductId: string;
+  projectId?: string;
+  retailPriceCents: number;
+  technique?: string;
+  title: string;
+  trackId?: string;
+}
+
+export const useCreateMerchDesignMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: CreateMerchDesignBody) =>
+      rpcJson(
+        await merchDesignPost({
+          json: body as unknown as Record<string, unknown>,
+        })
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: merchDesignsKey }),
+  });
+};
+
+export const useUpdateMerchDesignMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...body
+    }: {
+      description?: string;
+      id: string;
+      retailPriceCents?: number;
+      status?: "archived" | "draft" | "published" | "ready";
+      title?: string;
+    }) =>
+      rpcJson(
+        await merchDesignPatch({
+          json: body as unknown as Record<string, unknown>,
+          param: { id },
+        })
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: merchDesignsKey }),
+  });
+};
+
+export const useDeleteMerchDesignMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) =>
+      rpcJson(await merchDesignDelete({ param: { id } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: merchDesignsKey }),
+  });
+};
+
+export const useMerchDesignMockupsQuery = (
+  designId: string | null,
+  enabled = true
+) =>
+  useQuery({
+    enabled: enabled && Boolean(designId),
+    queryFn: async () =>
+      (await rpcJson(
+        await merchDesignMockupsGet({ param: { id: designId ?? "" } })
+      )) as unknown as MerchMockup[],
+    queryKey: ["merch", "designs", designId, "mockups"],
+  });
+
+export interface PublicMerchDesign {
+  artistName: string | null;
+  artistUsername: string | null;
+  catalogProductId: string;
+  description: string | null;
+  id: string;
+  previewMockupUrl: string | null;
+  projectId: string | null;
+  retailPriceCents: number;
+  title: string;
+  trackId: string | null;
+  variantDetails: {
+    color: string | null;
+    colorCode: string | null;
+    id: string;
+    inStock: boolean;
+    size: string | null;
+  }[];
+}
+
+export const usePublicMerchQuery = (
+  filters?: {
+    artistUsername?: string;
+    catalogProductId?: string;
+    projectId?: string;
+    trackId?: string;
+  },
+  enabled = true
+) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      (await rpcJson(
+        await publicMerchGet({
+          query: {
+            ...(filters?.artistUsername
+              ? { artistUsername: filters.artistUsername }
+              : {}),
+            ...(filters?.catalogProductId
+              ? { catalogProductId: filters.catalogProductId }
+              : {}),
+            ...(filters?.projectId ? { projectId: filters.projectId } : {}),
+            ...(filters?.trackId ? { trackId: filters.trackId } : {}),
+          },
+        })
+      )) as unknown as PublicMerchDesign[],
+    queryKey: [
+      "public",
+      "merch",
+      filters?.artistUsername ?? "",
+      filters?.projectId ?? "",
+      filters?.trackId ?? "",
+    ],
+
+  });
 
 export interface AudioSpikeReport {
   model: string;

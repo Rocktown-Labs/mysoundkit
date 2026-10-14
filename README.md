@@ -67,7 +67,7 @@ Unlike legacy streaming silos and fragmented beat stores, SoundKit provides an i
 | **Web Frontend**       | [React 19](https://react.dev/), [Vite](https://vitejs.dev/), [TanStack Router](https://tanstack.com/router), [TanStack Query v5](https://tanstack.com/query), [Tailwind CSS v4](https://tailwindcss.com/), [Radix UI](https://www.radix-ui.com/) |
 | **Audio Processing**   | [MediaBunny](https://github.com/mediabunny) (Client-Side WASM/WebCodecs Audio Slicer & Waveform Generator), HTML5 Web Audio API                                                                                                                  |
 | **Mobile App**         | [Expo SDK 52](https://expo.dev/), [React Native 0.83](https://reactnative.dev/), [Expo Router v4](https://docs.expo.dev/router/introduction/), React Native Reanimated v4                                                                        |
-| **Desktop App**        | [Electron](https://www.electronjs.org/) 44 + [Electron Forge](https://www.electronforge.io/) 7 + [Vite](https://vitejs.dev/) 5 + TypeScript                                                                                                      |
+| **Desktop App**        | [Electron](https://www.electronjs.org/) 44 + [Electron Forge](https://www.electronforge.io/) 7 + [Vite](https://vitejs.dev/) 5 + TypeScript — hardened shell around the production web app (`apps/desktop`)                                      |
 | **API Backend**        | [Cloudflare Workers](https://workers.cloudflare.com/) (`nodejs_compat`), [Hono OpenAPI](https://hono.dev/), [Stoker](https://github.com/), [Sentry Observability](https://sentry.io/)                                                            |
 | **Stateful Edge**      | Cloudflare [Durable Objects](https://developers.cloudflare.com/durable-objects/) (Live Room state machines & Presence tracking), [Workflows](https://developers.cloudflare.com/workflows/), [Queues](https://developers.cloudflare.com/queues/)  |
 | **Database & ORM**     | [PostgreSQL](https://www.postgresql.org/) with `pgvector`, [Drizzle ORM](https://orm.drizzle.team/), [Cloudflare Hyperdrive](https://developers.cloudflare.com/hyperdrive/) connection pooling                                                   |
@@ -84,7 +84,7 @@ Unlike legacy streaming silos and fragmented beat stores, SoundKit provides an i
 mysoundkit/
 ├── apps/
 │   ├── docs/                 # Astro 6 + Starlight documentation portal
-│   ├── desktop/              # Electron Forge / Vite TypeScript desktop application
+│   ├── desktop/              # Electron Forge / Vite shell around the production web app
 │   ├── native/               # Expo SDK 52 / React Native mobile companion app
 │   ├── server/               # Cloudflare Workers OpenAPI REST API & Durable Objects
 │   └── website/              # TanStack Router React 19 web application & Media Studio

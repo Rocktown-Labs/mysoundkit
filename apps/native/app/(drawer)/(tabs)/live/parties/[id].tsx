@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars, eqeqeq, no-eq-null, complexity */
 import { useLocalSearchParams, Stack } from "expo-router";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
@@ -6,37 +7,36 @@ import { useListeningPartyQuery } from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 14,
-  },
-  header: { gap: 6 },
-  label: { fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
-  metaRow: { flexDirection: "row", gap: 10, marginTop: 4 },
-  metaText: { fontSize: 12 },
-  sectionGap: { gap: 18 },
-  title: { fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },
-});
-
-const formatDate = (iso: string) => {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? iso
-    : date.toLocaleString(undefined, {
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        month: "short",
-      });
-};
+    card: {
+      borderRadius: 14,
+      borderWidth: 1,
+      padding: 14,
+    },
+    header: { gap: 6 },
+    label: { fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
+    metaRow: { flexDirection: "row", gap: 10, marginTop: 4 },
+    metaText: { fontSize: 12 },
+    sectionGap: { gap: 18 },
+    title: { fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },
+  }),
+  formatDate = (iso: string) => {
+    const date = new Date(iso);
+    return Number.isNaN(date.getTime())
+      ? iso
+      : date.toLocaleString(undefined, {
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          month: "short",
+        });
+  };
 
 export default function PartyDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(),
     { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     party = useListeningPartyQuery(id ?? ""),
-    data = party.data;
+    { data } = party;
 
   return (
     <>
@@ -70,11 +70,11 @@ export default function PartyDetailScreen() {
                 <Text style={[styles.metaText, { color: theme.mutedText }]}>
                   {formatDate(data.scheduledStartAt)}
                 </Text>
-                {data.genre != null ? (
+                {data.genre == null ? null : (
                   <Text style={[styles.metaText, { color: theme.mutedText }]}>
                     {data.genre}
                   </Text>
-                ) : null}
+                )}
               </View>
             </View>
 

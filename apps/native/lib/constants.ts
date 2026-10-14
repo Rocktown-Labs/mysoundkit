@@ -1,19 +1,21 @@
 // Hex values mirror the web app's OKLCH tokens while remaining compatible
-// with React Native's color parser.
+// with React Native's color parser. Source of truth:
+// apps/website/src/app/globals.css (`.dark` + `.public-pages` overrides).
 export const NAV_THEME = {
   dark: {
-    accent: "#DDA34A",
-    accentForeground: "#171717",
-    background: "#141414",
-    border: "#403F3E",
-    card: "#1F1F1F",
+    accent: "#111111",
+    accentForeground: "#F8F8F8",
+    background: "#020202",
+    border: "#212121",
+    card: "#060606",
     destructive: "#E05D4D",
-    muted: "#292929",
-    mutedText: "#A6A4A2",
+    muted: "#0B0B0B",
+    mutedText: "#8F8F8F",
     notification: "#E05D4D",
-    primary: "#B993FF",
+    primary: "#B8A3FF",
     primaryForeground: "#171717",
-    text: "#F7F7F5",
+    secondary: "#111111",
+    text: "#F8F8F8",
   },
   light: {
     accent: "#E5DFC9",
@@ -27,6 +29,7 @@ export const NAV_THEME = {
     notification: "#C2412D",
     primary: "#6531B5",
     primaryForeground: "#FFFFFF",
+    secondary: "#EFEDE7",
     text: "#27252F",
   },
 } as const;

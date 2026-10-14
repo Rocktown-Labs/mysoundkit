@@ -33,6 +33,7 @@ import { Route as DashboardBillingRouteImport } from './app/dashboard/billing'
 import { Route as DashboardAiStudioRouteImport } from './app/dashboard/ai-studio'
 import { Route as DashboardAdsRouteImport } from './app/dashboard/ads'
 import { Route as DashboardAdminRouteImport } from './app/dashboard/admin'
+import { Route as AuthTurnstileBridgeRouteImport } from './app/auth/turnstile-bridge'
 import { Route as AuthHandoffRouteImport } from './app/auth/handoff'
 import { Route as ExploreShopRouteImport } from './app/_explore/shop'
 import { Route as ExploreNewReleasesRouteImport } from './app/_explore/new-releases'
@@ -74,6 +75,7 @@ import { Route as DashboardCareerTeamRouteImport } from './app/dashboard/career/
 import { Route as DashboardCareerSettingsRouteImport } from './app/dashboard/career/settings'
 import { Route as DashboardCareerProfileRouteImport } from './app/dashboard/career/profile'
 import { Route as DashboardCareerPaymentsRouteImport } from './app/dashboard/career/payments'
+import { Route as DashboardCareerMerchRouteImport } from './app/dashboard/career/merch'
 import { Route as DashboardCareerCalendarRouteImport } from './app/dashboard/career/calendar'
 import { Route as DashboardCareerAnalyticsRouteImport } from './app/dashboard/career/analytics'
 import { Route as DashboardCareerAiStudioRouteImport } from './app/dashboard/career/ai-studio'
@@ -238,6 +240,11 @@ const DashboardAdminRoute = DashboardAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
   getParentRoute: () => DashboardRoute,
+} as any)
+const AuthTurnstileBridgeRoute = AuthTurnstileBridgeRouteImport.update({
+  id: '/auth/turnstile-bridge',
+  path: '/auth/turnstile-bridge',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthHandoffRoute = AuthHandoffRouteImport.update({
   id: '/auth/handoff',
@@ -446,6 +453,11 @@ const DashboardCareerProfileRoute = DashboardCareerProfileRouteImport.update({
 const DashboardCareerPaymentsRoute = DashboardCareerPaymentsRouteImport.update({
   id: '/career/payments',
   path: '/career/payments',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardCareerMerchRoute = DashboardCareerMerchRouteImport.update({
+  id: '/career/merch',
+  path: '/career/merch',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardCareerCalendarRoute = DashboardCareerCalendarRouteImport.update({
@@ -709,6 +721,7 @@ export interface FileRoutesByFullPath {
   '/new-releases': typeof ExploreNewReleasesRoute
   '/shop': typeof ExploreShopRoute
   '/auth/handoff': typeof AuthHandoffRoute
+  '/auth/turnstile-bridge': typeof AuthTurnstileBridgeRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/ads': typeof DashboardAdsRoute
   '/dashboard/ai-studio': typeof DashboardAiStudioRoute
@@ -739,6 +752,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
   '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
   '/dashboard/career/calendar': typeof DashboardCareerCalendarRoute
+  '/dashboard/career/merch': typeof DashboardCareerMerchRoute
   '/dashboard/career/payments': typeof DashboardCareerPaymentsRoute
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
@@ -817,6 +831,7 @@ export interface FileRoutesByTo {
   '/new-releases': typeof ExploreNewReleasesRoute
   '/shop': typeof ExploreShopRoute
   '/auth/handoff': typeof AuthHandoffRoute
+  '/auth/turnstile-bridge': typeof AuthTurnstileBridgeRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/ads': typeof DashboardAdsRoute
   '/dashboard/ai-studio': typeof DashboardAiStudioRoute
@@ -847,6 +862,7 @@ export interface FileRoutesByTo {
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
   '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
   '/dashboard/career/calendar': typeof DashboardCareerCalendarRoute
+  '/dashboard/career/merch': typeof DashboardCareerMerchRoute
   '/dashboard/career/payments': typeof DashboardCareerPaymentsRoute
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
@@ -928,6 +944,7 @@ export interface FileRoutesById {
   '/_explore/new-releases': typeof ExploreNewReleasesRoute
   '/_explore/shop': typeof ExploreShopRoute
   '/auth/handoff': typeof AuthHandoffRoute
+  '/auth/turnstile-bridge': typeof AuthTurnstileBridgeRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/ads': typeof DashboardAdsRoute
   '/dashboard/ai-studio': typeof DashboardAiStudioRoute
@@ -959,6 +976,7 @@ export interface FileRoutesById {
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
   '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
   '/dashboard/career/calendar': typeof DashboardCareerCalendarRoute
+  '/dashboard/career/merch': typeof DashboardCareerMerchRoute
   '/dashboard/career/payments': typeof DashboardCareerPaymentsRoute
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
@@ -1042,6 +1060,7 @@ export interface FileRouteTypes {
     | '/new-releases'
     | '/shop'
     | '/auth/handoff'
+    | '/auth/turnstile-bridge'
     | '/dashboard/admin'
     | '/dashboard/ads'
     | '/dashboard/ai-studio'
@@ -1072,6 +1091,7 @@ export interface FileRouteTypes {
     | '/dashboard/career/ai-studio'
     | '/dashboard/career/analytics'
     | '/dashboard/career/calendar'
+    | '/dashboard/career/merch'
     | '/dashboard/career/payments'
     | '/dashboard/career/profile'
     | '/dashboard/career/settings'
@@ -1150,6 +1170,7 @@ export interface FileRouteTypes {
     | '/new-releases'
     | '/shop'
     | '/auth/handoff'
+    | '/auth/turnstile-bridge'
     | '/dashboard/admin'
     | '/dashboard/ads'
     | '/dashboard/ai-studio'
@@ -1180,6 +1201,7 @@ export interface FileRouteTypes {
     | '/dashboard/career/ai-studio'
     | '/dashboard/career/analytics'
     | '/dashboard/career/calendar'
+    | '/dashboard/career/merch'
     | '/dashboard/career/payments'
     | '/dashboard/career/profile'
     | '/dashboard/career/settings'
@@ -1260,6 +1282,7 @@ export interface FileRouteTypes {
     | '/_explore/new-releases'
     | '/_explore/shop'
     | '/auth/handoff'
+    | '/auth/turnstile-bridge'
     | '/dashboard/admin'
     | '/dashboard/ads'
     | '/dashboard/ai-studio'
@@ -1291,6 +1314,7 @@ export interface FileRouteTypes {
     | '/dashboard/career/ai-studio'
     | '/dashboard/career/analytics'
     | '/dashboard/career/calendar'
+    | '/dashboard/career/merch'
     | '/dashboard/career/payments'
     | '/dashboard/career/profile'
     | '/dashboard/career/settings'
@@ -1370,6 +1394,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRouteWithChildren
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   AuthHandoffRoute: typeof AuthHandoffRoute
+  AuthTurnstileBridgeRoute: typeof AuthTurnstileBridgeRoute
   LiveStreamsOverlayIdRoute: typeof LiveStreamsOverlayIdRoute
 }
 
@@ -1542,6 +1567,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/admin'
       preLoaderRoute: typeof DashboardAdminRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/auth/turnstile-bridge': {
+      id: '/auth/turnstile-bridge'
+      path: '/auth/turnstile-bridge'
+      fullPath: '/auth/turnstile-bridge'
+      preLoaderRoute: typeof AuthTurnstileBridgeRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/auth/handoff': {
       id: '/auth/handoff'
@@ -1828,6 +1860,13 @@ declare module '@tanstack/react-router' {
       path: '/career/payments'
       fullPath: '/dashboard/career/payments'
       preLoaderRoute: typeof DashboardCareerPaymentsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/career/merch': {
+      id: '/dashboard/career/merch'
+      path: '/career/merch'
+      fullPath: '/dashboard/career/merch'
+      preLoaderRoute: typeof DashboardCareerMerchRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/dashboard/career/calendar': {
@@ -2333,6 +2372,7 @@ interface DashboardRouteChildren {
   DashboardCareerAiStudioRoute: typeof DashboardCareerAiStudioRoute
   DashboardCareerAnalyticsRoute: typeof DashboardCareerAnalyticsRoute
   DashboardCareerCalendarRoute: typeof DashboardCareerCalendarRoute
+  DashboardCareerMerchRoute: typeof DashboardCareerMerchRoute
   DashboardCareerPaymentsRoute: typeof DashboardCareerPaymentsRoute
   DashboardCareerProfileRoute: typeof DashboardCareerProfileRoute
   DashboardCareerSettingsRoute: typeof DashboardCareerSettingsRoute
@@ -2383,6 +2423,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardCareerAiStudioRoute: DashboardCareerAiStudioRoute,
   DashboardCareerAnalyticsRoute: DashboardCareerAnalyticsRoute,
   DashboardCareerCalendarRoute: DashboardCareerCalendarRoute,
+  DashboardCareerMerchRoute: DashboardCareerMerchRoute,
   DashboardCareerPaymentsRoute: DashboardCareerPaymentsRoute,
   DashboardCareerProfileRoute: DashboardCareerProfileRoute,
   DashboardCareerSettingsRoute: DashboardCareerSettingsRoute,
@@ -2446,6 +2487,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRouteWithChildren,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   AuthHandoffRoute: AuthHandoffRoute,
+  AuthTurnstileBridgeRoute: AuthTurnstileBridgeRoute,
   LiveStreamsOverlayIdRoute: LiveStreamsOverlayIdRoute,
 }
 export const routeTree = rootRouteImport

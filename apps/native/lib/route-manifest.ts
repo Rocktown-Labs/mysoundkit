@@ -428,14 +428,14 @@ export const CANONICAL_ROUTES = [
   },
   {
     id: "login",
-    nativeHref: "/",
+    nativeHref: "/login",
     owner: "root-stack",
     status: "native",
     webPath: "/login",
   },
   {
     id: "signup",
-    nativeHref: "/",
+    nativeHref: "/signup",
     owner: "root-stack",
     status: "native",
     webPath: "/signup",

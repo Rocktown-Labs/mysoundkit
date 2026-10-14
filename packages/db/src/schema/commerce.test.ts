@@ -42,6 +42,7 @@ describe("fulfillment providers", () => {
       "not_applicable",
       "pending",
       "kunaki_processing",
+      "printful_processing",
       "shipped",
       "delivered",
       "cancelled",

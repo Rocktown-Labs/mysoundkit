@@ -26,8 +26,11 @@ export interface CartItem {
   licenseName?: string | null;
   licenseOptionId?: string | null;
   mediaFormat?: PhysicalMediaFormat | null;
+  merchDesignId?: string | null;
   physicalReleaseId?: string | null;
+  previewImageUrl?: string | null;
   priceCents: number;
+  printfulVariantId?: string | null;
   productId: string;
   productType: ProductType;
   projectId?: string | null;

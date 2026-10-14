@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars, eqeqeq, no-eq-null, no-negated-condition */
 import { useLocalSearchParams } from "expo-router";
 
 import { ArtistCard } from "@/components/cards/artist-card";

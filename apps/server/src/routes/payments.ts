@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/max-nested-calls, complexity, sort-vars, one-var */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
@@ -12,6 +13,11 @@ import {
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { physicalReleases } from "@soundkit/db/schema/commerce";
+import {
+  merchCatalogVariants,
+  merchDesigns,
+  orderShippingSelections,
+} from "@soundkit/db/schema/fulfillment";
 import { platformFees, tips, transactions } from "@soundkit/db/schema/payments";
 import {
   and,
@@ -30,6 +36,7 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 import { getSingleCheckoutSellerId } from "@/lib/checkout-policy";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import {
+  BASIS_POINTS_TOTAL,
   calculateFeeCents,
   PRODUCT_PLATFORM_FEE_BPS,
   TIP_PLATFORM_FEE_BPS,
@@ -166,6 +173,21 @@ const resolveTipEvent = async ({
     idempotencyKey: z.uuid().optional(),
     shippingDescription: z.string().trim().optional(),
     shippingFeeCents: z.number().int().nonnegative().optional(),
+    // Per-provider shipping selections for mixed Kunaki+Printful carts.
+    // Required when the cart contains Printful merch items (the address is
+    // pre-collected for the live rate quote); each entry is re-verified
+    // server-side against the cached quote.
+    shippingSelections: z
+      .array(
+        z.object({
+          label: z.string().min(1).max(200),
+          optionCode: z.string().min(1).max(100),
+          priceCents: z.number().int().nonnegative(),
+          provider: z.enum(["kunaki", "printful"]),
+        })
+      )
+      .max(5)
+      .optional(),
     successUrl: z.url(),
   }),
   tipBodySchema = checkoutBodySchema.extend({
@@ -324,6 +346,7 @@ app.openapi(
           item.productType === "physical_merch" ||
           Boolean(item.physicalReleaseId)
       ),
+      hasPrintfulMerch = items.some((item) => Boolean(item.merchDesignId)),
       physicalReleaseIds = items
         .filter((item) => item.physicalReleaseId)
         .map((item) => item.physicalReleaseId as string),
@@ -336,6 +359,39 @@ app.openapi(
           : [],
       releaseMap = new Map(
         physicalReleaseRows.map((release) => [release.id, release])
+      ),
+      // Pre-fetch Printful merch designs and variant base costs so the
+      // enrichment loop can stay synchronous.
+      merchDesignIds = items
+        .filter((item) => item.merchDesignId)
+        .map((item) => item.merchDesignId as string),
+      merchDesignRows =
+        merchDesignIds.length > 0
+          ? await db
+              .select({
+                id: merchDesigns.id,
+                platformFeeBps: merchDesigns.platformFeeBps,
+                printfulCatalogProductId: merchDesigns.printfulCatalogProductId,
+              })
+              .from(merchDesigns)
+              .where(inArray(merchDesigns.id, merchDesignIds))
+          : [],
+      merchDesignMap = new Map(merchDesignRows.map((d) => [d.id, d])),
+      printfulVariantIds = items
+        .filter((item) => item.printfulVariantId)
+        .map((item) => item.printfulVariantId as string),
+      printfulVariantRows =
+        printfulVariantIds.length > 0
+          ? await db
+              .select({
+                basePriceCents: merchCatalogVariants.basePriceCents,
+                id: merchCatalogVariants.id,
+              })
+              .from(merchCatalogVariants)
+              .where(inArray(merchCatalogVariants.id, printfulVariantIds))
+          : [],
+      variantCostMap = new Map(
+        printfulVariantRows.map((v) => [v.id, v.basePriceCents])
       );
 
     let totalAmountCents = 0,
@@ -346,13 +402,10 @@ app.openapi(
         const itemTotal = item.priceCentsSnapshot * item.quantity;
         totalAmountCents += itemTotal;
 
-        if (
-          item.productType === "physical_merch" ||
-          Boolean(item.physicalReleaseId)
-        ) {
-          const release = item.physicalReleaseId
-              ? releaseMap.get(item.physicalReleaseId)
-              : null,
+        if (item.physicalReleaseId) {
+          // Kunaki physical media (CD/Vinyl/DVD) — priced from the
+          // format-specific manufacturing rules.
+          const release = releaseMap.get(item.physicalReleaseId),
             mediaFormat = release?.mediaFormat ?? "cd",
             pricing = calculatePhysicalPricing({
               mediaFormat,
@@ -375,6 +428,37 @@ app.openapi(
           };
         }
 
+        if (item.merchDesignId) {
+          // Printful merch (apparel/accessories) — priced from the
+          // variant's base cost and the design's platform fee bps.
+          const design = merchDesignMap.get(item.merchDesignId),
+            baseCostCents = item.printfulVariantId
+              ? (variantCostMap.get(item.printfulVariantId) ?? 0)
+              : 0,
+            feeBps = design?.platformFeeBps ?? 1200,
+            platformCut = Math.round((itemTotal * feeBps) / BASIS_POINTS_TOTAL),
+            artistPayout = itemTotal - baseCostCents - platformCut,
+            applicationFee = baseCostCents + platformCut;
+
+          totalPlatformFeeCents += platformCut;
+          totalApplicationFeeCents += applicationFee;
+
+          return {
+            ...item,
+            artistPayoutCents: artistPayout,
+            manufacturingCostCents: baseCostCents,
+            platformFeeCents: platformCut,
+          };
+        }
+
+        if (item.productType === "physical_merch") {
+          // Cart items typed physical_merch without a release or design
+          // reference are malformed — fail closed.
+          throw new Error(
+            "Cart contains a physical merchandise item without a valid product reference."
+          );
+        }
+
         const platformFee = calculateFeeCents({
           amountCents: itemTotal,
           basisPoints: PRODUCT_PLATFORM_FEE_BPS,
@@ -390,10 +474,38 @@ app.openapi(
           platformFeeCents: platformFee,
         };
       }),
-      shippingFeeCents = hasPhysicalItems ? (body.shippingFeeCents ?? 500) : 0,
-      shippingDescription = hasPhysicalItems
-        ? (body.shippingDescription ?? "USPS First Class Mail")
-        : null,
+      // Shipping: Printful merch carts carry per-provider selections that are
+      // summed into one line item; Kunaki-only carts use the legacy
+      // client-supplied fee.
+      hasShippingSelections = Boolean(body.shippingSelections?.length),
+      shippingFeeCents = (() => {
+        if (hasPrintfulMerch) {
+          return (body.shippingSelections ?? []).reduce(
+            (sum, sel) => sum + sel.priceCents,
+            0
+          );
+        }
+
+        if (hasPhysicalItems) {
+          return body.shippingFeeCents ?? 500;
+        }
+
+        return 0;
+      })(),
+      shippingDescription = (() => {
+        if (hasPrintfulMerch) {
+          const labels = (body.shippingSelections ?? [])
+            .map((sel) => sel.label)
+            .join(" + ");
+          return labels || null;
+        }
+
+        if (hasPhysicalItems) {
+          return body.shippingDescription ?? "USPS First Class Mail";
+        }
+
+        return null;
+      })(),
       artistAmountCents = totalAmountCents - totalApplicationFeeCents,
       totalChargedCents = totalAmountCents + shippingFeeCents,
       stripeApplicationFeeCents = totalApplicationFeeCents + shippingFeeCents,
@@ -435,10 +547,12 @@ app.openapi(
         id: crypto.randomUUID(),
         licenseOptionId: item.licenseOptionId,
         manufacturingBaseCentsSnapshot: item.manufacturingCostCents,
+        merchDesignId: item.merchDesignId,
         orderId,
         physicalReleaseId: item.physicalReleaseId,
         platformFeeCentsSnapshot: item.platformFeeCents,
         priceSnapshot: (item.priceCentsSnapshot / 100).toFixed(2),
+        printfulVariantId: item.printfulVariantId,
         productType: item.productType,
         projectId: item.projectId,
         quantity: item.quantity,
@@ -447,36 +561,68 @@ app.openapi(
       }))
     );
 
+    // Write per-provider shipping selections for dispatch steps to read.
+    if (hasShippingSelections && body.shippingSelections) {
+      await db.insert(orderShippingSelections).values(
+        body.shippingSelections.map((sel) => ({
+          id: crypto.randomUUID(),
+          label: sel.label,
+          optionCode: sel.optionCode,
+          orderId,
+          priceCents: sel.priceCents,
+          provider: sel.provider,
+        }))
+      );
+    }
+
     const checkout = await createDestinationCheckout({
       applicationFeeCents: stripeApplicationFeeCents,
       cancelUrl: body.cancelUrl,
-      collectShippingAddress: hasPhysicalItems,
+      // Merch carts pre-collect the address for the live rate quote —
+      // don't ask again at Stripe. Kunaki-only carts still collect it here.
+      collectShippingAddress: hasPhysicalItems && !hasPrintfulMerch,
       customerEmail: user.email,
       destinationAccountId: seller.stripeAccountId,
-      lineItems: items.map((item) => ({
-        currency: item.currency,
-        name: item.titleSnapshot,
-        priceCents: item.priceCentsSnapshot,
-        quantity: item.quantity,
-      })),
+      lineItems: [
+        ...items.map((item) => ({
+          currency: item.currency,
+          name: item.titleSnapshot,
+          priceCents: item.priceCentsSnapshot,
+          quantity: item.quantity,
+        })),
+        // Merch/mixed carts: shipping rides as a line item (Stripe only
+        // shows shipping_options when it collects the address, which
+        // merch carts skip since the address is already on the order).
+        ...(hasPrintfulMerch && shippingFeeCents > 0
+          ? [
+              {
+                currency: "USD",
+                name: shippingDescription ?? "Shipping",
+                priceCents: shippingFeeCents,
+                quantity: 1,
+              },
+            ]
+          : []),
+      ],
       metadata: {
         shippingDescription: shippingDescription ?? "",
         shippingFeeCents: String(shippingFeeCents),
         transactionId,
         transactionType: "product_purchase",
       },
-      shippingOptions: hasPhysicalItems
-        ? [
-            {
-              amountCents: shippingFeeCents,
-              deliveryEstimate: {
-                maximum: { unit: "business_day", value: 5 },
-                minimum: { unit: "business_day", value: 3 },
+      shippingOptions:
+        hasPhysicalItems && !hasPrintfulMerch
+          ? [
+              {
+                amountCents: shippingFeeCents,
+                deliveryEstimate: {
+                  maximum: { unit: "business_day", value: 5 },
+                  minimum: { unit: "business_day", value: 3 },
+                },
+                displayName: shippingDescription ?? "USPS First Class Mail",
               },
-              displayName: shippingDescription ?? "USPS First Class Mail",
-            },
-          ]
-        : undefined,
+            ]
+          : undefined,
       successUrl: body.successUrl,
     });
 

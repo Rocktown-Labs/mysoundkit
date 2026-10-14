@@ -3,10 +3,9 @@ import type { ReactNode } from "react";
 
 import { BottomMenuSheet } from "@/components/bottom-menu-sheet";
 import type { BottomMenuSheetHandle } from "@/components/bottom-menu-sheet";
-import {
-  EXPLORE_MENU_ITEMS,
-  LIBRARY_MENU_ITEMS,
-} from "@/lib/native-navigation";
+import { LibraryBottomSheet } from "@/components/library-bottom-sheet";
+import type { LibraryBottomSheetHandle } from "@/components/library-bottom-sheet";
+import { EXPLORE_MENU_ITEMS } from "@/lib/native-navigation";
 
 interface TabMenuContextValue {
   openDiscoverMenu: () => void;
@@ -32,7 +31,7 @@ export function useTabMenu(): TabMenuContextValue {
  */
 export function TabMenuSheetsProvider({ children }: { children: ReactNode }) {
   const discoverSheetRef = useRef<BottomMenuSheetHandle>(null),
-    librarySheetRef = useRef<BottomMenuSheetHandle>(null),
+    librarySheetRef = useRef<LibraryBottomSheetHandle>(null),
     value = useMemo<TabMenuContextValue>(
       () => ({
         openDiscoverMenu: () => {
@@ -54,12 +53,7 @@ export function TabMenuSheetsProvider({ children }: { children: ReactNode }) {
         ref={discoverSheetRef}
         title="More to discover"
       />
-      <BottomMenuSheet
-        description="Your listening history, playlists, and account."
-        items={LIBRARY_MENU_ITEMS}
-        ref={librarySheetRef}
-        title="Your library"
-      />
+      <LibraryBottomSheet ref={librarySheetRef} />
     </TabMenuContext.Provider>
   );
 }

@@ -187,6 +187,7 @@ const API_ORIGIN = "http://soundkit.test",
     ["post", "/v1/videos/{videoId}/view-sessions/{sessionId}/progress"],
     ["post", "/v1/webhooks/battle-service"],
     ["post", "/v1/webhooks/mux"],
+    ["post", "/v1/webhooks/printful"],
     ["post", "/v1/webhooks/stemsplit"],
     ["post", "/v1/webhooks/stripe-commerce"],
   ] as const;

@@ -1,7 +1,13 @@
+/* oxlint-disable one-var, sort-vars, sort-keys, react-hooks/refs */
 import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
-import { useState } from "react";
+import { useRouter } from "expo-router";
+import type { Href } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Animated,
+  Image,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,256 +17,519 @@ import {
 } from "react-native";
 
 import { Container } from "@/components/container";
-import { GenreTileGrid } from "@/components/genre-tile-grid";
+import { GenreGlassCard, GenreGlassGrid } from "@/components/genre-glass-card";
 import { NAV_THEME } from "@/lib/constants";
 import { useGenresQuery, useNativeSearchQuery } from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
+interface GenreCardDef {
+  count?: number;
+  emoji: string;
+  id: string;
+  name: string;
+  slug: string;
+}
+
+const DEFAULT_GENRES: GenreCardDef[] = [
+  { count: 36, emoji: "🎤", id: "hip-hop", name: "Hip-Hop", slug: "hip-hop" },
+  { count: 0, emoji: "🎵", id: "rb-soul", name: "R&B/Soul", slug: "rb-soul" },
+  {
+    count: 0,
+    emoji: "🎹",
+    id: "electronic",
+    name: "Electronic",
+    slug: "electronic",
+  },
+  { count: 0, emoji: "⭐", id: "pop", name: "Pop", slug: "pop" },
+  {
+    count: 0,
+    emoji: "🎙️",
+    id: "spoken-word",
+    name: "Spoken Word",
+    slug: "spoken-word",
+  },
+  { count: 0, emoji: "🎸", id: "rock", name: "Rock", slug: "rock" },
+  { count: 0, emoji: "🎺", id: "jazz", name: "Jazz", slug: "jazz" },
+  {
+    count: 0,
+    emoji: "🥁",
+    id: "afrobeats",
+    name: "Afrobeats",
+    slug: "afrobeats",
+  },
+  { count: 0, emoji: "💃", id: "latin", name: "Latin", slug: "latin" },
+  { count: 0, emoji: "🤠", id: "country", name: "Country", slug: "country" },
+  { count: 0, emoji: "🌴", id: "reggae", name: "Reggae", slug: "reggae" },
+  { count: 0, emoji: "🎧", id: "indie", name: "Indie", slug: "indie" },
+  { count: 0, emoji: "🤘", id: "metal", name: "Metal", slug: "metal" },
+];
+
 export default function SearchScreen() {
   const { colorScheme } = useColorScheme(),
-    genres = useGenresQuery(),
-    [query, setQuery] = useState(""),
-    results = useNativeSearchQuery(query.trim()),
-    showResults = Boolean(
-      !results.isLoading &&
-      results.data &&
-      (results.data.tracks.length > 0 || results.data.artists.length > 0)
-    ),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-    trimmed = query.trim();
+    router = useRouter(),
+    [rawInput, setRawInput] = useState(""),
+    [debouncedQuery, setDebouncedQuery] = useState(""),
+    [isFocused, setIsFocused] = useState(false),
+    focusAnim = useRef(new Animated.Value(0)).current,
+    genresQuery = useGenresQuery(),
+    searchResults = useNativeSearchQuery(debouncedQuery);
 
-  if (trimmed.length >= 2) {
-    return (
-      <Container>
-        <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.headerRow}>
-            <Text selectable style={[styles.title, { color: theme.text }]}>
-              Search
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.searchBar,
-              { backgroundColor: theme.card, borderColor: theme.border },
-            ]}
-          >
-            <Ionicons color={theme.mutedText} name="search" size={18} />
-            <TextInput
-              autoCapitalize="none"
-              autoCorrect={false}
-              onChangeText={setQuery}
-              placeholder="Songs, artists, projects"
-              placeholderTextColor={theme.mutedText}
-              returnKeyType="search"
-              style={[styles.input, { color: theme.text }]}
-              value={query}
-            />
-            <Pressable
-              accessibilityLabel="Clear search"
-              accessibilityRole="button"
-              hitSlop={8}
-              onPress={() => {
-                setQuery("");
-              }}
-            >
-              <Ionicons color={theme.mutedText} name="close-circle" size={18} />
-            </Pressable>
-          </View>
-          {results.isLoading ? (
-            <Text style={[styles.sectionLabel, { color: theme.mutedText }]}>
-              Searching…
-            </Text>
-          ) : null}
-          {showResults && results.data ? (
-            <View style={styles.results}>
-              {results.data.tracks.length > 0 ? (
-                <Text
-                  selectable
-                  style={[styles.sectionLabel, { color: theme.mutedText }]}
-                >
-                  Songs
-                </Text>
-              ) : null}
-              {results.data.tracks.slice(0, 6).map((track) => (
-                <Link href="/tracks" asChild key={track.id}>
-                  <Pressable
-                    accessibilityRole="button"
-                    style={({ pressed }) => [
-                      styles.resultRow,
-                      {
-                        backgroundColor: pressed ? theme.muted : theme.card,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    <View style={styles.copy}>
-                      <Text
-                        numberOfLines={1}
-                        selectable
-                        style={[styles.resultTitle, { color: theme.text }]}
-                      >
-                        {track.title}
-                      </Text>
-                      <Text
-                        numberOfLines={1}
-                        style={[
-                          styles.resultSubtitle,
-                          { color: theme.mutedText },
-                        ]}
-                      >
-                        {track.artistName}
-                      </Text>
-                    </View>
-                    <Ionicons color={theme.mutedText} name="play" size={16} />
-                  </Pressable>
-                </Link>
-              ))}
-              {results.data.artists.length > 0 ? (
-                <Text
-                  selectable
-                  style={[styles.sectionLabel, { color: theme.mutedText }]}
-                >
-                  Artists
-                </Text>
-              ) : null}
-              {results.data.artists.slice(0, 6).map((artist) => (
-                <Link href="/artist" asChild key={artist.id}>
-                  <Pressable
-                    accessibilityRole="button"
-                    style={({ pressed }) => [
-                      styles.resultRow,
-                      {
-                        backgroundColor: pressed ? theme.muted : theme.card,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    <View style={styles.copy}>
-                      <Text
-                        numberOfLines={1}
-                        selectable
-                        style={[styles.resultTitle, { color: theme.text }]}
-                      >
-                        {artist.name}
-                      </Text>
-                      <Text
-                        numberOfLines={1}
-                        style={[
-                          styles.resultSubtitle,
-                          { color: theme.mutedText },
-                        ]}
-                      >
-                        {artist.location ?? "Artist"}
-                      </Text>
-                    </View>
-                    <Ionicons
-                      color={theme.mutedText}
-                      name="chevron-forward"
-                      size={16}
-                    />
-                  </Pressable>
-                </Link>
-              ))}
-            </View>
-          ) : null}
-          {!results.isLoading && !showResults ? (
-            <Text style={[styles.emptyText, { color: theme.mutedText }]}>
-              No results for “{trimmed}” yet.
-            </Text>
-          ) : null}
-        </ScrollView>
-      </Container>
-    );
-  }
+  // Debounce search input by 250ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(rawInput.trim());
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [rawInput]);
+
+  // Animate search bar focus transition
+  useEffect(() => {
+    Animated.spring(focusAnim, {
+      friction: 8,
+      tension: 50,
+      toValue: isFocused || rawInput.length > 0 ? 1 : 0,
+      useNativeDriver: false,
+    }).start();
+  }, [focusAnim, isFocused, rawInput.length]);
+
+  const genresList: GenreCardDef[] = useMemo(() => {
+      if (!genresQuery.data || genresQuery.data.length === 0) {
+        return DEFAULT_GENRES;
+      }
+      return DEFAULT_GENRES.map((def) => {
+        const match = genresQuery.data?.find((g) => g.slug === def.slug);
+        return {
+          ...def,
+          count: match?.trackCount ?? def.count,
+          name: match?.name ?? def.name,
+        };
+      });
+    }, [genresQuery.data]),
+    showDropdown = rawInput.trim().length > 0,
+    artists = searchResults.data?.artists ?? [],
+    songs = searchResults.data?.tracks ?? [],
+    hasNoResults =
+      !searchResults.isLoading &&
+      debouncedQuery.length >= 2 &&
+      artists.length === 0 &&
+      songs.length === 0,
+    cancelWidth = focusAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 64],
+    }),
+    cancelOpacity = focusAnim.interpolate({
+      inputRange: [0, 0.4, 1],
+      outputRange: [0, 0, 1],
+    }),
+    cancelPadding = focusAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 10],
+    }),
+    searchBarScale = focusAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 0.995],
+    });
 
   return (
     <Container>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.headerRow}>
-          <Text selectable style={[styles.title, { color: theme.text }]}>
-            Search
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.searchBar,
-            { backgroundColor: theme.card, borderColor: theme.border },
-          ]}
-        >
-          <Ionicons color={theme.mutedText} name="search" size={18} />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setQuery}
-            placeholder="Songs, artists, projects"
-            placeholderTextColor={theme.mutedText}
-            returnKeyType="search"
-            style={[styles.input, { color: theme.text }]}
-            value={query}
-          />
-          {trimmed.length > 0 ? (
+      <View style={styles.container}>
+        {/* Top Search Bar */}
+        <View style={styles.searchBarWrapper}>
+          <Animated.View
+            style={[
+              styles.searchBar,
+              {
+                borderColor: isFocused ? "#a855f7" : "#212121",
+                transform: [{ scale: searchBarScale }],
+              },
+            ]}
+          >
+            <Ionicons color="#8F8F8F" name="search" size={17} />
+            <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              onBlur={() => setIsFocused(false)}
+              onChangeText={setRawInput}
+              onFocus={() => setIsFocused(true)}
+              placeholder="Search genres, artists, songs..."
+              placeholderTextColor="#8F8F8F"
+              returnKeyType="search"
+              style={styles.input}
+              value={rawInput}
+            />
+            {rawInput.length > 0 ? (
+              <Pressable
+                accessibilityLabel="Clear search"
+                hitSlop={8}
+                onPress={() => {
+                  setRawInput("");
+                  setDebouncedQuery("");
+                }}
+              >
+                <Ionicons color="#8F8F8F" name="close-circle" size={18} />
+              </Pressable>
+            ) : null}
+          </Animated.View>
+          <Animated.View
+            pointerEvents={isFocused || rawInput.length > 0 ? "auto" : "none"}
+            style={[
+              styles.cancelButtonWrapper,
+              {
+                opacity: cancelOpacity,
+                paddingLeft: cancelPadding,
+                width: cancelWidth,
+              },
+            ]}
+          >
             <Pressable
-              accessibilityLabel="Clear search"
-              accessibilityRole="button"
               hitSlop={8}
               onPress={() => {
-                setQuery("");
+                setRawInput("");
+                setDebouncedQuery("");
+                setIsFocused(false);
+                Keyboard.dismiss();
               }}
             >
-              <Ionicons color={theme.mutedText} name="close-circle" size={18} />
+              <Text style={styles.cancelButtonText}>Cancel</Text>
             </Pressable>
-          ) : null}
+          </Animated.View>
         </View>
-        <Text selectable style={[styles.sectionHeading, { color: theme.text }]}>
-          Browse genres
-        </Text>
-        <GenreTileGrid
-          extraGenres={(genres.data ?? []).map((genre) => genre.name)}
-        />
-      </ScrollView>
+
+        {/* Floating Autocomplete Dropdown (Matching Image 1 & Apple Music style) */}
+        {showDropdown ? (
+          <View style={styles.dropdownOverlay}>
+            <ScrollView
+              contentContainerStyle={styles.dropdownContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {searchResults.isLoading ? (
+                <View style={styles.dropdownLoadingRow}>
+                  <ActivityIndicator color="#B8A3FF" size="small" />
+                  <Text style={styles.dropdownLoadingText}>
+                    Searching SoundKit…
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Artists Section */}
+              {artists.length > 0 ? (
+                <View style={styles.dropdownSection}>
+                  <Text style={styles.dropdownSectionLabel}>ARTISTS</Text>
+                  {artists.slice(0, 4).map((artist) => {
+                    const href = artist.username
+                      ? `/artist/${artist.username}`
+                      : "/artist";
+
+                    return (
+                      <Pressable
+                        key={artist.id || artist.name}
+                        onPress={() => {
+                          router.push(href as Href);
+                        }}
+                        style={({ pressed }) => [
+                          styles.dropdownRow,
+                          {
+                            backgroundColor: pressed
+                              ? "#212121"
+                              : "transparent",
+                          },
+                        ]}
+                      >
+                        <View style={styles.avatarBox}>
+                          {artist.avatarUrl ? (
+                            <Image
+                              source={{ uri: artist.avatarUrl }}
+                              style={styles.avatarImg}
+                            />
+                          ) : (
+                            <View style={styles.avatarPlaceholder}>
+                              <Ionicons
+                                color="#8F8F8F"
+                                name="person"
+                                size={18}
+                              />
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.dropdownRowCopy}>
+                          <Text
+                            numberOfLines={1}
+                            style={styles.dropdownRowTitle}
+                          >
+                            {artist.name}
+                          </Text>
+                          <Text
+                            numberOfLines={1}
+                            style={styles.dropdownRowSubtitle}
+                          >
+                            {[
+                              artist.genre ?? "Hip-Hop",
+                              artist.location ?? "Little Rock, AR",
+                            ]
+                              .filter(Boolean)
+                              .join(" • ")}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              {/* Songs Section */}
+              {songs.length > 0 ? (
+                <View style={styles.dropdownSection}>
+                  <Text style={styles.dropdownSectionLabel}>SONGS</Text>
+                  {songs.slice(0, 6).map((song) => (
+                    <Pressable
+                      key={song.id}
+                      onPress={() => {
+                        router.push(`/tracks/${song.id}`);
+                      }}
+                      style={({ pressed }) => [
+                        styles.dropdownRow,
+                        {
+                          backgroundColor: pressed ? "#212121" : "transparent",
+                        },
+                      ]}
+                    >
+                      <View style={styles.coverBox}>
+                        {song.coverArtUrl ? (
+                          <Image
+                            source={{ uri: song.coverArtUrl }}
+                            style={styles.coverImg}
+                          />
+                        ) : (
+                          <View style={styles.coverPlaceholder}>
+                            <Ionicons
+                              color="#8F8F8F"
+                              name="musical-note"
+                              size={18}
+                            />
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.dropdownRowCopy}>
+                        <Text numberOfLines={1} style={styles.dropdownRowTitle}>
+                          {song.title}
+                        </Text>
+                        <Text
+                          numberOfLines={1}
+                          style={styles.dropdownRowSubtitle}
+                        >
+                          {[
+                            song.artistName ?? "Artist",
+                            song.genre ?? "Hip-Hop",
+                          ]
+                            .filter(Boolean)
+                            .join(" • ")}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
+              {hasNoResults ? (
+                <View style={styles.noResultsBox}>
+                  <Text style={styles.noResultsText}>
+                    No songs or artists found for &quot;{debouncedQuery}&quot;.
+                  </Text>
+                </View>
+              ) : null}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {/* Default Browse Genres Grid (Matching Image 0) */}
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.browseHeader}>
+            <Text style={[styles.browseTitle, { color: theme.text }]}>
+              Browse Genres
+            </Text>
+            <Text style={[styles.browseSubtitle, { color: theme.mutedText }]}>
+              Explore music by genre
+            </Text>
+          </View>
+
+          <GenreGlassGrid>
+            {genresList.map((genre) => (
+              <GenreGlassCard
+                count={genre.count ?? 0}
+                key={genre.id}
+                slug={genre.slug}
+                title={genre.name}
+              />
+            ))}
+          </GenreGlassGrid>
+        </ScrollView>
+      </View>
     </Container>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    gap: 16,
-    paddingBottom: 24,
-    paddingHorizontal: 20,
-    paddingTop: 16,
+  avatarBox: {
+    height: 40,
+    width: 40,
   },
-  copy: { flex: 1, gap: 2 },
-  emptyText: { fontSize: 14 },
-  headerRow: { flexDirection: "row" },
-  input: { flex: 1, fontSize: 15, fontWeight: "600" },
-  resultRow: {
+  avatarImg: {
+    borderRadius: 8,
+    height: 40,
+    width: 40,
+  },
+  avatarPlaceholder: {
     alignItems: "center",
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 12,
-    minHeight: 56,
+    backgroundColor: "#212121",
+    borderRadius: 8,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  browseHeader: {
+    gap: 4,
+    marginBottom: 8,
+  },
+  browseSubtitle: {
+    fontSize: 14,
+  },
+  browseTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.6,
+  },
+  container: {
+    flex: 1,
+    position: "relative",
+  },
+  coverBox: {
+    height: 40,
+    width: 40,
+  },
+  coverImg: {
+    borderRadius: 8,
+    height: 40,
+    width: 40,
+  },
+  coverPlaceholder: {
+    alignItems: "center",
+    backgroundColor: "#212121",
+    borderRadius: 8,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  dropdownContent: {
+    gap: 14,
     padding: 12,
   },
-  resultSubtitle: { fontSize: 12 },
-  resultTitle: { fontSize: 14, fontWeight: "700" },
-  results: { gap: 8 },
-  searchBar: {
+  dropdownLoadingRow: {
     alignItems: "center",
-    borderRadius: 14,
-    borderWidth: 1,
     flexDirection: "row",
-    gap: 10,
-    minHeight: 46,
-    paddingHorizontal: 14,
+    gap: 8,
+    justifyContent: "center",
+    paddingVertical: 12,
   },
-  sectionHeading: { fontSize: 20, fontWeight: "800", marginTop: 6 },
-  sectionLabel: {
+  dropdownLoadingText: {
+    color: "#8F8F8F",
+    fontSize: 13,
+  },
+  dropdownOverlay: {
+    backgroundColor: "#060606",
+    borderColor: "#212121",
+    borderRadius: 16,
+    borderWidth: 1,
+    left: 20,
+    maxHeight: 380,
+    position: "absolute",
+    right: 20,
+    shadowColor: "#000000",
+    shadowOffset: { height: 8, width: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    top: 66,
+    zIndex: 100,
+  },
+  dropdownRow: {
+    alignItems: "center",
+    borderRadius: 10,
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  dropdownRowCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  dropdownRowSubtitle: {
+    color: "#8F8F8F",
+    fontSize: 12,
+  },
+  dropdownRowTitle: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  dropdownSection: {
+    gap: 6,
+  },
+  dropdownSectionLabel: {
+    color: "#8F8F8F",
     fontSize: 11,
     fontWeight: "800",
-    letterSpacing: 1.2,
-    marginTop: 8,
-    textTransform: "uppercase",
+    letterSpacing: 1,
+    paddingHorizontal: 8,
   },
-  title: { fontSize: 32, fontWeight: "800", letterSpacing: -0.8 },
+  input: {
+    color: "#ffffff",
+    flex: 1,
+    fontSize: 14,
+  },
+  noResultsBox: {
+    paddingVertical: 18,
+  },
+  noResultsText: {
+    color: "#8F8F8F",
+    fontSize: 13,
+    textAlign: "center",
+  },
+  scrollContent: {
+    gap: 16,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  cancelButtonText: {
+    color: "#B8A3FF",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  cancelButtonWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  searchBar: {
+    alignItems: "center",
+    backgroundColor: "#0B0B0B",
+    borderRadius: 14,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  searchBarWrapper: {
+    alignItems: "center",
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    zIndex: 10,
+  },
 });

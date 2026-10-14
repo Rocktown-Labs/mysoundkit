@@ -9,6 +9,7 @@ const UPLOAD_INTENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type UploadIntentEntityType =
   | "ad_creative"
+  | "merch"
   | "message_attachment"
   | "profile"
   | "project"
@@ -61,7 +62,7 @@ export const objectKeyFromMediaUrl = (value: string): string | null => {
       mediaPath = pathname.startsWith("media/")
         ? pathname.slice("media/".length)
         : pathname;
-    return /^(profiles|projects|tracks|uploads)\//u.test(mediaPath)
+    return /^(merch|profiles|projects|tracks|uploads)\//u.test(mediaPath)
       ? decodeURIComponent(mediaPath)
       : null;
   } catch {

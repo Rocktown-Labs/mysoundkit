@@ -2,15 +2,14 @@ import { useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AvatarHeaderButton } from "@/components/avatar-header-button";
-import { BottomMenuSheet } from "@/components/bottom-menu-sheet";
-import type { BottomMenuSheetHandle } from "@/components/bottom-menu-sheet";
 import { Container } from "@/components/container";
 import { DiscoverSection } from "@/components/discover-section";
 import type { DiscoverCardData } from "@/components/discover-section";
 import { RegionPickerCard } from "@/components/region-picker-card";
+import { RegionPickerSheet } from "@/components/region-picker-sheet";
+import type { RegionPickerSheetHandle } from "@/components/region-picker-sheet";
 import { useTabMenu } from "@/components/tab-menu-sheets";
 import { NAV_THEME } from "@/lib/constants";
-import { mapScopes } from "@/lib/map-scopes";
 import type { MapScope } from "@/lib/map-scopes";
 import type {
   ArtistSummary,
@@ -141,32 +140,30 @@ function toVideoCards(videos?: readonly VideoSummary[]): DiscoverCardData[] {
 export default function DiscoverScreen() {
   const [activeScope, setActiveScope] = useState<MapScope>("global"),
     { colorScheme } = useColorScheme(),
+    [selectedRegion, setSelectedRegion] = useState<string | null>("Arkansas"),
+    regionSheetRef = useRef<RegionPickerSheetHandle>(null),
+    { openLibraryMenu } = useTabMenu(),
     discoverQuery = {
-      region: activeScope === "global" ? "all" : activeScope,
+      region:
+        selectedRegion && activeScope === "usa"
+          ? `us-${selectedRegion.toLowerCase().replaceAll(/\s+/g, "-")}`
+          : (activeScope === "global"
+            ? "all"
+            : activeScope),
       regionType:
         activeScope === "global"
           ? ("global" as const)
           : ("north-america" as const),
     },
-    liveBattles = useDiscoverBattlesQuery(discoverQuery),
-    liveParties = useDiscoverPartiesQuery(discoverQuery),
-    liveStreams = useDiscoverStreamsQuery(discoverQuery),
-    newReleases = useDiscoverNewReleasesQuery(discoverQuery),
-    { openLibraryMenu } = useTabMenu(),
-    projects = useDiscoverProjectsQuery(discoverQuery),
-    regionOptions = mapScopes.map((option) => ({
-      description: option.description,
-      icon: option.icon,
-      label: option.label,
-      onPress: () => {
-        setActiveScope(option.id);
-      },
-    })),
-    regionSheetRef = useRef<BottomMenuSheetHandle>(null),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     topArtists = useDiscoverTopArtistsQuery(discoverQuery),
     topSongs = useDiscoverTopSongsQuery(discoverQuery),
-    videos = useDiscoverVideosQuery(discoverQuery);
+    newReleases = useDiscoverNewReleasesQuery(discoverQuery),
+    liveBattles = useDiscoverBattlesQuery(discoverQuery),
+    videos = useDiscoverVideosQuery(discoverQuery),
+    liveStreams = useDiscoverStreamsQuery(discoverQuery),
+    projects = useDiscoverProjectsQuery(discoverQuery),
+    liveParties = useDiscoverPartiesQuery(discoverQuery);
 
   return (
     <Container>
@@ -249,11 +246,14 @@ export default function DiscoverScreen() {
           title="Listening Parties"
         />
       </ScrollView>
-      <BottomMenuSheet
-        description="Charts and drops from the region you pick."
-        items={regionOptions}
+      <RegionPickerSheet
+        onRegionChange={(newScope, regionName) => {
+          setActiveScope(newScope);
+          setSelectedRegion(regionName);
+        }}
         ref={regionSheetRef}
-        title="Choose a region"
+        scope={activeScope}
+        selectedRegion={selectedRegion}
       />
     </Container>
   );

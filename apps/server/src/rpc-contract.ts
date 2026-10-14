@@ -200,6 +200,11 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
     id: z.string(),
     name: z.string(),
     slug: z.string(),
+    // Counts returned by the /v1/discover/genres route (see routes/discover.ts
+    // genreCatalogSchema); included here so typed clients can read them.
+    totalCount: z.number().int().nonnegative(),
+    trackCount: z.number().int().nonnegative(),
+    videoCount: z.number().int().nonnegative(),
   }),
   notificationSummarySchema = z.object({
     createdAt: z.string(),
@@ -1165,6 +1170,23 @@ export const rpcContract = new Hono()
     jsonValidator(communityCheckoutSchema),
     (c) => c.json({ checkoutUrl: null as string | null, setupRequired: false })
   )
+  .get("/v1/admin/merch", (c) => c.json([] as Record<string, unknown>[]))
+  .post("/v1/admin/merch", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>, 201)
+  )
+  .patch("/v1/admin/merch/:id", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .post("/v1/admin/merch/:id/refresh", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .get(
+    "/v1/admin/merch/printful-products",
+    validator("query", (value) =>
+      z.object({ textSearch: z.string().optional() }).parse(value)
+    ),
+    (c) => c.json([] as Record<string, unknown>[])
+  )
   .get("/v1/admin/finance/summary", (c) =>
     c.json({} as z.infer<typeof adminFinanceSummarySchema>)
   )
@@ -1446,6 +1468,42 @@ export const rpcContract = new Hono()
     "/v1/merch/shipping-quote",
     jsonValidator(shippingQuoteRequestSchema),
     (c) => c.json({} as z.infer<typeof shippingQuoteResponseSchema>)
+  )
+  .get("/v1/merch/catalog", (c) => c.json({} as Record<string, unknown>))
+  .get("/v1/merch/physical-releases", (c) =>
+    c.json([] as Record<string, unknown>[])
+  )
+  .get("/v1/merch/designs", (c) => c.json([] as Record<string, unknown>[]))
+  .post("/v1/merch/designs", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>, 201)
+  )
+  .patch("/v1/merch/designs/:id", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .delete("/v1/merch/designs/:id", (c) => c.json({} as Record<string, unknown>))
+  .get("/v1/merch/designs/:id/mockups", (c) =>
+    c.json([] as Record<string, unknown>[])
+  )
+  .get(
+    "/v1/merch/public",
+    validator("query", (value) =>
+      z
+        .object({
+          artistUsername: z.string().optional(),
+          catalogProductId: z.string().optional(),
+          limit: z.string().optional(),
+          projectId: z.string().optional(),
+          trackId: z.string().optional(),
+        })
+        .parse(value)
+    ),
+    (c) => c.json([] as Record<string, unknown>[])
+  )
+  .get("/v1/merch/public/:designId", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
+  .post("/v1/merch/shipping-rates", jsonValidator(genericJsonBodySchema), (c) =>
+    c.json({} as Record<string, unknown>)
   )
   .get("/v1/payments/tips", (c) =>
     c.json({} as z.infer<typeof artistTipsOverviewSchema>)

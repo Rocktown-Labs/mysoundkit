@@ -21,6 +21,7 @@ export const rpcTransportExclusions = {
   "POST /v1/webhooks/battle-service": "Battle provider webhook.",
   "POST /v1/webhooks/cloudflare-stream": "Cloudflare Stream webhook.",
   "POST /v1/webhooks/mux": "Mux provider webhook.",
+  "POST /v1/webhooks/printful": "Printful POD provider webhook.",
   "POST /v1/webhooks/realtimekit": "RealtimeKit provider webhook.",
   "POST /v1/webhooks/resend": "Resend provider webhook.",
   "POST /v1/webhooks/stemsplit": "StemSplit provider webhook.",

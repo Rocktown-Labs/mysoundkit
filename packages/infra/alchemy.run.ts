@@ -1,12 +1,12 @@
 /* oxlint-disable node/no-top-level-await, one-var, sort-keys, sort-vars, func-names, max-classes-per-file */
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
+import * as RemovalPolicy from "alchemy/RemovalPolicy";
 import { Stage } from "alchemy/Stage";
+import { config } from "dotenv";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import * as RemovalPolicy from "alchemy/RemovalPolicy";
-import { config } from "dotenv";
 
 config({ path: "./.env" });
 config({ path: "../../apps/website/.env" });
@@ -58,7 +58,9 @@ const deployment = Effect.gen(function* () {
       return process.env.SOUNDKIT_BIO_URL || `https://${BIO_HOST}`;
     })(),
     API_URL = isLocalDev ? "http://localhost:3000" : `https://${API_HOST}`,
-    MEDIA_URL = isProduction ? `https://${MEDIA_HOST}/media` : `${API_URL}/media`,
+    MEDIA_URL = isProduction
+      ? `https://${MEDIA_HOST}/media`
+      : `${API_URL}/media`,
     SENTRY_WEB_DSN =
       process.env.VITE_SENTRY_DSN ||
       "https://87f5517c906a37ab831c171fc686145d@o4510278858309632.ingest.us.sentry.io/4511447930568704",
@@ -76,8 +78,7 @@ const deployment = Effect.gen(function* () {
 
       return stage;
     })(),
-    resourceName = (name: string) =>
-      isProduction ? name : `${name}-${stage}`;
+    resourceName = (name: string) => (isProduction ? name : `${name}-${stage}`);
 
   return {
     API_HOST,
@@ -198,12 +199,16 @@ export const media = Cloudflare.R2.Bucket(
       name: d.MEDIA_BUCKET_NAME,
     };
   })
-).pipe(RemovalPolicy.retain(Effect.gen(function* () {
-  // Retain for every non-production stage: preview destroys must drop the
-  // state row without touching the shared production bucket.
-  const d = yield* deployment;
-  return !d.isProduction;
-})));
+).pipe(
+  RemovalPolicy.retain(
+    Effect.gen(function* () {
+      // Retain for every non-production stage: preview destroys must drop the
+      // state row without touching the shared production bucket.
+      const d = yield* deployment;
+      return !d.isProduction;
+    })
+  )
+);
 
 // Storage bucket for RealtimeKit live recordings. Recordings stay private
 // until a live experience is published; the server streams them via R2.
@@ -331,9 +336,7 @@ const emailDeliveryDeadLetterQueue = Cloudflare.Queues.Queue(
           ? "soundkit-hyperdrive-prod"
           : `soundkit-hyperdrive-${d.stage}`,
         origin: {
-          database: decodeURIComponent(
-            parsed.pathname.replace(/^\//u, "")
-          ),
+          database: decodeURIComponent(parsed.pathname.replace(/^\//u, "")),
           host: parsed.hostname,
           ...(parsed.port ? { port: Number(parsed.port) } : {}),
           password: Redacted.make(decodeURIComponent(parsed.password)),
@@ -445,7 +448,7 @@ export const web = Cloudflare.Website.Vite(
         CORS_ORIGIN: d.SITE_URL,
         DATABASE_URL: Config.Redacted("DATABASE_URL"),
         SENTRY_DSN: d.SENTRY_WEB_DSN,
-        VITE_ENABLE_MERCH: "false",
+        VITE_ENABLE_MERCH: "true",
         VITE_MEDIA_URL: d.MEDIA_URL,
         ...optionalEnvBinding("VITE_GOOGLE_MAPS_API_KEY"),
         ...optionalEnvBinding("VITE_STRIPE_PUBLISHABLE_KEY"),
@@ -600,9 +603,7 @@ export const server = Cloudflare.Worker(
         ...(r2Jurisdiction
           ? { CLOUDFLARE_R2_JURISDICTION: r2Jurisdiction }
           : {}),
-        ...optionalEnvBinding(
-          "STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID"
-        ),
+        ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID"),
         ...optionalEnvBinding(
           "STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID"
         ),
@@ -611,6 +612,16 @@ export const server = Cloudflare.Worker(
         ...optionalEnvBinding("KUNAKI_USER_ID"),
         ...optionalEnvBinding("KUNAKI_PASSWORD"),
         ...optionalEnvBinding("KUNAKI_MODE"),
+        // Printful POD (issue #406): production-only bindings. Preview stages
+        // share the production database, so they must never hold credentials
+        // capable of creating real Printful orders.
+        ...(d.isProduction
+          ? {
+              ...optionalEnvBinding("PRINTFUL_API_KEY"),
+              ...optionalEnvBinding("PRINTFUL_STORE_ID"),
+              ...optionalEnvBinding("PRINTFUL_WEBHOOK_SECRET"),
+            }
+          : {}),
       },
       // NOTE (v2 migration): v1 declared `placement: { region:
       // "aws:us-east-1" }`, but without a `mode` that value cannot enable
