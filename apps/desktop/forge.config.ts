@@ -18,28 +18,28 @@ const config: ForgeConfig = {
     // The deb/rpm installers default their binary and package names to the
     // package.json "name" ("desktop"), which neither matches our
     // executableName nor names a sane Linux package. Wire all three
-    // explicitly so /usr/bin/soundkit-desktop is what ships; rpm also
-    // requires a License field in its generated spec.
+    // explicitly so /usr/bin/soundkit is what ships; rpm also requires a
+    // License field in its generated spec.
     new MakerDeb({
       options: {
-        bin: "soundkit-desktop",
-        name: "soundkit-desktop",
-        productName: "SoundKit Desktop",
+        bin: "soundkit",
+        name: "soundkit",
+        productName: "SoundKit",
       },
     }),
     new MakerRpm({
       options: {
-        bin: "soundkit-desktop",
+        bin: "soundkit",
         license: "Proprietary",
-        name: "soundkit-desktop",
-        productName: "SoundKit Desktop",
+        name: "soundkit",
+        productName: "SoundKit",
       },
     }),
   ],
   packagerConfig: {
     appBundleId: "com.rocktonlabs.soundkit.desktop",
     asar: true,
-    executableName: "soundkit-desktop",
+    executableName: "soundkit",
     // Relative because Forge transpiles this config into a temp bundle where
     // __dirname doesn't point at the app; electron-forge always runs with
     // cwd = apps/desktop (pnpm scripts and CI both invoke it that way).
