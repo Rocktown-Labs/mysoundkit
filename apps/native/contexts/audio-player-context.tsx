@@ -1,10 +1,13 @@
-/* eslint-disable one-var, sort-vars, sort-keys, react/immutability, react/set-state-in-effect */
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   setAudioModeAsync,
   useAudioPlayer,
   useAudioPlayerStatus,
 } from "expo-audio";
+import type { AudioSource } from "expo-audio";
+/* eslint-disable one-var, sort-vars, sort-keys, react/immutability, react/set-state-in-effect, complexity, no-nested-ternary */
 import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
 import {
   createContext,
   useCallback,
@@ -15,28 +18,36 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { API_V1_URL } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
+import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import {
   advanceQueue,
   cycleRepeatMode,
   shuffleTracks,
 } from "@/lib/player-queue";
 import type { PlayerTrack, RepeatMode } from "@/lib/player-queue";
+import { useMeEntitlementsQuery } from "@/lib/soundkit-api";
 
 export type { PlayerTrack, RepeatMode } from "@/lib/player-queue";
 
 export interface AudioPlayerContextValue {
+  activeAd: ServedAd | null;
   addToQueue: (track: PlayerTrack) => void;
   clearQueue: () => void;
   closeNowPlaying: () => void;
   currentTrack: PlayerTrack | null;
   duration: number;
   isBuffering: boolean;
+  isGuestLimitReached: boolean;
   isLyricsVisible: boolean;
   isNowPlayingVisible: boolean;
   isPlaying: boolean;
   isQueueVisible: boolean;
   isShuffle: boolean;
+  moveQueueItem: (trackId: string, delta: number) => void;
   nextTrack: () => void;
   openNowPlaying: () => void;
   pause: () => void;
@@ -60,6 +71,90 @@ export interface AudioPlayerContextValue {
   toggleShuffle: () => void;
   volume: number;
 }
+
+/** Web-parity guest policy: 5 minutes of free listening per calendar day. */
+const GUEST_DAILY_PLAYBACK_LIMIT_SECONDS = 300,
+  GUEST_PLAYBACK_STORAGE_KEY = "soundkit_guest_playback_v1";
+
+interface GuestPlaybackMeter {
+  date: string;
+  secondsPlayed: number;
+}
+
+const todayKey = () => new Date().toISOString().slice(0, 10);
+
+const readGuestMeter = async (): Promise<GuestPlaybackMeter> => {
+  const stored = await AsyncStorage.getItem(GUEST_PLAYBACK_STORAGE_KEY),
+    today = todayKey();
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored) as GuestPlaybackMeter;
+      if (parsed.date === today && typeof parsed.secondsPlayed === "number") {
+        return { date: today, secondsPlayed: parsed.secondsPlayed };
+      }
+    } catch {
+      // Corrupt meter — restart the window.
+    }
+  }
+  return { date: today, secondsPlayed: 0 };
+};
+
+const writeGuestMeter = async (seconds: number) => {
+  await AsyncStorage.setItem(
+    GUEST_PLAYBACK_STORAGE_KEY,
+    JSON.stringify({ date: todayKey(), secondsPlayed: Math.max(0, seconds) })
+  );
+};
+
+export interface ServedAd {
+  campaignId: string;
+  clickthroughUrl: string | null;
+  imageUrl: string | null;
+  mediaUrl: string;
+  title: string;
+}
+
+/** Best-effort ad events; the player must never fail because of them. */
+const sendAdEvent = async (campaignId: string, eventType: string) => {
+  try {
+    await authenticatedFetch(`${API_V1_URL}/ads/event`, {
+      body: JSON.stringify({ campaignId, eventType }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+  } catch {
+    // Ad telemetry is non-critical.
+  }
+};
+
+const requestAudioPreroll = async (
+  trackId: string
+): Promise<ServedAd | null> => {
+  try {
+    const response = await authenticatedFetch(
+      `${API_V1_URL}/ads/serve?placement=audio_preroll&contentType=audio&trackId=${encodeURIComponent(trackId)}`
+    );
+    if (response.status === 204 || !response.ok) {
+      return null;
+    }
+    const payload = (await response.json()) as {
+      ad?: Partial<ServedAd>;
+      hasAd?: boolean;
+    };
+    if (!payload.hasAd || !payload.ad?.campaignId || !payload.ad.mediaUrl) {
+      return null;
+    }
+    return {
+      campaignId: payload.ad.campaignId,
+      clickthroughUrl: payload.ad.clickthroughUrl ?? null,
+      imageUrl: payload.ad.imageUrl ?? null,
+      mediaUrl: payload.ad.mediaUrl,
+      title: payload.ad.title ?? "Sponsored audio",
+    };
+  } catch {
+    return null;
+  }
+};
 
 export const DEFAULT_DEMO_TRACKS: PlayerTrack[] = [
   {
@@ -152,6 +247,14 @@ export function AudioPlayerProvider({
   const [isNowPlayingVisible, setIsNowPlayingVisible] = useState(false);
   const [isQueueVisible, setIsQueueVisible] = useState(false);
   const [isLyricsVisible, setIsLyricsVisible] = useState(false);
+  const [isGuestLimitReached, setIsGuestLimitReached] = useState(false);
+  const [activeAd, setActiveAd] = useState<ServedAd | null>(null);
+
+  const { data: session } = authClient.useSession();
+  const isSignedIn = Boolean(session?.user);
+
+  const { data: entitlements } = useMeEntitlementsQuery(isSignedIn);
+  const isPremium = Boolean(entitlements?.isPremium);
 
   // Keep the hook source stable (null): useAudioPlayer recreates the native
   // player whenever its `source` argument changes, which would discard the
@@ -160,13 +263,13 @@ export function AudioPlayerProvider({
   const player = useAudioPlayer(null, { updateInterval: 250 });
   const status = useAudioPlayerStatus(player);
 
-  const isPlaying = Boolean(status.playing);
-  const isBuffering = Boolean(status.isBuffering);
-  const playbackPosition = status.currentTime ?? 0;
-  const duration =
-    status.duration > 0 ? status.duration : (currentTrack?.duration ?? 0);
-  const progress =
-    duration > 0 ? Math.min(1, Math.max(0, playbackPosition / duration)) : 0;
+  const isPlaying = Boolean(status.playing),
+    isBuffering = Boolean(status.isBuffering),
+    playbackPosition = status.currentTime ?? 0,
+    duration =
+      status.duration > 0 ? status.duration : (currentTrack?.duration ?? 0),
+    progress =
+      duration > 0 ? Math.min(1, Math.max(0, playbackPosition / duration)) : 0;
 
   // Configure audio session on mount
   useEffect(() => {
@@ -184,6 +287,77 @@ export function AudioPlayerProvider({
       // Ignore if volume setting not supported on platform
     }
   }, [player, volume]);
+
+  /** Builds a cookie-aware audio source for a remote URL. The better-auth
+   * session lives in SecureStore (not the native cookie jar), so entitled
+   * playback (premium / purchased tracks) needs the cookie header attached. */
+  const resolvePlayerSource = useCallback(async (): Promise<AudioSource> => {
+    let cookie: string | null = null;
+    try {
+      cookie = await authClient.getCookie();
+    } catch {
+      cookie = null;
+    }
+    const pendingTrack = pendingTrackRef.current;
+    if (!pendingTrack) {
+      return { uri: "" };
+    }
+    const headers: Record<string, string> = {};
+    if (cookie && cookie.length > 0) {
+      headers.cookie = cookie;
+    }
+    return {
+      headers,
+      uri: pendingTrack.src,
+    };
+  }, []);
+
+  const pendingTrackRef = useRef<PlayerTrack | null>(null),
+    prerollServedTrackRef = useRef<string | null>(null);
+
+  /** Loads the pending content source (cookie-aware) and starts it. */
+  const loadPendingContent = useCallback(async () => {
+    const source = await resolvePlayerSource();
+    player.replace(source);
+    player.play();
+  }, [player, resolvePlayerSource]);
+
+  /** Starts a track: pre-roll ad first (skipped for premium, one attempt per
+   * track), then the guarded audio source with the session cookie attached.
+   * When an ad plays, the didJustFinish handler hands off to content. */
+  const startTrack = useCallback(
+    async (track: PlayerTrack, queueSeed?: PlayerTrack[]) => {
+      if (queueSeed) {
+        const filtered = queueSeed.filter((t) => t.id !== track.id);
+        setQueue(filtered);
+        setOriginalQueue(filtered);
+      }
+      setCurrentTrack(track);
+      pendingTrackRef.current = track;
+      setActiveAd(null);
+
+      if (
+        !isPremium &&
+        prerollServedTrackRef.current !== track.id &&
+        track.src.length > 0
+      ) {
+        prerollServedTrackRef.current = track.id;
+        const ad = await requestAudioPreroll(track.id);
+        if (ad) {
+          setActiveAd(ad);
+          player.replace({ uri: ad.mediaUrl });
+          player.play();
+          void sendAdEvent(ad.campaignId, "impression");
+          return;
+        }
+      } else {
+        prerollServedTrackRef.current = track.id;
+      }
+
+      await loadPendingContent();
+    },
+    [isPremium, loadPendingContent, player]
+  );
 
   const resume = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -233,7 +407,6 @@ export function AudioPlayerProvider({
       if (currentTrack) {
         historyRef.current = [...historyRef.current, currentTrack].slice(-50);
       }
-      setCurrentTrack(next);
       setQueue(advanceResult.queue);
       // Keep the unshuffle order in sync as tracks advance so toggling
       // shuffle off never restores played tracks or the one already playing.
@@ -244,12 +417,11 @@ export function AudioPlayerProvider({
       } else {
         setOriginalQueue(advanceResult.queue);
       }
-      player.replace(next.src);
-      player.play();
+      void startTrack(next);
     } else {
       player.pause();
     }
-  }, [currentTrack, isShuffle, player, queue, repeatMode]);
+  }, [currentTrack, isShuffle, player, queue, repeatMode, startTrack]);
 
   const previousTrack = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -278,17 +450,22 @@ export function AudioPlayerProvider({
       ]);
     }
     setCurrentTrack(previous);
-    player.replace(previous.src);
-    player.play();
-  }, [currentTrack, playbackPosition, player]);
+    void startTrack(previous);
+  }, [currentTrack, playbackPosition, player, startTrack]);
 
-  // Handle track finished automatically
+  // Handle track finished automatically — ad-end hands off to content.
   const hasFinishedRef = useRef(false);
   // Tracks played before the current one, oldest first, for previousTrack().
   const historyRef = useRef<PlayerTrack[]>([]);
   useEffect(() => {
     if (status.didJustFinish && !hasFinishedRef.current) {
       hasFinishedRef.current = true;
+      if (activeAd) {
+        void sendAdEvent(activeAd.campaignId, "complete");
+        setActiveAd(null);
+        void loadPendingContent();
+        return;
+      }
       if (repeatMode === "one") {
         player.seekTo(0);
         player.play();
@@ -298,7 +475,14 @@ export function AudioPlayerProvider({
     } else if (!status.didJustFinish) {
       hasFinishedRef.current = false;
     }
-  }, [nextTrack, player, repeatMode, status.didJustFinish]);
+  }, [
+    activeAd,
+    loadPendingContent,
+    nextTrack,
+    player,
+    repeatMode,
+    status.didJustFinish,
+  ]);
 
   const playTrack = useCallback(
     (track: PlayerTrack, newQueue?: PlayerTrack[]) => {
@@ -309,16 +493,9 @@ export function AudioPlayerProvider({
       } else if (currentTrack) {
         historyRef.current = [...historyRef.current, currentTrack].slice(-50);
       }
-      setCurrentTrack(track);
-      if (newQueue) {
-        const filtered = newQueue.filter((t) => t.id !== track.id);
-        setQueue(filtered);
-        setOriginalQueue(filtered);
-      }
-      player.replace(track.src);
-      player.play();
+      void startTrack(track, newQueue);
     },
-    [currentTrack, player]
+    [currentTrack, startTrack]
   );
 
   const addToQueue = useCallback((track: PlayerTrack) => {
@@ -332,6 +509,30 @@ export function AudioPlayerProvider({
     setQueue((prev) => prev.filter((t) => t.id !== trackId));
     setOriginalQueue((prev) => prev.filter((t) => t.id !== trackId));
   }, []);
+
+  /** Moves a queued track by delta positions (-1 up, +1 down), keeping the
+   * unshuffle order in sync when shuffle is off. */
+  const moveQueueItem = useCallback(
+    (trackId: string, delta: number) => {
+      const reorder = (tracks: PlayerTrack[]) => {
+        const index = tracks.findIndex((t) => t.id === trackId),
+          target = index + delta;
+        if (index === -1 || target < 0 || target >= tracks.length) {
+          return tracks;
+        }
+        const next = [...tracks],
+          moved = next[index];
+        next[index] = next[target];
+        next[target] = moved;
+        return next;
+      };
+      setQueue((prev) => reorder(prev));
+      if (!isShuffle) {
+        setOriginalQueue((prev) => reorder(prev));
+      }
+    },
+    [isShuffle]
+  );
 
   const clearQueue = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -384,19 +585,49 @@ export function AudioPlayerProvider({
     setIsQueueVisible((prev) => !prev);
   }, []);
 
+  // Guest listening window (web parity): meter anonymous playback and pause
+  // with a signup wall after the daily free limit.
+  useEffect(() => {
+    if (isSignedIn || !isPlaying) {
+      return;
+    }
+    const interval = setInterval(() => {
+      void (async () => {
+        const meter = await readGuestMeter();
+        const secondsPlayed = meter.secondsPlayed + 1;
+        await writeGuestMeter(secondsPlayed);
+        if (secondsPlayed >= GUEST_DAILY_PLAYBACK_LIMIT_SECONDS) {
+          player.pause();
+          setIsGuestLimitReached(true);
+        }
+      })();
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isSignedIn, isPlaying, player]);
+
+  // Dismiss the wall once the visitor signs in.
+  useEffect(() => {
+    if (isSignedIn) {
+      setIsGuestLimitReached(false);
+    }
+  }, [isSignedIn]);
+
   const value = useMemo<AudioPlayerContextValue>(
     () => ({
+      activeAd,
       addToQueue,
       clearQueue,
       closeNowPlaying,
       currentTrack,
       duration,
       isBuffering,
+      isGuestLimitReached,
       isLyricsVisible,
       isNowPlayingVisible,
       isPlaying,
       isQueueVisible,
       isShuffle,
+      moveQueueItem,
       nextTrack,
       openNowPlaying,
       pause,
@@ -421,6 +652,7 @@ export function AudioPlayerProvider({
       volume,
     }),
     [
+      activeAd,
       addToQueue,
       clearQueue,
       closeNowPlaying,
@@ -428,11 +660,13 @@ export function AudioPlayerProvider({
       duration,
       handleSetVolume,
       isBuffering,
+      isGuestLimitReached,
       isLyricsVisible,
       isNowPlayingVisible,
       isPlaying,
       isQueueVisible,
       isShuffle,
+      moveQueueItem,
       nextTrack,
       openNowPlaying,
       pause,
@@ -458,9 +692,115 @@ export function AudioPlayerProvider({
   return (
     <AudioPlayerContext.Provider value={value}>
       {children}
+      <GuestLimitWall visible={isGuestLimitReached} />
     </AudioPlayerContext.Provider>
   );
 }
+
+/** Web-parity "Guest Preview Limit Reached" wall shown by the provider so it
+ * appears no matter which surface is hosting the player. */
+function GuestLimitWall({ visible }: { visible: boolean }) {
+  const router = useRouter();
+  if (!visible) {
+    return null;
+  }
+  return (
+    <View style={wallStyles.scrim}>
+      <View style={wallStyles.card}>
+        <Text style={wallStyles.title}>Guest Preview Limit Reached</Text>
+        <Text style={wallStyles.body}>
+          You&apos;ve enjoyed 5 minutes of free guest listening today. Create a
+          free SoundKit account to keep streaming, save your favorite tracks,
+          and follow artists.
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            router.push("/library");
+          }}
+          style={({ pressed }) => [
+            wallStyles.primaryButton,
+            pressed && { opacity: 0.85 },
+          ]}
+        >
+          <Text style={wallStyles.primaryButtonText}>Sign Up Free</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            router.push("/library");
+          }}
+          style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+        >
+          <Text style={wallStyles.secondaryButtonText}>
+            Log In to Existing Account
+          </Text>
+        </Pressable>
+        <Text style={wallStyles.footnote}>
+          Or return tomorrow for another guest preview.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+const wallStyles = StyleSheet.create({
+  body: {
+    color: "#8F8F8F",
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: "center",
+  },
+  card: {
+    backgroundColor: "#060606",
+    borderColor: "#212121",
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 12,
+    marginHorizontal: 24,
+    maxWidth: 360,
+    padding: 22,
+  },
+  footnote: {
+    color: "#8F8F8F",
+    fontSize: 11,
+    textAlign: "center",
+  },
+  primaryButton: {
+    backgroundColor: "#B8A3FF",
+    borderRadius: 999,
+    paddingVertical: 12,
+  },
+  primaryButtonText: {
+    color: "#171717",
+    fontSize: 14,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  scrim: {
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.72)",
+    bottom: 0,
+    justifyContent: "center",
+    left: 0,
+    position: "absolute",
+    right: 0,
+    top: 0,
+    zIndex: 999,
+  },
+  secondaryButtonText: {
+    color: "#B8A3FF",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  title: {
+    color: "#F8F8F8",
+    fontSize: 19,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+});
 
 export function useAudioPlayerContext(): AudioPlayerContextValue {
   const context = useContext(AudioPlayerContext);
