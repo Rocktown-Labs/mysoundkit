@@ -13,8 +13,24 @@ const config: ForgeConfig = {
     new MakerSquirrel({}),
     new MakerZIP({}, ["darwin"]),
     new MakerDMG({}),
-    new MakerRpm({}),
-    new MakerDeb({}),
+    // The deb/rpm installers default their binary and package names to the
+    // package.json "name" ("desktop"), which neither matches our
+    // executableName nor names a sane Linux package. Wire all three
+    // explicitly so /usr/bin/soundkit-desktop is what ships.
+    new MakerDeb({
+      options: {
+        bin: "soundkit-desktop",
+        name: "soundkit-desktop",
+        productName: "SoundKit Desktop",
+      },
+    }),
+    new MakerRpm({
+      options: {
+        bin: "soundkit-desktop",
+        name: "soundkit-desktop",
+        productName: "SoundKit Desktop",
+      },
+    }),
   ],
   packagerConfig: {
     appBundleId: "com.rocktonlabs.soundkit.desktop",
