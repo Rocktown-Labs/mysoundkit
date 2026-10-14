@@ -63,7 +63,7 @@ const BASE_GENRE_TILES: GenreTile[] = [
   ],
   INDEX_PALETTE = [
     "#DDA34A",
-    "#B993FF",
+    "#B8A3FF",
     "#60A5FA",
     "#34D399",
     "#F472B6",

@@ -33,6 +33,7 @@ import { Route as DashboardBillingRouteImport } from './app/dashboard/billing'
 import { Route as DashboardAiStudioRouteImport } from './app/dashboard/ai-studio'
 import { Route as DashboardAdsRouteImport } from './app/dashboard/ads'
 import { Route as DashboardAdminRouteImport } from './app/dashboard/admin'
+import { Route as AuthTurnstileBridgeRouteImport } from './app/auth/turnstile-bridge'
 import { Route as AuthHandoffRouteImport } from './app/auth/handoff'
 import { Route as ExploreShopRouteImport } from './app/_explore/shop'
 import { Route as ExploreNewReleasesRouteImport } from './app/_explore/new-releases'
@@ -239,6 +240,11 @@ const DashboardAdminRoute = DashboardAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
   getParentRoute: () => DashboardRoute,
+} as any)
+const AuthTurnstileBridgeRoute = AuthTurnstileBridgeRouteImport.update({
+  id: '/auth/turnstile-bridge',
+  path: '/auth/turnstile-bridge',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthHandoffRoute = AuthHandoffRouteImport.update({
   id: '/auth/handoff',
@@ -715,6 +721,7 @@ export interface FileRoutesByFullPath {
   '/new-releases': typeof ExploreNewReleasesRoute
   '/shop': typeof ExploreShopRoute
   '/auth/handoff': typeof AuthHandoffRoute
+  '/auth/turnstile-bridge': typeof AuthTurnstileBridgeRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/ads': typeof DashboardAdsRoute
   '/dashboard/ai-studio': typeof DashboardAiStudioRoute
@@ -824,6 +831,7 @@ export interface FileRoutesByTo {
   '/new-releases': typeof ExploreNewReleasesRoute
   '/shop': typeof ExploreShopRoute
   '/auth/handoff': typeof AuthHandoffRoute
+  '/auth/turnstile-bridge': typeof AuthTurnstileBridgeRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/ads': typeof DashboardAdsRoute
   '/dashboard/ai-studio': typeof DashboardAiStudioRoute
@@ -936,6 +944,7 @@ export interface FileRoutesById {
   '/_explore/new-releases': typeof ExploreNewReleasesRoute
   '/_explore/shop': typeof ExploreShopRoute
   '/auth/handoff': typeof AuthHandoffRoute
+  '/auth/turnstile-bridge': typeof AuthTurnstileBridgeRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/ads': typeof DashboardAdsRoute
   '/dashboard/ai-studio': typeof DashboardAiStudioRoute
@@ -1051,6 +1060,7 @@ export interface FileRouteTypes {
     | '/new-releases'
     | '/shop'
     | '/auth/handoff'
+    | '/auth/turnstile-bridge'
     | '/dashboard/admin'
     | '/dashboard/ads'
     | '/dashboard/ai-studio'
@@ -1160,6 +1170,7 @@ export interface FileRouteTypes {
     | '/new-releases'
     | '/shop'
     | '/auth/handoff'
+    | '/auth/turnstile-bridge'
     | '/dashboard/admin'
     | '/dashboard/ads'
     | '/dashboard/ai-studio'
@@ -1271,6 +1282,7 @@ export interface FileRouteTypes {
     | '/_explore/new-releases'
     | '/_explore/shop'
     | '/auth/handoff'
+    | '/auth/turnstile-bridge'
     | '/dashboard/admin'
     | '/dashboard/ads'
     | '/dashboard/ai-studio'
@@ -1382,6 +1394,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRouteWithChildren
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   AuthHandoffRoute: typeof AuthHandoffRoute
+  AuthTurnstileBridgeRoute: typeof AuthTurnstileBridgeRoute
   LiveStreamsOverlayIdRoute: typeof LiveStreamsOverlayIdRoute
 }
 
@@ -1554,6 +1567,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/admin'
       preLoaderRoute: typeof DashboardAdminRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/auth/turnstile-bridge': {
+      id: '/auth/turnstile-bridge'
+      path: '/auth/turnstile-bridge'
+      fullPath: '/auth/turnstile-bridge'
+      preLoaderRoute: typeof AuthTurnstileBridgeRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/auth/handoff': {
       id: '/auth/handoff'
@@ -2467,6 +2487,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRouteWithChildren,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   AuthHandoffRoute: AuthHandoffRoute,
+  AuthTurnstileBridgeRoute: AuthTurnstileBridgeRoute,
   LiveStreamsOverlayIdRoute: LiveStreamsOverlayIdRoute,
 }
 export const routeTree = rootRouteImport

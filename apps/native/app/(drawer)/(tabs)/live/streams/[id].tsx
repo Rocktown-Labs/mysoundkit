@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars, eqeqeq, no-eq-null, complexity */
 import { useLocalSearchParams, Stack } from "expo-router";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
@@ -19,7 +20,7 @@ export default function StreamDetailScreen() {
     { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     stream = useLiveExperienceQuery(id ?? ""),
-    data = stream.data,
+    { data } = stream,
     playbackSrc = resolveApiUrl(data?.playbackUrl ?? null);
 
   return (
@@ -67,9 +68,7 @@ export default function StreamDetailScreen() {
               </View>
             </View>
 
-            {playbackSrc != null ? (
-              <TrackAudioPlayer source={playbackSrc} title={data.title} />
-            ) : (
+            {playbackSrc == null ? (
               <Text
                 style={{ color: theme.mutedText, fontSize: 13, lineHeight: 19 }}
               >
@@ -77,6 +76,8 @@ export default function StreamDetailScreen() {
                   ? "This stream is live on the SoundKit web app — open soundkit.com to watch the broadcast room."
                   : "This broadcast has not started yet. Check back at its scheduled time."}
               </Text>
+            ) : (
+              <TrackAudioPlayer source={playbackSrc} title={data.title} />
             )}
           </>
         )}

@@ -4,8 +4,6 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Container } from "@/components/container";
 import { LibraryGrid } from "@/components/library-grid";
-import { SignIn } from "@/components/sign-in";
-import { SignUp } from "@/components/sign-up";
 import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -21,7 +19,7 @@ export default function LibraryScreen() {
         {/* Header matching Image 4 */}
         <View style={styles.header}>
           <View style={styles.titleRow}>
-            <Ionicons color="#c084fc" name="musical-notes" size={28} />
+            <Ionicons color="#B8A3FF" name="musical-notes" size={28} />
             <Text style={[styles.title, { color: theme.text }]}>
               My SoundKit
             </Text>
@@ -39,12 +37,12 @@ export default function LibraryScreen() {
           <View
             style={[
               styles.userCard,
-              { backgroundColor: "#121215", borderColor: "#27272a" },
+              { backgroundColor: "#060606", borderColor: "#212121" },
             ]}
           >
             <View style={styles.userRow}>
               <View style={styles.userAvatar}>
-                <Ionicons color="#c084fc" name="person" size={20} />
+                <Ionicons color="#B8A3FF" name="person" size={20} />
               </View>
               <View style={styles.userCopy}>
                 <Text style={styles.userName}>{session.user.name}</Text>
@@ -59,12 +57,12 @@ export default function LibraryScreen() {
                   style={({ pressed }) => [
                     styles.dashboardBtn,
                     {
-                      backgroundColor: pressed ? "#27272a" : "#18181b",
+                      backgroundColor: pressed ? "#212121" : "#111111",
                     },
                   ]}
                 >
                   <Ionicons
-                    color="#a855f7"
+                    color="#B8A3FF"
                     name="speedometer-outline"
                     size={16}
                   />
@@ -80,7 +78,7 @@ export default function LibraryScreen() {
                 style={({ pressed }) => [
                   styles.signOutBtn,
                   {
-                    backgroundColor: pressed ? "#27272a" : "#18181b",
+                    backgroundColor: pressed ? "#212121" : "#111111",
                   },
                 ]}
               >
@@ -90,8 +88,42 @@ export default function LibraryScreen() {
           </View>
         ) : (
           <View style={styles.authBox}>
-            <SignIn />
-            <SignUp />
+            <View
+              style={[
+                styles.authCard,
+                { backgroundColor: "#060606", borderColor: "#212121" },
+              ]}
+            >
+              <Ionicons
+                color="#B8A3FF"
+                name="person-circle-outline"
+                size={40}
+              />
+              <Text style={styles.authTitle}>Sign in to SoundKit</Text>
+              <Text style={styles.authDescription}>
+                Save tracks, build playlists, follow artists, and keep your
+                listening history.
+              </Text>
+              <Link href="/login" asChild>
+                <Pressable
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.authPrimaryBtn,
+                    pressed && { opacity: 0.85 },
+                  ]}
+                >
+                  <Text style={styles.authPrimaryText}>Log In</Text>
+                </Pressable>
+              </Link>
+              <Link href="/signup" asChild>
+                <Pressable
+                  accessibilityRole="button"
+                  style={({ pressed }) => [pressed && { opacity: 0.75 }]}
+                >
+                  <Text style={styles.authSecondaryText}>Create Account</Text>
+                </Pressable>
+              </Link>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -109,6 +141,42 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 12,
   },
+  authCard: {
+    alignItems: "center",
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 10,
+    padding: 24,
+  },
+  authDescription: {
+    color: "#8F8F8F",
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  authPrimaryBtn: {
+    alignItems: "center",
+    backgroundColor: "#B8A3FF",
+    borderRadius: 999,
+    marginTop: 6,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+  },
+  authPrimaryText: {
+    color: "#171717",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  authSecondaryText: {
+    color: "#B8A3FF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  authTitle: {
+    color: "#F8F8F8",
+    fontSize: 17,
+    fontWeight: "800",
+  },
   content: {
     gap: 22,
     paddingBottom: 40,
@@ -117,7 +185,7 @@ const styles = StyleSheet.create({
   },
   dashboardBtn: {
     alignItems: "center",
-    borderColor: "#27272a",
+    borderColor: "#212121",
     borderRadius: 12,
     borderWidth: 1,
     flex: 1,
@@ -137,7 +205,7 @@ const styles = StyleSheet.create({
   },
   signOutBtn: {
     alignItems: "center",
-    borderColor: "#27272a",
+    borderColor: "#212121",
     borderRadius: 12,
     borderWidth: 1,
     justifyContent: "center",
@@ -165,7 +233,7 @@ const styles = StyleSheet.create({
   },
   userAvatar: {
     alignItems: "center",
-    backgroundColor: "#27272a",
+    backgroundColor: "#212121",
     borderRadius: 999,
     height: 42,
     justifyContent: "center",
@@ -183,7 +251,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   userEmail: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
   },
   userName: {

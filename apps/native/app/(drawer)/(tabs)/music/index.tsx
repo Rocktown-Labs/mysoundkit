@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars, no-nested-ternary, eqeqeq, no-eq-null, react/preserve-manual-memoization */
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import type { Href } from "expo-router";
@@ -264,12 +265,12 @@ export default function MusicScreen() {
             style={({ pressed }) => [
               styles.catalogJumpBtn,
               {
-                backgroundColor: pressed ? "#27272a" : "#18181b",
-                borderColor: "#27272a",
+                backgroundColor: pressed ? "#212121" : "#111111",
+                borderColor: "#212121",
               },
             ]}
           >
-            <Ionicons color="#c084fc" name="apps-outline" size={16} />
+            <Ionicons color="#B8A3FF" name="apps-outline" size={16} />
             <Text style={styles.catalogJumpBtnText}>Jump to Catalog</Text>
           </Pressable>
         </View>
@@ -283,14 +284,14 @@ export default function MusicScreen() {
             }
             style={[
               styles.filterPill,
-              { backgroundColor: "#141417", borderColor: "#27272a" },
+              { backgroundColor: "#0B0B0B", borderColor: "#212121" },
             ]}
           >
-            <Ionicons color="#a1a1aa" name="location-outline" size={13} />
+            <Ionicons color="#8F8F8F" name="location-outline" size={13} />
             <Text numberOfLines={1} style={styles.filterPillText}>
               {activeLocation.label}
             </Text>
-            <Ionicons color="#71717a" name="chevron-down" size={13} />
+            <Ionicons color="#8F8F8F" name="chevron-down" size={13} />
           </Pressable>
 
           {/* Genre Dropdown */}
@@ -300,14 +301,14 @@ export default function MusicScreen() {
             }
             style={[
               styles.filterPill,
-              { backgroundColor: "#141417", borderColor: "#27272a" },
+              { backgroundColor: "#0B0B0B", borderColor: "#212121" },
             ]}
           >
-            <Ionicons color="#a1a1aa" name="pricetag-outline" size={13} />
+            <Ionicons color="#8F8F8F" name="pricetag-outline" size={13} />
             <Text numberOfLines={1} style={styles.filterPillText}>
               {activeGenreName}
             </Text>
-            <Ionicons color="#71717a" name="chevron-down" size={13} />
+            <Ionicons color="#8F8F8F" name="chevron-down" size={13} />
           </Pressable>
 
           {/* Sort Dropdown */}
@@ -315,14 +316,14 @@ export default function MusicScreen() {
             onPress={() => setPickerOpen(pickerOpen === "sort" ? null : "sort")}
             style={[
               styles.filterPill,
-              { backgroundColor: "#141417", borderColor: "#27272a" },
+              { backgroundColor: "#0B0B0B", borderColor: "#212121" },
             ]}
           >
-            <Ionicons color="#a1a1aa" name="swap-vertical-outline" size={13} />
+            <Ionicons color="#8F8F8F" name="swap-vertical-outline" size={13} />
             <Text numberOfLines={1} style={styles.filterPillText}>
               {activeSortLabel}
             </Text>
-            <Ionicons color="#71717a" name="chevron-down" size={13} />
+            <Ionicons color="#8F8F8F" name="chevron-down" size={13} />
           </Pressable>
         </View>
 
@@ -338,7 +339,7 @@ export default function MusicScreen() {
                     : "Sort By")}
               </Text>
               <Pressable onPress={() => setPickerOpen(null)}>
-                <Ionicons color="#a1a1aa" name="close" size={18} />
+                <Ionicons color="#8F8F8F" name="close" size={18} />
               </Pressable>
             </View>
             <ScrollView style={{ maxHeight: 220 }}>
@@ -537,12 +538,12 @@ export default function MusicScreen() {
                   style={({ pressed }) => [
                     styles.catalogRouteItem,
                     {
-                      backgroundColor: pressed ? "#27272a" : "#18181b",
+                      backgroundColor: pressed ? "#212121" : "#111111",
                     },
                   ]}
                 >
                   <View style={styles.catalogRouteIconBox}>
-                    <Ionicons color="#c084fc" name={route.icon} size={20} />
+                    <Ionicons color="#B8A3FF" name={route.icon} size={20} />
                   </View>
                   <View style={styles.catalogRouteCopy}>
                     <Text style={styles.catalogRouteTitle}>{route.title}</Text>
@@ -576,8 +577,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   catalogModalCard: {
-    backgroundColor: "#121215",
-    borderColor: "#27272a",
+    backgroundColor: "#060606",
+    borderColor: "#212121",
     borderRadius: 20,
     borderWidth: 1,
     gap: 16,
@@ -591,7 +592,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   catalogModalSubtitle: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
     marginTop: 2,
   },
@@ -605,12 +606,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   catalogRouteDesc: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 12,
   },
   catalogRouteIconBox: {
     alignItems: "center",
-    backgroundColor: "#27272a",
+    backgroundColor: "#212121",
     borderRadius: 10,
     height: 38,
     justifyContent: "center",
@@ -618,7 +619,7 @@ const styles = StyleSheet.create({
   },
   catalogRouteItem: {
     alignItems: "center",
-    borderColor: "#27272a",
+    borderColor: "#212121",
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: "row",
@@ -645,7 +646,7 @@ const styles = StyleSheet.create({
   },
   dropdownHeader: {
     alignItems: "center",
-    borderBottomColor: "#27272a",
+    borderBottomColor: "#212121",
     borderBottomWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -664,12 +665,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   dropdownItemTextActive: {
-    color: "#c084fc",
+    color: "#B8A3FF",
     fontWeight: "700",
   },
   dropdownModalCard: {
     backgroundColor: "#18181c",
-    borderColor: "#27272a",
+    borderColor: "#212121",
     borderRadius: 14,
     borderWidth: 1,
     gap: 8,

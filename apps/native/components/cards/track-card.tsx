@@ -13,52 +13,49 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 export const TRACK_CARD_WIDTH = 150;
 
 const styles = StyleSheet.create({
-  metaRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 4,
-  },
-  metaText: { fontSize: 11 },
-  playOverlayBtn: {
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.65)",
-    borderColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 999,
-    borderWidth: 1,
-    bottom: 8,
-    height: 32,
-    justifyContent: "center",
-    position: "absolute",
-    right: 8,
-    width: 32,
-  },
-  thumb: { height: "100%", width: "100%" },
-  thumbRatio: {
-    aspectRatio: 1,
-    overflow: "hidden",
-    position: "relative",
-  },
-}),
-
- formatDuration = (track: TrackSummary) => {
-  if (typeof track.duration === "string" && track.duration.length > 0) {
-    return track.duration;
-  }
-  return "0:00";
-};
+    metaRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: 4,
+    },
+    metaText: { fontSize: 11 },
+    playOverlayBtn: {
+      alignItems: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.65)",
+      borderColor: "rgba(255, 255, 255, 0.2)",
+      borderRadius: 999,
+      borderWidth: 1,
+      bottom: 8,
+      height: 32,
+      justifyContent: "center",
+      position: "absolute",
+      right: 8,
+      width: 32,
+    },
+    thumb: { height: "100%", width: "100%" },
+    thumbRatio: {
+      aspectRatio: 1,
+      overflow: "hidden",
+      position: "relative",
+    },
+  }),
+  formatDuration = (track: TrackSummary) => {
+    if (typeof track.duration === "string" && track.duration.length > 0) {
+      return track.duration;
+    }
+    return "0:00";
+  };
 
 export function TrackCard({ track }: { track: TrackSummary }) {
   const { colorScheme } = useColorScheme(),
-   theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-   { currentTrack, isPlaying, playTrack, togglePlay } =
-    useAudioPlayerContext(),
-
-   isCurrent = currentTrack?.id === track.id,
-   isPlayingThis = isCurrent && isPlaying,
-
-   audioSrc =
-    resolveApiUrl(track.playbackUrl ?? track.previewUrl ?? null) ??
-    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
+    { currentTrack, isPlaying, playTrack, togglePlay } =
+      useAudioPlayerContext(),
+    isCurrent = currentTrack?.id === track.id,
+    isPlayingThis = isCurrent && isPlaying,
+    audioSrc =
+      resolveApiUrl(track.playbackUrl ?? track.previewUrl ?? null) ??
+      "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
 
   return (
     <NativeCardShell href={`/tracks/${track.id}`} width={TRACK_CARD_WIDTH}>

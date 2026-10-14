@@ -5,13 +5,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Container } from "@/components/container";
 import { LibraryItemRow } from "@/components/library-item-row";
 import { NAV_THEME } from "@/lib/constants";
-import { useLibrarySavedQuery } from "@/lib/soundkit-api";
+import { useLibraryPurchasesQuery } from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
-export default function SavedTracksScreen() {
+export default function PurchasedScreen() {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-    { data: tracks = [], isLoading } = useLibrarySavedQuery();
+    { data: items = [], isLoading } = useLibraryPurchasesQuery();
 
   return (
     <Container>
@@ -19,50 +19,50 @@ export default function SavedTracksScreen() {
         <View style={styles.header}>
           <Link href="/library" asChild>
             <Pressable style={styles.backRow}>
-              <Ionicons color="#c084fc" name="arrow-back" size={18} />
+              <Ionicons color="#B8A3FF" name="arrow-back" size={18} />
               <Text style={styles.backText}>My SoundKit</Text>
             </Pressable>
           </Link>
           <View style={styles.titleRow}>
-            <Ionicons color="#f43f5e" name="heart-outline" size={26} />
-            <Text style={[styles.title, { color: theme.text }]}>
-              Saved Tracks
-            </Text>
+            <Ionicons color="#22c55e" name="bag-handle-outline" size={26} />
+            <Text style={[styles.title, { color: theme.text }]}>Purchased</Text>
           </View>
           <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-            Songs you have saved and favorited
+            Music, drops, and physical merchandise you own
           </Text>
         </View>
 
         {isLoading && (
-          <View style={[styles.stateBox, { borderColor: "#27272a" }]}>
-            <Text style={{ color: theme.mutedText }}>Loading saved songs…</Text>
+          <View style={[styles.stateBox, { borderColor: "#212121" }]}>
+            <Text style={{ color: theme.mutedText }}>Loading purchases…</Text>
           </View>
         )}
-        {!isLoading && tracks.length > 0 && (
+        {!isLoading && items.length > 0 && (
           <View style={styles.list}>
-            {tracks.map((track, idx) => (
+            {items.map((item, idx) => (
               <LibraryItemRow
-                href={`/tracks/${track.id}`}
-                imageUrl={track.cover}
+                badge="OWNED"
+                href={`/library/purchased/${item.id}`}
+                imageUrl={item.cover}
                 index={idx}
-                key={track.id}
-                subtitle={track.artist ?? "SoundKit Artist"}
-                title={track.title}
+                key={item.id}
+                subtitle={item.artist ?? "SoundKit Creator"}
+                title={item.title}
               />
             ))}
           </View>
         )}
-        {!isLoading && tracks.length === 0 && (
-          <View style={[styles.stateBox, { borderColor: "#27272a" }]}>
-            <Ionicons color="#71717a" name="heart-outline" size={36} />
-            <Text style={styles.emptyTitle}>No saved tracks yet</Text>
+        {!isLoading && items.length === 0 && (
+          <View style={[styles.stateBox, { borderColor: "#212121" }]}>
+            <Ionicons color="#8F8F8F" name="bag-handle-outline" size={36} />
+            <Text style={styles.emptyTitle}>No purchases yet</Text>
             <Text style={styles.emptyDesc}>
-              Tap the heart on any song to save it to your library.
+              Support independent artists directly by purchasing singles,
+              albums, or merch.
             </Text>
-            <Link href="/music" asChild>
+            <Link href="/shop" asChild>
               <Pressable style={styles.browseBtn}>
-                <Text style={styles.browseBtnText}>Explore Songs</Text>
+                <Text style={styles.browseBtnText}>Explore Shop</Text>
               </Pressable>
             </Link>
           </View>
@@ -80,12 +80,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   backText: {
-    color: "#c084fc",
+    color: "#B8A3FF",
     fontSize: 13,
     fontWeight: "700",
   },
   browseBtn: {
-    backgroundColor: "#c084fc",
+    backgroundColor: "#B8A3FF",
     borderRadius: 12,
     marginTop: 6,
     paddingHorizontal: 20,
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   emptyDesc: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
     textAlign: "center",
   },

@@ -15,7 +15,7 @@ export default function BattlesScreen() {
         empty="No battles are live for this view yet."
         items={battles.data ?? []}
         keyForItem={(battle) => battle.id}
-        renderItem={(battle) => <BattleCard battle={battle} />}
+        renderItem={(battle) => <BattleCard battle={battle} fluid />}
         isLoading={battles.isLoading}
       />
     </NativePageScreen>

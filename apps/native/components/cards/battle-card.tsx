@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, eqeqeq, no-eq-null, no-negated-condition, complexity, sort-vars */
 import { StyleSheet, Text, View } from "react-native";
 
 import { CardBadge, NativeCardShell } from "@/components/cards/card-shell";
@@ -6,7 +7,7 @@ import { NAV_THEME } from "@/lib/constants";
 import type { BattleSummary } from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
-export const BATTLE_CARD_WIDTH = 290;
+export const BATTLE_CARD_WIDTH = 260;
 
 const styles = StyleSheet.create({
     badgeRow: {
@@ -20,8 +21,8 @@ const styles = StyleSheet.create({
     metaRow: {
       flexDirection: "row",
       justifyContent: "space-between",
-      paddingHorizontal: 10,
       paddingBottom: 10,
+      paddingHorizontal: 10,
     },
     metaText: { fontSize: 11 },
     thumb: { width: "100%" },
@@ -41,20 +42,27 @@ const styles = StyleSheet.create({
     return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
   };
 
-export function BattleCard({ battle }: { battle: BattleSummary }) {
+export function BattleCard({
+  battle,
+  fluid = false,
+}: {
+  battle: BattleSummary;
+  /** Fill the parent cell (view-all grids) instead of the fixed rail width. */
+  fluid?: boolean;
+}) {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     tracks = battle.tracks ?? [],
     isLive = battle.status === "live",
     formatLabel =
       battle.format != null && battle.format.length > 0
-        ? battle.format.replace(/_/g, " ")
+        ? battle.format.replaceAll("_", " ")
         : null;
 
   return (
     <NativeCardShell
       href={`/live/battles/${battle.id}`}
-      width={BATTLE_CARD_WIDTH}
+      width={fluid ? 0 : BATTLE_CARD_WIDTH}
     >
       <View style={styles.thumbRatio}>
         <NativeImage
@@ -65,7 +73,7 @@ export function BattleCard({ battle }: { battle: BattleSummary }) {
           <CardBadge tone={isLive ? "destructive" : "secondary"}>
             {isLive ? "Live" : (battle.status ?? "Upcoming")}
           </CardBadge>
-          {formatLabel != null ? <CardBadge>{formatLabel}</CardBadge> : null}
+          {formatLabel == null ? null : <CardBadge>{formatLabel}</CardBadge>}
         </View>
       </View>
       <View style={styles.versusRow}>
@@ -114,9 +122,9 @@ export function BattleCard({ battle }: { battle: BattleSummary }) {
         </Text>
         <Text style={[styles.metaText, { color: theme.mutedText }]}>
           {battle.viewerCount.toLocaleString()} watching
-          {battle.round?.total != null
-            ? ` • Rd ${battle.round.current ?? 1}/${battle.round.total}`
-            : ""}
+          {battle.round?.total == null
+            ? ""
+            : ` • Rd ${battle.round.current ?? 1}/${battle.round.total}`}
         </Text>
       </View>
     </NativeCardShell>

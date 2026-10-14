@@ -13,8 +13,13 @@ import type {
 
 import type { AppType } from "../../server/src/rpc-contract";
 import { API_BASE_URL } from "./api";
+import { authenticatedFetch } from "./authenticated-fetch";
 
 export const apiClient = hc<AppType>(API_BASE_URL, {
+  // The Expo auth client persists the session in SecureStore rather than the
+  // native cookie jar, so plain `credentials: "include"` requests stay
+  // unauthenticated. authenticatedFetch attaches the session cookie header.
+  fetch: authenticatedFetch,
   init: { credentials: "include" },
 });
 

@@ -5,13 +5,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Container } from "@/components/container";
 import { LibraryItemRow } from "@/components/library-item-row";
 import { NAV_THEME } from "@/lib/constants";
-import { useLibraryRecentQuery } from "@/lib/soundkit-api";
+import { useLibrarySavedQuery } from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
-export default function RecentlyPlayedScreen() {
+export default function SavedTracksScreen() {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-    { data: tracks = [], isLoading } = useLibraryRecentQuery();
+    { data: tracks = [], isLoading } = useLibrarySavedQuery();
 
   return (
     <Container>
@@ -19,26 +19,24 @@ export default function RecentlyPlayedScreen() {
         <View style={styles.header}>
           <Link href="/library" asChild>
             <Pressable style={styles.backRow}>
-              <Ionicons color="#c084fc" name="arrow-back" size={18} />
+              <Ionicons color="#B8A3FF" name="arrow-back" size={18} />
               <Text style={styles.backText}>My SoundKit</Text>
             </Pressable>
           </Link>
           <View style={styles.titleRow}>
-            <Ionicons color="#38bdf8" name="time-outline" size={26} />
+            <Ionicons color="#f43f5e" name="heart-outline" size={26} />
             <Text style={[styles.title, { color: theme.text }]}>
-              Recently Played
+              Saved Tracks
             </Text>
           </View>
           <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-            Your listening history across SoundKit
+            Songs you have saved and favorited
           </Text>
         </View>
 
         {isLoading && (
-          <View style={[styles.stateBox, { borderColor: "#27272a" }]}>
-            <Text style={{ color: theme.mutedText }}>
-              Loading listening history…
-            </Text>
+          <View style={[styles.stateBox, { borderColor: "#212121" }]}>
+            <Text style={{ color: theme.mutedText }}>Loading saved songs…</Text>
           </View>
         )}
         {!isLoading && tracks.length > 0 && (
@@ -56,15 +54,15 @@ export default function RecentlyPlayedScreen() {
           </View>
         )}
         {!isLoading && tracks.length === 0 && (
-          <View style={[styles.stateBox, { borderColor: "#27272a" }]}>
-            <Ionicons color="#71717a" name="musical-notes-outline" size={36} />
-            <Text style={styles.emptyTitle}>No recent plays yet</Text>
+          <View style={[styles.stateBox, { borderColor: "#212121" }]}>
+            <Ionicons color="#8F8F8F" name="heart-outline" size={36} />
+            <Text style={styles.emptyTitle}>No saved tracks yet</Text>
             <Text style={styles.emptyDesc}>
-              Listen to tracks and they will automatically show up here.
+              Tap the heart on any song to save it to your library.
             </Text>
             <Link href="/music" asChild>
               <Pressable style={styles.browseBtn}>
-                <Text style={styles.browseBtnText}>Browse Music</Text>
+                <Text style={styles.browseBtnText}>Explore Songs</Text>
               </Pressable>
             </Link>
           </View>
@@ -82,12 +80,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   backText: {
-    color: "#c084fc",
+    color: "#B8A3FF",
     fontSize: 13,
     fontWeight: "700",
   },
   browseBtn: {
-    backgroundColor: "#c084fc",
+    backgroundColor: "#B8A3FF",
     borderRadius: 12,
     marginTop: 6,
     paddingHorizontal: 20,
@@ -105,7 +103,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   emptyDesc: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
     textAlign: "center",
   },

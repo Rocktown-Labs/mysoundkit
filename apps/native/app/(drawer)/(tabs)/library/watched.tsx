@@ -19,7 +19,7 @@ export default function RecentlyWatchedScreen() {
         <View style={styles.header}>
           <Link href="/library" asChild>
             <Pressable style={styles.backRow}>
-              <Ionicons color="#c084fc" name="arrow-back" size={18} />
+              <Ionicons color="#B8A3FF" name="arrow-back" size={18} />
               <Text style={styles.backText}>My SoundKit</Text>
             </Pressable>
           </Link>
@@ -35,7 +35,7 @@ export default function RecentlyWatchedScreen() {
         </View>
 
         {isLoading && (
-          <View style={[styles.stateBox, { borderColor: "#27272a" }]}>
+          <View style={[styles.stateBox, { borderColor: "#212121" }]}>
             <Text style={{ color: theme.mutedText }}>
               Loading video history…
             </Text>
@@ -56,8 +56,8 @@ export default function RecentlyWatchedScreen() {
           </View>
         )}
         {!isLoading && videos.length === 0 && (
-          <View style={[styles.stateBox, { borderColor: "#27272a" }]}>
-            <Ionicons color="#71717a" name="videocam-outline" size={36} />
+          <View style={[styles.stateBox, { borderColor: "#212121" }]}>
+            <Ionicons color="#8F8F8F" name="videocam-outline" size={36} />
             <Text style={styles.emptyTitle}>No watched videos yet</Text>
             <Text style={styles.emptyDesc}>
               Watch music videos and they will appear here to resume anytime.
@@ -82,12 +82,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   backText: {
-    color: "#c084fc",
+    color: "#B8A3FF",
     fontSize: 13,
     fontWeight: "700",
   },
   browseBtn: {
-    backgroundColor: "#c084fc",
+    backgroundColor: "#B8A3FF",
     borderRadius: 12,
     marginTop: 6,
     paddingHorizontal: 20,
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   emptyDesc: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
     textAlign: "center",
   },

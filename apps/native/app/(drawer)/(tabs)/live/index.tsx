@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars */
 import {
   ActivityIndicator,
   ScrollView,
@@ -23,23 +24,27 @@ import {
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 const styles = StyleSheet.create({
-  brandRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  locationText: { fontSize: 12, marginBottom: 10 },
-  sectionGap: { gap: 26 },
-  title: {
-    fontSize: 34,
-    fontWeight: "800",
-    letterSpacing: -0.8,
-    marginBottom: 4,
-  },
-});
-
-const GLOBAL_REGION = { region: "all", regionType: "global" } as const;
+    brandRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 12,
+    },
+    content: {
+      gap: 26,
+      paddingBottom: 24,
+      paddingHorizontal: 20,
+      paddingTop: 16,
+    },
+    locationText: { fontSize: 12, marginBottom: 10 },
+    title: {
+      fontSize: 34,
+      fontWeight: "800",
+      letterSpacing: -0.8,
+      marginBottom: 4,
+    },
+  }),
+  GLOBAL_REGION = { region: "all", regionType: "global" } as const;
 
 export default function LiveScreen() {
   const { colorScheme } = useColorScheme(),
@@ -51,7 +56,7 @@ export default function LiveScreen() {
   return (
     <Container>
       <ScrollView
-        contentContainerStyle={styles.sectionGap}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         style={{ backgroundColor: theme.background }}
       >

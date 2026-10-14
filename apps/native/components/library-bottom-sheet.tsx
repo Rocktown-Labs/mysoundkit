@@ -59,15 +59,15 @@ function LibraryBottomSheetBase(
   return (
     <BottomSheetModal
       backdropComponent={renderSheetBackdrop}
-      backgroundStyle={{ backgroundColor: "#121215" }}
-      handleIndicatorStyle={{ backgroundColor: "#3f3f46" }}
+      backgroundStyle={{ backgroundColor: "#060606" }}
+      handleIndicatorStyle={{ backgroundColor: "#2A2D35" }}
       ref={sheetRef}
       snapPoints={SNAP_POINTS}
     >
       <BottomSheetScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <View style={styles.titleRow}>
-            <Ionicons color="#c084fc" name="musical-notes" size={24} />
+            <Ionicons color="#B8A3FF" name="musical-notes" size={24} />
             <Text style={[styles.title, { color: theme.text }]}>
               My SoundKit
             </Text>

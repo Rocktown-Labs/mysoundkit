@@ -1,44 +1,27 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
-import { useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Container } from "@/components/container";
-import { LibraryItemRow } from "@/components/library-item-row";
 import { NAV_THEME } from "@/lib/constants";
-import {
-  useLibraryPlaylistQuery,
-  useLibraryPlaylistsQuery,
-} from "@/lib/soundkit-api";
+import { useLibraryPlaylistsQuery } from "@/lib/soundkit-api";
 import type { PlaylistSummary } from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
-function PlaylistNestedCard({
-  isExpanded,
-  onToggle,
-  playlist,
-}: {
-  isExpanded: boolean;
-  onToggle: () => void;
-  playlist: PlaylistSummary;
-}) {
-  const { data: detail, isLoading } = useLibraryPlaylistQuery(
-    isExpanded ? playlist.id : ""
-  );
-
+function PlaylistNestedCard({ playlist }: { playlist: PlaylistSummary }) {
   return (
-    <View style={styles.playlistBox}>
-      {/* Playlist header row */}
-      <Pressable onPress={onToggle} style={styles.playlistHeaderRow}>
+    <Link asChild href={`/library/playlists/${playlist.id}`}>
+      <Pressable
+        accessibilityHint="Opens the playlist"
+        accessibilityLabel={playlist.title}
+        accessibilityRole="button"
+        style={({ pressed }) => [
+          styles.playlistBox,
+          pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+        ]}
+      >
         <View style={styles.playlistIconBox}>
-          <Ionicons color="#c084fc" name="albums-outline" size={20} />
+          <Ionicons color="#B8A3FF" name="albums-outline" size={20} />
         </View>
 
         <View style={styles.playlistHeaderCopy}>
@@ -50,54 +33,16 @@ function PlaylistNestedCard({
           </Text>
         </View>
 
-        <Ionicons
-          color="#a1a1aa"
-          name={isExpanded ? "chevron-up" : "chevron-down"}
-          size={18}
-        />
+        <Ionicons color="#8F8F8F" name="chevron-forward" size={18} />
       </Pressable>
-
-      {/* Nested tracks list when expanded */}
-      {isExpanded ? (
-        <View style={styles.nestedTracksBox}>
-          {isLoading && (
-            <ActivityIndicator
-              color="#c084fc"
-              size="small"
-              style={{ marginVertical: 12 }}
-            />
-          )}
-          {!isLoading && detail?.tracks && detail.tracks.length > 0 && (
-            <View style={styles.nestedTracksList}>
-              {detail.tracks.map((track, idx) => (
-                <LibraryItemRow
-                  badge={track.duration}
-                  href={`/tracks/${track.id}`}
-                  imageUrl={track.cover}
-                  index={idx}
-                  key={track.id}
-                  subtitle={track.artist}
-                  title={track.artistSlug ? `${track.artist} - Track` : "Track"}
-                />
-              ))}
-            </View>
-          )}
-          {!isLoading && (!detail?.tracks || detail.tracks.length === 0) && (
-            <Text style={styles.emptyPlaylistText}>
-              No tracks in this playlist yet.
-            </Text>
-          )}
-        </View>
-      ) : null}
-    </View>
+    </Link>
   );
 }
 
 export default function PlaylistsScreen() {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-    { data: playlists = [], isLoading } = useLibraryPlaylistsQuery(),
-    [expandedId, setExpandedId] = useState<string | null>(null);
+    { data: playlists = [], isLoading } = useLibraryPlaylistsQuery();
 
   return (
     <Container>
@@ -105,12 +50,12 @@ export default function PlaylistsScreen() {
         <View style={styles.header}>
           <Link href="/library" asChild>
             <Pressable style={styles.backRow}>
-              <Ionicons color="#c084fc" name="arrow-back" size={18} />
+              <Ionicons color="#B8A3FF" name="arrow-back" size={18} />
               <Text style={styles.backText}>My SoundKit</Text>
             </Pressable>
           </Link>
           <View style={styles.titleRow}>
-            <Ionicons color="#c084fc" name="list-outline" size={26} />
+            <Ionicons color="#B8A3FF" name="list-outline" size={26} />
             <Text style={[styles.title, { color: theme.text }]}>Playlists</Text>
           </View>
           <Text style={[styles.subtitle, { color: theme.mutedText }]}>
@@ -119,27 +64,20 @@ export default function PlaylistsScreen() {
         </View>
 
         {isLoading && (
-          <View style={[styles.stateBox, { borderColor: "#27272a" }]}>
+          <View style={[styles.stateBox, { borderColor: "#212121" }]}>
             <Text style={{ color: theme.mutedText }}>Loading playlists…</Text>
           </View>
         )}
         {!isLoading && playlists.length > 0 && (
           <View style={styles.list}>
             {playlists.map((playlist) => (
-              <PlaylistNestedCard
-                isExpanded={expandedId === playlist.id}
-                key={playlist.id}
-                onToggle={() =>
-                  setExpandedId(expandedId === playlist.id ? null : playlist.id)
-                }
-                playlist={playlist}
-              />
+              <PlaylistNestedCard key={playlist.id} playlist={playlist} />
             ))}
           </View>
         )}
         {!isLoading && playlists.length === 0 && (
-          <View style={[styles.stateBox, { borderColor: "#27272a" }]}>
-            <Ionicons color="#71717a" name="list-outline" size={36} />
+          <View style={[styles.stateBox, { borderColor: "#212121" }]}>
+            <Ionicons color="#8F8F8F" name="list-outline" size={36} />
             <Text style={styles.emptyTitle}>No playlists yet</Text>
             <Text style={styles.emptyDesc}>
               Create custom playlists to organize your favorite music.
@@ -164,12 +102,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   backText: {
-    color: "#c084fc",
+    color: "#B8A3FF",
     fontSize: 13,
     fontWeight: "700",
   },
   browseBtn: {
-    backgroundColor: "#c084fc",
+    backgroundColor: "#B8A3FF",
     borderRadius: 12,
     marginTop: 6,
     paddingHorizontal: 20,
@@ -187,15 +125,8 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   emptyDesc: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
-    textAlign: "center",
-  },
-  emptyPlaylistText: {
-    color: "#71717a",
-    fontSize: 12,
-    fontStyle: "italic",
-    paddingVertical: 8,
     textAlign: "center",
   },
   emptyTitle: {
@@ -209,17 +140,9 @@ const styles = StyleSheet.create({
   list: {
     gap: 12,
   },
-  nestedTracksBox: {
-    borderTopColor: "#27272a",
-    borderTopWidth: 1,
-    paddingTop: 10,
-  },
-  nestedTracksList: {
-    gap: 8,
-  },
   playlistBox: {
-    backgroundColor: "#121215",
-    borderColor: "#27272a",
+    backgroundColor: "#060606",
+    borderColor: "#212121",
     borderRadius: 16,
     borderWidth: 1,
     gap: 10,
@@ -230,21 +153,16 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
-  playlistHeaderRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 12,
-  },
   playlistIconBox: {
     alignItems: "center",
-    backgroundColor: "#27272a",
+    backgroundColor: "#212121",
     borderRadius: 10,
     height: 40,
     justifyContent: "center",
     width: 40,
   },
   playlistMeta: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 12,
   },
   playlistTitle: {

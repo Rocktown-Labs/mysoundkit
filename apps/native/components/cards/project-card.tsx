@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars, eqeqeq, no-eq-null */
 import { StyleSheet, Text, View } from "react-native";
 
 import {
@@ -23,8 +24,8 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: "row",
     gap: 4,
-    paddingHorizontal: 10,
     paddingBottom: 10,
+    paddingHorizontal: 10,
   },
   metaText: { fontSize: 11 },
   thumb: { height: "100%", width: "100%" },

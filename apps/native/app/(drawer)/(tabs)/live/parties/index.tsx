@@ -18,7 +18,7 @@ export default function PartiesScreen() {
         empty="No upcoming listening parties scheduled."
         items={parties.data ?? []}
         keyForItem={(party) => party.id}
-        renderItem={(party) => <PartyCard party={party} />}
+        renderItem={(party) => <PartyCard party={party} fluid />}
         isLoading={parties.isLoading}
       />
     </NativePageScreen>

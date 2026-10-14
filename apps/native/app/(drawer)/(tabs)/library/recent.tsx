@@ -5,13 +5,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Container } from "@/components/container";
 import { LibraryItemRow } from "@/components/library-item-row";
 import { NAV_THEME } from "@/lib/constants";
-import { useLibraryPurchasesQuery } from "@/lib/soundkit-api";
+import { useLibraryRecentQuery } from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
-export default function PurchasedScreen() {
+export default function RecentlyPlayedScreen() {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-    { data: items = [], isLoading } = useLibraryPurchasesQuery();
+    { data: tracks = [], isLoading } = useLibraryRecentQuery();
 
   return (
     <Container>
@@ -19,50 +19,52 @@ export default function PurchasedScreen() {
         <View style={styles.header}>
           <Link href="/library" asChild>
             <Pressable style={styles.backRow}>
-              <Ionicons color="#c084fc" name="arrow-back" size={18} />
+              <Ionicons color="#B8A3FF" name="arrow-back" size={18} />
               <Text style={styles.backText}>My SoundKit</Text>
             </Pressable>
           </Link>
           <View style={styles.titleRow}>
-            <Ionicons color="#22c55e" name="bag-handle-outline" size={26} />
-            <Text style={[styles.title, { color: theme.text }]}>Purchased</Text>
+            <Ionicons color="#38bdf8" name="time-outline" size={26} />
+            <Text style={[styles.title, { color: theme.text }]}>
+              Recently Played
+            </Text>
           </View>
           <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-            Music, drops, and physical merchandise you own
+            Your listening history across SoundKit
           </Text>
         </View>
 
         {isLoading && (
-          <View style={[styles.stateBox, { borderColor: "#27272a" }]}>
-            <Text style={{ color: theme.mutedText }}>Loading purchases…</Text>
+          <View style={[styles.stateBox, { borderColor: "#212121" }]}>
+            <Text style={{ color: theme.mutedText }}>
+              Loading listening history…
+            </Text>
           </View>
         )}
-        {!isLoading && items.length > 0 && (
+        {!isLoading && tracks.length > 0 && (
           <View style={styles.list}>
-            {items.map((item, idx) => (
+            {tracks.map((track, idx) => (
               <LibraryItemRow
-                badge="OWNED"
-                href={`/tracks/${item.id}`}
-                imageUrl={item.cover}
+                href={`/tracks/${track.id}`}
+                imageUrl={track.cover}
                 index={idx}
-                key={item.id}
-                subtitle={item.artist ?? "SoundKit Creator"}
-                title={item.title}
+                key={track.id}
+                subtitle={track.artist ?? "SoundKit Artist"}
+                title={track.title}
               />
             ))}
           </View>
         )}
-        {!isLoading && items.length === 0 && (
-          <View style={[styles.stateBox, { borderColor: "#27272a" }]}>
-            <Ionicons color="#71717a" name="bag-handle-outline" size={36} />
-            <Text style={styles.emptyTitle}>No purchases yet</Text>
+        {!isLoading && tracks.length === 0 && (
+          <View style={[styles.stateBox, { borderColor: "#212121" }]}>
+            <Ionicons color="#8F8F8F" name="musical-notes-outline" size={36} />
+            <Text style={styles.emptyTitle}>No recent plays yet</Text>
             <Text style={styles.emptyDesc}>
-              Support independent artists directly by purchasing singles,
-              albums, or merch.
+              Listen to tracks and they will automatically show up here.
             </Text>
-            <Link href="/shop" asChild>
+            <Link href="/music" asChild>
               <Pressable style={styles.browseBtn}>
-                <Text style={styles.browseBtnText}>Explore Shop</Text>
+                <Text style={styles.browseBtnText}>Browse Music</Text>
               </Pressable>
             </Link>
           </View>
@@ -80,12 +82,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   backText: {
-    color: "#c084fc",
+    color: "#B8A3FF",
     fontSize: 13,
     fontWeight: "700",
   },
   browseBtn: {
-    backgroundColor: "#c084fc",
+    backgroundColor: "#B8A3FF",
     borderRadius: 12,
     marginTop: 6,
     paddingHorizontal: 20,
@@ -103,7 +105,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   emptyDesc: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
     textAlign: "center",
   },

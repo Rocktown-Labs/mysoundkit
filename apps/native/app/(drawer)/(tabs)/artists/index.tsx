@@ -98,22 +98,22 @@ function ArtistRankedRow({
       }
     }, [artist, rank, type]);
 
-  let statColor = "#c084fc",
+  let statColor = "#B8A3FF",
     statIcon: "people-outline" | "trending-up" | "trophy-outline" =
       "trending-up";
   if (type === "new") {
     statColor = "#4ade80";
     statIcon = "people-outline";
   } else if (type === "top") {
-    statColor = "#c084fc";
+    statColor = "#B8A3FF";
     statIcon = "trophy-outline";
   }
 
   let rankBadgeStyle = styles.rankBadgeOther,
-    rankTextColor = "#71717a";
+    rankTextColor = "#8F8F8F";
   if (rank === 1) {
     rankBadgeStyle = styles.rankBadge1;
-    rankTextColor = "#c084fc";
+    rankTextColor = "#B8A3FF";
   } else if (rank === 2) {
     rankBadgeStyle = styles.rankBadge2;
     rankTextColor = "#d4d4d8";
@@ -165,7 +165,7 @@ function ArtistRankedRow({
             {artist.name}
           </Text>
           {artist.verified ? (
-            <Ionicons color="#c084fc" name="checkmark-circle" size={14} />
+            <Ionicons color="#B8A3FF" name="checkmark-circle" size={14} />
           ) : null}
         </View>
 
@@ -198,7 +198,7 @@ function LeaderboardSection({
       <View style={styles.sectionHeaderRow}>
         <View style={{ flex: 1 }}>
           <View style={styles.sectionTitleRow}>
-            <Ionicons color="#c084fc" name={iconName} size={20} />
+            <Ionicons color="#B8A3FF" name={iconName} size={20} />
             <Text style={styles.sectionTitle}>{title}</Text>
           </View>
           <Text style={styles.sectionSubtitle}>{description}</Text>
@@ -473,19 +473,19 @@ export default function ArtistsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         {/* Top search bar matching Image 5 */}
         <View style={styles.searchBar}>
-          <Ionicons color="#a1a1aa" name="search" size={16} />
+          <Ionicons color="#8F8F8F" name="search" size={16} />
           <TextInput
             autoCapitalize="none"
             autoCorrect={false}
             onChangeText={setSearchQuery}
             placeholder="Search artists..."
-            placeholderTextColor="#71717a"
+            placeholderTextColor="#8F8F8F"
             style={styles.searchInput}
             value={searchQuery}
           />
           {searchQuery ? (
             <Pressable hitSlop={8} onPress={() => setSearchQuery("")}>
-              <Ionicons color="#a1a1aa" name="close-circle" size={16} />
+              <Ionicons color="#8F8F8F" name="close-circle" size={16} />
             </Pressable>
           ) : null}
         </View>
@@ -518,7 +518,7 @@ export default function ArtistsScreen() {
               <Text numberOfLines={1} style={styles.filterDropdownText}>
                 {activeNa.label}
               </Text>
-              <Ionicons color="#71717a" name="chevron-down" size={14} />
+              <Ionicons color="#8F8F8F" name="chevron-down" size={14} />
             </Pressable>
           </View>
 
@@ -539,7 +539,7 @@ export default function ArtistsScreen() {
               <Text numberOfLines={1} style={styles.filterDropdownText}>
                 {activeContinent.label}
               </Text>
-              <Ionicons color="#71717a" name="chevron-down" size={14} />
+              <Ionicons color="#8F8F8F" name="chevron-down" size={14} />
             </Pressable>
           </View>
 
@@ -555,7 +555,7 @@ export default function ArtistsScreen() {
               <Text numberOfLines={1} style={styles.filterDropdownText}>
                 {activeGenreLabel}
               </Text>
-              <Ionicons color="#71717a" name="chevron-down" size={14} />
+              <Ionicons color="#8F8F8F" name="chevron-down" size={14} />
             </Pressable>
           </View>
 
@@ -571,7 +571,7 @@ export default function ArtistsScreen() {
               <Text numberOfLines={1} style={styles.filterDropdownText}>
                 {activeSortLabel}
               </Text>
-              <Ionicons color="#71717a" name="chevron-down" size={14} />
+              <Ionicons color="#8F8F8F" name="chevron-down" size={14} />
             </Pressable>
           </View>
         </View>
@@ -582,7 +582,7 @@ export default function ArtistsScreen() {
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>{pickerHeaderTitle}</Text>
               <Pressable onPress={() => setActivePicker(null)}>
-                <Ionicons color="#a1a1aa" name="close" size={18} />
+                <Ionicons color="#8F8F8F" name="close" size={18} />
               </Pressable>
             </View>
             <ScrollView style={{ maxHeight: 200 }}>
@@ -665,7 +665,7 @@ export default function ArtistsScreen() {
                         />
                       ) : (
                         <View style={styles.artistCardAvatarPlaceholder}>
-                          <Ionicons color="#a1a1aa" name="person" size={32} />
+                          <Ionicons color="#8F8F8F" name="person" size={32} />
                         </View>
                       )}
                     </View>
@@ -706,7 +706,7 @@ const styles = StyleSheet.create({
   },
   artistCardAvatarPlaceholder: {
     alignItems: "center",
-    backgroundColor: "#27272a",
+    backgroundColor: "#212121",
     borderRadius: 14,
     height: 120,
     justifyContent: "center",
@@ -725,7 +725,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   artistMeta: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 12,
   },
   artistName: {
@@ -758,7 +758,7 @@ const styles = StyleSheet.create({
   },
   avatarPlaceholder: {
     alignItems: "center",
-    backgroundColor: "#27272a",
+    backgroundColor: "#212121",
     borderRadius: 10,
     height: 44,
     justifyContent: "center",
@@ -774,14 +774,14 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   emptyText: {
-    color: "#71717a",
+    color: "#8F8F8F",
     fontSize: 13,
     textAlign: "center",
   },
   filterDropdown: {
     alignItems: "center",
-    backgroundColor: "#141417",
-    borderColor: "#27272a",
+    backgroundColor: "#0B0B0B",
+    borderColor: "#212121",
     borderRadius: 12,
     borderWidth: 1,
     flexDirection: "row",
@@ -804,7 +804,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   filterLabel: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 11,
     fontWeight: "700",
   },
@@ -814,13 +814,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   followersText: {
-    color: "#71717a",
+    color: "#8F8F8F",
     fontSize: 11,
     marginTop: 2,
     textAlign: "center",
   },
   genreBadge: {
-    backgroundColor: "#27272a",
+    backgroundColor: "#212121",
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -853,8 +853,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   leaderboardCard: {
-    backgroundColor: "#121215",
-    borderColor: "#27272a",
+    backgroundColor: "#060606",
+    borderColor: "#212121",
     borderRadius: 18,
     borderWidth: 1,
     gap: 4,
@@ -862,7 +862,7 @@ const styles = StyleSheet.create({
   },
   pickerHeader: {
     alignItems: "center",
-    borderBottomColor: "#27272a",
+    borderBottomColor: "#212121",
     borderBottomWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -881,12 +881,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   pickerItemTextActive: {
-    color: "#c084fc",
+    color: "#B8A3FF",
     fontWeight: "700",
   },
   pickerModal: {
     backgroundColor: "#18181c",
-    borderColor: "#27272a",
+    borderColor: "#212121",
     borderRadius: 14,
     borderWidth: 1,
     gap: 8,
@@ -912,7 +912,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#3f3f4630",
   },
   rankBadgeOther: {
-    backgroundColor: "#27272a",
+    backgroundColor: "#212121",
   },
   rankBadgeText: {
     fontSize: 13,
@@ -928,8 +928,8 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     alignItems: "center",
-    backgroundColor: "#141417",
-    borderColor: "#27272a",
+    backgroundColor: "#0B0B0B",
+    borderColor: "#212121",
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: "row",
@@ -951,7 +951,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   sectionSubtitle: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
     marginTop: 2,
   },
@@ -989,7 +989,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   viewAllText: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
     fontWeight: "700",
   },

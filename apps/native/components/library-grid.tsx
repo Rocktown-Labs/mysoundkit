@@ -27,7 +27,7 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
     title: "Recently Played",
   },
   {
-    color: "#c084fc",
+    color: "#B8A3FF",
     countKey: "playlistCount",
     href: "/library/playlists",
     icon: "list-outline",
@@ -85,8 +85,8 @@ export function LibraryGrid({ onItemPress }: { onItemPress?: () => void }) {
             style={({ pressed }) => [
               styles.card,
               {
-                backgroundColor: pressed ? "#1d1d22" : "#121215",
-                borderColor: "#27272a",
+                backgroundColor: pressed ? "#16181D" : "#060606",
+                borderColor: "#212121",
                 opacity: pressed ? 0.85 : 1,
               },
             ]}
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   countText: {
-    color: "#71717a",
+    color: "#8F8F8F",
     fontSize: 11,
     fontWeight: "600",
     marginTop: -6,

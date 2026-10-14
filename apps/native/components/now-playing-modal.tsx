@@ -14,12 +14,18 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  FadeIn,
+  FadeOut,
   runOnJS,
+  SlideInDown,
+  SlideOutDown,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  createAnimatedComponent,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { scheduleOnRN } from "react-native-worklets";
 
 import { NativeImage } from "@/components/native-image";
 import { useAudioPlayerContext } from "@/contexts/audio-player-context";
@@ -28,7 +34,8 @@ import { NAV_THEME } from "@/lib/constants";
 import { formatPlayerTime, formatRemainingTime } from "@/lib/player-queue";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window"),
+  AnimatedPressable = createAnimatedComponent(Pressable);
 
 const styles = StyleSheet.create({
   actionBtn: {
@@ -48,14 +55,14 @@ const styles = StyleSheet.create({
   artContainer: {
     alignItems: "center",
     alignSelf: "center",
-    borderRadius: 20,
-    elevation: 20,
+    borderRadius: 16,
+    elevation: 12,
     justifyContent: "center",
     overflow: "hidden",
     shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.55,
-    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.45,
+    shadowRadius: 24,
   },
   bottomActionsBar: {
     alignItems: "center",
@@ -145,45 +152,127 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "800",
   },
-  queueDrawer: {
-    backgroundColor: "rgba(24, 24, 28, 0.96)",
-    borderColor: "rgba(255, 255, 255, 0.12)",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderWidth: 1,
-    bottom: 0,
-    left: 0,
-    maxHeight: "75%",
-    paddingBottom: 24,
-    position: "absolute",
-    right: 0,
-    zIndex: 50,
+  queueClearText: {
+    color: "#E05D4D",
+    fontSize: 13,
+    fontWeight: "700",
   },
+  queueControl: {
+    alignItems: "center",
+    height: 30,
+    justifyContent: "center",
+    width: 30,
+  },
+  queueControlDisabled: { opacity: 0.25 },
   queueHeader: {
     alignItems: "center",
-    borderBottomColor: "rgba(255, 255, 255, 0.08)",
-    borderBottomWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    marginBottom: 8,
+    paddingHorizontal: 18,
+  },
+  queueHeaderText: {
+    color: "#F8F8F8",
+    fontSize: 16,
+    fontWeight: "800",
   },
   queueItem: {
     alignItems: "center",
+    borderRadius: 12,
+    flex: 1,
     flexDirection: "row",
     gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
   queueItemArt: {
-    borderRadius: 6,
-    height: 42,
+    backgroundColor: "#111111",
+    borderRadius: 8,
+    height: 44,
     overflow: "hidden",
-    width: 42,
+    width: 44,
+  },
+  queueItemArtFallback: {
+    alignItems: "center",
+    backgroundColor: "#111111",
+    height: "100%",
+    justifyContent: "center",
+    width: "100%",
+  },
+  queueItemControls: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 2,
+  },
+  queueItemRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    paddingHorizontal: 12,
+  },
+  queueItemSubtitle: {
+    color: "#8F8F8F",
+    fontSize: 12,
+  },
+  queueItemTitle: {
+    color: "#F8F8F8",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  queueScrim: {
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    bottom: 0,
+    left: 0,
+    position: "absolute",
+    right: 0,
+    top: 0,
+  },
+  queueSheet: {
+    backgroundColor: "#0B0B0B",
+    borderColor: "#212121",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    bottom: 0,
+    left: 0,
+    paddingBottom: 28,
+    position: "absolute",
+    right: 0,
+  },
+  sheetHandleBar: {
+    alignSelf: "center",
+    backgroundColor: "#3A3A3F",
+    borderRadius: 999,
+    height: 5,
+    width: 44,
+  },
+  sheetHandleHit: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  sponsoredBanner: {
+    alignItems: "center",
+    alignSelf: "center",
+    backgroundColor: "rgba(184, 163, 255, 0.12)",
+    borderColor: "rgba(184, 163, 255, 0.25)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 4,
+    marginHorizontal: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  sponsoredText: {
+    color: "#B8A3FF",
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "700",
   },
   repeatBadge: {
     bottom: 6,
-    color: "#c084fc",
+    color: "#B8A3FF",
     fontSize: 9,
     fontWeight: "900",
     position: "absolute",
@@ -252,7 +341,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   trackArtist: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 17,
     fontWeight: "500",
     letterSpacing: -0.2,
@@ -399,13 +488,13 @@ function NowPlayingArtworkView({
         <View
           style={{
             alignItems: "center",
-            backgroundColor: "#27272a",
+            backgroundColor: "#212121",
             height: "100%",
             justifyContent: "center",
             width: "100%",
           }}
         >
-          <Ionicons color="#c084fc" name="musical-notes" size={64} />
+          <Ionicons color="#B8A3FF" name="musical-notes" size={64} />
         </View>
       )}
     </View>
@@ -476,6 +565,7 @@ function NowPlayingScrubber({
 }
 
 function NowPlayingTransportControls({
+  interactive,
   isPlaying,
   isShuffle,
   nextTrack,
@@ -485,6 +575,8 @@ function NowPlayingTransportControls({
   toggleRepeat,
   toggleShuffle,
 }: {
+  /** False while a pre-roll ad plays: transport (except play/pause) locks. */
+  interactive: boolean;
   isPlaying: boolean;
   isShuffle: boolean;
   nextTrack: () => void;
@@ -501,12 +593,13 @@ function NowPlayingTransportControls({
         accessibilityHint="Toggles shuffle"
         accessibilityLabel="Shuffle"
         accessibilityRole="button"
+        disabled={!interactive}
         hitSlop={10}
         onPress={toggleShuffle}
         style={styles.actionBtn}
       >
         <Ionicons
-          color={isShuffle ? "#c084fc" : "#f4f4f5"}
+          color={isShuffle ? "#B8A3FF" : "#f4f4f5"}
           name="shuffle"
           size={24}
         />
@@ -518,6 +611,7 @@ function NowPlayingTransportControls({
         accessibilityLabel="Previous"
         accessibilityRole="button"
         hitSlop={10}
+        disabled={!interactive}
         onPress={previousTrack}
         style={styles.actionBtn}
       >
@@ -552,6 +646,7 @@ function NowPlayingTransportControls({
         accessibilityHint="Skips to next track"
         accessibilityLabel="Next"
         accessibilityRole="button"
+        disabled={!interactive}
         hitSlop={10}
         onPress={nextTrack}
         style={styles.actionBtn}
@@ -564,13 +659,14 @@ function NowPlayingTransportControls({
         accessibilityHint="Toggles repeat mode"
         accessibilityLabel="Repeat"
         accessibilityRole="button"
+        disabled={!interactive}
         hitSlop={10}
         onPress={toggleRepeat}
         style={styles.actionBtn}
       >
         <View style={{ position: "relative" }}>
           <Ionicons
-            color={repeatMode === "off" ? "#f4f4f5" : "#c084fc"}
+            color={repeatMode === "off" ? "#f4f4f5" : "#B8A3FF"}
             name="repeat"
             size={24}
           />
@@ -583,119 +679,212 @@ function NowPlayingTransportControls({
   );
 }
 
-function NowPlayingQueueDrawer({
+function NowPlayingQueueSheet({
   clearQueue,
   onClose,
   playTrack,
   queue,
   removeFromQueue,
+  moveQueueItem,
 }: {
   clearQueue: () => void;
   onClose: () => void;
   playTrack: (t: PlayerTrack) => void;
   queue: PlayerTrack[];
   removeFromQueue: (id: string) => void;
+  moveQueueItem: (trackId: string, delta: number) => void;
 }) {
-  return (
-    <View style={styles.queueDrawer}>
-      <View style={styles.queueHeader}>
-        <Text style={{ color: "#ffffff", fontSize: 16, fontWeight: "700" }}>
-          Up Next ({queue.length})
-        </Text>
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          {queue.length > 0 ? (
-            <Pressable accessibilityRole="button" onPress={clearQueue}>
-              <Text
-                style={{ color: "#ef4444", fontSize: 13, fontWeight: "600" }}
-              >
-                Clear
-              </Text>
-            </Pressable>
-          ) : null}
-          <Pressable accessibilityRole="button" onPress={onClose}>
-            <Ionicons color="#f4f4f5" name="close" size={20} />
-          </Pressable>
-        </View>
-      </View>
+  const dragY = useSharedValue(0);
 
-      <ScrollView
-        style={{ maxHeight: 320 }}
-        showsVerticalScrollIndicator={true}
-      >
-        {queue.length === 0 ? (
-          <View style={{ alignItems: "center", paddingVertical: 32 }}>
-            <Text style={{ color: "#a1a1aa", fontSize: 13 }}>
-              No tracks in queue. Play songs to build your mix.
-            </Text>
+  const panGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      if (event.translationY > 0) {
+        dragY.set(event.translationY);
+      }
+    })
+    .onEnd((event) => {
+      const shouldDismiss = event.translationY > 120 || event.velocityY > 750;
+      if (shouldDismiss) {
+        dragY.set(
+          withSpring(600, { dampingRatio: 0.8, velocity: event.velocityY })
+        );
+        scheduleOnRN(onClose);
+      } else {
+        dragY.set(
+          withSpring(0, {
+            dampingRatio: 0.8,
+            duration: 300,
+            velocity: event.velocityY,
+          })
+        );
+      }
+    });
+
+  const dragStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: dragY.get() }],
+  }));
+
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      {/* Scrim: dim the player behind the sheet; tap to dismiss. */}
+      <AnimatedPressable
+        accessibilityLabel="Close queue"
+        accessibilityRole="button"
+        entering={FadeIn.duration(180)}
+        exiting={FadeOut.duration(150)}
+        onPress={onClose}
+        style={styles.queueScrim}
+      />
+      <GestureDetector gesture={panGesture}>
+        <Animated.View
+          entering={SlideInDown.springify().dampingRatio(0.86).duration(300)}
+          exiting={SlideOutDown.springify().dampingRatio(0.86).duration(280)}
+          style={[styles.queueSheet, dragStyle]}
+        >
+          {/* Drag handle */}
+          <View style={styles.sheetHandleHit}>
+            <View style={styles.sheetHandleBar} />
           </View>
-        ) : (
-          queue.map((track) => (
-            <Pressable
-              key={track.id}
-              onPress={() => {
-                playTrack(track);
-                onClose();
-              }}
-              style={({ pressed }) => [
-                styles.queueItem,
-                {
-                  backgroundColor: pressed
-                    ? "rgba(255, 255, 255, 0.06)"
-                    : "transparent",
-                },
-              ]}
-            >
-              <View style={styles.queueItemArt}>
-                {track.cover ? (
-                  <NativeImage
-                    source={track.cover}
-                    style={{ height: "100%", width: "100%" }}
-                  />
-                ) : (
-                  <View
-                    style={{
-                      alignItems: "center",
-                      backgroundColor: "#27272a",
-                      height: "100%",
-                      justifyContent: "center",
-                      width: "100%",
-                    }}
-                  >
-                    <Ionicons color="#a1a1aa" name="musical-notes" size={14} />
-                  </View>
-                )}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text
-                  numberOfLines={1}
-                  style={{ color: "#ffffff", fontSize: 14, fontWeight: "600" }}
+
+          <View style={styles.queueHeader}>
+            <Text style={styles.queueHeaderText}>Up Next ({queue.length})</Text>
+            <View style={{ flexDirection: "row", gap: 14 }}>
+              {queue.length > 0 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  hitSlop={6}
+                  onPress={clearQueue}
                 >
-                  {track.title}
-                </Text>
-                <Text
-                  numberOfLines={1}
-                  style={{ color: "#a1a1aa", fontSize: 12 }}
-                >
-                  {track.artist}
-                </Text>
-              </View>
+                  <Text style={styles.queueClearText}>Clear</Text>
+                </Pressable>
+              ) : null}
               <Pressable
-                hitSlop={8}
-                onPress={(e) => {
-                  e.stopPropagation?.();
-                  removeFromQueue(track.id);
-                }}
+                accessibilityRole="button"
+                hitSlop={6}
+                onPress={onClose}
               >
-                <Ionicons
-                  color="rgba(255, 255, 255, 0.4)"
-                  name="close-circle-outline"
-                  size={18}
-                />
+                <Ionicons color="#F8F8F8" name="close" size={20} />
               </Pressable>
-            </Pressable>
-          ))
-        )}
-      </ScrollView>
+            </View>
+          </View>
+
+          <ScrollView
+            style={{ maxHeight: 320 }}
+            showsVerticalScrollIndicator={true}
+          >
+            {queue.length === 0 ? (
+              <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                <Text style={{ color: "#8F8F8F", fontSize: 13 }}>
+                  No tracks in queue. Play songs to build your mix.
+                </Text>
+              </View>
+            ) : (
+              queue.map((track, index) => (
+                <View key={track.id} style={styles.queueItemRow}>
+                  <Pressable
+                    accessibilityHint="Plays this track"
+                    accessibilityLabel={track.title}
+                    accessibilityRole="button"
+                    onPress={() => {
+                      playTrack(track);
+                      onClose();
+                    }}
+                    style={({ pressed }) => [
+                      styles.queueItem,
+                      {
+                        backgroundColor: pressed
+                          ? "rgba(255, 255, 255, 0.06)"
+                          : "transparent",
+                      },
+                    ]}
+                  >
+                    <View style={styles.queueItemArt}>
+                      {track.cover ? (
+                        <NativeImage
+                          source={track.cover}
+                          style={{ height: "100%", width: "100%" }}
+                        />
+                      ) : (
+                        <View style={styles.queueItemArtFallback}>
+                          <Ionicons
+                            color="#8F8F8F"
+                            name="musical-notes"
+                            size={14}
+                          />
+                        </View>
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text numberOfLines={1} style={styles.queueItemTitle}>
+                        {track.title}
+                      </Text>
+                      <Text numberOfLines={1} style={styles.queueItemSubtitle}>
+                        {track.artist}
+                      </Text>
+                    </View>
+                  </Pressable>
+                  <View style={styles.queueItemControls}>
+                    <Pressable
+                      accessibilityHint="Moves track up in the queue"
+                      accessibilityLabel="Move up"
+                      accessibilityRole="button"
+                      disabled={index === 0}
+                      hitSlop={6}
+                      onPress={() => {
+                        moveQueueItem(track.id, -1);
+                      }}
+                      style={({ pressed }) => [
+                        styles.queueControl,
+                        index === 0 && styles.queueControlDisabled,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Ionicons color="#F8F8F8" name="chevron-up" size={16} />
+                    </Pressable>
+                    <Pressable
+                      accessibilityHint="Moves track down in the queue"
+                      accessibilityLabel="Move down"
+                      accessibilityRole="button"
+                      disabled={index === queue.length - 1}
+                      hitSlop={6}
+                      onPress={() => {
+                        moveQueueItem(track.id, 1);
+                      }}
+                      style={({ pressed }) => [
+                        styles.queueControl,
+                        index === queue.length - 1 &&
+                          styles.queueControlDisabled,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Ionicons color="#F8F8F8" name="chevron-down" size={16} />
+                    </Pressable>
+                    <Pressable
+                      accessibilityHint="Removes track from the queue"
+                      accessibilityLabel="Remove"
+                      accessibilityRole="button"
+                      hitSlop={6}
+                      onPress={() => {
+                        removeFromQueue(track.id);
+                      }}
+                      style={({ pressed }) => [
+                        styles.queueControl,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Ionicons
+                        color="rgba(255, 255, 255, 0.45)"
+                        name="close-circle-outline"
+                        size={18}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </Animated.View>
+      </GestureDetector>
     </View>
   );
 }
@@ -707,6 +896,7 @@ function NowPlayingQueueDrawer({
  */
 export function NowPlayingModal() {
   const {
+    activeAd,
     clearQueue,
     closeNowPlaying,
     currentTrack,
@@ -716,6 +906,7 @@ export function NowPlayingModal() {
     isPlaying,
     isQueueVisible,
     isShuffle,
+    moveQueueItem,
     nextTrack,
     playbackPosition,
     playTrack,
@@ -862,15 +1053,19 @@ export function NowPlayingModal() {
             <View style={styles.mainContent}>
               <View style={styles.centerStage}>
                 {isLyricsVisible ? (
-                  <NowPlayingLyricsView
-                    displayPosition={displayPosition}
-                    lyricLines={lyricLines}
-                  />
+                  <Animated.View entering={FadeIn.duration(180)}>
+                    <NowPlayingLyricsView
+                      displayPosition={displayPosition}
+                      lyricLines={lyricLines}
+                    />
+                  </Animated.View>
                 ) : (
-                  <NowPlayingArtworkView
-                    artSize={artSize}
-                    currentTrack={currentTrack}
-                  />
+                  <Animated.View entering={FadeIn.duration(180)}>
+                    <NowPlayingArtworkView
+                      artSize={artSize}
+                      currentTrack={currentTrack}
+                    />
+                  </Animated.View>
                 )}
               </View>
 
@@ -901,7 +1096,7 @@ export function NowPlayingModal() {
                   ]}
                 >
                   <Ionicons
-                    color={isLyricsVisible ? "#c084fc" : "#f4f4f5"}
+                    color={isLyricsVisible ? "#B8A3FF" : "#f4f4f5"}
                     name={isLyricsVisible ? "mic" : "mic-outline"}
                     size={20}
                   />
@@ -920,8 +1115,23 @@ export function NowPlayingModal() {
                 }}
               />
 
+              {/* Sponsored pre-roll banner while an ad plays */}
+              {activeAd ? (
+                <View style={styles.sponsoredBanner}>
+                  <Ionicons
+                    color="#B8A3FF"
+                    name="megaphone-outline"
+                    size={14}
+                  />
+                  <Text numberOfLines={1} style={styles.sponsoredText}>
+                    Sponsored audio — {activeAd.title}
+                  </Text>
+                </View>
+              ) : null}
+
               {/* Transport Controls Row */}
               <NowPlayingTransportControls
+                interactive={activeAd === null}
                 isPlaying={isPlaying}
                 isShuffle={isShuffle}
                 nextTrack={nextTrack}
@@ -982,7 +1192,7 @@ export function NowPlayingModal() {
                   style={styles.actionBtn}
                 >
                   <Ionicons
-                    color={isLyricsVisible ? "#c084fc" : "#f4f4f5"}
+                    color={isLyricsVisible ? "#B8A3FF" : "#f4f4f5"}
                     name={
                       isLyricsVisible
                         ? "chatbubble-ellipses"
@@ -1015,7 +1225,7 @@ export function NowPlayingModal() {
                 >
                   <View style={{ position: "relative" }}>
                     <Ionicons
-                      color={isQueueVisible ? "#c084fc" : "#f4f4f5"}
+                      color={isQueueVisible ? "#B8A3FF" : "#f4f4f5"}
                       name="list"
                       size={24}
                     />
@@ -1036,11 +1246,14 @@ export function NowPlayingModal() {
               </View>
             </View>
 
-            {/* Up Next Queue Drawer Sheet */}
+            {/* Up Next queue sheet */}
             {isQueueVisible ? (
-              <NowPlayingQueueDrawer
+              <NowPlayingQueueSheet
                 clearQueue={clearQueue}
-                onClose={() => setIsQueueVisible(false)}
+                moveQueueItem={moveQueueItem}
+                onClose={() => {
+                  setIsQueueVisible(false);
+                }}
                 playTrack={playTrack}
                 queue={queue}
                 removeFromQueue={removeFromQueue}
