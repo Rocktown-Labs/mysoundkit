@@ -164,7 +164,10 @@ const isErrorPageUrl = (url: string): boolean => url.startsWith(errorPageUrl),
     browserSession.webRequest.onBeforeSendHeaders(
       appRequestFilter,
       (details, callback) => {
-        details.requestHeaders["X-SoundKit-Client"] = "desktop";
+        const desktopSecret = process.env.DESKTOP_AUTH_SECRET;
+        if (desktopSecret) {
+          details.requestHeaders["X-SoundKit-Desktop-Secret"] = desktopSecret;
+        }
         callback({ requestHeaders: details.requestHeaders });
       }
     );

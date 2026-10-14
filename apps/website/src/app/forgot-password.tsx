@@ -49,9 +49,6 @@ function ForgotPasswordPage() {
         if (turnstileToken) {
           headers["X-Turnstile-Token"] = turnstileToken;
         }
-        if (isDesktop) {
-          headers["X-SoundKit-Client"] = "desktop";
-        }
         const fetchOptions =
             Object.keys(headers).length > 0 ? { headers } : undefined,
           result = await authClient.requestPasswordReset(

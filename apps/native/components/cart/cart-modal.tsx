@@ -1,6 +1,7 @@
 /* oxlint-disable one-var, sort-vars, no-nested-ternary */
 /* eslint-disable one-var, sort-vars, no-nested-ternary */
 import { Ionicons } from "@expo/vector-icons";
+import * as Crypto from "expo-crypto";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -25,7 +26,6 @@ export function CartModal() {
     router = useRouter(),
     { data: session } = authClient.useSession(),
     {
-      cartOpen,
       clearCart,
       closeCart,
       isCartOpen,
@@ -33,10 +33,10 @@ export function CartModal() {
       removeItem,
       totalCents,
       updateQuantity,
-    } = useCart() as ReturnType<typeof useCart> & { cartOpen?: boolean },
+    } = useCart(),
     [isCheckingOut, setIsCheckingOut] = useState(false),
     [checkoutError, setCheckoutError] = useState<null | string>(null),
-    isOpen = Boolean(isCartOpen ?? cartOpen),
+    isOpen = isCartOpen,
     startCheckout = async () => {
       setCheckoutError(null);
 
@@ -46,25 +46,68 @@ export function CartModal() {
         return;
       }
 
+      if (items.length === 0) {
+        setCheckoutError("Cart is empty.");
+        return;
+      }
+
       setIsCheckingOut(true);
 
       try {
-        const response = await authenticatedFetch(
-            `${API_V1_URL}/payments/checkout`,
-            {
-              body: JSON.stringify({
-                cancelUrl: "https://mysoundkit.com",
-                idempotencyKey: `mobile_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-                successUrl: "https://mysoundkit.com/library/purchased",
+        await authenticatedFetch(`${API_V1_URL}/cart`, {
+          method: "DELETE",
+        });
+
+        const claimResponse = await authenticatedFetch(
+          `${API_V1_URL}/cart/claim`,
+          {
+            body: JSON.stringify({
+              items: items.map((item) => {
+                if (item.purchaseMode === "physical_merch") {
+                  return {
+                    physicalReleaseId: item.id,
+                    productType: "physical_merch" as const,
+                    quantity: item.quantity,
+                  };
+                }
+                return {
+                  productType: "track" as const,
+                  quantity: item.quantity,
+                  trackId: item.id,
+                };
               }),
-              headers: { "Content-Type": "application/json" },
-              method: "POST",
-            }
-          ),
-          payload = (await response.json()) as {
-            checkoutUrl?: null | string;
+            }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          }
+        );
+
+        if (!claimResponse.ok) {
+          const claimError = (await claimResponse.json().catch(() => null)) as {
             message?: string;
-          };
+          } | null;
+          setIsCheckingOut(false);
+          setCheckoutError(claimError?.message ?? "Failed to sync cart items.");
+          return;
+        }
+
+        const idempotencyKey = Crypto.randomUUID();
+        const response = await authenticatedFetch(
+          `${API_V1_URL}/payments/checkout`,
+          {
+            body: JSON.stringify({
+              cancelUrl: "https://mysoundkit.com",
+              idempotencyKey,
+              successUrl: "https://mysoundkit.com/library/purchased",
+            }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          }
+        );
+        const payload = (await response.json()) as {
+          checkoutUrl?: null | string;
+          message?: string;
+        };
 
         if (!response.ok || !payload.checkoutUrl) {
           setIsCheckingOut(false);

@@ -41,10 +41,14 @@ export const verifyTurnstileRequest = async ({
 }) => {
   const secret = getEnvValue("TURNSTILE_SECRET"),
     expectedHostnames = getExpectedHostnames(),
-    // Desktop shell requests bypass Turnstile since embedded Chromium
-    // faces DNS/environment challenge restrictions on user endpoints.
-    clientHeader = request.headers.get("X-SoundKit-Client");
-  if (clientHeader === "desktop") {
+    desktopSecret = getEnvValue("DESKTOP_AUTH_SECRET"),
+    clientDesktopSecret = request.headers.get("X-SoundKit-Desktop-Secret");
+  // Trusted desktop environments can bypass Turnstile only when configured with a matching server secret.
+  if (
+    desktopSecret &&
+    clientDesktopSecret &&
+    clientDesktopSecret === desktopSecret
+  ) {
     return true;
   }
 

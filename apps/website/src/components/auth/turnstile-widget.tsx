@@ -94,7 +94,7 @@ export function TurnstileWidget({
     };
   }, [action, onTokenChange, resetKey, siteKey]);
 
-  if (!siteKey) {
+  if (!siteKey || isDesktopClient()) {
     return null;
   }
 

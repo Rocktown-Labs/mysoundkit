@@ -114,7 +114,23 @@ export default function TrackDetailScreen() {
     },
     typeLabel = data.catalogItemType
       ? data.catalogItemType.replaceAll("_", " ")
-      : "Single";
+      : "Single",
+    isPurchasable =
+      data.isForSale ||
+      ("isPurchasable" in data && Boolean(data.isPurchasable)),
+    priceCents =
+      typeof data.priceCents === "number"
+        ? data.priceCents
+        : typeof data.price === "number"
+          ? Math.round(data.price * 100)
+          : null,
+    priceLabel =
+      ("priceLabel" in data && typeof data.priceLabel === "string"
+        ? data.priceLabel
+        : null) ??
+      (typeof priceCents === "number"
+        ? `$${(priceCents / 100).toFixed(2)}`
+        : "$1.99");
 
   return (
     <>
@@ -233,20 +249,17 @@ export default function TrackDetailScreen() {
               <Text style={styles.queueBtnText}>QUEUE</Text>
             </Pressable>
 
-            {data.isForSale && data.price != null ? (
+            {isPurchasable && priceCents !== null ? (
               <Pressable
                 accessibilityHint="Adds to cart and opens checkout"
-                accessibilityLabel={`Buy for $${data.price}`}
+                accessibilityLabel={`Buy for ${priceLabel}`}
                 accessibilityRole="button"
                 onPress={() => {
                   addItem({
                     artistName: data.artistName,
                     coverArtUrl: data.coverArtUrl,
                     id: data.id,
-                    priceCents:
-                      typeof data.priceCents === "number"
-                        ? data.priceCents
-                        : Math.round(Number(data.price ?? 1.99) * 100),
+                    priceCents: priceCents ?? 199,
                     purchaseMode: "digital_release",
                     title: data.title,
                   });
@@ -257,7 +270,7 @@ export default function TrackDetailScreen() {
                 ]}
               >
                 <Ionicons color="#FFFFFF" name="bag-handle-outline" size={17} />
-                <Text style={styles.queueBtnText}>BUY ${data.price}</Text>
+                <Text style={styles.queueBtnText}>BUY {priceLabel}</Text>
               </Pressable>
             ) : null}
 
