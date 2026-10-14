@@ -21,6 +21,10 @@ env:
   SOUNDKIT_ELECTRON_BINARY: "1"
   SOUNDKIT_SKIP_ELECTRON_BINARY: "0"
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
     name: Build (${{ matrix.os }}, ${{ matrix.arch }})
