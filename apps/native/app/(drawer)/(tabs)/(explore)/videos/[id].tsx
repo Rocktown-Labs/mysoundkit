@@ -27,7 +27,11 @@ export default function VideoDetailScreen() {
     video = useVideoQuery(id ?? ""),
     data = video.data,
     playbackSource =
-      data?.sourceProvider === "mux" && data.muxPlaybackId
+      data?.sourceProvider === "mux" &&
+      data.muxPlaybackId &&
+      // Signed playback needs short-lived JWTs from the server; only public
+      // policies stream through the direct stream.mux.com HLS URL.
+      data.playbackPolicy === "public"
         ? `https://stream.mux.com/${data.muxPlaybackId}.m3u8`
         : (resolveApiUrl(data?.externalPlaybackUrl ?? null) ?? undefined),
     player = useVideoPlayer(playbackSource ?? null, (playerInstance) => {
