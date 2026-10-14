@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/ensure-desktop-electron.mjs",
     "dev": "turbo run dev --filter=web --filter=server",
     "dev:all": "turbo run dev",
     "dev:infra": "turbo run dev --filter=@soundkit/infra",
@@ -30,7 +31,8 @@
     "test:e2e": "playwright test",
     "test:e2e:real": "SOUNDKIT_REAL_E2E=true playwright test tests/e2e/real-backend.spec.ts --project=chromium",
     "test:unit": "vitest run --config vitest.config.ts",
-    "test:worker": "vitest run --config vitest.worker.config.ts && vitest run --config vitest.live-review.worker.config.ts"
+    "test:worker": "vitest run --config vitest.worker.config.ts && vitest run --config vitest.live-review.worker.config.ts",
+    "test:desktop": "playwright test -c playwright.desktop.config.ts"
   },
   "dependencies": {
     "@soundkit/env": "workspace:*",

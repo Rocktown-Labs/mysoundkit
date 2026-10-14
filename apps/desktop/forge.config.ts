@@ -1,4 +1,5 @@
 import { MakerDeb } from "@electron-forge/maker-deb";
+import { MakerDMG } from "@electron-forge/maker-dmg";
 import { MakerRpm } from "@electron-forge/maker-rpm";
 import { MakerSquirrel } from "@electron-forge/maker-squirrel";
 import { MakerZIP } from "@electron-forge/maker-zip";
@@ -11,20 +12,33 @@ const config: ForgeConfig = {
   makers: [
     new MakerSquirrel({}),
     new MakerZIP({}, ["darwin"]),
+    new MakerDMG({}),
     new MakerRpm({}),
     new MakerDeb({}),
   ],
   packagerConfig: {
+    appBundleId: "com.rocktonlabs.soundkit.desktop",
     asar: true,
-    executableName: "desktop",
+    executableName: "soundkit-desktop",
+    // Relative because Forge transpiles this config into a temp bundle where
+    // __dirname doesn't point at the app; electron-forge always runs with
+    // cwd = apps/desktop (pnpm scripts and CI both invoke it that way).
+    icon: "src/icons/icon",
+    // Registers soundkit:// for macOS (Info.plist); Windows/Linux register at
+    // runtime via app.setAsDefaultProtocolClient in the main process.
+    protocols: [
+      {
+        name: "SoundKit",
+        schemes: ["soundkit"],
+      },
+    ],
   },
   plugins: [
     new VitePlugin({
-      // `build` can specify multiple entry builds, which can be Main process, Preload scripts, Worker process, etc.
-      // If you are familiar with Vite configuration, it will look really familiar.
+      // `build` can specify multiple entry builds, which can be Main process,
+      // Preload scripts, Worker process, etc.
       build: [
         {
-          // `entry` is just an alias for `build.lib.entry` in the corresponding file of `config`.
           config: "vite.main.config.ts",
           entry: "src/main.ts",
           target: "main",

@@ -1,8 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+import type { DesktopAppInfo } from "./window";
+
 const soundkitDesktop = {
-  getPlatform: (): Promise<string> =>
-    ipcRenderer.invoke("desktop:get-platform"),
+  getAppInfo: (): Promise<DesktopAppInfo> =>
+    ipcRenderer.invoke("desktop:get-app-info"),
 };
 
 contextBridge.exposeInMainWorld("soundkitDesktop", soundkitDesktop);

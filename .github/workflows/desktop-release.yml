@@ -1,0 +1,97 @@
+name: Desktop Release
+
+# Builds unsigned SoundKit Desktop artifacts for macOS, Windows, and Linux,
+# runs the offline Playwright shell smoke suite on macOS, and attaches the
+# artifacts to a GitHub Release when a v* tag is pushed. Code signing,
+# notarization, and runtime auto-update are intentionally out of scope until
+# signing credentials exist (issue #417).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The packaged app needs the Electron dev binary on the smoke-test runner.
+  SOUNDKIT_ELECTRON_BINARY: "1"
+  SOUNDKIT_SKIP_ELECTRON_BINARY: "0"
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            arch: arm64
+          - os: macos-latest
+            arch: x64
+          - os: windows-latest
+            arch: x64
+          - os: ubuntu-latest
+            arch: x64
+    permissions:
+      contents: read
+    steps:
+      - name: Bootstrap repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
+
+      - name: Set up Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install rpm build dependency (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Package and make desktop artifacts
+        run: pnpm --filter desktop exec electron-forge make --arch ${{ matrix.arch }}
+
+      - name: Run desktop shell smoke tests (macOS)
+        if: runner.os == 'macOS' && matrix.arch == 'arm64'
+        run: pnpm run test:desktop
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: desktop-${{ runner.os }}-${{ matrix.arch }}
+          path: apps/desktop/out/make/**
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: artifacts
+
+      - name: Attach artifacts to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**
+          generate_release_notes: true
