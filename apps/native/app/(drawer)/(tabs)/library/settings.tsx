@@ -18,7 +18,7 @@ export default function LibrarySettingsScreen() {
         <View style={styles.header}>
           <Link href="/library" asChild>
             <Pressable style={styles.backRow}>
-              <Ionicons color="#c084fc" name="arrow-back" size={18} />
+              <Ionicons color="#B8A3FF" name="arrow-back" size={18} />
               <Text style={styles.backText}>My SoundKit</Text>
             </Pressable>
           </Link>
@@ -35,12 +35,12 @@ export default function LibrarySettingsScreen() {
           <View
             style={[
               styles.sectionCard,
-              { backgroundColor: "#121215", borderColor: "#27272a" },
+              { backgroundColor: "#060606", borderColor: "#212121" },
             ]}
           >
             <View style={styles.userRow}>
               <View style={styles.userAvatar}>
-                <Ionicons color="#c084fc" name="person" size={24} />
+                <Ionicons color="#B8A3FF" name="person" size={24} />
               </View>
               <View style={styles.userCopy}>
                 <Text style={styles.userName}>{session.user.name}</Text>
@@ -51,7 +51,7 @@ export default function LibrarySettingsScreen() {
             <View style={styles.itemRow}>
               <Text style={styles.itemLabel}>Appearance</Text>
               <View style={styles.badge}>
-                <Ionicons color="#c084fc" name="moon" size={12} />
+                <Ionicons color="#B8A3FF" name="moon" size={12} />
                 <Text style={styles.badgeText}>Dark (Locked)</Text>
               </View>
             </View>
@@ -70,7 +70,7 @@ export default function LibrarySettingsScreen() {
               }}
               style={({ pressed }) => [
                 styles.signOutBtn,
-                { backgroundColor: pressed ? "#27272a" : "#18181b" },
+                { backgroundColor: pressed ? "#212121" : "#111111" },
               ]}
             >
               <Ionicons color="#e05d4d" name="log-out-outline" size={18} />
@@ -81,7 +81,7 @@ export default function LibrarySettingsScreen() {
           <View
             style={[
               styles.sectionCard,
-              { backgroundColor: "#121215", borderColor: "#27272a" },
+              { backgroundColor: "#060606", borderColor: "#212121" },
             ]}
           >
             <Text style={styles.emptyTitle}>Not signed in</Text>
@@ -108,13 +108,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   backText: {
-    color: "#c084fc",
+    color: "#B8A3FF",
     fontSize: 13,
     fontWeight: "700",
   },
   badge: {
     alignItems: "center",
-    backgroundColor: "#27272a",
+    backgroundColor: "#212121",
     borderRadius: 6,
     flexDirection: "row",
     gap: 6,
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   emptyDesc: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
   },
   emptyTitle: {
@@ -145,12 +145,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   itemLabel: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 14,
   },
   itemRow: {
     alignItems: "center",
-    borderTopColor: "#27272a",
+    borderTopColor: "#212121",
     borderTopWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   },
   loginBtn: {
     alignItems: "center",
-    backgroundColor: "#c084fc",
+    backgroundColor: "#B8A3FF",
     borderRadius: 12,
     marginTop: 8,
     paddingVertical: 12,
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   },
   signOutBtn: {
     alignItems: "center",
-    borderColor: "#27272a",
+    borderColor: "#212121",
     borderRadius: 12,
     borderWidth: 1,
     flexDirection: "row",
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   },
   userAvatar: {
     alignItems: "center",
-    backgroundColor: "#27272a",
+    backgroundColor: "#212121",
     borderRadius: 999,
     height: 48,
     justifyContent: "center",
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   userEmail: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
   },
   userName: {

@@ -19,7 +19,7 @@ export default function PurchasedScreen() {
         <View style={styles.header}>
           <Link href="/library" asChild>
             <Pressable style={styles.backRow}>
-              <Ionicons color="#c084fc" name="arrow-back" size={18} />
+              <Ionicons color="#B8A3FF" name="arrow-back" size={18} />
               <Text style={styles.backText}>My SoundKit</Text>
             </Pressable>
           </Link>
@@ -33,7 +33,7 @@ export default function PurchasedScreen() {
         </View>
 
         {isLoading && (
-          <View style={[styles.stateBox, { borderColor: "#27272a" }]}>
+          <View style={[styles.stateBox, { borderColor: "#212121" }]}>
             <Text style={{ color: theme.mutedText }}>Loading purchases…</Text>
           </View>
         )}
@@ -42,7 +42,7 @@ export default function PurchasedScreen() {
             {items.map((item, idx) => (
               <LibraryItemRow
                 badge="OWNED"
-                href={`/tracks/${item.id}`}
+                href={`/library/purchased/${item.id}`}
                 imageUrl={item.cover}
                 index={idx}
                 key={item.id}
@@ -53,8 +53,8 @@ export default function PurchasedScreen() {
           </View>
         )}
         {!isLoading && items.length === 0 && (
-          <View style={[styles.stateBox, { borderColor: "#27272a" }]}>
-            <Ionicons color="#71717a" name="bag-handle-outline" size={36} />
+          <View style={[styles.stateBox, { borderColor: "#212121" }]}>
+            <Ionicons color="#8F8F8F" name="bag-handle-outline" size={36} />
             <Text style={styles.emptyTitle}>No purchases yet</Text>
             <Text style={styles.emptyDesc}>
               Support independent artists directly by purchasing singles,
@@ -80,12 +80,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   backText: {
-    color: "#c084fc",
+    color: "#B8A3FF",
     fontSize: 13,
     fontWeight: "700",
   },
   browseBtn: {
-    backgroundColor: "#c084fc",
+    backgroundColor: "#B8A3FF",
     borderRadius: 12,
     marginTop: 6,
     paddingHorizontal: 20,
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   emptyDesc: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
     textAlign: "center",
   },

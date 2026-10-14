@@ -36,8 +36,8 @@ export function LibraryItemRow({
         style={({ pressed }) => [
           styles.row,
           {
-            backgroundColor: pressed ? "#1c1c20" : "#121215",
-            borderColor: "#27272a",
+            backgroundColor: pressed ? "#1c1c20" : "#060606",
+            borderColor: "#212121",
           },
         ]}
       >
@@ -54,10 +54,10 @@ export function LibraryItemRow({
             <View
               style={[
                 styles.thumbnailPlaceholder,
-                { backgroundColor: "#27272a" },
+                { backgroundColor: "#212121" },
               ]}
             >
-              <Ionicons color="#a1a1aa" name="musical-note" size={18} />
+              <Ionicons color="#8F8F8F" name="musical-note" size={18} />
             </View>
           )}
         </View>
@@ -75,7 +75,7 @@ export function LibraryItemRow({
         </View>
 
         {badge ? (
-          <View style={[styles.badge, { backgroundColor: "#27272a" }]}>
+          <View style={[styles.badge, { backgroundColor: "#212121" }]}>
             <Text style={styles.badgeText}>{badge}</Text>
           </View>
         ) : null}
@@ -89,7 +89,7 @@ export function LibraryItemRow({
             }}
             style={styles.actionBtn}
           >
-            <Ionicons color="#a1a1aa" name="ellipsis-horizontal" size={18} />
+            <Ionicons color="#8F8F8F" name="ellipsis-horizontal" size={18} />
           </Pressable>
         ) : (
           <Ionicons color="#52525b" name="chevron-forward" size={16} />
@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   badgeText: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 11,
     fontWeight: "700",
   },

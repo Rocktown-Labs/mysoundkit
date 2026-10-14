@@ -101,17 +101,17 @@ const styles = StyleSheet.create({
  */
 export function GlobalMiniPlayer() {
   const {
-    currentTrack,
-    isPlaying,
-    nextTrack,
-    openNowPlaying,
-    progress,
-    queue,
-    togglePlay,
-    toggleQueue,
-  } = useAudioPlayerContext(),
-   { colorScheme } = useColorScheme(),
-   theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+      currentTrack,
+      isPlaying,
+      nextTrack,
+      openNowPlaying,
+      progress,
+      queue,
+      togglePlay,
+      toggleQueue,
+    } = useAudioPlayerContext(),
+    { colorScheme } = useColorScheme(),
+    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
   if (!currentTrack) {
     return null;
@@ -153,7 +153,7 @@ export function GlobalMiniPlayer() {
                 style={{ height: "100%", width: "100%" }}
               />
             ) : (
-              <Ionicons color="#c084fc" name="musical-notes" size={18} />
+              <Ionicons color="#B8A3FF" name="musical-notes" size={18} />
             )}
           </View>
 
@@ -167,7 +167,7 @@ export function GlobalMiniPlayer() {
             </Text>
             <Text
               numberOfLines={1}
-              style={[styles.subtitle, { color: "#a1a1aa" }]}
+              style={[styles.subtitle, { color: "#8F8F8F" }]}
             >
               {currentTrack.artist}
             </Text>
@@ -239,7 +239,7 @@ export function GlobalMiniPlayer() {
               ]}
             >
               <View style={{ position: "relative" }}>
-                <Ionicons color="#a1a1aa" name="list" size={18} />
+                <Ionicons color="#8F8F8F" name="list" size={18} />
                 {queueCount > 0 ? (
                   <View
                     style={[styles.badge, { backgroundColor: theme.primary }]}

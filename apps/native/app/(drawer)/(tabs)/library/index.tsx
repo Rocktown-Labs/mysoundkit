@@ -21,7 +21,7 @@ export default function LibraryScreen() {
         {/* Header matching Image 4 */}
         <View style={styles.header}>
           <View style={styles.titleRow}>
-            <Ionicons color="#c084fc" name="musical-notes" size={28} />
+            <Ionicons color="#B8A3FF" name="musical-notes" size={28} />
             <Text style={[styles.title, { color: theme.text }]}>
               My SoundKit
             </Text>
@@ -39,12 +39,12 @@ export default function LibraryScreen() {
           <View
             style={[
               styles.userCard,
-              { backgroundColor: "#121215", borderColor: "#27272a" },
+              { backgroundColor: "#060606", borderColor: "#212121" },
             ]}
           >
             <View style={styles.userRow}>
               <View style={styles.userAvatar}>
-                <Ionicons color="#c084fc" name="person" size={20} />
+                <Ionicons color="#B8A3FF" name="person" size={20} />
               </View>
               <View style={styles.userCopy}>
                 <Text style={styles.userName}>{session.user.name}</Text>
@@ -59,7 +59,7 @@ export default function LibraryScreen() {
                   style={({ pressed }) => [
                     styles.dashboardBtn,
                     {
-                      backgroundColor: pressed ? "#27272a" : "#18181b",
+                      backgroundColor: pressed ? "#212121" : "#111111",
                     },
                   ]}
                 >
@@ -80,7 +80,7 @@ export default function LibraryScreen() {
                 style={({ pressed }) => [
                   styles.signOutBtn,
                   {
-                    backgroundColor: pressed ? "#27272a" : "#18181b",
+                    backgroundColor: pressed ? "#212121" : "#111111",
                   },
                 ]}
               >
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   },
   dashboardBtn: {
     alignItems: "center",
-    borderColor: "#27272a",
+    borderColor: "#212121",
     borderRadius: 12,
     borderWidth: 1,
     flex: 1,
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   },
   signOutBtn: {
     alignItems: "center",
-    borderColor: "#27272a",
+    borderColor: "#212121",
     borderRadius: 12,
     borderWidth: 1,
     justifyContent: "center",
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   },
   userAvatar: {
     alignItems: "center",
-    backgroundColor: "#27272a",
+    backgroundColor: "#212121",
     borderRadius: 999,
     height: 42,
     justifyContent: "center",
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   userEmail: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
   },
   userName: {

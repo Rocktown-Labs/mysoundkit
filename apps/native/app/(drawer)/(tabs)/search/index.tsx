@@ -1,6 +1,6 @@
 /* oxlint-disable one-var, sort-vars, sort-keys, react-hooks/refs */
 import { Ionicons } from "@expo/vector-icons";
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import type { Href } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -17,6 +17,7 @@ import {
 } from "react-native";
 
 import { Container } from "@/components/container";
+import { GenreGlassCard, GenreGlassGrid } from "@/components/genre-glass-card";
 import { NAV_THEME } from "@/lib/constants";
 import { useGenresQuery, useNativeSearchQuery } from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -100,6 +101,7 @@ export default function SearchScreen() {
         const match = genresQuery.data?.find((g) => g.slug === def.slug);
         return {
           ...def,
+          count: match?.trackCount ?? def.count,
           name: match?.name ?? def.name,
         };
       });
@@ -138,12 +140,12 @@ export default function SearchScreen() {
             style={[
               styles.searchBar,
               {
-                borderColor: isFocused ? "#a855f7" : "#27272a",
+                borderColor: isFocused ? "#a855f7" : "#212121",
                 transform: [{ scale: searchBarScale }],
               },
             ]}
           >
-            <Ionicons color="#a1a1aa" name="search" size={17} />
+            <Ionicons color="#8F8F8F" name="search" size={17} />
             <TextInput
               autoCapitalize="none"
               autoCorrect={false}
@@ -151,7 +153,7 @@ export default function SearchScreen() {
               onChangeText={setRawInput}
               onFocus={() => setIsFocused(true)}
               placeholder="Search genres, artists, songs..."
-              placeholderTextColor="#71717a"
+              placeholderTextColor="#8F8F8F"
               returnKeyType="search"
               style={styles.input}
               value={rawInput}
@@ -165,7 +167,7 @@ export default function SearchScreen() {
                   setDebouncedQuery("");
                 }}
               >
-                <Ionicons color="#a1a1aa" name="close-circle" size={18} />
+                <Ionicons color="#8F8F8F" name="close-circle" size={18} />
               </Pressable>
             ) : null}
           </Animated.View>
@@ -203,7 +205,7 @@ export default function SearchScreen() {
             >
               {searchResults.isLoading ? (
                 <View style={styles.dropdownLoadingRow}>
-                  <ActivityIndicator color="#c084fc" size="small" />
+                  <ActivityIndicator color="#B8A3FF" size="small" />
                   <Text style={styles.dropdownLoadingText}>
                     Searching SoundKit…
                   </Text>
@@ -229,7 +231,7 @@ export default function SearchScreen() {
                           styles.dropdownRow,
                           {
                             backgroundColor: pressed
-                              ? "#27272a"
+                              ? "#212121"
                               : "transparent",
                           },
                         ]}
@@ -243,7 +245,7 @@ export default function SearchScreen() {
                           ) : (
                             <View style={styles.avatarPlaceholder}>
                               <Ionicons
-                                color="#a1a1aa"
+                                color="#8F8F8F"
                                 name="person"
                                 size={18}
                               />
@@ -288,7 +290,7 @@ export default function SearchScreen() {
                       style={({ pressed }) => [
                         styles.dropdownRow,
                         {
-                          backgroundColor: pressed ? "#27272a" : "transparent",
+                          backgroundColor: pressed ? "#212121" : "transparent",
                         },
                       ]}
                     >
@@ -301,7 +303,7 @@ export default function SearchScreen() {
                         ) : (
                           <View style={styles.coverPlaceholder}>
                             <Ionicons
-                              color="#a1a1aa"
+                              color="#8F8F8F"
                               name="musical-note"
                               size={18}
                             />
@@ -354,37 +356,16 @@ export default function SearchScreen() {
             </Text>
           </View>
 
-          <View style={styles.genreGrid}>
+          <GenreGlassGrid>
             {genresList.map((genre) => (
-              <Link
-                asChild
-                href={`/tracks?genre=${encodeURIComponent(genre.slug)}` as Href}
+              <GenreGlassCard
+                count={genre.count ?? 0}
                 key={genre.id}
-              >
-                <Pressable
-                  accessibilityHint={`Browse ${genre.name} tracks`}
-                  accessibilityLabel={`${genre.name}, ${genre.count ?? 0} live items`}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [
-                    styles.genreCard,
-                    {
-                      backgroundColor: pressed ? "#1d1d22" : "#121215",
-                      borderColor: "#27272a",
-                      opacity: pressed ? 0.85 : 1,
-                    },
-                  ]}
-                >
-                  <Text style={styles.genreEmoji}>{genre.emoji}</Text>
-                  <Text numberOfLines={1} style={styles.genreName}>
-                    {genre.name}
-                  </Text>
-                  <Text style={styles.genreCount}>
-                    {genre.count ?? 0} live items
-                  </Text>
-                </Pressable>
-              </Link>
+                slug={genre.slug}
+                title={genre.name}
+              />
             ))}
-          </View>
+          </GenreGlassGrid>
         </ScrollView>
       </View>
     </Container>
@@ -403,7 +384,7 @@ const styles = StyleSheet.create({
   },
   avatarPlaceholder: {
     alignItems: "center",
-    backgroundColor: "#27272a",
+    backgroundColor: "#212121",
     borderRadius: 8,
     height: 40,
     justifyContent: "center",
@@ -436,7 +417,7 @@ const styles = StyleSheet.create({
   },
   coverPlaceholder: {
     alignItems: "center",
-    backgroundColor: "#27272a",
+    backgroundColor: "#212121",
     borderRadius: 8,
     height: 40,
     justifyContent: "center",
@@ -454,12 +435,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   dropdownLoadingText: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 13,
   },
   dropdownOverlay: {
-    backgroundColor: "#121215",
-    borderColor: "#27272a",
+    backgroundColor: "#060606",
+    borderColor: "#212121",
     borderRadius: 16,
     borderWidth: 1,
     left: 20,
@@ -486,7 +467,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   dropdownRowSubtitle: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 12,
   },
   dropdownRowTitle: {
@@ -498,43 +479,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   dropdownSectionLabel: {
-    color: "#71717a",
+    color: "#8F8F8F",
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1,
     paddingHorizontal: 8,
-  },
-  genreCard: {
-    alignItems: "center",
-    borderRadius: 18,
-    borderWidth: 1,
-    flexBasis: "48%",
-    flexGrow: 1,
-    gap: 6,
-    justifyContent: "center",
-    minHeight: 130,
-    paddingHorizontal: 12,
-    paddingVertical: 18,
-  },
-  genreCount: {
-    color: "#71717a",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  genreEmoji: {
-    fontSize: 32,
-    marginBottom: 4,
-  },
-  genreGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  genreName: {
-    color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "700",
-    textAlign: "center",
   },
   input: {
     color: "#ffffff",
@@ -545,7 +494,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
   },
   noResultsText: {
-    color: "#71717a",
+    color: "#8F8F8F",
     fontSize: 13,
     textAlign: "center",
   },
@@ -556,7 +505,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   cancelButtonText: {
-    color: "#c084fc",
+    color: "#B8A3FF",
     fontSize: 15,
     fontWeight: "600",
   },
@@ -567,7 +516,7 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     alignItems: "center",
-    backgroundColor: "#141417",
+    backgroundColor: "#0B0B0B",
     borderRadius: 14,
     borderWidth: 1,
     flex: 1,

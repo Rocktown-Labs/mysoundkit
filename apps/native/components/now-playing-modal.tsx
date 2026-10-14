@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
   },
   repeatBadge: {
     bottom: 6,
-    color: "#c084fc",
+    color: "#B8A3FF",
     fontSize: 9,
     fontWeight: "900",
     position: "absolute",
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   trackArtist: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 17,
     fontWeight: "500",
     letterSpacing: -0.2,
@@ -399,13 +399,13 @@ function NowPlayingArtworkView({
         <View
           style={{
             alignItems: "center",
-            backgroundColor: "#27272a",
+            backgroundColor: "#212121",
             height: "100%",
             justifyContent: "center",
             width: "100%",
           }}
         >
-          <Ionicons color="#c084fc" name="musical-notes" size={64} />
+          <Ionicons color="#B8A3FF" name="musical-notes" size={64} />
         </View>
       )}
     </View>
@@ -506,7 +506,7 @@ function NowPlayingTransportControls({
         style={styles.actionBtn}
       >
         <Ionicons
-          color={isShuffle ? "#c084fc" : "#f4f4f5"}
+          color={isShuffle ? "#B8A3FF" : "#f4f4f5"}
           name="shuffle"
           size={24}
         />
@@ -570,7 +570,7 @@ function NowPlayingTransportControls({
       >
         <View style={{ position: "relative" }}>
           <Ionicons
-            color={repeatMode === "off" ? "#f4f4f5" : "#c084fc"}
+            color={repeatMode === "off" ? "#f4f4f5" : "#B8A3FF"}
             name="repeat"
             size={24}
           />
@@ -624,7 +624,7 @@ function NowPlayingQueueDrawer({
       >
         {queue.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 32 }}>
-            <Text style={{ color: "#a1a1aa", fontSize: 13 }}>
+            <Text style={{ color: "#8F8F8F", fontSize: 13 }}>
               No tracks in queue. Play songs to build your mix.
             </Text>
           </View>
@@ -655,13 +655,13 @@ function NowPlayingQueueDrawer({
                   <View
                     style={{
                       alignItems: "center",
-                      backgroundColor: "#27272a",
+                      backgroundColor: "#212121",
                       height: "100%",
                       justifyContent: "center",
                       width: "100%",
                     }}
                   >
-                    <Ionicons color="#a1a1aa" name="musical-notes" size={14} />
+                    <Ionicons color="#8F8F8F" name="musical-notes" size={14} />
                   </View>
                 )}
               </View>
@@ -674,7 +674,7 @@ function NowPlayingQueueDrawer({
                 </Text>
                 <Text
                   numberOfLines={1}
-                  style={{ color: "#a1a1aa", fontSize: 12 }}
+                  style={{ color: "#8F8F8F", fontSize: 12 }}
                 >
                   {track.artist}
                 </Text>
@@ -901,7 +901,7 @@ export function NowPlayingModal() {
                   ]}
                 >
                   <Ionicons
-                    color={isLyricsVisible ? "#c084fc" : "#f4f4f5"}
+                    color={isLyricsVisible ? "#B8A3FF" : "#f4f4f5"}
                     name={isLyricsVisible ? "mic" : "mic-outline"}
                     size={20}
                   />
@@ -982,7 +982,7 @@ export function NowPlayingModal() {
                   style={styles.actionBtn}
                 >
                   <Ionicons
-                    color={isLyricsVisible ? "#c084fc" : "#f4f4f5"}
+                    color={isLyricsVisible ? "#B8A3FF" : "#f4f4f5"}
                     name={
                       isLyricsVisible
                         ? "chatbubble-ellipses"
@@ -1015,7 +1015,7 @@ export function NowPlayingModal() {
                 >
                   <View style={{ position: "relative" }}>
                     <Ionicons
-                      color={isQueueVisible ? "#c084fc" : "#f4f4f5"}
+                      color={isQueueVisible ? "#B8A3FF" : "#f4f4f5"}
                       name="list"
                       size={24}
                     />

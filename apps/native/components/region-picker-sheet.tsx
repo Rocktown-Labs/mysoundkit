@@ -62,8 +62,8 @@ function RegionPickerSheetBase(
   return (
     <BottomSheetModal
       backdropComponent={renderSheetBackdrop}
-      backgroundStyle={{ backgroundColor: "#121215" }}
-      handleIndicatorStyle={{ backgroundColor: "#3f3f46" }}
+      backgroundStyle={{ backgroundColor: "#060606" }}
+      handleIndicatorStyle={{ backgroundColor: "#2A2D35" }}
       ref={sheetRef}
       snapPoints={SNAP_POINTS}
     >
