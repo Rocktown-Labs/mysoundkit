@@ -133,8 +133,15 @@ export const Route = createFileRoute("/$username")({
   loader: async ({ params }) => await loadBioProfile(params.username),
 });
 
-type TabType = "feed" | "tracks" | "projects" | "videos" | "credits" | "live";
-type LoadableTab = Exclude<TabType, "feed" | "live">;
+type TabType =
+  | "feed"
+  | "merch"
+  | "tracks"
+  | "projects"
+  | "videos"
+  | "credits"
+  | "live";
+type LoadableTab = Exclude<TabType, "feed" | "live" | "merch">;
 
 const tabToMediaSection: Record<LoadableTab, LoadableTab> = {
   credits: "credits",
@@ -173,6 +180,14 @@ function BioProfilePage() {
   const [loadedMedia, setLoadedMedia] = useState<BioMedia | null>(
     profile?.media ?? null
   );
+  const [merchItems, setMerchItems] = useState<
+    Array<{
+      id: string;
+      previewMockupUrl: string | null;
+      retailPriceCents: number;
+      title: string;
+    }>
+  >([]);
   const [mediaLoadingTab, setMediaLoadingTab] = useState<LoadableTab | null>(
     null
   );
@@ -252,6 +267,34 @@ function BioProfilePage() {
     setMediaError(null);
   }, [profile]);
 
+  // Fetch published merch designs for the artist's bio profile.
+  useEffect(() => {
+    const fetchMerch = async () => {
+      try {
+        const response = await fetch(
+          `${API_V1_URL}/merch/public?artistUsername=${encodeURIComponent(username)}&limit=8`
+        );
+
+        if (!response.ok) {
+          return;
+        }
+
+        const items = (await response.json()) as Array<{
+          id: string;
+          previewMockupUrl: string | null;
+          retailPriceCents: number;
+          title: string;
+        }>;
+
+        setMerchItems(items);
+      } catch {
+        // Merch is optional on the bio — silently skip on failure.
+      }
+    };
+
+    void fetchMerch();
+  }, [username]);
+
   useEffect(() => {
     const handleMessage = (event: MessageEvent<unknown>) => {
       if (
@@ -294,6 +337,9 @@ function BioProfilePage() {
     const tabs: { id: TabType; label: string; count?: number }[] = [
       { id: "feed", label: "Feed" },
     ];
+    if (merchItems.length > 0) {
+      tabs.push({ count: merchItems.length, id: "merch", label: "Merch" });
+    }
     if (!media) {
       return tabs;
     }
@@ -345,6 +391,7 @@ function BioProfilePage() {
     if (
       tab === "feed" ||
       tab === "live" ||
+      tab === "merch" ||
       loadedSectionsRef.current.has(tab)
     ) {
       return;
@@ -813,6 +860,53 @@ function BioProfilePage() {
                 </div>
               </section>
             ) : null}
+          </div>
+        )}
+
+        {/* Merch Tab: Artist's Printful designs */}
+        {activeTab === "merch" && (
+          <div className="space-y-6">
+            <h3 className="font-playfair text-2xl font-medium text-foreground">
+              Merch ({merchItems.length})
+            </h3>
+            <div
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4"
+              data-testid="artist-merch-grid"
+            >
+              {merchItems.map((item) => (
+                <a
+                  className="group block overflow-hidden rounded-xl border border-border/40 bg-card transition-all hover:border-primary/40 hover:shadow-lg"
+                  href={`${SOUNDKIT_WEB_URL}/shop`}
+                  key={item.id}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  <div className="aspect-square overflow-hidden bg-muted">
+                    {item.previewMockupUrl ? (
+                      <img
+                        alt={item.title}
+                        className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        height={300}
+                        src={item.previewMockupUrl}
+                        width={300}
+                      />
+                    ) : (
+                      <div className="text-muted-foreground flex size-full items-center justify-center text-xs">
+                        Preview generating…
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1 p-3">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {item.title}
+                    </p>
+                    <p className="font-mono text-xs font-bold text-primary">
+                      ${(item.retailPriceCents / 100).toFixed(2)}
+                    </p>
+                  </div>
+                </a>
+              ))}
+            </div>
           </div>
         )}
 
