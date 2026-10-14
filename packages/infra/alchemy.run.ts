@@ -448,7 +448,7 @@ export const web = Cloudflare.Website.Vite(
         CORS_ORIGIN: d.SITE_URL,
         DATABASE_URL: Config.Redacted("DATABASE_URL"),
         SENTRY_DSN: d.SENTRY_WEB_DSN,
-        VITE_ENABLE_MERCH: "false",
+        VITE_ENABLE_MERCH: "true",
         VITE_MEDIA_URL: d.MEDIA_URL,
         ...optionalEnvBinding("VITE_GOOGLE_MAPS_API_KEY"),
         ...optionalEnvBinding("VITE_STRIPE_PUBLISHABLE_KEY"),

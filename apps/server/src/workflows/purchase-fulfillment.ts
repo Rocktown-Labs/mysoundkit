@@ -1,3 +1,4 @@
+/* eslint-disable sort-vars, one-var, complexity */
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   orderItems,
@@ -6,13 +7,19 @@ import {
   userNotifications,
 } from "@soundkit/db/schema/app";
 import { physicalReleases } from "@soundkit/db/schema/commerce";
+import {
+  merchDesigns,
+  merchFulfillments,
+  orderShippingSelections,
+} from "@soundkit/db/schema/fulfillment";
 import { WorkflowEntrypoint } from "cloudflare:workers";
 import type { WorkflowEvent, WorkflowStep } from "cloudflare:workers";
-import { and, eq, inArray, isNotNull, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { notifyPurchaseEmails } from "@/lib/email-events";
 import { createKunakiClient } from "@/lib/kunaki";
+import { confirmPrintfulOrder, createPrintfulDraftOrder } from "@/lib/printful";
 import { logError, logInfo, logWarn } from "@/middleware/structured-logging";
 
 interface PurchaseFulfillmentPayload {
@@ -162,10 +169,7 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
           .where(
             and(
               eq(orderItems.orderId, orderId),
-              or(
-                eq(orderItems.productType, "physical_merch"),
-                isNotNull(orderItems.physicalReleaseId)
-              )
+              isNotNull(orderItems.physicalReleaseId)
             )
           );
 
@@ -291,6 +295,207 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
         }
       );
     }
+
+    // Printful merch dispatch (apparel/accessories) — creates a draft order,
+    // waits for costs, confirms. Idempotent: skips if a printfulOrderId
+    // already exists on the fulfillment record.
+    await step.do(
+      "dispatch printful merch order",
+      stepRetryConfig,
+      async () => {
+        const db = createDb(),
+          [existingFulfillment] = await db
+            .select()
+            .from(merchFulfillments)
+            .where(eq(merchFulfillments.orderId, orderId))
+            .limit(1);
+
+        if (existingFulfillment?.printfulOrderId) {
+          return {
+            printfulOrderId: existingFulfillment.printfulOrderId,
+            skipped: true,
+          };
+        }
+
+        const merchItems = await db
+          .select()
+          .from(orderItems)
+          .where(
+            and(
+              eq(orderItems.orderId, orderId),
+              isNotNull(orderItems.merchDesignId)
+            )
+          );
+
+        if (merchItems.length === 0) {
+          return { printfulOrderId: null, skipped: true };
+        }
+
+        const [order] = await db
+          .select()
+          .from(orders)
+          .where(eq(orders.id, orderId))
+          .limit(1);
+
+        if (!order?.shippingAddress1 || !order.shippingCity) {
+          logWarn({
+            event: "printful_dispatch_missing_address",
+            orderId,
+          });
+          return { printfulOrderId: null, skipped: true };
+        }
+
+        // Build Printful order items from the merch designs + variants.
+        const designIds = [
+            ...new Set(merchItems.map((item) => item.merchDesignId)),
+          ].filter((id): id is string => Boolean(id)),
+          designRows = await db
+            .select({
+              designFileUrl: merchDesigns.designFileUrl,
+              id: merchDesigns.id,
+              placement: merchDesigns.placement,
+              technique: merchDesigns.technique,
+            })
+            .from(merchDesigns)
+            .where(inArray(merchDesigns.id, designIds)),
+          designMap = new Map(designRows.map((d) => [d.id, d])),
+          [shippingSelection] = await db
+            .select()
+            .from(orderShippingSelections)
+            .where(
+              and(
+                eq(orderShippingSelections.orderId, orderId),
+                eq(orderShippingSelections.provider, "printful")
+              )
+            )
+            .limit(1),
+          printfulItems = merchItems
+            .filter(
+              (item) =>
+                item.printfulVariantId &&
+                designMap.has(item.merchDesignId as string)
+            )
+            .map((item) => {
+              const design = designMap.get(item.merchDesignId as string);
+
+              return {
+                catalog_variant_id: Number(item.printfulVariantId),
+                external_id: item.id,
+                name: item.titleSnapshot,
+                placements: [
+                  {
+                    layers: [
+                      {
+                        type: "file",
+                        url: design?.designFileUrl ?? "",
+                      },
+                    ],
+                    placement: design?.placement ?? "front",
+                    technique: design?.technique ?? "dtg",
+                  },
+                ],
+                quantity: item.quantity,
+                retail_price: String(item.priceSnapshot),
+              };
+            });
+
+        if (printfulItems.length === 0) {
+          logWarn({
+            event: "printful_dispatch_no_valid_items",
+            orderId,
+          });
+          return { printfulOrderId: null, skipped: true };
+        }
+
+        const fulfillmentId = existingFulfillment?.id ?? crypto.randomUUID();
+
+        if (!existingFulfillment) {
+          await db.insert(merchFulfillments).values({
+            externalId: orderId,
+            id: fulfillmentId,
+            orderId,
+            status: "draft",
+          });
+        }
+
+        // Mark in-flight before the outbound API call.
+        await db
+          .update(orders)
+          .set({ fulfillmentStatus: "printful_processing" })
+          .where(eq(orders.id, orderId));
+
+        const draftOrder = await createPrintfulDraftOrder({
+          externalId: orderId,
+          items: printfulItems,
+          recipient: {
+            address1: order.shippingAddress1,
+            address2: order.shippingAddress2 ?? "",
+            city: order.shippingCity,
+            country_code: (order.shippingCountry ?? "US").toUpperCase(),
+            name: order.shippingName ?? "",
+            state_code: (order.shippingStateProvince ?? "").toUpperCase(),
+            zip: order.shippingPostalCode ?? "",
+          },
+          shippingMethod: shippingSelection?.optionCode,
+        });
+
+        if (!draftOrder?.id) {
+          throw new Error("Printful returned no draft order id.");
+        }
+
+        await db
+          .update(merchFulfillments)
+          .set({
+            printfulCosts: draftOrder.costs as unknown as Record<
+              string,
+              unknown
+            >,
+            printfulOrderId: String(draftOrder.id),
+          })
+          .where(eq(merchFulfillments.id, fulfillmentId));
+
+        logInfo({
+          event: "printful_draft_order_created",
+          orderId,
+          printfulOrderId: draftOrder.id,
+        });
+
+        return { printfulOrderId: String(draftOrder.id), skipped: false };
+      }
+    );
+
+    // Confirm the Printful order after costs are calculated.
+    await step.do("confirm printful order", async () => {
+      const db = createDb(),
+        [fulfillment] = await db
+          .select()
+          .from(merchFulfillments)
+          .where(eq(merchFulfillments.orderId, orderId))
+          .limit(1);
+
+      if (!fulfillment?.printfulOrderId || fulfillment.status !== "draft") {
+        return { confirmed: false, reason: "no_pending_draft" };
+      }
+
+      await confirmPrintfulOrder(Number(fulfillment.printfulOrderId));
+
+      await db
+        .update(merchFulfillments)
+        .set({
+          confirmedAt: new Date(),
+          lastSyncedAt: new Date(),
+          status: "confirmed",
+        })
+        .where(eq(merchFulfillments.id, fulfillment.id));
+
+      logInfo({
+        event: "printful_order_confirmed",
+        orderId,
+        printfulOrderId: fulfillment.printfulOrderId,
+      });
+
+      return { confirmed: true };
+    });
 
     await step.do("send purchase delivery emails", stepRetryConfig, () =>
       notifyPurchaseEmails({ orderId, queue: emailQueue })
