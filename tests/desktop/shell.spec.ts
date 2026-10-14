@@ -33,7 +33,7 @@ const repoRoot = path.join(import.meta.dirname, "..", ".."),
   unreachableUrl = "http://127.0.0.1:1/",
   launchShell = async (appUrl: string) => {
     const userDataDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), "soundkit-desktop-e2e-")
+      path.join(os.tmpdir(), "soundkit-e2e-")
     );
 
     return electron.launch({

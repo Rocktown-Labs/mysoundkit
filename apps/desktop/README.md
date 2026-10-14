@@ -1,6 +1,6 @@
 # SoundKit Desktop
 
-The SoundKit desktop application: a hardened [Electron](https://www.electronjs.org/) shell around the production web app. The window loads `https://mysoundkit.com` directly, so the desktop app is a 1-1 clone of the web experience by construction — every public route, the artist dashboard, live rooms, and the merch studio — and picks up every web release (including features shipped by other agents) with no separate client to keep in sync.
+The SoundKit desktop application (product name: **SoundKit**): a hardened [Electron](https://www.electronjs.org/) shell around the production web app. The window loads `https://mysoundkit.com` directly, so the desktop app is a 1-1 clone of the web experience by construction — every public route, the artist dashboard, live rooms, and the merch studio — and picks up every web release (including features shipped by other agents) with no separate client to keep in sync.
 
 ## Why a shell
 
