@@ -1,42 +1,45 @@
+/* oxlint-disable one-var, sort-vars, sort-keys, no-nested-ternary, eqeqeq, no-eq-null */
+import { Ionicons } from "@expo/vector-icons";
 import { geoAlbersUsa, geoMercator, geoPath } from "d3-geo";
 import type { FeatureCollection, Geometry } from "geojson";
 import { memo, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 
-import { NAV_THEME } from "@/lib/constants";
+import { mapScopeLabel } from "@/lib/explore-region";
 import type { MapScope } from "@/lib/explore-region";
-import { useColorScheme } from "@/lib/use-color-scheme";
 
 import usTopo from "../assets/maps/us-states-10m.json";
 import worldTopo from "../assets/maps/world-countries-110m.json";
 
-const VIEW = { height: 500, width: 800 } as const,
-  US_VIEW = { height: 610, width: 975 } as const;
+const VIEW = { height: 420, width: 800 } as const,
+  US_VIEW = { height: 500, width: 800 } as const;
 
-const styles = StyleSheet.create({
-  container: {
-    borderRadius: 14,
-    borderWidth: 1,
-    overflow: "hidden",
-    width: "100%",
-  },
-  scopeRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 8,
-    padding: 10,
-  },
-  scopeTab: {
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  scopeTabText: { fontSize: 12, fontWeight: "700" },
-  hint: { fontSize: 11, paddingVertical: 4 },
-});
+export const COUNTRY_OPTIONS = [
+  { id: "usa", label: "USA" },
+  { id: "canada", label: "Canada" },
+  { id: "mexico", label: "Mexico" },
+  { id: "uk", label: "United Kingdom" },
+  { id: "germany", label: "Germany" },
+  { id: "france", label: "France" },
+  { id: "japan", label: "Japan" },
+  { id: "australia", label: "Australia" },
+  { id: "global", label: "Worldwide" },
+] as const;
+
+const COUNTRY_ID_TO_SCOPE: Readonly<Record<string, MapScope>> = {
+  australia: "oceania",
+  canada: "canada",
+  france: "europe",
+  germany: "europe",
+  global: "global",
+  japan: "asia",
+  mexico: "mexico",
+  uk: "europe",
+  usa: "usa",
+};
 
 const geographyName = (properties: unknown, id: unknown): string | null => {
   const props = properties as Record<string, unknown> | undefined,
@@ -51,37 +54,35 @@ function useGeographies(scope: MapScope) {
     if (scope === "usa") {
       const collection = feature(
         usTopo as unknown as Topology,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        (usTopo as unknown as { objects: Record<string, never> }).objects.states
+        (usTopo as unknown as { objects: { states: unknown } }).objects.states
       ) as unknown as FeatureCollection<Geometry>;
       return { collection, view: US_VIEW };
     }
     const collection = feature(
       worldTopo as unknown as Topology,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      (worldTopo as unknown as { objects: Record<string, never> }).objects
+      (worldTopo as unknown as { objects: { countries: unknown } }).objects
         .countries
     ) as unknown as FeatureCollection<Geometry>;
     return { collection, view: VIEW };
   }, [scope]);
 }
-/**
- * World / USA TopoJSON map with tap-to-select regions, mirroring the web
- * explore map (region names feed the same query params).
- */
-export function NativeMap({
-  onRegionSelect,
-  scope,
-  selectedRegion,
-  onScopeChange,
-}: {
-  onRegionSelect: (regionName: string) => void;
-  onScopeChange: (scope: MapScope) => void;
+
+export interface NativeMapProps {
+  onRegionSelect: (regionName: string | null) => void;
+  onResetGlobal?: () => void;
+  onScopeChange: (scope: MapScope, regionName?: null | string) => void;
   scope: MapScope;
   selectedRegion: null | string;
-}) {
-  const { colorScheme } = useColorScheme(),
-    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
+}
+
+export function NativeMap({
+  onRegionSelect,
+  onResetGlobal,
+  onScopeChange,
+  scope,
+  selectedRegion,
+}: NativeMapProps) {
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false),
     { collection, view } = useGeographies(scope),
     paths = useMemo(() => {
       const projection = scope === "usa" ? geoAlbersUsa() : geoMercator();
@@ -93,72 +94,313 @@ export function NativeMap({
         name: geographyName(geography.properties, geography.id),
       }));
     }, [collection, scope, view.height, view.width]),
-    [hint, setHint] = useState<string | null>(null);
+    activeCountryLabel = mapScopeLabel(scope),
+    displayRegionName =
+      selectedRegion ?? (scope === "usa" ? "Arkansas" : "Global");
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: theme.muted, borderColor: theme.border },
-      ]}
-    >
-      <View style={styles.scopeRow}>
-        {(["global", "usa"] as const).map((tab) => (
-          <Text
-            accessibilityRole="button"
-            key={tab}
-            onPress={() => {
-              onScopeChange(tab);
-            }}
-            style={[
-              styles.scopeTab,
-              styles.scopeTabText,
-              {
-                backgroundColor: scope === tab ? theme.primary : theme.card,
-                color:
-                  scope === tab ? theme.primaryForeground : theme.mutedText,
-              },
-            ]}
-          >
-            {tab === "global" ? "World" : "USA"}
-          </Text>
-        ))}
+    <View style={styles.wrapper}>
+      {/* Top action row: Reset to Global View + Selected region pill */}
+      <View style={styles.topActionRow}>
+        <Pressable
+          accessibilityLabel="Reset to Global View"
+          accessibilityRole="button"
+          onPress={() => {
+            onScopeChange("global", null);
+            onResetGlobal?.();
+          }}
+          style={({ pressed }) => [
+            styles.resetButton,
+            {
+              backgroundColor: pressed ? "#27272a" : "#18181b",
+              borderColor: "#27272a",
+            },
+          ]}
+        >
+          <Ionicons color="#f4f4f5" name="refresh-outline" size={14} />
+          <Text style={styles.resetButtonText}>Reset to Global View</Text>
+        </Pressable>
+
+        {selectedRegion ? (
+          <View style={styles.selectedPillTop}>
+            <Ionicons color="#c084fc" name="location-sharp" size={13} />
+            <Text style={styles.selectedPillTopText}>{selectedRegion}</Text>
+          </View>
+        ) : null}
       </View>
-      <Svg
-        preserveAspectRatio="xMidYMid meet"
-        viewBox={`0 0 ${view.width} ${view.height}`}
+
+      {/* Main Map Card */}
+      <View
+        style={[
+          styles.mapCard,
+          { backgroundColor: "#0b0b0e", borderColor: "#27272a" },
+        ]}
       >
-        {paths.map((path) => {
-          const isSelected =
-            selectedRegion != null &&
-            path.name != null &&
-            path.name === selectedRegion;
-          return (
-            <Path
-              d={path.d}
-              fill={isSelected ? theme.primary : theme.muted}
-              key={path.id || path.d}
-              onPress={
-                path.name == null
-                  ? undefined
-                  : () => {
-                      setHint(path.name);
-                      onRegionSelect(path.name as string);
-                    }
-              }
-              stroke={isSelected ? theme.primary : theme.border}
-              strokeWidth={isSelected ? 1.8 : 0.6}
-            />
-          );
-        })}
-      </Svg>
-      <Text style={[styles.hint, { color: theme.mutedText }]} numberOfLines={1}>
-        {hint == null
-          ? "Tap a country or state to focus your feed."
-          : `Region selected: ${hint}`}
-      </Text>
+        {/* Country dropdown selector */}
+        <Pressable
+          accessibilityLabel={`Change country, currently ${activeCountryLabel}`}
+          accessibilityRole="button"
+          onPress={() => {
+            setCountryPickerOpen(!countryPickerOpen);
+          }}
+          style={styles.countryDropdown}
+        >
+          <Text style={styles.countryDropdownText}>{activeCountryLabel}</Text>
+          <Ionicons
+            color="#a1a1aa"
+            name={countryPickerOpen ? "chevron-up" : "chevron-down"}
+            size={16}
+          />
+        </Pressable>
+
+        {/* Floating dropdown options when open */}
+        {countryPickerOpen ? (
+          <View style={styles.dropdownMenu}>
+            {COUNTRY_OPTIONS.map((country) => {
+              const targetScope = COUNTRY_ID_TO_SCOPE[country.id] ?? "global",
+                isSelected = scope === targetScope;
+              return (
+                <Pressable
+                  key={country.id}
+                  onPress={() => {
+                    onScopeChange(
+                      targetScope,
+                      country.id === "usa" || targetScope === "global"
+                        ? null
+                        : country.label
+                    );
+                    setCountryPickerOpen(false);
+                  }}
+                  style={({ pressed }) => [
+                    styles.dropdownMenuItem,
+                    {
+                      backgroundColor: isSelected
+                        ? "#a855f725"
+                        : pressed
+                          ? "#27272a"
+                          : "transparent",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownMenuItemText,
+                      isSelected && {
+                        color: "#c084fc",
+                        fontWeight: "700",
+                      },
+                    ]}
+                  >
+                    {country.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        {/* Floating selected badge over map */}
+        {displayRegionName ? (
+          <View style={styles.floatingRegionBadge}>
+            <Ionicons color="#000000" name="location-sharp" size={14} />
+            <Text style={styles.floatingRegionBadgeText}>
+              {displayRegionName}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Map SVG Canvas */}
+        <View style={styles.mapCanvas}>
+          <Svg
+            preserveAspectRatio="xMidYMid meet"
+            viewBox={`0 0 ${view.width} ${view.height}`}
+            width="100%"
+          >
+            {paths.map((path) => {
+              const isSelected =
+                Boolean(path.name) &&
+                (selectedRegion?.toLowerCase() === path.name?.toLowerCase() ||
+                  (!selectedRegion &&
+                    scope === "usa" &&
+                    path.name?.toLowerCase() === "arkansas"));
+
+              return (
+                <Path
+                  d={path.d}
+                  fill={isSelected ? "#a855f7" : "#1f1f24"}
+                  key={path.id || path.d}
+                  onPress={
+                    path.name == null
+                      ? undefined
+                      : () => {
+                          onRegionSelect(path.name as string);
+                        }
+                  }
+                  stroke={isSelected ? "#c084fc" : "#2d2d35"}
+                  strokeWidth={isSelected ? 1.8 : 0.6}
+                />
+              );
+            })}
+          </Svg>
+        </View>
+
+        {/* Bottom Legend indicator */}
+        <View style={styles.legendPill}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#3b2b52" }]} />
+            <Text style={styles.legendText}>Available</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#a855f7" }]} />
+            <Text style={styles.legendText}>Selected</Text>
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  countryDropdown: {
+    alignItems: "center",
+    backgroundColor: "#16161a",
+    borderColor: "#27272a",
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    width: 140,
+  },
+  countryDropdownText: {
+    color: "#f4f4f5",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  dropdownMenu: {
+    backgroundColor: "#18181b",
+    borderColor: "#27272a",
+    borderRadius: 12,
+    borderWidth: 1,
+    left: 16,
+    maxHeight: 180,
+    position: "absolute",
+    top: 60,
+    width: 180,
+    zIndex: 50,
+  },
+  dropdownMenuItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  dropdownMenuItemText: {
+    color: "#e4e4e7",
+    fontSize: 13,
+  },
+  floatingRegionBadge: {
+    alignItems: "center",
+    backgroundColor: "#a855f7",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 6,
+    left: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    position: "absolute",
+    top: 72,
+    zIndex: 10,
+  },
+  floatingRegionBadgeText: {
+    color: "#000000",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  legendDot: {
+    borderRadius: 999,
+    height: 8,
+    width: 8,
+  },
+  legendItem: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  legendPill: {
+    alignItems: "center",
+    backgroundColor: "#141418",
+    borderColor: "#27272a",
+    borderRadius: 999,
+    borderWidth: 1,
+    bottom: 16,
+    flexDirection: "row",
+    gap: 14,
+    left: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    position: "absolute",
+    zIndex: 10,
+  },
+  legendText: {
+    color: "#a1a1aa",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  mapCanvas: {
+    height: 260,
+    justifyContent: "center",
+    marginTop: 8,
+    paddingHorizontal: 10,
+    width: "100%",
+  },
+  mapCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: "hidden",
+    position: "relative",
+    width: "100%",
+  },
+  resetButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  resetButtonText: {
+    color: "#f4f4f5",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  selectedPillTop: {
+    alignItems: "center",
+    backgroundColor: "#1f1f24",
+    borderColor: "#27272a",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  selectedPillTopText: {
+    color: "#e4e4e7",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  topActionRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  wrapper: {
+    width: "100%",
+  },
+});
 
 export default memo(NativeMap);

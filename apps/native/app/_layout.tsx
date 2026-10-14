@@ -1,9 +1,6 @@
+/* oxlint-disable one-var */
 import "@/polyfills";
-import {
-  DarkTheme,
-  DefaultTheme,
-  ThemeProvider,
-} from "@react-navigation/native";
+import { DarkTheme, ThemeProvider } from "@react-navigation/native";
 import type { Theme } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
@@ -11,23 +8,19 @@ import { StatusBar } from "expo-status-bar";
 import { StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+import { NowPlayingModal } from "@/components/now-playing-modal";
+import { AudioPlayerProvider } from "@/contexts/audio-player-context";
 import { NAV_THEME } from "@/lib/constants";
-import { useColorScheme } from "@/lib/use-color-scheme";
-
-const LIGHT_THEME: Theme = {
-    ...DefaultTheme,
-    colors: NAV_THEME.light,
-  },
-  DARK_THEME: Theme = {
-    ...DarkTheme,
-    colors: NAV_THEME.dark,
-  };
 
 export const unstable_settings = {
   initialRouteName: "(drawer)",
 };
 
-const queryClient = new QueryClient(),
+const DARK_THEME: Theme = {
+    ...DarkTheme,
+    colors: NAV_THEME.dark,
+  },
+  queryClient = new QueryClient(),
   styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -35,18 +28,20 @@ const queryClient = new QueryClient(),
   });
 
 export default function RootLayout() {
-  const { isDarkColorScheme } = useColorScheme();
-
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-        <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
-        <GestureHandlerRootView style={styles.container}>
-          <Stack>
-            <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-          </Stack>
-        </GestureHandlerRootView>
-      </ThemeProvider>
+      <AudioPlayerProvider>
+        <ThemeProvider value={DARK_THEME}>
+          {/* oxlint-disable-next-line react/style-prop-object */}
+          <StatusBar style="light" />
+          <GestureHandlerRootView style={styles.container}>
+            <Stack>
+              <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
+            </Stack>
+            <NowPlayingModal />
+          </GestureHandlerRootView>
+        </ThemeProvider>
+      </AudioPlayerProvider>
     </QueryClientProvider>
   );
 }

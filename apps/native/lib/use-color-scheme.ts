@@ -1,23 +1,16 @@
-import { useColorScheme as useRNColorScheme } from "react-native";
-
+/**
+ * SoundKit Mobile enforces strict dark mode across all surfaces.
+ * Color scheme is fixed to 'dark' by default.
+ */
 export function useColorScheme() {
-  const systemColorScheme = useRNColorScheme(),
-    colorScheme = systemColorScheme ?? "light";
-
   return {
-    colorScheme: colorScheme as "light" | "dark",
-    isDarkColorScheme: colorScheme === "dark",
+    colorScheme: "dark" as const,
+    isDarkColorScheme: true,
     setColorScheme: () => {
-      // Color scheme is managed by the system in bare mode
-      console.warn(
-        "setColorScheme is not available in bare mode. Color scheme is managed by the system."
-      );
+      // SoundKit mobile is strictly dark mode
     },
     toggleColorScheme: () => {
-      // Color scheme is managed by the system in bare mode
-      console.warn(
-        "toggleColorScheme is not available in bare mode. Color scheme is managed by the system."
-      );
+      // SoundKit mobile is strictly dark mode
     },
   };
 }

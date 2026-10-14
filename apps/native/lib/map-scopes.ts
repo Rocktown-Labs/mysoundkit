@@ -1,13 +1,6 @@
-export type MapScope =
-  | "africa"
-  | "asia"
-  | "canada"
-  | "europe"
-  | "global"
-  | "latin-america"
-  | "mexico"
-  | "oceania"
-  | "usa";
+import type { MapScope } from "./explore-region";
+
+export type { MapScope } from "./explore-region";
 
 export type RegionType = "global" | "north-america";
 

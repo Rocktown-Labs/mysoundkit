@@ -18,6 +18,7 @@ export default defineConfig({
     environment: "node",
     exclude: ["apps/server/src/**/*.worker.test.ts"],
     include: [
+      "apps/native/lib/**/*.test.ts",
       "apps/server/src/**/*.test.ts",
       "apps/website/src/**/*.test.ts",
       "packages/db/src/**/*.test.ts",
