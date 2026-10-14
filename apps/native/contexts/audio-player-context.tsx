@@ -716,7 +716,7 @@ function GuestLimitWall({ visible }: { visible: boolean }) {
         <Pressable
           accessibilityRole="button"
           onPress={() => {
-            router.push("/library");
+            router.push("/signup");
           }}
           style={({ pressed }) => [
             wallStyles.primaryButton,
@@ -728,7 +728,7 @@ function GuestLimitWall({ visible }: { visible: boolean }) {
         <Pressable
           accessibilityRole="button"
           onPress={() => {
-            router.push("/library");
+            router.push("/login");
           }}
           style={({ pressed }) => [pressed && { opacity: 0.7 }]}
         >

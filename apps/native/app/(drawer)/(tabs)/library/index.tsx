@@ -4,8 +4,6 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Container } from "@/components/container";
 import { LibraryGrid } from "@/components/library-grid";
-import { SignIn } from "@/components/sign-in";
-import { SignUp } from "@/components/sign-up";
 import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -64,7 +62,7 @@ export default function LibraryScreen() {
                   ]}
                 >
                   <Ionicons
-                    color="#a855f7"
+                    color="#B8A3FF"
                     name="speedometer-outline"
                     size={16}
                   />
@@ -90,8 +88,42 @@ export default function LibraryScreen() {
           </View>
         ) : (
           <View style={styles.authBox}>
-            <SignIn />
-            <SignUp />
+            <View
+              style={[
+                styles.authCard,
+                { backgroundColor: "#060606", borderColor: "#212121" },
+              ]}
+            >
+              <Ionicons
+                color="#B8A3FF"
+                name="person-circle-outline"
+                size={40}
+              />
+              <Text style={styles.authTitle}>Sign in to SoundKit</Text>
+              <Text style={styles.authDescription}>
+                Save tracks, build playlists, follow artists, and keep your
+                listening history.
+              </Text>
+              <Link href="/login" asChild>
+                <Pressable
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.authPrimaryBtn,
+                    pressed && { opacity: 0.85 },
+                  ]}
+                >
+                  <Text style={styles.authPrimaryText}>Log In</Text>
+                </Pressable>
+              </Link>
+              <Link href="/signup" asChild>
+                <Pressable
+                  accessibilityRole="button"
+                  style={({ pressed }) => [pressed && { opacity: 0.75 }]}
+                >
+                  <Text style={styles.authSecondaryText}>Create Account</Text>
+                </Pressable>
+              </Link>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -108,6 +140,42 @@ const styles = StyleSheet.create({
   authBox: {
     gap: 12,
     marginTop: 12,
+  },
+  authCard: {
+    alignItems: "center",
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 10,
+    padding: 24,
+  },
+  authDescription: {
+    color: "#8F8F8F",
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  authPrimaryBtn: {
+    alignItems: "center",
+    backgroundColor: "#B8A3FF",
+    borderRadius: 999,
+    marginTop: 6,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+  },
+  authPrimaryText: {
+    color: "#171717",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  authSecondaryText: {
+    color: "#B8A3FF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  authTitle: {
+    color: "#F8F8F8",
+    fontSize: 17,
+    fontWeight: "800",
   },
   content: {
     gap: 22,
