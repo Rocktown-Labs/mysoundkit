@@ -10,13 +10,16 @@ import { FuseV1Options, FuseVersion } from "@electron/fuses";
 
 const config: ForgeConfig = {
   makers: [
-    new MakerSquirrel({}),
+    // Squirrel's NuGet step requires an Authors field, which electron-winstaller
+    // derives from the package.json "author" — absent in this private app.
+    new MakerSquirrel({ authors: "Rocktown Labs" }),
     new MakerZIP({}, ["darwin"]),
     new MakerDMG({}),
     // The deb/rpm installers default their binary and package names to the
     // package.json "name" ("desktop"), which neither matches our
     // executableName nor names a sane Linux package. Wire all three
-    // explicitly so /usr/bin/soundkit-desktop is what ships.
+    // explicitly so /usr/bin/soundkit-desktop is what ships; rpm also
+    // requires a License field in its generated spec.
     new MakerDeb({
       options: {
         bin: "soundkit-desktop",
@@ -27,6 +30,7 @@ const config: ForgeConfig = {
     new MakerRpm({
       options: {
         bin: "soundkit-desktop",
+        license: "Proprietary",
         name: "soundkit-desktop",
         productName: "SoundKit Desktop",
       },

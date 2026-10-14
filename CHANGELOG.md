@@ -74,7 +74,7 @@
 
 ### Fixed
 
-- Fixed the desktop release pipeline's Linux and Windows builds (#417): the `Desktop Release` workflow now pins `shell: bash` for every step (the bash bootstrap previously ran under PowerShell on Windows runners and died immediately), and the deb/rpm makers pass explicit `options.bin`/`options.name`/`options.productName` (`soundkit-desktop` / `SoundKit Desktop`) because electron-installer-common otherwise derives the binary path from the package.json name ("desktop"), failing the deb build with "could not find the Electron app binary" and shipping an unusable `/usr/bin/desktop` package had it succeeded.
+- Fixed the desktop release pipeline's Linux and Windows builds (#417): the `Desktop Release` workflow now pins `shell: bash` for every step (the bash bootstrap previously ran under PowerShell on Windows runners and died immediately); the deb/rpm makers pass explicit `options.bin`/`options.name`/`options.productName` (`soundkit-desktop` / `SoundKit Desktop`) because electron-installer-common otherwise derives the binary path from the package.json name ("desktop"), failing the deb build with "could not find the Electron app binary" and shipping an unusable `/usr/bin/desktop` package had it succeeded; the rpm maker passes `license: "Proprietary"` because rpmbuild rejects a spec without a License field; and the Squirrel maker passes `authors: "Rocktown Labs"` (with the author added to the desktop package metadata) because NuGet rejects a nuspec without an Authors field — both of which were missing from this private package.
 
 ### Changed
 
