@@ -1467,6 +1467,9 @@ export const rpcContract = new Hono()
   .get("/v1/merch/catalog", (c) =>
     c.json({} as Record<string, unknown>)
   )
+  .get("/v1/merch/physical-releases", (c) =>
+    c.json([] as Record<string, unknown>[])
+  )
   .get("/v1/merch/designs", (c) =>
     c.json([] as Record<string, unknown>[])
   )

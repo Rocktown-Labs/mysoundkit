@@ -2,6 +2,7 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { physicalReleases } from "@soundkit/db/schema/commerce";
+import { projects as projectsTable } from "@soundkit/db/schema/app";
 import {
   merchCatalogProducts,
   merchCatalogVariants,
@@ -84,6 +85,17 @@ const app = new OpenAPIHono<AppEnv>(),
     id: z.string(),
     mockupUrl: z.string().nullable(),
     status: z.enum(["completed", "failed", "pending", "queued"]),
+  }),
+  physicalReleaseCardSchema = z.object({
+    id: z.string(),
+    includesDigitalDownload: z.boolean(),
+    kunakiProductId: z.string().nullable(),
+    mediaFormat: z.enum(["cd", "dvd", "vinyl_12", "vinyl_7"]),
+    projectId: z.string().nullable(),
+    projectTitle: z.string().nullable(),
+    retailPriceCents: z.number().int(),
+    status: z.enum(["archived", "draft", "published", "ready"]),
+    title: z.string(),
   }),
   createDesignBodySchema = z.object({
     description: z.string().max(2000).optional(),
@@ -202,6 +214,59 @@ app.openapi(
       },
       HttpStatusCodes.OK
     );
+  }
+);
+
+// GET /v1/merch/physical-releases — the artist's Kunaki releases across all projects
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/physical-releases",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.array(physicalReleaseCardSchema),
+        "Artist physical releases (Kunaki)"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Authentication required"
+      ),
+    },
+    tags: ["Merch"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+
+    const db = createDb(),
+      releases = await db
+        .select({
+          id: physicalReleases.id,
+          includesDigitalDownload: physicalReleases.includesDigitalDownload,
+          kunakiProductId: physicalReleases.kunakiProductId,
+          mediaFormat: physicalReleases.mediaFormat,
+          projectId: physicalReleases.projectId,
+          projectTitle: projectsTable.title,
+          retailPriceCents: physicalReleases.retailPriceCents,
+          status: physicalReleases.status,
+          title: physicalReleases.title,
+        })
+        .from(physicalReleases)
+        .leftJoin(
+          projectsTable,
+          eq(projectsTable.id, physicalReleases.projectId)
+        )
+        .where(eq(physicalReleases.ownerUserId, user.id))
+        .orderBy(desc(physicalReleases.createdAt));
+
+    return c.json(releases, HttpStatusCodes.OK);
   }
 );
 
