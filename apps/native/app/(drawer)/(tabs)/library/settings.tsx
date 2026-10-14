@@ -1,16 +1,66 @@
+/* oxlint-disable one-var, sort-vars */
+/* eslint-disable one-var, sort-vars */
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Link } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from "react-native";
 
 import { Container } from "@/components/container";
 import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
+const LOCATION_STORAGE_KEY = "@soundkit/permission_location",
+  NOTIFICATION_STORAGE_KEY = "@soundkit/permission_notifications";
+
 export default function LibrarySettingsScreen() {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-    { data: session } = authClient.useSession();
+    { data: session } = authClient.useSession(),
+    [locationPermission, setLocationPermission] = useState(true),
+    [notificationPermission, setNotificationPermission] = useState(true);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const storedLoc = await AsyncStorage.getItem(LOCATION_STORAGE_KEY);
+        if (storedLoc !== null) {
+          setLocationPermission(storedLoc === "granted");
+        }
+        const storedNotif = await AsyncStorage.getItem(
+          NOTIFICATION_STORAGE_KEY
+        );
+        if (storedNotif !== null) {
+          setNotificationPermission(storedNotif === "granted");
+        }
+      } catch {
+        // Fallback to default
+      }
+    })();
+  }, []);
+
+  const toggleLocationPermission = (val: boolean) => {
+      setLocationPermission(val);
+      void AsyncStorage.setItem(
+        LOCATION_STORAGE_KEY,
+        val ? "granted" : "denied"
+      );
+    },
+    toggleNotificationPermission = (val: boolean) => {
+      setNotificationPermission(val);
+      void AsyncStorage.setItem(
+        NOTIFICATION_STORAGE_KEY,
+        val ? "granted" : "denied"
+      );
+    };
 
   return (
     <Container>
@@ -88,13 +138,59 @@ export default function LibrarySettingsScreen() {
             <Text style={styles.emptyDesc}>
               Log in to sync your library across web, mobile, and desktop.
             </Text>
-            <Link href="/library" asChild>
+            <Link href="/login?redirect=/library/settings" asChild>
               <Pressable style={styles.loginBtn}>
                 <Text style={styles.loginBtnText}>Go to Login</Text>
               </Pressable>
             </Link>
           </View>
         )}
+
+        <View
+          style={[
+            styles.sectionCard,
+            { backgroundColor: "#060606", borderColor: "#212121" },
+          ]}
+        >
+          <View style={styles.cardHeader}>
+            <Ionicons
+              color="#B8A3FF"
+              name="shield-checkmark-outline"
+              size={20}
+            />
+            <Text style={styles.cardHeaderTitle}>Permissions & Privacy</Text>
+          </View>
+
+          <View style={styles.switchRow}>
+            <View style={styles.switchTextCol}>
+              <Text style={styles.switchLabel}>Location Services</Text>
+              <Text style={styles.switchSublabel}>
+                Used for local music scene discovery and regional map charts
+              </Text>
+            </View>
+            <Switch
+              onValueChange={toggleLocationPermission}
+              thumbColor={locationPermission ? "#ffffff" : "#71717a"}
+              trackColor={{ false: "#27272a", true: "#B8A3FF" }}
+              value={locationPermission}
+            />
+          </View>
+
+          <View style={styles.switchRow}>
+            <View style={styles.switchTextCol}>
+              <Text style={styles.switchLabel}>Push Notifications</Text>
+              <Text style={styles.switchSublabel}>
+                Receive alerts for new drops, artist updates, and orders
+              </Text>
+            </View>
+            <Switch
+              onValueChange={toggleNotificationPermission}
+              thumbColor={notificationPermission ? "#ffffff" : "#71717a"}
+              trackColor={{ false: "#27272a", true: "#B8A3FF" }}
+              value={notificationPermission}
+            />
+          </View>
+        </View>
       </ScrollView>
     </Container>
   );
@@ -125,6 +221,16 @@ const styles = StyleSheet.create({
     color: "#f4f4f5",
     fontSize: 12,
     fontWeight: "600",
+  },
+  cardHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  cardHeaderTitle: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "700",
   },
   content: {
     gap: 20,
@@ -197,6 +303,28 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
+  },
+  switchLabel: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  switchRow: {
+    alignItems: "center",
+    borderTopColor: "#212121",
+    borderTopWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingTop: 14,
+  },
+  switchSublabel: {
+    color: "#8F8F8F",
+    fontSize: 12,
+  },
+  switchTextCol: {
+    flex: 1,
+    gap: 2,
+    paddingRight: 16,
   },
   title: {
     fontSize: 26,

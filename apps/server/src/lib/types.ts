@@ -72,6 +72,7 @@ export interface AppEnv {
     TRACK_DURATION_BACKFILL_QUEUE?: Queue<DurationBackfillQueueMessage>;
     TRACK_ENRICHMENT_WORKFLOW?: Workflow<TrackEnrichmentWorkflowPayload>;
     REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL?: string;
+    DESKTOP_AUTH_SECRET?: string;
     TURNSTILE_HOSTNAMES?: string;
     TURNSTILE_SECRET?: string;
     SOUNDKIT_ALLOW_MOCK_REALTIME?: string;

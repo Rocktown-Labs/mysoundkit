@@ -13,8 +13,10 @@ import { useEffect, useRef } from "react";
 import { StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+import { CartModal } from "@/components/cart/cart-modal";
 import { NowPlayingModal } from "@/components/now-playing-modal";
 import { AudioPlayerProvider } from "@/contexts/audio-player-context";
+import { CartProvider } from "@/contexts/cart-context";
 import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
 
@@ -64,17 +66,23 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <AuthQuerySync />
       <AudioPlayerProvider>
-        <ThemeProvider value={DARK_THEME}>
-          {/* oxlint-disable-next-line react/style-prop-object */}
-          <StatusBar style="light" />
-          <GestureHandlerRootView style={styles.container}>
-            <Stack>
-              <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-              <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-            </Stack>
-            <NowPlayingModal />
-          </GestureHandlerRootView>
-        </ThemeProvider>
+        <CartProvider>
+          <ThemeProvider value={DARK_THEME}>
+            {/* oxlint-disable-next-line react/style-prop-object */}
+            <StatusBar style="light" />
+            <GestureHandlerRootView style={styles.container}>
+              <Stack>
+                <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="(drawer)"
+                  options={{ headerShown: false }}
+                />
+              </Stack>
+              <NowPlayingModal />
+              <CartModal />
+            </GestureHandlerRootView>
+          </ThemeProvider>
+        </CartProvider>
       </AudioPlayerProvider>
     </QueryClientProvider>
   );

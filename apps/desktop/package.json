@@ -6,6 +6,7 @@
   "author": "Rocktown Labs",
   "main": ".vite/build/main.js",
   "scripts": {
+    "dev": "electron-forge start",
     "start": "electron-forge start",
     "build": "electron-forge package",
     "package": "electron-forge package",

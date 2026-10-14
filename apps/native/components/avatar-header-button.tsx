@@ -41,6 +41,10 @@ export function AvatarHeaderButton({
     singlePressTimerRef = useRef<null | ReturnType<typeof setTimeout>>(null),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     triggerPress = () => {
+      if (!session?.user) {
+        router.push("/login");
+        return;
+      }
       const now = Date.now(),
         previousPressAt = lastPressRef.current;
       lastPressRef.current = now;

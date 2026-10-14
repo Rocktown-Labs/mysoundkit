@@ -1,6 +1,7 @@
-/* oxlint-disable one-var, sort-vars, no-nested-ternary, eqeqeq, no-eq-null, react/preserve-manual-memoization */
+/* oxlint-disable one-var, sort-vars, no-nested-ternary, eqeqeq, no-eq-null, react/preserve-manual-memoization, react-hooks/exhaustive-deps */
+/* eslint-disable one-var, sort-vars, no-nested-ternary, eqeqeq, no-eq-null, react/preserve-manual-memoization, react-hooks/exhaustive-deps */
 import { Ionicons } from "@expo/vector-icons";
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import type { Href } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -12,6 +13,7 @@ import {
   View,
 } from "react-native";
 
+import { CartHeaderButton } from "@/components/cart/cart-header-button";
 import { Container } from "@/components/container";
 import { DiscoverSection } from "@/components/discover-section";
 import type { DiscoverCardData } from "@/components/discover-section";
@@ -258,21 +260,24 @@ export default function MusicScreen() {
             </Text>
             <Text style={[styles.pageTitle, { color: theme.text }]}>Music</Text>
           </View>
-          <Pressable
-            accessibilityLabel="Open catalog navigation sheet"
-            accessibilityRole="button"
-            onPress={() => setCatalogModalVisible(true)}
-            style={({ pressed }) => [
-              styles.catalogJumpBtn,
-              {
-                backgroundColor: pressed ? "#212121" : "#111111",
-                borderColor: "#212121",
-              },
-            ]}
-          >
-            <Ionicons color="#B8A3FF" name="apps-outline" size={16} />
-            <Text style={styles.catalogJumpBtnText}>Jump to Catalog</Text>
-          </Pressable>
+          <View style={{ alignItems: "center", flexDirection: "row", gap: 10 }}>
+            <CartHeaderButton />
+            <Pressable
+              accessibilityLabel="Open catalog navigation sheet"
+              accessibilityRole="button"
+              onPress={() => setCatalogModalVisible(true)}
+              style={({ pressed }) => [
+                styles.catalogJumpBtn,
+                {
+                  backgroundColor: pressed ? "#212121" : "#111111",
+                  borderColor: "#212121",
+                },
+              ]}
+            >
+              <Ionicons color="#B8A3FF" name="apps-outline" size={16} />
+              <Text style={styles.catalogJumpBtnText}>Jump to Catalog</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Filter Dropdowns Bar */}
@@ -334,9 +339,9 @@ export default function MusicScreen() {
               <Text style={styles.dropdownTitle}>
                 {pickerOpen === "location"
                   ? "Select Location"
-                  : (pickerOpen === "genre"
+                  : pickerOpen === "genre"
                     ? "Select Genre"
-                    : "Sort By")}
+                    : "Sort By"}
               </Text>
               <Pressable onPress={() => setPickerOpen(null)}>
                 <Ionicons color="#8F8F8F" name="close" size={18} />
@@ -367,7 +372,7 @@ export default function MusicScreen() {
                       </Text>
                     </Pressable>
                   ))
-                : (pickerOpen === "genre"
+                : pickerOpen === "genre"
                   ? [
                       <Pressable
                         key="all"
@@ -436,7 +441,7 @@ export default function MusicScreen() {
                           {s.label}
                         </Text>
                       </Pressable>
-                    )))}
+                    ))}
             </ScrollView>
           </View>
         ) : null}

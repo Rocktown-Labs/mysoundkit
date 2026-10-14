@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { geoAlbersUsa, geoMercator, geoPath } from "d3-geo";
 import type { FeatureCollection, Geometry } from "geojson";
 import { memo, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
@@ -16,6 +16,19 @@ import worldTopo from "../assets/maps/world-countries-110m.json";
 
 const VIEW = { height: 420, width: 800 } as const,
   US_VIEW = { height: 500, width: 800 } as const;
+
+const SCOPE_PROJECTION_CONFIG: Record<
+  string,
+  { center: [number, number]; scale: number }
+> = {
+  africa: { center: [18, 2], scale: 300 },
+  asia: { center: [85, 32], scale: 320 },
+  canada: { center: [-105, 58], scale: 270 },
+  europe: { center: [15, 54], scale: 300 },
+  "latin-america": { center: [-65, -15], scale: 300 },
+  mexico: { center: [-102, 23], scale: 400 },
+  oceania: { center: [135, -25], scale: 420 },
+};
 
 // Web-parity dark palette (see apps/website/src/app/globals.css).
 const MAP_COLORS = {
@@ -107,8 +120,26 @@ export function NativeMap({
     }),
     { collection, view } = useGeographies(scope),
     paths = useMemo(() => {
-      const projection = scope === "usa" ? geoAlbersUsa() : geoMercator();
-      projection.fitSize([view.width, view.height], collection);
+      if (scope === "usa") {
+        const projection = geoAlbersUsa();
+        projection.fitSize([view.width, view.height], collection);
+        const generator = geoPath(projection);
+        return collection.features.map((geography) => ({
+          d: generator(geography) ?? "",
+          id: String(geography.id ?? ""),
+          name: geographyName(geography.properties, geography.id),
+        }));
+      }
+
+      const projection = geoMercator();
+      const config = SCOPE_PROJECTION_CONFIG[scope];
+      if (config) {
+        projection.translate([view.width / 2, view.height / 2]);
+        projection.center(config.center);
+        projection.scale(config.scale);
+      } else {
+        projection.fitSize([view.width, view.height], collection);
+      }
       const generator = geoPath(projection);
       return collection.features.map((geography) => ({
         d: generator(geography) ?? "",
@@ -191,46 +222,48 @@ export function NativeMap({
         {/* Floating dropdown options when open */}
         {countryPickerOpen ? (
           <View style={styles.dropdownMenu}>
-            {COUNTRY_OPTIONS.map((country) => {
-              const targetScope = COUNTRY_ID_TO_SCOPE[country.id] ?? "global",
-                isSelected = scope === targetScope;
-              return (
-                <Pressable
-                  key={country.id}
-                  onPress={() => {
-                    onScopeChange(
-                      targetScope,
-                      country.id === "usa" || targetScope === "global"
-                        ? null
-                        : country.label
-                    );
-                    setCountryPickerOpen(false);
-                  }}
-                  style={({ pressed }) => [
-                    styles.dropdownMenuItem,
-                    {
-                      backgroundColor: isSelected
-                        ? "rgba(168, 85, 247, 0.15)"
-                        : pressed
-                          ? MAP_COLORS.surface
-                          : "transparent",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.dropdownMenuItemText,
-                      isSelected && {
-                        color: "#C084FC",
-                        fontWeight: "700",
+            <ScrollView bounces={false} style={styles.dropdownScroll}>
+              {COUNTRY_OPTIONS.map((country) => {
+                const targetScope = COUNTRY_ID_TO_SCOPE[country.id] ?? "global",
+                  isSelected = scope === targetScope;
+                return (
+                  <Pressable
+                    key={country.id}
+                    onPress={() => {
+                      onScopeChange(
+                        targetScope,
+                        country.id === "usa" || targetScope === "global"
+                          ? null
+                          : country.label
+                      );
+                      setCountryPickerOpen(false);
+                    }}
+                    style={({ pressed }) => [
+                      styles.dropdownMenuItem,
+                      {
+                        backgroundColor: isSelected
+                          ? "rgba(168, 85, 247, 0.15)"
+                          : pressed
+                            ? MAP_COLORS.surface
+                            : "transparent",
                       },
                     ]}
                   >
-                    {country.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                    <Text
+                      style={[
+                        styles.dropdownMenuItemText,
+                        isSelected && {
+                          color: "#C084FC",
+                          fontWeight: "700",
+                        },
+                      ]}
+                    >
+                      {country.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
         ) : null}
 
@@ -348,7 +381,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     left: 16,
-    maxHeight: 180,
+    maxHeight: 220,
+    overflow: "hidden",
     position: "absolute",
     top: 60,
     width: 180,
@@ -362,17 +396,20 @@ const styles = StyleSheet.create({
     color: "#F8F8F8",
     fontSize: 13,
   },
+  dropdownScroll: {
+    maxHeight: 200,
+  },
   floatingRegionBadge: {
     alignItems: "center",
     backgroundColor: "#A855F7",
     borderRadius: 999,
     flexDirection: "row",
     gap: 6,
-    left: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
     position: "absolute",
-    top: 72,
+    right: 16,
+    top: 16,
     zIndex: 10,
   },
   floatingRegionBadgeText: {
@@ -399,10 +436,10 @@ const styles = StyleSheet.create({
     bottom: 16,
     flexDirection: "row",
     gap: 14,
-    left: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
     position: "absolute",
+    right: 16,
     zIndex: 10,
   },
   legendText: {

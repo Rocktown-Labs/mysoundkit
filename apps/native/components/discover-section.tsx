@@ -1,3 +1,5 @@
+/* oxlint-disable one-var, sort-vars, no-nested-ternary */
+/* eslint-disable one-var, sort-vars, no-nested-ternary */
 import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
 import type { Href } from "expo-router";
@@ -70,7 +72,12 @@ export interface DiscoverCardData {
 
 function DiscoverCard({ data }: { data: DiscoverCardData }) {
   const { colorScheme } = useColorScheme(),
-    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
+    isEmojiBadge = Boolean(
+      data.badge &&
+      !data.imageUrl &&
+      (/\p{Extended_Pictographic}/u.test(data.badge) || data.badge.length <= 4)
+    );
 
   return (
     <Link href={data.href as Href} asChild>
@@ -84,15 +91,20 @@ function DiscoverCard({ data }: { data: DiscoverCardData }) {
         <View
           style={[
             styles.art,
-            { backgroundColor: theme.muted, borderColor: theme.border },
+            {
+              backgroundColor: isEmojiBadge ? "#0d0d10" : theme.muted,
+              borderColor: isEmojiBadge ? "#212121" : theme.border,
+            },
           ]}
         >
           {data.imageUrl ? (
             <Image source={{ uri: data.imageUrl }} style={styles.artImage} />
+          ) : isEmojiBadge ? (
+            <Text style={{ fontSize: 52 }}>{data.badge}</Text>
           ) : (
             <Ionicons color={theme.mutedText} name="musical-notes" size={34} />
           )}
-          {data.badge ? (
+          {!isEmojiBadge && data.badge ? (
             <View style={[styles.badge, { backgroundColor: theme.accent }]}>
               <Text
                 style={[styles.badgeText, { color: theme.accentForeground }]}

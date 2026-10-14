@@ -1,5 +1,7 @@
-/* eslint-disable one-var, sort-vars, sort-keys, complexity, eqeqeq, no-eq-null, no-nested-ternary, react-hooks/set-state-in-render, react/set-state-in-effect, no-lonely-if, node/callback-return, no-void */
+/* oxlint-disable one-var, sort-vars, sort-keys, no-nested-ternary, complexity, eqeqeq, no-eq-null, no-lonely-if, callback-return, react/set-state-in-effect */
+/* eslint-disable one-var, sort-vars, sort-keys, no-nested-ternary, complexity, eqeqeq, no-eq-null, no-lonely-if, callback-return, react/set-state-in-effect */
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -25,6 +27,8 @@ import { useGenresQuery } from "@/lib/soundkit-api";
 
 const ARTIST_TOTAL_STEPS = 8,
   FAN_TOTAL_STEPS = 4,
+  LOCATION_STORAGE_KEY = "@soundkit/permission_location",
+  NOTIFICATION_STORAGE_KEY = "@soundkit/permission_notifications",
   RIGHTS_ATTESTATION_VERSION = "2026-01",
   USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/u;
 
@@ -62,34 +66,33 @@ interface OnboardingDraft {
 }
 
 const emptyDraft: OnboardingDraft = {
-  appleMusicUrl: "",
-  city: "",
-  country: "",
-  creatorEligibility: "independent",
-  genrePreferences: [],
-  instagramHandle: "",
-  primaryGenre: null,
-  roles: [],
-  selectedPlanCode: "artist_free",
-  spotifyUrl: "",
-  state: "",
-  tiktokHandle: "",
-  twitterHandle: "",
-  username: "",
-  youtubeUrl: "",
-};
-
-const postState = async (body: Record<string, unknown>) => {
-  try {
-    await authenticatedFetch(`${API_V1_URL}/onboarding/state`, {
-      body: JSON.stringify(body),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-  } catch {
-    // Best-effort step persistence.
-  }
-};
+    appleMusicUrl: "",
+    city: "",
+    country: "",
+    creatorEligibility: "independent",
+    genrePreferences: [],
+    instagramHandle: "",
+    primaryGenre: null,
+    roles: [],
+    selectedPlanCode: "artist_free",
+    spotifyUrl: "",
+    state: "",
+    tiktokHandle: "",
+    twitterHandle: "",
+    username: "",
+    youtubeUrl: "",
+  },
+  postState = async (body: Record<string, unknown>) => {
+    try {
+      await authenticatedFetch(`${API_V1_URL}/onboarding/state`, {
+        body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+    } catch {
+      // Best-effort step persistence.
+    }
+  };
 
 export default function OnboardingScreen() {
   const router = useRouter(),
@@ -109,7 +112,45 @@ export default function OnboardingScreen() {
       message: string;
     }>(null),
     [exiting, setExiting] = useState(false),
-    usernameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    usernameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null),
+    [locationEnabled, setLocationEnabled] = useState(true),
+    [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const storedLoc = await AsyncStorage.getItem(LOCATION_STORAGE_KEY);
+        if (storedLoc !== null) {
+          setLocationEnabled(storedLoc === "granted");
+        }
+        const storedNotif = await AsyncStorage.getItem(
+          NOTIFICATION_STORAGE_KEY
+        );
+        if (storedNotif !== null) {
+          setNotificationsEnabled(storedNotif === "granted");
+        }
+      } catch {
+        // Fallback default
+      }
+    })();
+  }, []);
+
+  const toggleLocationPref = () => {
+      const next = !locationEnabled;
+      setLocationEnabled(next);
+      void AsyncStorage.setItem(
+        LOCATION_STORAGE_KEY,
+        next ? "granted" : "denied"
+      );
+    },
+    toggleNotificationsPref = () => {
+      const next = !notificationsEnabled;
+      setNotificationsEnabled(next);
+      void AsyncStorage.setItem(
+        NOTIFICATION_STORAGE_KEY,
+        next ? "granted" : "denied"
+      );
+    };
 
   // Resume the saved step (server persists it; fields stay local like web's
   // localStorage draft).
@@ -193,199 +234,195 @@ export default function OnboardingScreen() {
   }, [accountType, draft.username, step]);
 
   const patchDraft = (patch: Partial<OnboardingDraft>) => {
-    setDraft((prev) => ({ ...prev, ...patch }));
-  };
-
-  const stepTitles: Record<number, string> =
-    accountType === "artist"
-      ? {
-          1: "What do you do?",
-          2: "Your eligibility",
-          3: "Claim your username",
-          4: "Add a profile photo",
-          5: "Where are you based?",
-          6: "Your primary genre",
-          7: "Where can people find you?",
-          8: "Pick your plan",
+      setDraft((prev) => ({ ...prev, ...patch }));
+    },
+    stepTitles: Record<number, string> =
+      accountType === "artist"
+        ? {
+            1: "What do you do?",
+            2: "Your eligibility",
+            3: "Claim your username",
+            4: "Add a profile photo",
+            5: "Where are you based?",
+            6: "Your primary genre",
+            7: "Where can people find you?",
+            8: "Pick your plan",
+          }
+        : {
+            1: "Claim your username",
+            2: "Pick your genres",
+            3: "Where are you based?",
+            4: "Pick your plan",
+          },
+    validateStep = (current: number): null | string => {
+      if (accountType === "artist") {
+        if (current === 1 && draft.roles.length === 0) {
+          return "Pick at least one role.";
         }
-      : {
-          1: "Claim your username",
-          2: "Pick your genres",
-          3: "Where are you based?",
-          4: "Pick your plan",
-        };
-
-  const validateStep = (current: number): null | string => {
-    if (accountType === "artist") {
-      if (current === 1 && draft.roles.length === 0) {
-        return "Pick at least one role.";
-      }
-      if (current === 3) {
-        if (!USERNAME_PATTERN.test(draft.username)) {
-          return "Use 3–32 letters, numbers, or underscores.";
+        if (current === 3) {
+          if (!USERNAME_PATTERN.test(draft.username)) {
+            return "Use 3–32 letters, numbers, or underscores.";
+          }
+          if (usernameStatus && !usernameStatus.available) {
+            return usernameStatus.message;
+          }
         }
-        if (usernameStatus && !usernameStatus.available) {
-          return usernameStatus.message;
+        if (current === 5) {
+          if (!draft.city || !draft.state || !draft.country) {
+            return "Add your city, state, and country.";
+          }
         }
-      }
-      if (current === 5) {
-        if (!draft.city || !draft.state || !draft.country) {
+        if (current === 6 && !draft.primaryGenre) {
+          return "Pick your primary genre.";
+        }
+        if (current === 8 && !rightsAttested) {
+          return "Attest that you own or control the rights to your music.";
+        }
+      } else {
+        if (current === 1) {
+          if (!USERNAME_PATTERN.test(draft.username)) {
+            return "Use 3–32 letters, numbers, or underscores.";
+          }
+          if (usernameStatus && !usernameStatus.available) {
+            return usernameStatus.message;
+          }
+        }
+        if (current === 2 && draft.genrePreferences.length < 3) {
+          return "Pick at least 3 genres you love.";
+        }
+        if (current === 3 && (!draft.city || !draft.state || !draft.country)) {
           return "Add your city, state, and country.";
         }
       }
-      if (current === 6 && !draft.primaryGenre) {
-        return "Pick your primary genre.";
+      return null;
+    },
+    next = async () => {
+      setError(null);
+      const validation = validateStep(step);
+      if (validation) {
+        setError(validation);
+        return;
       }
-      if (current === 8 && !rightsAttested) {
-        return "Attest that you own or control the rights to your music.";
-      }
-    } else {
-      if (current === 1) {
-        if (!USERNAME_PATTERN.test(draft.username)) {
-          return "Use 3–32 letters, numbers, or underscores.";
-        }
-        if (usernameStatus && !usernameStatus.available) {
-          return usernameStatus.message;
-        }
-      }
-      if (current === 2 && draft.genrePreferences.length < 3) {
-        return "Pick at least 3 genres you love.";
-      }
-      if (current === 3 && (!draft.city || !draft.state || !draft.country)) {
-        return "Add your city, state, and country.";
-      }
-    }
-    return null;
-  };
+      const nextStep = step + 1;
 
-  const next = async () => {
-    setError(null);
-    const validation = validateStep(step);
-    if (validation) {
-      setError(validation);
-      return;
-    }
-    const nextStep = step + 1;
+      // Artist eligibility: major label routes to fan onboarding, like web.
+      if (accountType === "artist" && step === 2) {
+        if (draft.creatorEligibility === "major_label_affiliated") {
+          setBusy(true);
+          try {
+            await authenticatedFetch(`${API_V1_URL}/onboarding/eligibility`, {
+              body: JSON.stringify({
+                eligibility: "major_label_affiliated",
+              }),
+              headers: { "Content-Type": "application/json" },
+              method: "POST",
+            });
+          } catch {
+            // Server re-checks eligibility on submit anyway.
+          }
+          setBusy(false);
+          router.replace("/signup/onboarding?type=fan");
+          return;
+        }
+      }
 
-    // Artist eligibility: major label routes to fan onboarding, like web.
-    if (accountType === "artist" && step === 2) {
-      if (draft.creatorEligibility === "major_label_affiliated") {
-        setBusy(true);
-        try {
-          await authenticatedFetch(`${API_V1_URL}/onboarding/eligibility`, {
-            body: JSON.stringify({
-              eligibility: "major_label_affiliated",
-            }),
+      if (nextStep <= totalSteps) {
+        setStep(nextStep);
+        void postState({
+          creatorEligibility: draft.creatorEligibility,
+          currentStep: nextStep,
+          intendedAccountType: accountType,
+          selectedPlanCode: draft.selectedPlanCode,
+        });
+        return;
+      }
+      await finish();
+    },
+    back = () => {
+      setError(null);
+      if (step > 1) {
+        setStep(step - 1);
+      }
+    },
+    finish = async () => {
+      setBusy(true);
+      setError(null);
+      try {
+        const endpoint =
+            accountType === "artist"
+              ? `${API_V1_URL}/onboarding/artist`
+              : `${API_V1_URL}/onboarding/fan`,
+          body =
+            accountType === "artist"
+              ? {
+                  appleMusicUrl: draft.appleMusicUrl || undefined,
+                  city: draft.city,
+                  country: draft.country,
+                  creatorEligibility: draft.creatorEligibility,
+                  instagramHandle: draft.instagramHandle || undefined,
+                  mediaLayout,
+                  primaryGenre: draft.primaryGenre,
+                  rightsAttestationVersion: RIGHTS_ATTESTATION_VERSION,
+                  rightsAttested: true,
+                  roles: draft.roles,
+                  selectedPlanCode: draft.selectedPlanCode,
+                  spotifyUrl: draft.spotifyUrl || undefined,
+                  state: draft.state,
+                  tiktokHandle: draft.tiktokHandle || undefined,
+                  twitterHandle: draft.twitterHandle || undefined,
+                  username: draft.username,
+                  youtubeUrl: draft.youtubeUrl || undefined,
+                }
+              : {
+                  city: draft.city,
+                  country: draft.country,
+                  genrePreferences: draft.genrePreferences,
+                  mediaLayout,
+                  returnPath: "/",
+                  selectedPlanCode: draft.selectedPlanCode,
+                  state: draft.state,
+                  username: draft.username,
+                },
+          response = await authenticatedFetch(endpoint, {
+            body: JSON.stringify(body),
             headers: { "Content-Type": "application/json" },
             method: "POST",
-          });
-        } catch {
-          // Server re-checks eligibility on submit anyway.
+          }),
+          payload = (await response.json().catch(() => null)) as
+            | (OnboardingResponse & { message?: string })
+            | null;
+        if (!response.ok) {
+          setError(
+            payload?.message ?? "We could not complete your setup. Try again."
+          );
+          return;
+        }
+        if (payload?.checkoutUrl) {
+          void Linking.openURL(payload.checkoutUrl);
         }
         setBusy(false);
-        router.replace("/signup/onboarding?type=fan");
-        return;
+        router.replace(accountType === "artist" ? "/dashboard" : "/");
+      } catch (submitError) {
+        setError(getAuthErrorMessage(submitError));
+        setBusy(false);
       }
-    }
-
-    if (nextStep <= totalSteps) {
-      setStep(nextStep);
-      void postState({
-        creatorEligibility: draft.creatorEligibility,
-        currentStep: nextStep,
-        intendedAccountType: accountType,
-        selectedPlanCode: draft.selectedPlanCode,
-      });
-      return;
-    }
-    await finish();
-  };
-
-  const back = () => {
-    setError(null);
-    if (step > 1) {
-      setStep(step - 1);
-    }
-  };
-
-  const finish = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const endpoint =
-        accountType === "artist"
-          ? `${API_V1_URL}/onboarding/artist`
-          : `${API_V1_URL}/onboarding/fan`;
-      const body =
-        accountType === "artist"
-          ? {
-              appleMusicUrl: draft.appleMusicUrl || undefined,
-              city: draft.city,
-              country: draft.country,
-              creatorEligibility: draft.creatorEligibility,
-              instagramHandle: draft.instagramHandle || undefined,
-              mediaLayout,
-              primaryGenre: draft.primaryGenre,
-              rightsAttested: true,
-              rightsAttestationVersion: RIGHTS_ATTESTATION_VERSION,
-              roles: draft.roles,
-              selectedPlanCode: draft.selectedPlanCode,
-              spotifyUrl: draft.spotifyUrl || undefined,
-              state: draft.state,
-              tiktokHandle: draft.tiktokHandle || undefined,
-              twitterHandle: draft.twitterHandle || undefined,
-              username: draft.username,
-              youtubeUrl: draft.youtubeUrl || undefined,
-            }
-          : {
-              city: draft.city,
-              country: draft.country,
-              genrePreferences: draft.genrePreferences,
-              mediaLayout,
-              returnPath: "/",
-              selectedPlanCode: draft.selectedPlanCode,
-              state: draft.state,
-              username: draft.username,
-            };
-      const response = await authenticatedFetch(endpoint, {
-        body: JSON.stringify(body),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | (OnboardingResponse & { message?: string })
-        | null;
-      if (!response.ok) {
-        setError(
-          payload?.message ?? "We could not complete your setup. Try again."
-        );
-        return;
+    },
+    exitForLater = async () => {
+      setExiting(true);
+      try {
+        await postState({
+          currentStep: step,
+          intendedAccountType: accountType,
+        });
+        await authenticatedFetch(`${API_V1_URL}/onboarding/exit`, {
+          method: "POST",
+        });
+      } catch {
+        // Exit is best-effort.
       }
-      if (payload?.checkoutUrl) {
-        void Linking.openURL(payload.checkoutUrl);
-      }
-      setBusy(false);
-      router.replace(accountType === "artist" ? "/dashboard" : "/");
-    } catch (submitError) {
-      setError(getAuthErrorMessage(submitError));
-      setBusy(false);
-    }
-  };
-
-  const exitForLater = async () => {
-    setExiting(true);
-    try {
-      await postState({ currentStep: step, intendedAccountType: accountType });
-      await authenticatedFetch(`${API_V1_URL}/onboarding/exit`, {
-        method: "POST",
-      });
-    } catch {
-      // Exit is best-effort.
-    }
-    router.replace("/");
-  };
-
-  const genres = genresQuery.data ?? [];
+      router.replace("/");
+    },
+    genres = genresQuery.data ?? [];
 
   return (
     <View style={{ backgroundColor: "#020202", flex: 1 }}>
@@ -595,6 +632,72 @@ export default function OnboardingScreen() {
                 placeholder="Country"
                 value={draft.country}
               />
+
+              <View style={styles.permissionsContainer}>
+                <Text style={styles.permissionsHeading}>
+                  Permissions & Preferences
+                </Text>
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={toggleLocationPref}
+                  style={styles.permissionToggleRow}
+                >
+                  <View style={styles.permissionIconBadge}>
+                    <Ionicons
+                      color="#B8A3FF"
+                      name="location-outline"
+                      size={18}
+                    />
+                  </View>
+                  <View style={styles.permissionTextCol}>
+                    <Text style={styles.permissionTitle}>
+                      Location Discovery
+                    </Text>
+                    <Text style={styles.permissionDesc}>
+                      Find nearby artists, regional charts, and scenes
+                    </Text>
+                  </View>
+                  <Ionicons
+                    color={locationEnabled ? "#4ADE80" : "#71717a"}
+                    name={
+                      locationEnabled ? "checkmark-circle" : "ellipse-outline"
+                    }
+                    size={22}
+                  />
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={toggleNotificationsPref}
+                  style={styles.permissionToggleRow}
+                >
+                  <View style={styles.permissionIconBadge}>
+                    <Ionicons
+                      color="#B8A3FF"
+                      name="notifications-outline"
+                      size={18}
+                    />
+                  </View>
+                  <View style={styles.permissionTextCol}>
+                    <Text style={styles.permissionTitle}>
+                      Push Notifications
+                    </Text>
+                    <Text style={styles.permissionDesc}>
+                      New releases, order updates, and collaborator messages
+                    </Text>
+                  </View>
+                  <Ionicons
+                    color={notificationsEnabled ? "#4ADE80" : "#71717a"}
+                    name={
+                      notificationsEnabled
+                        ? "checkmark-circle"
+                        : "ellipse-outline"
+                    }
+                    size={22}
+                  />
+                </Pressable>
+              </View>
             </>
           )}
 
@@ -981,6 +1084,53 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     marginTop: 8,
+  },
+  permissionDesc: {
+    color: "#8F8F8F",
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  permissionIconBadge: {
+    alignItems: "center",
+    backgroundColor: "#1f1a2e",
+    borderRadius: 10,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  permissionTextCol: {
+    flex: 1,
+    gap: 2,
+  },
+  permissionTitle: {
+    color: "#f4f4f5",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  permissionToggleRow: {
+    alignItems: "center",
+    backgroundColor: "#111111",
+    borderColor: "#1e1e1e",
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    padding: 12,
+  },
+  permissionsContainer: {
+    backgroundColor: "#060606",
+    borderColor: "#212121",
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 12,
+    marginTop: 12,
+    padding: 16,
+  },
+  permissionsHeading: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 4,
   },
   progressFill: {
     backgroundColor: "#B8A3FF",

@@ -1,3 +1,5 @@
+/* oxlint-disable no-nested-ternary, complexity, one-var, sort-vars, sort-keys */
+/* eslint-disable no-nested-ternary, complexity, one-var, sort-vars, sort-keys */
 import { Link, useRouter } from "@tanstack/react-router";
 import type { FormEvent } from "react";
 import { useState } from "react";
@@ -5,6 +7,7 @@ import { useState } from "react";
 import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { PasswordField } from "@/components/auth/password-field";
 import {
+  isDesktopClient,
   isTurnstileConfigured,
   TurnstileWidget,
 } from "@/components/auth/turnstile-widget";
@@ -73,7 +76,9 @@ export function CredentialsForm({
       event.preventDefault();
       setErrorMessage(null);
 
-      if (isTurnstileConfigured && !turnstileToken) {
+      const isDesktop = isDesktopClient();
+
+      if (isTurnstileConfigured && !isDesktop && !turnstileToken) {
         setErrorMessage("Complete the security check before continuing.");
         return;
       }
@@ -92,11 +97,12 @@ export function CredentialsForm({
         auth_method: "email",
       });
       try {
-        const fetchOptions = turnstileToken
-            ? {
-                headers: { "X-Turnstile-Token": turnstileToken },
-              }
-            : undefined,
+        const headers: Record<string, string> = {};
+        if (turnstileToken) {
+          headers["X-Turnstile-Token"] = turnstileToken;
+        }
+        const fetchOptions =
+            Object.keys(headers).length > 0 ? { headers } : undefined,
           result = isSignup
             ? await authClient.signUp.email(
                 {
@@ -109,6 +115,7 @@ export function CredentialsForm({
             : await authClient.signIn.email({ email, password }, fetchOptions);
 
         if (result.error) {
+          setIsSubmitting(false);
           setTurnstileToken("");
           setTurnstileResetKey((current) => current + 1);
           setErrorMessage(
@@ -130,6 +137,7 @@ export function CredentialsForm({
             auth_method: "email",
             marketing_opt_in: marketingOptIn,
           });
+          setIsSubmitting(false);
           await router.navigate({
             to: accountType ? `/signup/${accountType}/onboarding` : "/signup",
           });
@@ -140,14 +148,14 @@ export function CredentialsForm({
           identify(result.data.user.id, { account_type: accountType });
         }
         capture("user_signed_in", { method: "email" });
+        setIsSubmitting(false);
         await router.navigate({ to: redirect });
       } catch (error) {
+        setIsSubmitting(false);
         setTurnstileToken("");
         setTurnstileResetKey((current) => current + 1);
         captureAnalyticsException(error);
         setErrorMessage("Unable to reach SoundKit. Please try again.");
-      } finally {
-        setIsSubmitting(false);
       }
     };
 
@@ -232,12 +240,12 @@ export function CredentialsForm({
           ) : null}
           <Button className="h-12 w-full" disabled={isSubmitting} type="submit">
             {isSubmitting
-              ? (isSignup
+              ? isSignup
                 ? "Creating your account…"
-                : "Signing in…")
-              : (isSignup
+                : "Signing in…"
+              : isSignup
                 ? "Continue with email"
-                : "Sign in")}
+                : "Sign in"}
           </Button>
         </form>
         {isSignup ? null : (

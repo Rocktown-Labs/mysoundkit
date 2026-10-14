@@ -58,7 +58,9 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   container: {
-    paddingHorizontal: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
     paddingVertical: 4,
     width: "100%",
   },
@@ -102,6 +104,7 @@ const styles = StyleSheet.create({
 export function GlobalMiniPlayer() {
   const {
       currentTrack,
+      dismissPlayer,
       isPlaying,
       nextTrack,
       openNowPlaying,
@@ -250,6 +253,24 @@ export function GlobalMiniPlayer() {
                   </View>
                 ) : null}
               </View>
+            </Pressable>
+
+            {/* Dismiss Player Button */}
+            <Pressable
+              accessibilityHint="Dismisses player"
+              accessibilityLabel="Dismiss player"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                dismissPlayer();
+              }}
+              style={({ pressed }) => [
+                styles.actionButton,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
+              <Ionicons color="#8F8F8F" name="close" size={18} />
             </Pressable>
           </View>
 

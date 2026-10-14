@@ -1,3 +1,5 @@
+/* oxlint-disable one-var, sort-vars */
+/* eslint-disable one-var, sort-vars */
 import { env } from "@soundkit/env/server";
 
 const getEnvValue = (key: string) =>
@@ -38,7 +40,17 @@ export const verifyTurnstileRequest = async ({
   request: Request;
 }) => {
   const secret = getEnvValue("TURNSTILE_SECRET"),
-    expectedHostnames = getExpectedHostnames();
+    expectedHostnames = getExpectedHostnames(),
+    desktopSecret = getEnvValue("DESKTOP_AUTH_SECRET"),
+    clientDesktopSecret = request.headers.get("X-SoundKit-Desktop-Secret");
+  // Trusted desktop environments can bypass Turnstile only when configured with a matching server secret.
+  if (
+    desktopSecret &&
+    clientDesktopSecret &&
+    clientDesktopSecret === desktopSecret
+  ) {
+    return true;
+  }
 
   // Local/CI environments can explicitly disable Turnstile while the
   // sitekey and server secret are not configured. Production must fail closed.
