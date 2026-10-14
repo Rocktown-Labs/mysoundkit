@@ -39,6 +39,7 @@ export interface AudioPlayerContextValue {
   clearQueue: () => void;
   closeNowPlaying: () => void;
   currentTrack: PlayerTrack | null;
+  dismissPlayer: () => void;
   duration: number;
   isBuffering: boolean;
   isGuestLimitReached: boolean;
@@ -232,14 +233,10 @@ export function AudioPlayerProvider({
   children: ReactNode;
   initialTracks?: PlayerTrack[];
 }) {
-  const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(
-    () => initialTracks[0] ?? null
-  );
-  const [queue, setQueue] = useState<PlayerTrack[]>(() =>
-    initialTracks.slice(1)
-  );
-  const [originalQueue, setOriginalQueue] = useState<PlayerTrack[]>(() =>
-    initialTracks.slice(1)
+  const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null);
+  const [queue, setQueue] = useState<PlayerTrack[]>(() => initialTracks);
+  const [originalQueue, setOriginalQueue] = useState<PlayerTrack[]>(
+    () => initialTracks
   );
   const [isShuffle, setIsShuffle] = useState(false);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("off");
@@ -248,6 +245,7 @@ export function AudioPlayerProvider({
   const [isQueueVisible, setIsQueueVisible] = useState(false);
   const [isLyricsVisible, setIsLyricsVisible] = useState(false);
   const [isGuestLimitReached, setIsGuestLimitReached] = useState(false);
+
   const [activeAd, setActiveAd] = useState<ServedAd | null>(null);
 
   const { data: session } = authClient.useSession();
@@ -262,6 +260,12 @@ export function AudioPlayerProvider({
   // switch. replace() on this persistent instance is the only source switch.
   const player = useAudioPlayer(null, { updateInterval: 250 });
   const status = useAudioPlayerStatus(player);
+
+  const dismissPlayer = useCallback(() => {
+    player.pause();
+    setCurrentTrack(null);
+    setIsNowPlayingVisible(false);
+  }, [player]);
 
   const isPlaying = Boolean(status.playing),
     isBuffering = Boolean(status.isBuffering),
@@ -619,6 +623,7 @@ export function AudioPlayerProvider({
       clearQueue,
       closeNowPlaying,
       currentTrack,
+      dismissPlayer,
       duration,
       isBuffering,
       isGuestLimitReached,
@@ -657,6 +662,7 @@ export function AudioPlayerProvider({
       clearQueue,
       closeNowPlaying,
       currentTrack,
+      dismissPlayer,
       duration,
       handleSetVolume,
       isBuffering,

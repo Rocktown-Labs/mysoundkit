@@ -1,7 +1,10 @@
+/* oxlint-disable one-var, sort-vars, no-nested-ternary, require-unicode-regexp */
+/* eslint-disable one-var, sort-vars, no-nested-ternary, require-unicode-regexp */
 import { useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AvatarHeaderButton } from "@/components/avatar-header-button";
+import { CartHeaderButton } from "@/components/cart/cart-header-button";
 import { Container } from "@/components/container";
 import { DiscoverSection } from "@/components/discover-section";
 import type { DiscoverCardData } from "@/components/discover-section";
@@ -47,6 +50,11 @@ const SECTION_EMPTY = "Nothing here yet — check back soon.",
       marginBottom: 2,
       textTransform: "uppercase",
     },
+    headerActions: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: 10,
+    },
     headerCopy: { flex: 1 },
     headerRow: {
       alignItems: "center",
@@ -63,7 +71,7 @@ const SECTION_EMPTY = "Nothing here yet — check back soon.",
 
 function toArtistCards(artists?: readonly ArtistSummary[]): DiscoverCardData[] {
   return (artists ?? []).map((artist) => ({
-    href: "/artist",
+    href: `/artist/${artist.username ?? artist.id}`,
     id: artist.id,
     imageUrl: artist.avatarUrl,
     subtitle: artist.location,
@@ -74,7 +82,7 @@ function toArtistCards(artists?: readonly ArtistSummary[]): DiscoverCardData[] {
 function toBattleCards(battles?: readonly BattleSummary[]): DiscoverCardData[] {
   return (battles ?? []).map((battle) => ({
     badge: battle.status === "live" ? "LIVE" : undefined,
-    href: "/live/battles",
+    href: `/live/battles/${battle.id}`,
     id: battle.id,
     subtitle: battle.genre ?? "SoundKit battle",
     title: battle.title,
@@ -86,7 +94,7 @@ function toPartyCards(
 ): DiscoverCardData[] {
   return (parties ?? []).map((party) => ({
     badge: party.status === "live" ? "LIVE" : undefined,
-    href: "/live/parties",
+    href: `/live/parties/${party.id}`,
     id: party.id,
     subtitle: party.genre ?? "Listening party",
     title: party.title,
@@ -97,7 +105,7 @@ function toProjectCards(
   projects?: readonly ProjectSummary[]
 ): DiscoverCardData[] {
   return (projects ?? []).map((project) => ({
-    href: "/projects",
+    href: `/projects/${project.id}`,
     id: project.id,
     imageUrl: project.coverArtUrl ?? null,
     subtitle: project.artistName ?? "SoundKit project",
@@ -110,7 +118,7 @@ function toStreamCards(
 ): DiscoverCardData[] {
   return (streams ?? []).map((stream) => ({
     badge: stream.status === "live" ? "LIVE" : undefined,
-    href: "/live/streams",
+    href: `/live/streams/${stream.id}`,
     id: stream.id,
     subtitle: stream.creatorName ?? "SoundKit creator",
     title: stream.title,
@@ -119,7 +127,7 @@ function toStreamCards(
 
 function toTrackCards(tracks?: readonly TrackSummary[]): DiscoverCardData[] {
   return (tracks ?? []).map((track) => ({
-    href: "/tracks",
+    href: `/tracks/${track.id}`,
     id: track.id,
     imageUrl: track.coverArtUrl,
     subtitle: track.artistName,
@@ -129,7 +137,7 @@ function toTrackCards(tracks?: readonly TrackSummary[]): DiscoverCardData[] {
 
 function toVideoCards(videos?: readonly VideoSummary[]): DiscoverCardData[] {
   return (videos ?? []).map((video) => ({
-    href: "/videos",
+    href: `/videos/${video.id}`,
     id: video.id,
     imageUrl: video.thumbnailUrl,
     subtitle: video.creatorName ?? "SoundKit creator",
@@ -147,9 +155,9 @@ export default function DiscoverScreen() {
       region:
         selectedRegion && activeScope === "usa"
           ? `us-${selectedRegion.toLowerCase().replaceAll(/\s+/g, "-")}`
-          : (activeScope === "global"
+          : activeScope === "global"
             ? "all"
-            : activeScope),
+            : activeScope,
       regionType:
         activeScope === "global"
           ? ("global" as const)
@@ -170,14 +178,14 @@ export default function DiscoverScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
           <View style={styles.headerCopy}>
-            <Text style={[styles.eyebrow, { color: theme.primary }]}>
-              SoundKit
-            </Text>
             <Text selectable style={[styles.title, { color: theme.text }]}>
               Discover
             </Text>
           </View>
-          <AvatarHeaderButton onSinglePress={openLibraryMenu} />
+          <View style={styles.headerActions}>
+            <CartHeaderButton />
+            <AvatarHeaderButton onSinglePress={openLibraryMenu} />
+          </View>
         </View>
         <Text selectable style={[styles.tagline, { color: theme.mutedText }]}>
           Top songs, new releases, live moments, and rising artists — picked for

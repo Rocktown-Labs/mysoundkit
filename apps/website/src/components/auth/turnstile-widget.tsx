@@ -1,9 +1,11 @@
+/* oxlint-disable one-var, sort-vars, react/exhaustive-effect-dependencies */
+/* eslint-disable one-var, sort-vars, react/exhaustive-effect-dependencies */
 import { env } from "@soundkit/env/web";
 import { useEffect, useRef } from "react";
 
 const TURNSTILE_SCRIPT_ID = "soundkit-cloudflare-turnstile",
- TURNSTILE_SCRIPT_SRC =
-  "https://challenges.cloudflare.com/turnstile/v0/api.js";
+  TURNSTILE_SCRIPT_SRC =
+    "https://challenges.cloudflare.com/turnstile/v0/api.js";
 
 type TurnstileWidgetId = string | number;
 
@@ -23,9 +25,13 @@ interface TurnstileApi {
 
 declare global {
   interface Window {
+    soundkitDesktop?: unknown;
     turnstile?: TurnstileApi;
   }
 }
+
+export const isDesktopClient = () =>
+  typeof window !== "undefined" && Boolean(window.soundkitDesktop);
 
 export const isTurnstileConfigured = Boolean(env.VITE_TURNSTILE_SITE_KEY);
 
@@ -43,28 +49,27 @@ export function TurnstileWidget({
     siteKey = env.VITE_TURNSTILE_SITE_KEY;
 
   useEffect(() => {
-    if (!siteKey) {
+    if (!siteKey || isDesktopClient()) {
       onTokenChange("");
       return;
     }
 
     let cancelled = false;
     const renderWidget = () => {
-      if (cancelled || !window.turnstile || !containerRef.current) {
-        return;
-      }
+        if (cancelled || !window.turnstile || !containerRef.current) {
+          return;
+        }
 
-      containerRef.current.replaceChildren();
-      widgetIdRef.current = window.turnstile.render(containerRef.current, {
-        action,
-        callback: onTokenChange,
-        "error-callback": () => onTokenChange(""),
-        "expired-callback": () => onTokenChange(""),
-        sitekey: siteKey,
-      });
-    },
-
-     existingScript = document.querySelector(`#${TURNSTILE_SCRIPT_ID}`);
+        containerRef.current.replaceChildren();
+        widgetIdRef.current = window.turnstile.render(containerRef.current, {
+          action,
+          callback: onTokenChange,
+          "error-callback": () => onTokenChange(""),
+          "expired-callback": () => onTokenChange(""),
+          sitekey: siteKey,
+        });
+      },
+      existingScript = document.querySelector(`#${TURNSTILE_SCRIPT_ID}`);
     if (window.turnstile) {
       renderWidget();
     } else if (existingScript) {

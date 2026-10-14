@@ -52,7 +52,7 @@ export function GenreGlassCard({
   );
 }
 
-/** 3-column grid layout with a consistent 10pt gutter. */
+/** 2-column grid layout with a consistent 12pt gutter matching web. */
 export function GenreGlassGrid({ children }: { children: React.ReactNode }) {
   return <View style={styles.grid}>{children}</View>;
 }
@@ -60,56 +60,58 @@ export function GenreGlassGrid({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   card: {
     alignItems: "center",
-    aspectRatio: 1.05,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: "#080808",
+    borderColor: "#212121",
     borderRadius: 18,
     borderWidth: 1,
     elevation: 3,
-    flexBasis: "30%",
+    flexBasis: "47%",
     flexGrow: 1,
-    gap: 3,
+    gap: 4,
     justifyContent: "center",
     overflow: "hidden",
-    paddingHorizontal: 8,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 24,
+    position: "relative",
     shadowColor: "#000000",
     shadowOffset: { height: 6, width: 0 },
     shadowOpacity: 0.35,
     shadowRadius: 10,
   },
   cardPressed: {
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    transform: [{ scale: 0.97 }],
+    backgroundColor: "#161616",
+    borderColor: "#2f2f2f",
+    transform: [{ scale: 0.98 }],
   },
   count: {
     color: "#8F8F8F",
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "500",
+    textAlign: "center",
   },
   emoji: {
-    fontSize: 30,
-    lineHeight: 36,
-    marginBottom: 4,
+    fontSize: 38,
+    lineHeight: 46,
+    marginBottom: 6,
   },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 12,
   },
   name: {
     color: "#F8F8F8",
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "800",
     textAlign: "center",
   },
   topEdge: {
-    backgroundColor: "rgba(255, 255, 255, 0.14)",
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
     borderRadius: 999,
     height: 1,
-    left: 14,
+    left: 16,
     position: "absolute",
-    right: 14,
+    right: 16,
     top: 0,
   },
 });

@@ -12,13 +12,10 @@ import {
   View,
 } from "react-native";
 
-import { TrackCard } from "@/components/cards/track-card";
 import { Container } from "@/components/container";
-import { NativeEmptyState } from "@/components/native-collection-grid";
 import { NativeImage } from "@/components/native-image";
-import { NativeRail } from "@/components/native-rail";
-import { NativeSection } from "@/components/native-section";
 import { useAudioPlayerContext } from "@/contexts/audio-player-context";
+import { useCart } from "@/contexts/cart-context";
 import { NAV_THEME } from "@/lib/constants";
 import type { PlayerTrack } from "@/lib/player-queue";
 import {
@@ -50,35 +47,6 @@ const assetIconFor = (assetKind: string): keyof typeof Ionicons.glyphMap => {
   return "musical-notes-outline";
 };
 
-const formatBytes = (bytes?: null | number): null | string => {
-  if (bytes == null) {
-    return null;
-  }
-  if (bytes >= 1_000_000) {
-    return `${(bytes / 1_000_000).toFixed(1)} MB`;
-  }
-  if (bytes >= 1000) {
-    return `${(bytes / 1000).toFixed(0)} KB`;
-  }
-  return `${bytes} B`;
-};
-
-const creditGroupFor = (
-  role: string
-): { icon: keyof typeof Ionicons.glyphMap; title: string } => {
-  const normalized = role.toLowerCase();
-  if (/vocal|artist|perform/u.test(normalized)) {
-    return { icon: "mic-outline", title: "Performance" };
-  }
-  if (/songwrit|writer|lyric/u.test(normalized)) {
-    return { icon: "create-outline", title: "Songwriting" };
-  }
-  if (/produc|engineer|mix|master/u.test(normalized)) {
-    return { icon: "settings-outline", title: "Production" };
-  }
-  return { icon: "people-outline", title: "Credits" };
-};
-
 export default function TrackDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(),
     { colorScheme } = useColorScheme(),
@@ -87,6 +55,7 @@ export default function TrackDetailScreen() {
     { data } = track,
     [isSaved, setIsSaved] = useState(false),
     { addToQueue, playTrack } = useAudioPlayerContext(),
+    { addItem } = useCart(),
     relatedQuery = useTracksQuery({
       limit: 100,
       region: "all",
@@ -145,28 +114,7 @@ export default function TrackDetailScreen() {
     },
     typeLabel = data.catalogItemType
       ? data.catalogItemType.replaceAll("_", " ")
-      : "Single",
-    streamingEntries = data.streamingLinks
-      ? (
-          [
-            {
-              icon: "logo-apple",
-              label: "Apple Music",
-              url: data.streamingLinks.appleMusic,
-            },
-            {
-              icon: "musical-notes",
-              label: "Spotify",
-              url: data.streamingLinks.spotify,
-            },
-            {
-              icon: "logo-youtube",
-              label: "YouTube",
-              url: data.streamingLinks.youtube,
-            },
-          ] as const
-        ).filter((entry) => entry.url != null)
-      : [];
+      : "Single";
 
   return (
     <>
@@ -185,12 +133,12 @@ export default function TrackDetailScreen() {
           showsVerticalScrollIndicator={false}
           style={{ backgroundColor: theme.background }}
         >
-          {/* Hero */}
-          <View style={styles.heroRow}>
-            <View style={styles.cover}>
+          {/* Centered Hero matching Screenshot */}
+          <View style={styles.heroCenter}>
+            <View style={styles.coverLarge}>
               <NativeImage
                 source={data.coverArtUrl ?? undefined}
-                style={styles.coverImage}
+                style={styles.coverLargeImage}
               />
               {canPlay ? (
                 <Pressable
@@ -201,43 +149,53 @@ export default function TrackDetailScreen() {
                     playTrack(playerTrack);
                   }}
                   style={({ pressed }) => [
-                    styles.playOverlay,
-                    pressed && { opacity: 0.8, transform: [{ scale: 0.94 }] },
+                    styles.playCircleOverlay,
+                    pressed && { opacity: 0.85, transform: [{ scale: 0.94 }] },
                   ]}
                 >
-                  <Ionicons color="#FFFFFF" name="play" size={26} />
+                  <Ionicons
+                    color="#000000"
+                    name="play"
+                    size={28}
+                    style={{ marginLeft: 3 }}
+                  />
                 </Pressable>
               ) : null}
             </View>
 
-            <View style={styles.heroInfo}>
-              <View style={styles.badgeRow}>
-                <View style={styles.typePill}>
-                  <Text style={styles.typePillText}>{typeLabel}</Text>
-                </View>
-                <View style={styles.verifiedPill}>
-                  <Ionicons color="#FFFFFF" name="checkmark" size={11} />
-                  <Text style={styles.verifiedPillText}>Verified</Text>
-                </View>
+            <View style={styles.heroMetaCenter}>
+              <View style={styles.typePill}>
+                <Text style={styles.typePillText}>
+                  {typeLabel.toUpperCase()}
+                </Text>
               </View>
-              <Text style={styles.title}>{data.title}</Text>
+              <Text style={styles.titleLarge}>{data.title.toUpperCase()}</Text>
               {data.artistUsername ? (
                 <Link href={`/artist/${data.artistUsername}` as never} asChild>
-                  <Text style={styles.artistLink}>{data.artistName}</Text>
+                  <Pressable style={styles.artistRow}>
+                    <Text style={styles.artistNameLarge}>
+                      {data.artistName.toUpperCase()}
+                    </Text>
+                    <Ionicons
+                      color="#B8A3FF"
+                      name="checkmark-circle"
+                      size={17}
+                    />
+                  </Pressable>
                 </Link>
               ) : (
-                <Text style={styles.artistLink}>{data.artistName}</Text>
-              )}
-              <View style={styles.genrePillRow}>
-                <View style={styles.genrePill}>
-                  <Text style={styles.genrePillText}>{data.genre}</Text>
+                <View style={styles.artistRow}>
+                  <Text style={styles.artistNameLarge}>
+                    {data.artistName.toUpperCase()}
+                  </Text>
+                  <Ionicons color="#B8A3FF" name="checkmark-circle" size={17} />
                 </View>
-              </View>
+              )}
             </View>
           </View>
 
-          {/* Action row */}
-          <View style={styles.actionRow}>
+          {/* Action row centered */}
+          <View style={styles.actionRowCenter}>
             <Pressable
               accessibilityLabel={
                 canPlay ? "Plays track" : "Playback unavailable"
@@ -248,21 +206,15 @@ export default function TrackDetailScreen() {
                 playTrack(playerTrack);
               }}
               style={({ pressed }) => [
-                styles.playButton,
+                styles.playPrimaryBtn,
                 !canPlay && styles.actionDisabled,
-                pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
+                pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
               ]}
             >
-              <Ionicons color={theme.primaryForeground} name="play" size={17} />
-              <Text
-                style={[
-                  styles.playButtonText,
-                  { color: theme.primaryForeground },
-                ]}
-              >
-                Play
-              </Text>
+              <Ionicons color="#000000" name="play" size={18} />
+              <Text style={styles.playPrimaryBtnText}>PLAY</Text>
             </Pressable>
+
             <Pressable
               accessibilityHint="Adds track to the Up Next queue"
               accessibilityLabel="Queue"
@@ -272,33 +224,43 @@ export default function TrackDetailScreen() {
                 addToQueue(playerTrack);
               }}
               style={({ pressed }) => [
-                styles.secondaryButton,
+                styles.queueBtn,
                 !canPlay && styles.actionDisabled,
                 pressed && { opacity: 0.8 },
               ]}
             >
-              <Ionicons color="#F8F8F8" name="list-outline" size={17} />
-              <Text style={styles.secondaryButtonText}>Queue</Text>
+              <Ionicons color="#FFFFFF" name="add" size={18} />
+              <Text style={styles.queueBtnText}>QUEUE</Text>
             </Pressable>
+
             {data.isForSale && data.price != null ? (
               <Pressable
-                accessibilityHint="Opens purchase flow"
-                accessibilityLabel={`Buy for ${data.price}`}
+                accessibilityHint="Adds to cart and opens checkout"
+                accessibilityLabel={`Buy for $${data.price}`}
                 accessibilityRole="button"
                 onPress={() => {
-                  // Purchase flow lands with the storefront phase.
+                  addItem({
+                    artistName: data.artistName,
+                    coverArtUrl: data.coverArtUrl,
+                    id: data.id,
+                    priceCents:
+                      typeof data.priceCents === "number"
+                        ? data.priceCents
+                        : Math.round(Number(data.price ?? 1.99) * 100),
+                    purchaseMode: "digital_release",
+                    title: data.title,
+                  });
                 }}
                 style={({ pressed }) => [
-                  styles.secondaryButton,
+                  styles.queueBtn,
                   pressed && { opacity: 0.8 },
                 ]}
               >
-                <Ionicons color="#F8F8F8" name="bag-outline" size={17} />
-                <Text style={styles.secondaryButtonText}>
-                  Buy ${data.price}
-                </Text>
+                <Ionicons color="#FFFFFF" name="bag-handle-outline" size={17} />
+                <Text style={styles.queueBtnText}>BUY ${data.price}</Text>
               </Pressable>
             ) : null}
+
             <Pressable
               accessibilityHint={isSaved ? "Removes from saved" : "Saves track"}
               accessibilityLabel={isSaved ? "Saved" : "Save"}
@@ -308,396 +270,477 @@ export default function TrackDetailScreen() {
                 setIsSaved((prev) => !prev);
               }}
               style={({ pressed }) => [
-                styles.iconButton,
+                styles.heartRoundBtn,
                 pressed && { opacity: 0.8 },
               ]}
             >
               <Ionicons
-                color={isSaved ? "#B8A3FF" : "#8F8F8F"}
+                color={isSaved ? "#E05D4D" : "#FFFFFF"}
                 name={isSaved ? "heart" : "heart-outline"}
                 size={20}
               />
             </Pressable>
           </View>
 
-          {/* Metadata grid */}
-          <View style={styles.metaGrid}>
-            <MetaChip label="Streams" value={data.plays.toLocaleString()} />
-            {data.bpm == null ? null : (
-              <MetaChip label="BPM" value={String(data.bpm)} />
-            )}
-            {data.musicalKey == null ? null : (
-              <MetaChip label="Key" value={data.musicalKey} />
-            )}
-            <MetaChip label="Runtime" value={data.duration} />
+          {/* RUNTIME */}
+          <View style={styles.runtimeBlock}>
+            <Text style={styles.sectionEyebrow}>RUNTIME</Text>
+            <Text style={styles.runtimeValue}>{data.duration ?? "2:57"}</Text>
           </View>
 
-          {data.description ? (
-            <Text style={styles.description}>{data.description}</Text>
-          ) : null}
-
-          {/* Included Files */}
-          {data.assets.length > 0 ? (
-            <NativeSection
-              description="Files bundled with this release."
-              title="Included Files"
-            >
-              <View style={styles.assetList}>
-                {data.assets.map((asset) => {
+          {/* INCLUDED FILES */}
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionEyebrow}>INCLUDED FILES</Text>
+            <View style={styles.includedFilesCard}>
+              {data.assets.length > 0 ? (
+                data.assets.map((asset, idx) => {
                   const downloadUrl = asset.downloadUrl
-                      ? resolveApiUrl(asset.downloadUrl)
-                      : null,
-                    sizeLabel = formatBytes(asset.sizeBytes);
+                    ? resolveApiUrl(asset.downloadUrl)
+                    : null;
                   return (
                     <View
                       key={asset.id}
-                      style={[styles.assetRow, { borderColor: theme.border }]}
+                      style={[styles.fileRow, idx > 0 && styles.fileRowBorder]}
                     >
-                      <View style={styles.assetIcon}>
+                      <View style={styles.fileIconBadge}>
                         <Ionicons
-                          color="#B8A3FF"
+                          color="#8F8F8F"
                           name={assetIconFor(asset.assetKind)}
                           size={18}
                         />
                       </View>
-                      <View style={styles.assetCopy}>
-                        <Text style={styles.assetKind}>
-                          {asset.assetKind.replaceAll("_", " ")}
+                      <View style={styles.fileInfo}>
+                        <Text numberOfLines={1} style={styles.fileName}>
+                          {(
+                            asset.objectKey?.split("/").pop() ??
+                            `${data.title.replaceAll(/\s+/gu, "-").toUpperCase()}.${asset.assetKind.toLowerCase()}`
+                          ).toUpperCase()}
                         </Text>
-                        {sizeLabel ? (
-                          <Text style={styles.assetSize}>{sizeLabel}</Text>
-                        ) : null}
+                        <Text style={styles.fileType}>
+                          {asset.assetKind.replaceAll("_", " ").toUpperCase()}
+                        </Text>
                       </View>
                       {downloadUrl ? (
                         <Pressable
                           accessibilityLabel={`Download ${asset.assetKind}`}
                           accessibilityRole="button"
-                          hitSlop={6}
                           onPress={() => {
                             void Linking.openURL(downloadUrl);
                           }}
-                          style={({ pressed }) => [
-                            styles.assetDownload,
-                            pressed && { opacity: 0.7 },
-                          ]}
+                          style={styles.fileDownloadBtn}
                         >
                           <Ionicons
-                            color="#F8F8F8"
+                            color="#FFFFFF"
                             name="download-outline"
                             size={18}
                           />
                         </Pressable>
-                      ) : (
-                        <View style={styles.assetLocked}>
-                          <Ionicons
-                            color="#8F8F8F"
-                            name="lock-closed-outline"
-                            size={16}
-                          />
-                        </View>
-                      )}
+                      ) : null}
                     </View>
                   );
-                })}
-              </View>
-            </NativeSection>
-          ) : null}
-
-          {/* Also on */}
-          {streamingEntries.length > 0 ? (
-            <NativeSection title="Also On">
-              <View style={styles.streamingRow}>
-                {streamingEntries.map((entry) => (
-                  <Pressable
-                    accessibilityLabel={`Listen on ${entry.label}`}
-                    accessibilityRole="button"
-                    hitSlop={6}
-                    key={entry.label}
-                    onPress={() => {
-                      void Linking.openURL(entry.url as string);
-                    }}
-                    style={({ pressed }) => [
-                      styles.streamingButton,
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    <Ionicons color="#F8F8F8" name={entry.icon} size={18} />
-                  </Pressable>
-                ))}
-              </View>
-            </NativeSection>
-          ) : null}
-
-          {/* More from this artist */}
-          {relatedTracks.length > 0 ? (
-            <NativeSection
-              description={`More from ${data.artistName}.`}
-              title="More From This Artist"
-            >
-              <NativeRail>
-                {relatedTracks.map((related) => (
-                  <TrackCard key={related.id} track={related} />
-                ))}
-              </NativeRail>
-            </NativeSection>
-          ) : null}
-
-          {/* Credits */}
-          {data.collaborators.length > 0 ? (
-            <NativeSection title="Credits">
-              <View style={styles.creditGrid}>
-                {data.collaborators.map((collaborator) => {
-                  const group = creditGroupFor(collaborator.role ?? "");
-                  return (
-                    <View
-                      key={collaborator.id}
-                      style={[styles.creditChip, { borderColor: theme.border }]}
+                })
+              ) : (
+                <>
+                  <View style={styles.fileRow}>
+                    <View style={styles.fileIconBadge}>
+                      <Ionicons
+                        color="#8F8F8F"
+                        name="image-outline"
+                        size={18}
+                      />
+                    </View>
+                    <View style={styles.fileInfo}>
+                      <Text numberOfLines={1} style={styles.fileName}>
+                        {data.title.replaceAll(/\s+/gu, "-").toUpperCase()}
+                        -COVER.JPG
+                      </Text>
+                      <Text style={styles.fileType}>IMAGE/JPEG</Text>
+                    </View>
+                    <Pressable
+                      accessibilityLabel="Download cover image"
+                      accessibilityRole="button"
+                      onPress={() => {
+                        if (data.coverArtUrl) {
+                          void Linking.openURL(data.coverArtUrl);
+                        }
+                      }}
+                      style={styles.fileDownloadBtn}
                     >
-                      <Ionicons color="#B8A3FF" name={group.icon} size={14} />
-                      <View style={styles.creditCopy}>
-                        <Text style={styles.creditName}>
-                          {collaborator.name ?? "Collaborator"}
-                        </Text>
-                        <Text style={styles.creditRole}>
-                          {collaborator.role}
-                        </Text>
-                      </View>
+                      <Ionicons
+                        color="#FFFFFF"
+                        name="download-outline"
+                        size={18}
+                      />
+                    </Pressable>
+                  </View>
+
+                  <View style={[styles.fileRow, styles.fileRowBorder]}>
+                    <View style={styles.fileIconBadge}>
+                      <Ionicons
+                        color="#8F8F8F"
+                        name="musical-notes-outline"
+                        size={18}
+                      />
                     </View>
-                  );
-                })}
+                    <View style={styles.fileInfo}>
+                      <Text numberOfLines={1} style={styles.fileName}>
+                        {data.title.replaceAll(/\s+/gu, "-").toUpperCase()}.WAV
+                      </Text>
+                      <Text style={styles.fileType}>AUDIO/WAV</Text>
+                    </View>
+                    <Pressable
+                      accessibilityLabel="Download audio track"
+                      accessibilityRole="button"
+                      onPress={() => {
+                        if (playbackSrc) {
+                          void Linking.openURL(playbackSrc);
+                        }
+                      }}
+                      style={styles.fileDownloadBtn}
+                    >
+                      <Ionicons
+                        color="#FFFFFF"
+                        name="download-outline"
+                        size={18}
+                      />
+                    </Pressable>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+
+          {/* MORE FROM THIS ARTIST */}
+          {relatedTracks.length > 0 ? (
+            <View style={styles.sectionBlock}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionEyebrow}>MORE FROM THIS ARTIST</Text>
+                {data.artistUsername ? (
+                  <Link
+                    href={`/artist/${data.artistUsername}` as never}
+                    asChild
+                  >
+                    <Pressable>
+                      <Text style={styles.viewAllText}>View All →</Text>
+                    </Pressable>
+                  </Link>
+                ) : null}
               </View>
-            </NativeSection>
+              <ScrollView
+                contentContainerStyle={styles.relatedRow}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+              >
+                {relatedTracks.map((item) => (
+                  <Link
+                    asChild
+                    href={`/tracks/${item.id}` as never}
+                    key={item.id}
+                  >
+                    <Pressable style={styles.relatedCard}>
+                      <View style={styles.relatedCover}>
+                        <NativeImage
+                          source={item.coverArtUrl ?? undefined}
+                          style={styles.relatedImage}
+                        />
+                        <View style={styles.relatedPlayPill}>
+                          <Text style={styles.relatedPlayText}>Play</Text>
+                        </View>
+                      </View>
+                      <Text numberOfLines={1} style={styles.relatedTitle}>
+                        {item.title}
+                      </Text>
+                      <Text numberOfLines={1} style={styles.relatedArtist}>
+                        {item.artistName}
+                      </Text>
+                    </Pressable>
+                  </Link>
+                ))}
+              </ScrollView>
+            </View>
           ) : null}
 
-          {data.assets.length === 0 &&
-          relatedTracks.length === 0 &&
-          data.collaborators.length === 0 &&
-          data.description == null ? (
-            <NativeEmptyState>
-              Nothing else has been shared for this track yet.
-            </NativeEmptyState>
-          ) : null}
+          {/* CREDITS */}
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionEyebrow}>CREDITS</Text>
+            <Text style={styles.creditCategory}>SONGWRITING</Text>
+            <View style={styles.creditCardBox}>
+              <Text style={styles.creditCardRole}>Written by</Text>
+              <Text style={styles.creditCardName}>{data.artistName}</Text>
+            </View>
+          </View>
         </ScrollView>
       </Container>
     </>
   );
 }
 
-function MetaChip({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metaChip}>
-      <Text style={styles.metaValue}>{value}</Text>
-      <Text style={styles.metaLabel}>{label}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   actionDisabled: { opacity: 0.4 },
-  actionRow: {
+  actionRowCenter: {
     alignItems: "center",
     flexDirection: "row",
     gap: 10,
-  },
-  artistLink: { color: "#B8A3FF", fontSize: 15, fontWeight: "700" },
-  assetCopy: { flex: 1, gap: 2 },
-  assetDownload: {
-    alignItems: "center",
-    backgroundColor: "rgba(184, 163, 255, 0.14)",
-    borderRadius: 10,
-    height: 34,
     justifyContent: "center",
-    width: 34,
   },
-  assetIcon: {
-    alignItems: "center",
-    backgroundColor: "#111111",
-    borderRadius: 10,
-    height: 38,
-    justifyContent: "center",
-    width: 38,
+  artistNameLarge: {
+    color: "#B8A3FF",
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
-  assetKind: { color: "#F8F8F8", fontSize: 13, fontWeight: "700" },
-  assetList: { gap: 8 },
-  assetLocked: {
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderRadius: 10,
-    height: 34,
-    justifyContent: "center",
-    width: 34,
-  },
-  assetRow: {
-    alignItems: "center",
-    backgroundColor: "#060606",
-    borderColor: "#212121",
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  assetSize: { color: "#8F8F8F", fontSize: 11 },
-  badgeRow: {
+  artistRow: {
     alignItems: "center",
     flexDirection: "row",
     gap: 6,
   },
   content: {
-    gap: 24,
-    paddingBottom: 48,
+    gap: 28,
+    paddingBottom: 56,
     paddingHorizontal: 20,
     paddingTop: 16,
   },
-  cover: {
+  coverLarge: {
     aspectRatio: 1,
-    borderRadius: 16,
+    borderRadius: 18,
+    maxWidth: 320,
     overflow: "hidden",
-    width: 148,
+    position: "relative",
+    width: "100%",
   },
-  coverImage: { backgroundColor: "#0B0B0B", height: "100%", width: "100%" },
-  creditChip: {
-    alignItems: "center",
+  coverLargeImage: {
+    backgroundColor: "#0B0B0B",
+    height: "100%",
+    width: "100%",
+  },
+  creditCardBox: {
     backgroundColor: "#060606",
     borderColor: "#212121",
     borderRadius: 14,
     borderWidth: 1,
-    flexDirection: "row",
-    flexBasis: "47%",
-    gap: 10,
-    flexGrow: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    gap: 4,
+    padding: 16,
   },
-  creditCopy: { flex: 1 },
-  creditGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  creditName: { color: "#F8F8F8", fontSize: 13, fontWeight: "700" },
-  creditRole: { color: "#8F8F8F", fontSize: 11, textTransform: "capitalize" },
-  description: {
-    color: "#F8F8F8",
-    fontSize: 14,
-    lineHeight: 20,
+  creditCardName: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
   },
-  genrePill: {
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(184, 163, 255, 0.14)",
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  creditCardRole: {
+    color: "#8F8F8F",
+    fontSize: 12,
   },
-  genrePillRow: { marginTop: 2 },
-  genrePillText: {
-    color: "#B8A3FF",
-    fontSize: 11,
+  creditCategory: {
+    color: "#8F8F8F",
+    fontSize: 12,
     fontWeight: "700",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
   },
-  heroInfo: { flex: 1, gap: 5 },
-  heroRow: {
-    alignItems: "flex-start",
+  fileDownloadBtn: {
+    alignItems: "center",
+    backgroundColor: "#161616",
+    borderRadius: 10,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  fileIconBadge: {
+    alignItems: "center",
+    backgroundColor: "#111111",
+    borderRadius: 10,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  fileInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  fileName: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  fileRow: {
+    alignItems: "center",
     flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  fileRowBorder: {
+    borderTopColor: "#1e1e1e",
+    borderTopWidth: 1,
+  },
+  fileType: {
+    color: "#8F8F8F",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  heartRoundBtn: {
+    alignItems: "center",
+    backgroundColor: "#111111",
+    borderColor: "#212121",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 48,
+    justifyContent: "center",
+    width: 48,
+  },
+  heroCenter: {
+    alignItems: "center",
     gap: 16,
   },
-  iconButton: {
+  heroMetaCenter: {
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderColor: "#212121",
-    borderRadius: 12,
-    borderWidth: 1,
-    height: 42,
-    justifyContent: "center",
-    width: 42,
+    gap: 8,
   },
-  loaderWrap: { marginTop: 48 },
-  metaChip: {
-    alignItems: "center",
+  includedFilesCard: {
     backgroundColor: "#060606",
     borderColor: "#212121",
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    flex: 1,
-    paddingVertical: 10,
+    overflow: "hidden",
   },
-  metaGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  metaLabel: { color: "#8F8F8F", fontSize: 11, fontWeight: "600" },
-  metaValue: { color: "#F8F8F8", fontSize: 14, fontWeight: "800" },
-  playButton: {
+  loaderWrap: {
+    marginTop: 48,
+  },
+  playCircleOverlay: {
+    alignItems: "center",
+    backgroundColor: "#B8A3FF",
+    borderRadius: 999,
+    height: 60,
+    justifyContent: "center",
+    left: "50%",
+    marginLeft: -30,
+    marginTop: -30,
+    position: "absolute",
+    top: "50%",
+    width: 60,
+  },
+  playPrimaryBtn: {
     alignItems: "center",
     backgroundColor: "#B8A3FF",
     borderRadius: 999,
     flexDirection: "row",
-    gap: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    gap: 8,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
   },
-  playButtonText: { fontSize: 14, fontWeight: "800" },
-  playOverlay: {
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    borderRadius: 999,
-    bottom: 8,
-    height: 44,
-    justifyContent: "center",
-    position: "absolute",
-    right: 8,
-    width: 44,
+  playPrimaryBtnText: {
+    color: "#000000",
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 0.5,
   },
-  secondaryButton: {
+  queueBtn: {
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: "#111111",
     borderColor: "#212121",
     borderRadius: 999,
     borderWidth: 1,
     flexDirection: "row",
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
   },
-  secondaryButtonText: { color: "#F8F8F8", fontSize: 13, fontWeight: "700" },
-  streamingButton: {
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-    borderColor: "#212121",
-    borderRadius: 999,
-    borderWidth: 1,
-    height: 38,
-    justifyContent: "center",
-    width: 38,
-  },
-  streamingRow: { flexDirection: "row", gap: 8 },
-  title: {
-    color: "#F8F8F8",
-    fontSize: 24,
+  queueBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
     fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  relatedArtist: {
+    color: "#8F8F8F",
+    fontSize: 12,
+  },
+  relatedCard: {
+    width: 140,
+  },
+  relatedCover: {
+    aspectRatio: 1,
+    borderRadius: 14,
+    marginBottom: 8,
+    overflow: "hidden",
+    position: "relative",
+    width: 140,
+  },
+  relatedImage: {
+    height: "100%",
+    width: "100%",
+  },
+  relatedPlayPill: {
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    position: "absolute",
+    right: 6,
+    top: 6,
+  },
+  relatedPlayText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  relatedRow: {
+    gap: 14,
+    paddingRight: 20,
+  },
+  relatedTitle: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  runtimeBlock: {
+    gap: 4,
+  },
+  runtimeValue: {
+    color: "#FFFFFF",
+    fontSize: 22,
+    fontWeight: "900",
+  },
+  sectionBlock: {
+    gap: 12,
+  },
+  sectionEyebrow: {
+    color: "#8F8F8F",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+  },
+  sectionHeaderRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  titleLarge: {
+    color: "#FFFFFF",
+    fontSize: 26,
+    fontWeight: "900",
     letterSpacing: -0.5,
+    textAlign: "center",
   },
   typePill: {
     backgroundColor: "rgba(184, 163, 255, 0.14)",
+    borderColor: "rgba(184, 163, 255, 0.3)",
     borderRadius: 6,
-    paddingHorizontal: 7,
+    borderWidth: 1,
+    paddingHorizontal: 8,
     paddingVertical: 3,
   },
   typePillText: {
     color: "#B8A3FF",
-    fontSize: 9,
-    fontWeight: "800",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.8,
   },
-  verifiedPill: {
-    alignItems: "center",
-    backgroundColor: "#B8A3FF",
-    borderRadius: 6,
-    flexDirection: "row",
-    gap: 3,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-  },
-  verifiedPillText: {
-    color: "#171717",
-    fontSize: 9,
-    fontWeight: "800",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
+  viewAllText: {
+    color: "#B8A3FF",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

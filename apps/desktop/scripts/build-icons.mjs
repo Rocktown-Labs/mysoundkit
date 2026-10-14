@@ -23,20 +23,19 @@ const ICON_SIZE = 1024,
   here = import.meta.dirname,
   desktopDir = path.resolve(here, ".."),
   repoRoot = path.resolve(desktopDir, "..", ".."),
-  brandSvgPath = path.join(repoRoot, "apps", "website", "public", "icon.svg"),
+  brandLogoPath = path.join(
+    repoRoot,
+    "apps",
+    "website",
+    "public",
+    "brand",
+    "logo.png"
+  ),
   iconsDir = path.join(desktopDir, "src", "icons");
 
 const renderBrandIcon = async () => {
-  const brandSvg = await readFile(brandSvgPath, "utf-8"),
-    appStyleSvg = brandSvg
-      .replace(
-        /<style>[\s\S]*?<\/style>/u,
-        "<style>.background { fill: #0a0a0a } .foreground { fill: #ffffff }</style>"
-      )
-      .replace(
-        /width="180" height="180"/u,
-        `width="${ICON_SIZE}" height="${ICON_SIZE}"`
-      ),
+  const logoBuffer = await readFile(brandLogoPath),
+    logoBase64 = logoBuffer.toString("base64"),
     browser = await chromium.launch();
 
   try {
@@ -46,7 +45,11 @@ const renderBrandIcon = async () => {
     });
 
     await page.setContent(
-      `<body style="margin:0;background:transparent">${appStyleSvg}</body>`,
+      `<body style="margin:0;padding:0;background:transparent;width:${ICON_SIZE}px;height:${ICON_SIZE}px;display:flex;align-items:center;justify-content:center;">
+        <div style="width:${ICON_SIZE}px;height:${ICON_SIZE}px;background:#000000;border-radius:228px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 4px rgba(255,255,255,0.15);overflow:hidden;">
+          <img src="data:image/png;base64,${logoBase64}" style="width:780px;height:auto;object-fit:contain;" alt="SoundKit" />
+        </div>
+      </body>`,
       { waitUntil: "load" }
     );
 

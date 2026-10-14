@@ -1,9 +1,12 @@
+/* oxlint-disable one-var, sort-vars */
+/* eslint-disable one-var, sort-vars */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { FormEvent } from "react";
 import { useState } from "react";
 
 import { AuthShell } from "@/components/auth/auth-shell";
 import {
+  isDesktopClient,
   isTurnstileConfigured,
   TurnstileWidget,
 } from "@/components/auth/turnstile-widget";
@@ -34,18 +37,23 @@ function ForgotPasswordPage() {
       event.preventDefault();
       setMessage(null);
       setError(null);
-      if (isTurnstileConfigured && !turnstileToken) {
+      const isDesktop = isDesktopClient();
+      if (isTurnstileConfigured && !isDesktop && !turnstileToken) {
         setError("Complete the security check before continuing.");
         return;
       }
       setIsSubmitting(true);
 
       try {
-        const fetchOptions = turnstileToken
-            ? {
-                headers: { "X-Turnstile-Token": turnstileToken },
-              }
-            : undefined,
+        const headers: Record<string, string> = {};
+        if (turnstileToken) {
+          headers["X-Turnstile-Token"] = turnstileToken;
+        }
+        if (isDesktop) {
+          headers["X-SoundKit-Client"] = "desktop";
+        }
+        const fetchOptions =
+            Object.keys(headers).length > 0 ? { headers } : undefined,
           result = await authClient.requestPasswordReset(
             {
               email,
@@ -54,22 +62,23 @@ function ForgotPasswordPage() {
             fetchOptions
           );
         if (result.error) {
+          setIsSubmitting(false);
           setTurnstileToken("");
           setTurnstileResetKey((current) => current + 1);
           setError(result.error.message ?? "We could not send that email.");
           return;
         }
+        setIsSubmitting(false);
         setTurnstileToken("");
         setTurnstileResetKey((current) => current + 1);
         setMessage(
           "If an account uses that email, we sent a password reset link. Check your inbox and spam folder."
         );
       } catch {
+        setIsSubmitting(false);
         setTurnstileToken("");
         setTurnstileResetKey((current) => current + 1);
         setError("We could not send that email. Please try again.");
-      } finally {
-        setIsSubmitting(false);
       }
     };
 

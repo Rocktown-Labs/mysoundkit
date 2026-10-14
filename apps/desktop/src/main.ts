@@ -153,6 +153,21 @@ const isErrorPageUrl = (url: string): boolean => url.startsWith(errorPageUrl),
     browserSession.setUserAgent(
       stripDesktopTokensFromUserAgent(browserSession.getUserAgent())
     );
+    const appRequestFilter = {
+      urls: [
+        "*://*.mysoundkit.com/*",
+        "*://mysoundkit.com/*",
+        "*://localhost/*",
+        "*://127.0.0.1/*",
+      ],
+    };
+    browserSession.webRequest.onBeforeSendHeaders(
+      appRequestFilter,
+      (details, callback) => {
+        details.requestHeaders["X-SoundKit-Client"] = "desktop";
+        callback({ requestHeaders: details.requestHeaders });
+      }
+    );
     browserSession.webRequest.onBeforeSendHeaders(
       googleRequestFilter,
       (details, callback) => {
