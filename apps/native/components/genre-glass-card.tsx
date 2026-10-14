@@ -7,6 +7,13 @@ import { genreActivityLabel, genreEmoji } from "@/lib/genre-meta";
 
 const AnimatedPressable = createAnimatedComponent(Pressable);
 
+// Reanimated CSS-transition props are not part of stock RN's ViewStyle, so
+// they live outside StyleSheet.create (which type-checks against ViewStyle).
+const PRESS_TRANSITION = {
+  transitionDuration: 120,
+  transitionProperty: "transform, background-color",
+} as const;
+
 /**
  * Apple-glass genre tile for the 3-column browse grids: a translucent
  * material with a light-catching top edge, emoji-forward, with quick
@@ -29,7 +36,7 @@ export function GenreGlassCard({
         accessibilityRole="button"
         style={({ pressed }: { pressed: boolean }) => [
           styles.card,
-          styles.pressTransition,
+          PRESS_TRANSITION,
           pressed && styles.cardPressed,
         ]}
       >
@@ -95,10 +102,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     textAlign: "center",
-  },
-  pressTransition: {
-    transitionDuration: 120,
-    transitionProperty: "transform, background-color",
   },
   topEdge: {
     backgroundColor: "rgba(255, 255, 255, 0.14)",
