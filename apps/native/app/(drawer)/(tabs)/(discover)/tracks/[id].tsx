@@ -1,4 +1,5 @@
-/* eslint-disable one-var, sort-vars, sort-keys, no-nested-ternary, complexity, eqeqeq, no-eq-null, react/preserve-manual-memoization, no-negated-condition */
+/* oxlint-disable unicorn/no-array-sort */
+/* eslint-disable one-var, sort-vars, sort-keys, no-nested-ternary, complexity, eqeqeq, no-eq-null, react/preserve-manual-memoization, no-negated-condition, unicorn/no-array-sort */
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useLocalSearchParams, Stack } from "expo-router";
 import { useMemo, useState } from "react";
@@ -101,17 +102,21 @@ export default function TrackDetailScreen() {
       if (artistUsername == null || data?.id == null) {
         return [];
       }
-      return (relatedQuery.data ?? [])
-        .filter(
-          (item) =>
-            item.id !== data.id && item.artistUsername === artistUsername
-        )
-        .toSorted(
-          (a, b) =>
-            new Date(b.updatedAt ?? 0).getTime() -
-            new Date(a.updatedAt ?? 0).getTime()
-        )
-        .slice(0, RELATED_ARTIST_LIMIT);
+      return (
+        (relatedQuery.data ?? [])
+          .filter(
+            (item) =>
+              item.id !== data.id && item.artistUsername === artistUsername
+          )
+          // Hermes (RN's JS engine) lacks ES2023 Array#toSorted; filter creates
+          // a fresh array, so sorting in-place is safe.
+          .sort(
+            (a, b) =>
+              new Date(b.updatedAt ?? 0).getTime() -
+              new Date(a.updatedAt ?? 0).getTime()
+          )
+          .slice(0, RELATED_ARTIST_LIMIT)
+      );
     }, [artistUsername, data?.id, relatedQuery.data]);
 
   if (track.isLoading) {
