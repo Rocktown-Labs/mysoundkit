@@ -160,12 +160,12 @@ app.openapi(
 
     const db = createDb(),
       [existingEvent] = await db
-        .select({ id: webhookEvents.id })
+        .select({ id: webhookEvents.id, status: webhookEvents.status })
         .from(webhookEvents)
         .where(eq(webhookEvents.externalEventId, externalEventId))
         .limit(1);
 
-    if (existingEvent) {
+    if (existingEvent?.status === "processed") {
       return c.json(
         { message: "Printful webhook already processed." },
         HttpStatusCodes.OK
@@ -197,6 +197,10 @@ app.openapi(
         .update(webhookEvents)
         .set({ status: "failed" })
         .where(eq(webhookEvents.externalEventId, externalEventId));
+
+      // Return 5xx so Printful retries the delivery — the event row is
+      // marked "failed" so the dedupe lets the retry through.
+      throw error;
     }
 
     return c.json(
@@ -272,18 +276,15 @@ const processPrintfulEvent = async ({
           typeof shipmentData.tracking_url === "string"
             ? shipmentData.tracking_url
             : null,
-        carrier =
-          typeof shipmentData.carrier === "string"
-            ? shipmentData.carrier
-            : null,
         printfulShipmentId =
           typeof shipmentData.id === "number" ? String(shipmentData.id) : null;
 
+      // Printful's shipment webhooks don't carry a carrier field — it's only
+      // on GET /orders/:id/shipments. The poll sweep backfills it later.
       if (printfulShipmentId) {
         await db
           .insert(merchShipments)
           .values({
-            carrier,
             fulfillmentId: fulfillment.id,
             id: crypto.randomUUID(),
             printfulShipmentId,
@@ -295,7 +296,6 @@ const processPrintfulEvent = async ({
           })
           .onConflictDoUpdate({
             set: {
-              carrier,
               shippedAt: new Date(),
               status: "in_transit",
               trackingNumber,
@@ -305,20 +305,21 @@ const processPrintfulEvent = async ({
           });
       }
 
-      // Update the denormalized tracking fields on the order.
+      // Update the denormalized tracking fields on the order. The
+      // merchFulfillments.status stays at "confirmed" from the dispatch —
+      // shipment tracking lives on merchShipments + orders.fulfillmentStatus.
       await db
         .update(orders)
         .set({
           fulfillmentStatus: "shipped",
           shippedAt: new Date(),
           trackingNumber,
-          trackingType: carrier,
         })
         .where(eq(orders.id, fulfillment.orderId));
 
       await db
         .update(merchFulfillments)
-        .set({ lastSyncedAt: new Date(), status: "confirmed" })
+        .set({ lastSyncedAt: new Date() })
         .where(eq(merchFulfillments.id, fulfillment.id));
       break;
     }

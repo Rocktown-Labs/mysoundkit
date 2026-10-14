@@ -544,7 +544,7 @@ export const calculatePrintfulShippingRates = async ({
     address2?: string;
     city: string;
     country_code: string;
-    state_code: string;
+    state_code?: string;
     zip: string;
   };
   retailCosts?: {

@@ -958,7 +958,9 @@ const shippingRatesBodySchema = z.object({
     address2: z.string().max(200).optional(),
     city: z.string().min(1).max(100),
     countryCode: z.string().length(2),
-    stateCode: z.string().min(2).max(2),
+    // Printful treats state_code as optional for countries without a
+    // state/province (UK, much of the EU, etc.)
+    stateCode: z.string().min(2).max(2).optional(),
     zip: z.string().min(3).max(20),
   }),
 });
@@ -1017,7 +1019,7 @@ app.openapi(
           address2: body.recipient.address2,
           city: body.recipient.city,
           country_code: body.recipient.countryCode.toUpperCase(),
-          state_code: body.recipient.stateCode.toUpperCase(),
+          state_code: body.recipient.stateCode?.toUpperCase(),
           zip: body.recipient.zip,
         },
       });
