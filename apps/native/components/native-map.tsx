@@ -17,6 +17,23 @@ import worldTopo from "../assets/maps/world-countries-110m.json";
 const VIEW = { height: 420, width: 800 } as const,
   US_VIEW = { height: 500, width: 800 } as const;
 
+// Web-parity dark palette (see apps/website/src/app/globals.css).
+const MAP_COLORS = {
+  border: "#212121",
+  canvas: "#060606",
+  card: "#060606",
+  hovered: "#2A2D35",
+  shape: "#16181D",
+  shapePressed: "#2E3138",
+  selected: "#A855F7",
+  selectedPressed: "#C084FC",
+  stroke: "#2A2D35",
+  strokeSelected: "#C084FC",
+  surface: "#111111",
+  surfacePressed: "#0B0B0B",
+  text: "#F8F8F8",
+} as const;
+
 export const COUNTRY_OPTIONS = [
   { id: "usa", label: "USA" },
   { id: "canada", label: "Canada" },
@@ -83,6 +100,11 @@ export function NativeMap({
   selectedRegion,
 }: NativeMapProps) {
   const [countryPickerOpen, setCountryPickerOpen] = useState(false),
+    [pressedPathName, setPressedPathName] = useState<null | string>(null),
+    [canvasSize, setCanvasSize] = useState({
+      height: 260,
+      width: 320,
+    }),
     { collection, view } = useGeographies(scope),
     paths = useMemo(() => {
       const projection = scope === "usa" ? geoAlbersUsa() : geoMercator();
@@ -112,18 +134,20 @@ export function NativeMap({
           style={({ pressed }) => [
             styles.resetButton,
             {
-              backgroundColor: pressed ? "#27272a" : "#18181b",
-              borderColor: "#27272a",
+              backgroundColor: pressed
+                ? MAP_COLORS.surfacePressed
+                : MAP_COLORS.card,
+              borderColor: MAP_COLORS.border,
             },
           ]}
         >
-          <Ionicons color="#f4f4f5" name="refresh-outline" size={14} />
+          <Ionicons color={MAP_COLORS.text} name="refresh-outline" size={14} />
           <Text style={styles.resetButtonText}>Reset to Global View</Text>
         </Pressable>
 
         {selectedRegion ? (
           <View style={styles.selectedPillTop}>
-            <Ionicons color="#c084fc" name="location-sharp" size={13} />
+            <Ionicons color="#C084FC" name="location-sharp" size={13} />
             <Text style={styles.selectedPillTopText}>{selectedRegion}</Text>
           </View>
         ) : null}
@@ -133,7 +157,10 @@ export function NativeMap({
       <View
         style={[
           styles.mapCard,
-          { backgroundColor: "#0b0b0e", borderColor: "#27272a" },
+          {
+            backgroundColor: MAP_COLORS.card,
+            borderColor: MAP_COLORS.border,
+          },
         ]}
       >
         {/* Country dropdown selector */}
@@ -143,11 +170,19 @@ export function NativeMap({
           onPress={() => {
             setCountryPickerOpen(!countryPickerOpen);
           }}
-          style={styles.countryDropdown}
+          style={({ pressed }) => [
+            styles.countryDropdown,
+            {
+              backgroundColor: pressed
+                ? MAP_COLORS.surfacePressed
+                : MAP_COLORS.surface,
+              borderColor: MAP_COLORS.border,
+            },
+          ]}
         >
           <Text style={styles.countryDropdownText}>{activeCountryLabel}</Text>
           <Ionicons
-            color="#a1a1aa"
+            color="#8F8F8F"
             name={countryPickerOpen ? "chevron-up" : "chevron-down"}
             size={16}
           />
@@ -175,9 +210,9 @@ export function NativeMap({
                     styles.dropdownMenuItem,
                     {
                       backgroundColor: isSelected
-                        ? "#a855f725"
+                        ? "rgba(168, 85, 247, 0.15)"
                         : pressed
-                          ? "#27272a"
+                          ? MAP_COLORS.surface
                           : "transparent",
                     },
                   ]}
@@ -186,7 +221,7 @@ export function NativeMap({
                     style={[
                       styles.dropdownMenuItemText,
                       isSelected && {
-                        color: "#c084fc",
+                        color: "#C084FC",
                         fontWeight: "700",
                       },
                     ]}
@@ -209,25 +244,42 @@ export function NativeMap({
           </View>
         ) : null}
 
-        {/* Map SVG Canvas */}
-        <View style={styles.mapCanvas}>
+        {/* Map SVG Canvas — explicit measured dimensions so the shapes
+            always render, even inside bottom-sheet scroll containers. */}
+        <View
+          onLayout={(e) => {
+            const { height, width } = e.nativeEvent.layout;
+            setCanvasSize({ height, width });
+          }}
+          style={styles.mapCanvas}
+        >
           <Svg
+            height={canvasSize.height}
             preserveAspectRatio="xMidYMid meet"
             viewBox={`0 0 ${view.width} ${view.height}`}
-            width="100%"
+            width={canvasSize.width}
           >
             {paths.map((path) => {
               const isSelected =
-                Boolean(path.name) &&
-                (selectedRegion?.toLowerCase() === path.name?.toLowerCase() ||
-                  (!selectedRegion &&
-                    scope === "usa" &&
-                    path.name?.toLowerCase() === "arkansas"));
+                  Boolean(path.name) &&
+                  (selectedRegion?.toLowerCase() === path.name?.toLowerCase() ||
+                    (!selectedRegion &&
+                      scope === "usa" &&
+                      path.name?.toLowerCase() === "arkansas")),
+                isPressed = pressedPathName === path.name;
 
               return (
                 <Path
                   d={path.d}
-                  fill={isSelected ? "#a855f7" : "#1f1f24"}
+                  fill={
+                    isSelected
+                      ? isPressed
+                        ? MAP_COLORS.selectedPressed
+                        : MAP_COLORS.selected
+                      : isPressed
+                        ? MAP_COLORS.shapePressed
+                        : MAP_COLORS.shape
+                  }
                   key={path.id || path.d}
                   onPress={
                     path.name == null
@@ -236,7 +288,19 @@ export function NativeMap({
                           onRegionSelect(path.name as string);
                         }
                   }
-                  stroke={isSelected ? "#c084fc" : "#2d2d35"}
+                  onPressIn={
+                    path.name == null
+                      ? undefined
+                      : () => {
+                          setPressedPathName(path.name ?? null);
+                        }
+                  }
+                  onPressOut={() => {
+                    setPressedPathName(null);
+                  }}
+                  stroke={
+                    isSelected ? MAP_COLORS.strokeSelected : MAP_COLORS.stroke
+                  }
                   strokeWidth={isSelected ? 1.8 : 0.6}
                 />
               );
@@ -247,11 +311,11 @@ export function NativeMap({
         {/* Bottom Legend indicator */}
         <View style={styles.legendPill}>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: "#3b2b52" }]} />
+            <View style={[styles.legendDot, { backgroundColor: "#2E3138" }]} />
             <Text style={styles.legendText}>Available</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: "#a855f7" }]} />
+            <View style={[styles.legendDot, { backgroundColor: "#A855F7" }]} />
             <Text style={styles.legendText}>Selected</Text>
           </View>
         </View>
@@ -263,8 +327,6 @@ export function NativeMap({
 const styles = StyleSheet.create({
   countryDropdown: {
     alignItems: "center",
-    backgroundColor: "#16161a",
-    borderColor: "#27272a",
     borderRadius: 12,
     borderWidth: 1,
     flexDirection: "row",
@@ -276,13 +338,13 @@ const styles = StyleSheet.create({
     width: 140,
   },
   countryDropdownText: {
-    color: "#f4f4f5",
+    color: "#F8F8F8",
     fontSize: 14,
     fontWeight: "700",
   },
   dropdownMenu: {
-    backgroundColor: "#18181b",
-    borderColor: "#27272a",
+    backgroundColor: "#111111",
+    borderColor: "#212121",
     borderRadius: 12,
     borderWidth: 1,
     left: 16,
@@ -297,12 +359,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   dropdownMenuItemText: {
-    color: "#e4e4e7",
+    color: "#F8F8F8",
     fontSize: 13,
   },
   floatingRegionBadge: {
     alignItems: "center",
-    backgroundColor: "#a855f7",
+    backgroundColor: "#A855F7",
     borderRadius: 999,
     flexDirection: "row",
     gap: 6,
@@ -330,8 +392,8 @@ const styles = StyleSheet.create({
   },
   legendPill: {
     alignItems: "center",
-    backgroundColor: "#141418",
-    borderColor: "#27272a",
+    backgroundColor: "#0B0B0B",
+    borderColor: "#212121",
     borderRadius: 999,
     borderWidth: 1,
     bottom: 16,
@@ -344,7 +406,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   legendText: {
-    color: "#a1a1aa",
+    color: "#8F8F8F",
     fontSize: 11,
     fontWeight: "600",
   },
@@ -352,7 +414,6 @@ const styles = StyleSheet.create({
     height: 260,
     justifyContent: "center",
     marginTop: 8,
-    paddingHorizontal: 10,
     width: "100%",
   },
   mapCard: {
@@ -372,14 +433,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   resetButtonText: {
-    color: "#f4f4f5",
+    color: "#F8F8F8",
     fontSize: 12,
     fontWeight: "700",
   },
   selectedPillTop: {
     alignItems: "center",
-    backgroundColor: "#1f1f24",
-    borderColor: "#27272a",
+    backgroundColor: "#111111",
+    borderColor: "#212121",
     borderRadius: 999,
     borderWidth: 1,
     flexDirection: "row",
@@ -388,7 +449,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   selectedPillTopText: {
-    color: "#e4e4e7",
+    color: "#F8F8F8",
     fontSize: 12,
     fontWeight: "700",
   },

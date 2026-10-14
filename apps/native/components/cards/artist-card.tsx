@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars, eqeqeq, no-eq-null */
 import { StyleSheet, Text, View } from "react-native";
 
 import { CardMeta, NativeCardShell } from "@/components/cards/card-shell";
@@ -12,8 +13,8 @@ const styles = StyleSheet.create({
     avatar: { borderRadius: 16, overflow: "hidden" },
     avatarWrapper: {
       alignItems: "center",
-      justifyContent: "center",
       aspectRatio: 1,
+      justifyContent: "center",
       width: "100%",
     },
     fallbackText: {
@@ -49,15 +50,15 @@ export function ArtistCard({ artist }: { artist: ArtistSummary }) {
       width={ARTIST_CARD_WIDTH}
     >
       <View style={styles.avatarWrapper}>
-        {artist.avatarUrl != null ? (
+        {artist.avatarUrl == null ? (
+          <Text style={[styles.fallbackText, { color: theme.mutedText }]}>
+            {artist.name.slice(0, 2).toUpperCase()}
+          </Text>
+        ) : (
           <NativeImage
             source={artist.avatarUrl}
             style={[THUMB_RATIO, styles.avatar]}
           />
-        ) : (
-          <Text style={[styles.fallbackText, { color: theme.mutedText }]}>
-            {artist.name.slice(0, 2).toUpperCase()}
-          </Text>
         )}
       </View>
       <CardMeta

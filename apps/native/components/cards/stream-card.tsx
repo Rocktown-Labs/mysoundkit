@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars, eqeqeq, no-eq-null, no-negated-condition */
 import { StyleSheet, Text, View } from "react-native";
 
 import {
@@ -10,7 +11,7 @@ import { NAV_THEME } from "@/lib/constants";
 import type { LiveExperienceSummary } from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
-export const STREAM_CARD_WIDTH = 290;
+export const STREAM_CARD_WIDTH = 240;
 
 const styles = StyleSheet.create({
   fallback: {
@@ -31,14 +32,21 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 10,
     paddingBottom: 10,
+    paddingHorizontal: 10,
   },
   metaText: { fontSize: 11 },
   thumb: { height: "100%", width: "100%" },
 });
 
-export function StreamCard({ stream }: { stream: LiveExperienceSummary }) {
+export function StreamCard({
+  stream,
+  fluid = false,
+}: {
+  stream: LiveExperienceSummary;
+  /** Fill the parent cell (view-all grids) instead of the fixed rail width. */
+  fluid?: boolean;
+}) {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     isLive = stream.status === "live",
@@ -47,17 +55,17 @@ export function StreamCard({ stream }: { stream: LiveExperienceSummary }) {
   return (
     <NativeCardShell
       href={`/live/streams/${stream.id}`}
-      width={STREAM_CARD_WIDTH}
+      width={fluid ? 0 : STREAM_CARD_WIDTH}
     >
       <View style={{ aspectRatio: 16 / 9 }}>
-        {stream.creatorAvatar != null ? (
-          <NativeImage source={stream.creatorAvatar} style={styles.thumb} />
-        ) : (
+        {stream.creatorAvatar == null ? (
           <View style={[styles.fallback, { backgroundColor: theme.muted }]}>
             <Text style={[styles.fallbackText, { color: theme.mutedText }]}>
               {(stream.creatorName ?? "SK").slice(0, 2).toUpperCase()}
             </Text>
           </View>
+        ) : (
+          <NativeImage source={stream.creatorAvatar} style={styles.thumb} />
         )}
         <View
           style={{

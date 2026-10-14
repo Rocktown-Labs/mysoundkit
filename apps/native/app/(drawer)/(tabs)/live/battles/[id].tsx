@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars, eqeqeq, no-eq-null, sort-keys, complexity */
 import { useLocalSearchParams, Stack } from "expo-router";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
@@ -36,7 +37,7 @@ export default function BattleDetailScreen() {
     { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     battle = useBattleQuery(id ?? ""),
-    data = battle.data,
+    { data } = battle,
     tracks = data?.tracks ?? [];
 
   return (
@@ -82,20 +83,20 @@ export default function BattleDetailScreen() {
                 >
                   {data.status === "live" ? "LIVE" : (data.status ?? "")}
                 </Text>
-                {data.genre != null ? (
+                {data.genre == null ? null : (
                   <Text style={[styles.statText, { color: theme.mutedText }]}>
                     {data.genre}
                   </Text>
-                ) : null}
+                )}
                 <Text style={[styles.statText, { color: theme.mutedText }]}>
                   {data.viewerCount.toLocaleString()} watching
                 </Text>
-                {data.round?.total != null ? (
+                {data.round?.total == null ? null : (
                   <Text style={[styles.statText, { color: theme.mutedText }]}>
                     Round {data.round.current ?? 1}/{data.round.total}
                     {data.round.isVoting ? " • Voting" : ""}
                   </Text>
-                ) : null}
+                )}
               </View>
             </View>
 
@@ -107,7 +108,11 @@ export default function BattleDetailScreen() {
             >
               <View style={styles.participantsRow}>
                 <View style={styles.participant}>
-                  {tracks[0] != null ? (
+                  {tracks[0] == null ? (
+                    <Text style={{ color: theme.mutedText, fontSize: 13 }}>
+                      Waiting for track…
+                    </Text>
+                  ) : (
                     <>
                       <Text
                         numberOfLines={2}
@@ -119,17 +124,17 @@ export default function BattleDetailScreen() {
                         {tracks[0].artist} • {tracks[0].votes} votes
                       </Text>
                     </>
-                  ) : (
-                    <Text style={{ color: theme.mutedText, fontSize: 13 }}>
-                      Waiting for track…
-                    </Text>
                   )}
                 </View>
                 <Text style={[styles.versus, { color: theme.primary }]}>
                   VS
                 </Text>
                 <View style={[styles.participant, { alignItems: "flex-end" }]}>
-                  {tracks[1] != null ? (
+                  {tracks[1] == null ? (
+                    <Text style={{ color: theme.mutedText, fontSize: 13 }}>
+                      Waiting for track…
+                    </Text>
+                  ) : (
                     <>
                       <Text
                         numberOfLines={2}
@@ -150,10 +155,6 @@ export default function BattleDetailScreen() {
                         {tracks[1].artist} • {tracks[1].votes} votes
                       </Text>
                     </>
-                  ) : (
-                    <Text style={{ color: theme.mutedText, fontSize: 13 }}>
-                      Waiting for track…
-                    </Text>
                   )}
                 </View>
               </View>

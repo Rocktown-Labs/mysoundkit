@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars, eqeqeq, no-eq-null, no-negated-condition */
 import { StyleSheet, Text, View } from "react-native";
 
 import {
@@ -21,8 +22,8 @@ const styles = StyleSheet.create({
       top: 8,
     },
     durationChip: {
-      bottom: 8,
       borderRadius: 4,
+      bottom: 8,
       paddingHorizontal: 5,
       paddingVertical: 1,
       position: "absolute",
@@ -33,8 +34,8 @@ const styles = StyleSheet.create({
       alignItems: "center",
       flexDirection: "row",
       gap: 4,
-      paddingHorizontal: 10,
       paddingBottom: 10,
+      paddingHorizontal: 10,
     },
     metaText: { fontSize: 11 },
     thumb: { height: "100%", width: "100%" },
