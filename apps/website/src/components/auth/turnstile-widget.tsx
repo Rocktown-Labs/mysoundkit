@@ -25,13 +25,9 @@ interface TurnstileApi {
 
 declare global {
   interface Window {
-    soundkitDesktop?: unknown;
     turnstile?: TurnstileApi;
   }
 }
-
-export const isDesktopClient = () =>
-  typeof window !== "undefined" && Boolean(window.soundkitDesktop);
 
 export const isTurnstileConfigured = Boolean(env.VITE_TURNSTILE_SITE_KEY);
 
@@ -49,7 +45,7 @@ export function TurnstileWidget({
     siteKey = env.VITE_TURNSTILE_SITE_KEY;
 
   useEffect(() => {
-    if (!siteKey || isDesktopClient()) {
+    if (!siteKey) {
       onTokenChange("");
       return;
     }
@@ -94,7 +90,7 @@ export function TurnstileWidget({
     };
   }, [action, onTokenChange, resetKey, siteKey]);
 
-  if (!siteKey || isDesktopClient()) {
+  if (!siteKey) {
     return null;
   }
 

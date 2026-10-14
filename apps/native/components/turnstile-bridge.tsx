@@ -61,15 +61,18 @@ export function TurnstileBridge({
   return (
     <View style={styles.bridgeWrap}>
       <WebView
+        domStorageEnabled
         javaScriptEnabled
-        onMessage={(event) => {
-          handleMessage(event.nativeEvent.data);
-        }}
         onLoadEnd={() => {
           setReady(true);
         }}
-        originWhitelist={[WEB_PUBLIC_URL]}
+        onMessage={(event) => {
+          handleMessage(event.nativeEvent.data);
+        }}
+        onShouldStartLoadWithRequest={() => true}
+        originWhitelist={["*"]}
         ref={webviewRef}
+        setSupportMultipleWindows={false}
         source={{
           uri: `${WEB_PUBLIC_URL}/auth/turnstile-bridge?action=${action}`,
         }}
