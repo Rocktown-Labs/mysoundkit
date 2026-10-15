@@ -13,6 +13,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { WebView } from "react-native-webview";
 
 import { NativeImage } from "@/components/native-image";
 import { NAV_THEME } from "@/lib/constants";
@@ -24,69 +25,100 @@ import {
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 const styles = StyleSheet.create({
-  action: { alignItems: "center", gap: 5, minWidth: 52 },
-  actionLabel: { fontSize: 11, fontWeight: "700" },
-  actionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 4,
-  },
-  authorAvatar: { borderRadius: 22, height: 44, width: 44 },
-  authorRow: { alignItems: "center", flexDirection: "row", gap: 12 },
-  commentBody: { flex: 1, gap: 3 },
-  commentRow: { alignItems: "flex-start", flexDirection: "row", gap: 10 },
-  commentSheet: {
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    flex: 1,
-    marginTop: "28%",
-    overflow: "hidden",
-  },
-  commentText: { fontSize: 14, lineHeight: 20 },
-  commentTime: { fontSize: 11 },
-  commentsList: { gap: 20, paddingBottom: 32 },
-  content: { gap: 16, padding: 16, paddingBottom: 48 },
-  description: { fontSize: 14, lineHeight: 21 },
-  emptyComments: { paddingTop: 32, textAlign: "center" },
-  handle: {
-    alignSelf: "center",
-    borderRadius: 999,
-    height: 4,
-    marginBottom: 16,
-    width: 42,
-  },
-  meta: { fontSize: 13 },
-  metadata: { gap: 5 },
-  poster: {
-    aspectRatio: 16 / 9,
-    borderRadius: 14,
-    overflow: "hidden",
-    width: "100%",
-  },
-  screen: { flex: 1 },
-  sheetBackdrop: {
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  sheetHeader: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingBottom: 12,
-  },
-  sheetTitle: { fontSize: 22, fontWeight: "800" },
-  subtitle: { fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", letterSpacing: -0.4 },
-  unavailableOverlay: {
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
-    inset: 0,
-    justifyContent: "center",
-    position: "absolute",
-  },
-  unavailableText: { color: "#FFFFFF", fontSize: 13, marginTop: 8 },
-});
+    action: { alignItems: "center", gap: 5, minWidth: 52 },
+    actionLabel: { fontSize: 11, fontWeight: "700" },
+    actionRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingVertical: 4,
+    },
+    authorAvatar: { borderRadius: 22, height: 44, width: 44 },
+    authorRow: { alignItems: "center", flexDirection: "row", gap: 12 },
+    commentBody: { flex: 1, gap: 3 },
+    commentRow: { alignItems: "flex-start", flexDirection: "row", gap: 10 },
+    commentSheet: {
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
+      flex: 1,
+      marginTop: "28%",
+      overflow: "hidden",
+    },
+    commentText: { fontSize: 14, lineHeight: 20 },
+    commentTime: { fontSize: 11 },
+    commentsList: { gap: 20, paddingBottom: 32 },
+    content: { gap: 16, padding: 16, paddingBottom: 48 },
+    description: { fontSize: 14, lineHeight: 21 },
+    emptyComments: { paddingTop: 32, textAlign: "center" },
+    handle: {
+      alignSelf: "center",
+      borderRadius: 999,
+      height: 4,
+      marginBottom: 16,
+      width: 42,
+    },
+    meta: { fontSize: 13 },
+    metadata: { gap: 5 },
+    poster: {
+      aspectRatio: 16 / 9,
+      borderRadius: 14,
+      overflow: "hidden",
+      width: "100%",
+    },
+    screen: { flex: 1 },
+    sheetBackdrop: {
+      backgroundColor: "rgba(0, 0, 0, 0.7)",
+      flex: 1,
+      justifyContent: "flex-end",
+    },
+    sheetHeader: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingBottom: 12,
+    },
+    sheetTitle: { fontSize: 22, fontWeight: "800" },
+    subtitle: { fontSize: 15, fontWeight: "700" },
+    title: { fontSize: 21, fontWeight: "800", letterSpacing: -0.4 },
+    unavailableOverlay: {
+      alignItems: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.55)",
+      inset: 0,
+      justifyContent: "center",
+      position: "absolute",
+    },
+    unavailableText: { color: "#FFFFFF", fontSize: 13, marginTop: 8 },
+    webVideo: {
+      aspectRatio: 16 / 9,
+      backgroundColor: "#000000",
+      borderRadius: 14,
+      overflow: "hidden",
+      width: "100%",
+    },
+  }),
+  youtubeVideoIdFromUrl = (value: null | string | undefined) => {
+    if (!value) {
+      return null;
+    }
+    try {
+      const url = new URL(value),
+        hostname = url.hostname.toLowerCase().replace(/^www\./u, ""),
+        pathSegments = url.pathname.split("/").filter(Boolean);
+      if (hostname === "youtu.be") {
+        return pathSegments[0] ?? null;
+      }
+      if (hostname === "youtube.com" || hostname.endsWith(".youtube.com")) {
+        if (url.pathname === "/watch") {
+          return url.searchParams.get("v");
+        }
+        if (["embed", "live", "shorts"].includes(pathSegments[0] ?? "")) {
+          return pathSegments[1] ?? null;
+        }
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
 
 export default function VideoDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(),
@@ -96,10 +128,15 @@ export default function VideoDetailScreen() {
     comments = useVideoCommentsQuery(id ?? ""),
     [commentsOpen, setCommentsOpen] = useState(false),
     { data } = video,
-    playbackSource =
-      data?.sourceProvider === "mux" &&
-      data.muxPlaybackId &&
-      data.playbackPolicy === "public"
+    youtubeVideoId = youtubeVideoIdFromUrl(data?.externalPlaybackUrl),
+    youtubeEmbedSource = youtubeVideoId
+      ? `https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=1&playsinline=1&rel=0`
+      : null,
+    playbackSource = youtubeVideoId
+      ? undefined
+      : data?.sourceProvider === "mux" &&
+          data.muxPlaybackId &&
+          data.playbackPolicy === "public"
         ? `https://stream.mux.com/${data.muxPlaybackId}.m3u8`
         : (resolveApiUrl(data?.externalPlaybackUrl ?? null) ?? undefined),
     player = useVideoPlayer(playbackSource ?? null, (playerInstance) => {
@@ -130,7 +167,15 @@ export default function VideoDetailScreen() {
           <ActivityIndicator color={theme.primary} style={{ marginTop: 40 }} />
         ) : (
           <>
-            {playbackSource ? (
+            {youtubeEmbedSource ? (
+              <WebView
+                allowsFullscreenVideo
+                allowsInlineMediaPlayback
+                mediaPlaybackRequiresUserAction={false}
+                source={{ uri: youtubeEmbedSource }}
+                style={styles.webVideo}
+              />
+            ) : playbackSource ? (
               <VideoView
                 allowsPictureInPicture
                 contentFit="contain"

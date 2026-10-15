@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/ensure-desktop-electron.mjs",
-    "dev": "turbo run dev --filter=web --filter=server",
+    "dev": "turbo run dev --filter=web --filter=server --filter=native",
     "dev:all": "turbo run dev",
     "dev:infra": "turbo run dev --filter=@soundkit/infra",
     "build": "pnpm run check-types && turbo run build",

@@ -698,14 +698,25 @@ export function AudioPlayerProvider({
   return (
     <AudioPlayerContext.Provider value={value}>
       {children}
-      <GuestLimitWall visible={isGuestLimitReached} />
+      <GuestLimitWall
+        onContinueToAuth={() => {
+          setIsGuestLimitReached(false);
+        }}
+        visible={isGuestLimitReached}
+      />
     </AudioPlayerContext.Provider>
   );
 }
 
 /** Web-parity "Guest Preview Limit Reached" wall shown by the provider so it
  * appears no matter which surface is hosting the player. */
-function GuestLimitWall({ visible }: { visible: boolean }) {
+function GuestLimitWall({
+  onContinueToAuth,
+  visible,
+}: {
+  onContinueToAuth: () => void;
+  visible: boolean;
+}) {
   const router = useRouter();
   if (!visible) {
     return null;
@@ -722,6 +733,7 @@ function GuestLimitWall({ visible }: { visible: boolean }) {
         <Pressable
           accessibilityRole="button"
           onPress={() => {
+            onContinueToAuth();
             router.push("/signup");
           }}
           style={({ pressed }) => [
@@ -734,6 +746,7 @@ function GuestLimitWall({ visible }: { visible: boolean }) {
         <Pressable
           accessibilityRole="button"
           onPress={() => {
+            onContinueToAuth();
             router.push("/login");
           }}
           style={({ pressed }) => [pressed && { opacity: 0.7 }]}

@@ -160,8 +160,17 @@
     {
       "binding": "HYPERDRIVE",
       "id": "1b900b19692a4e9f920eebd379d21d3d",
+      // Local dev only: wrangler emulates Hyperdrive against this Postgres.
+      // A dedicated podman container (soundkit-pg) serves it on 5433;
+      // localhost:5432 is taken by the user's chewbuu-postgres container.
+      "localConnectionString": "postgresql://postgres:postgres@localhost:5433/soundkit_dev",
     },
   ],
+  "dev": {
+    // Local Mac dev runs without the media/stem Docker containers.
+    // Wrangler would otherwise require a Docker engine for them.
+    "enable_containers": false,
+  },
   "placement": {
     "region": "aws:us-east-1",
   },
