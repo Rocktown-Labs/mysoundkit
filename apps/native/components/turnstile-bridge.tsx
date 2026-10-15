@@ -90,16 +90,12 @@ export function TurnstileBridge({
 
 const styles = StyleSheet.create({
   bridgeWrap: {
-    backgroundColor: NAV_THEME.dark.card,
-    borderColor: NAV_THEME.dark.border,
-    borderRadius: 12,
-    borderWidth: 1,
     height: 64,
-    overflow: "hidden",
+    opacity: 0.01,
   },
   loading: {
     alignSelf: "center",
-    marginTop: -46,
+    display: "none",
   },
   webview: { backgroundColor: "transparent" },
 });

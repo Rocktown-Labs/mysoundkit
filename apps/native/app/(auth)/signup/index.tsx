@@ -58,7 +58,7 @@ export default function SignupChooserScreen() {
                     {accountType.description}
                   </Text>
                 </View>
-                <Ionicons color="#8F8F8F" name="chevron-forward" size={20} />
+                <Ionicons color="#8F8F8F" name="chevron-forward" size={18} />
               </Pressable>
             </Link>
           ))}
@@ -81,15 +81,18 @@ const styles = StyleSheet.create({
     borderColor: "#212121",
     borderRadius: 18,
     borderWidth: 1,
-    flexDirection: "row",
-    gap: 14,
-    padding: 18,
+    flex: 1,
+    gap: 10,
+    justifyContent: "flex-start",
+    minHeight: 190,
+    padding: 14,
   },
-  cardCopy: { flex: 1, gap: 4 },
+  cardCopy: { alignItems: "center", gap: 4 },
   cardDescription: {
     color: "#8F8F8F",
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 17,
+    textAlign: "center",
   },
   cardIconWrap: {
     alignItems: "center",
@@ -101,10 +104,10 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: "#F8F8F8",
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "800",
   },
-  cards: { gap: 14 },
+  cards: { flexDirection: "row", gap: 10 },
   loginAction: {
     color: "#B8A3FF",
     fontSize: 14,

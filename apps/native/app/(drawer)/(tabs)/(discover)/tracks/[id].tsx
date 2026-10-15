@@ -90,6 +90,19 @@ const representativeAssets = <T extends Record<string, unknown>>(
   });
 };
 
+interface TrackCredit {
+  displayName?: null | string;
+  legalName?: null | string;
+  role?: null | string;
+  username?: null | string;
+}
+
+const creditDisplayName = (credit: TrackCredit) =>
+  credit.displayName ??
+  credit.legalName ??
+  credit.username ??
+  "SoundKit creator";
+
 export default function TrackDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(),
     { colorScheme } = useColorScheme(),
@@ -132,6 +145,24 @@ export default function TrackDetailScreen() {
       typeof rawArtist?.verified === "boolean"
         ? rawArtist.verified
         : Boolean(data && "verified" in data && data.verified),
+    featuredArtists =
+      data && "credits" in data && data.credits
+        ? ((data.credits as { artists?: TrackCredit[] }).artists ?? []).filter(
+            (credit) =>
+              creditDisplayName(credit).toLowerCase() !==
+              artistName.toLowerCase()
+          )
+        : [],
+    trackCredits =
+      data && "credits" in data
+        ? (data.credits as {
+            artists?: TrackCredit[];
+            engineers?: TrackCredit[];
+            producers?: TrackCredit[];
+            vocalists?: TrackCredit[];
+            writers?: TrackCredit[];
+          })
+        : {},
     relatedQuery = useTracksQuery({
       limit: 100,
       region: "all",
@@ -159,6 +190,13 @@ export default function TrackDetailScreen() {
           .slice(0, RELATED_ARTIST_LIMIT)
       );
     }, [artistUsername, data?.id, relatedQuery.data]);
+  const creditSections: [string, TrackCredit[] | undefined][] = [
+    ["ARTISTS", trackCredits.artists],
+    ["VOCALS", trackCredits.vocalists],
+    ["PRODUCTION", trackCredits.producers],
+    ["ENGINEERING", trackCredits.engineers],
+    ["SONGWRITING", trackCredits.writers],
+  ];
 
   if (track.isLoading) {
     return (
@@ -257,6 +295,11 @@ export default function TrackDetailScreen() {
                 source={data.coverArtUrl ?? undefined}
                 style={styles.coverLargeImage}
               />
+              <View style={styles.typePillOverlay}>
+                <Text style={styles.typePillText}>
+                  {typeLabel.toUpperCase()}
+                </Text>
+              </View>
               {canPlay ? (
                 <Pressable
                   accessibilityLabel="Play track"
@@ -281,17 +324,18 @@ export default function TrackDetailScreen() {
             </View>
 
             <View style={styles.heroMetaCenter}>
-              <View style={styles.typePill}>
-                <Text style={styles.typePillText}>
-                  {typeLabel.toUpperCase()}
-                </Text>
-              </View>
               <Text style={styles.titleLarge}>{data.title.toUpperCase()}</Text>
               {artistUsername ? (
                 <Link href={`/artist/${artistUsername}` as never} asChild>
                   <Pressable style={styles.artistRow}>
                     <Text style={styles.artistNameLarge}>
                       {artistName.toUpperCase()}
+                      {featuredArtists.length > 0 ? " WITH " : ""}
+                      {featuredArtists
+                        .map((credit) =>
+                          creditDisplayName(credit).toUpperCase()
+                        )
+                        .join(", ")}
                     </Text>
                     {isArtistVerified ? (
                       <Ionicons
@@ -306,6 +350,10 @@ export default function TrackDetailScreen() {
                 <View style={styles.artistRow}>
                   <Text style={styles.artistNameLarge}>
                     {artistName.toUpperCase()}
+                    {featuredArtists.length > 0 ? " WITH " : ""}
+                    {featuredArtists
+                      .map((credit) => creditDisplayName(credit).toUpperCase())
+                      .join(", ")}
                   </Text>
                   {isArtistVerified ? (
                     <Ionicons
@@ -595,11 +643,30 @@ export default function TrackDetailScreen() {
           {/* CREDITS */}
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionEyebrow}>CREDITS</Text>
-            <Text style={styles.creditCategory}>SONGWRITING</Text>
-            <View style={styles.creditCardBox}>
-              <Text style={styles.creditCardRole}>Written by</Text>
-              <Text style={styles.creditCardName}>{artistName}</Text>
-            </View>
+            {creditSections.map(([label, credits]) => {
+              const entries = (credits ?? []) as TrackCredit[];
+              if (entries.length === 0) {
+                return null;
+              }
+              return (
+                <View key={label as string}>
+                  <Text style={styles.creditCategory}>{label}</Text>
+                  {entries.map((credit, index) => (
+                    <View
+                      key={`${label as string}-${credit.username ?? credit.displayName ?? index}`}
+                      style={styles.creditCardBox}
+                    >
+                      <Text style={styles.creditCardRole}>
+                        {credit.role ?? (label as string).toLowerCase()}
+                      </Text>
+                      <Text style={styles.creditCardName}>
+                        {creditDisplayName(credit)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              );
+            })}
           </View>
         </ScrollView>
       </Container>
@@ -863,6 +930,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 8,
     paddingVertical: 3,
+  },
+  typePillOverlay: {
+    backgroundColor: "rgba(6, 6, 6, 0.82)",
+    borderColor: "rgba(184, 163, 255, 0.55)",
+    borderRadius: 6,
+    borderWidth: 1,
+    left: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    position: "absolute",
+    top: 12,
   },
   typePillText: {
     color: "#B8A3FF",
