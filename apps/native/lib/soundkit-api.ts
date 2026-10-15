@@ -77,6 +77,7 @@ const artistGet = apiClient.v1.artists[":username"].$get,
   trackGet = apiClient.v1.tracks[":trackId"].$get,
   tracksGet = apiClient.v1.tracks.index.$get,
   videoGet = apiClient.v1.videos[":videoId"].$get,
+  videoCommentsGet = apiClient.v1.videos[":videoId"].comments.$get,
   videosGet = apiClient.v1.videos.index.$get,
   libraryOverviewGet = apiClient.v1.library.overview.$get,
   libraryPlaylistGet = apiClient.v1.library.playlists[":id"].$get,
@@ -112,6 +113,10 @@ export type TrackSummary = InferResponseType<typeof tracksGet, 200>[number];
 export type TrackDetail = InferResponseType<typeof trackGet, 200>;
 export type VideoSummary = InferResponseType<typeof videosGet, 200>[number];
 export type VideoDetail = InferResponseType<typeof videoGet, 200>;
+export type VideoComment = InferResponseType<
+  typeof videoCommentsGet,
+  200
+>[number];
 export type PublicProjectSummary = InferResponseType<
   typeof publicProjectsGet,
   200
@@ -257,6 +262,16 @@ export const useVideoQuery = (videoId: string) =>
     queryFn: async () =>
       rpcJson(await videoGet({ param: { videoId } })) as Promise<VideoDetail>,
     queryKey: ["video", videoId],
+  });
+
+export const useVideoCommentsQuery = (videoId: string) =>
+  useQuery({
+    enabled: videoId.length > 0,
+    queryFn: async () =>
+      rpcJson(await videoCommentsGet({ param: { videoId } })) as Promise<
+        VideoComment[]
+      >,
+    queryKey: ["video", videoId, "comments"],
   });
 
 // ---------------------------------------------------------------------------

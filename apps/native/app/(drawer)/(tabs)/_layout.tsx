@@ -7,6 +7,7 @@ import {
   TabMenuSheetsProvider,
   useTabMenu,
 } from "@/components/tab-menu-sheets";
+import { useAudioPlayerContext } from "@/contexts/audio-player-context";
 import { NAV_THEME } from "@/lib/constants";
 import { NATIVE_TAB_ROUTES } from "@/lib/route-manifest";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -17,6 +18,7 @@ function TabBarBody() {
   const { colorScheme } = useColorScheme(),
     lastDiscoverPressRef = useRef(0),
     { openDiscoverMenu } = useTabMenu(),
+    { currentTrack } = useAudioPlayerContext(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
   return (
@@ -29,9 +31,11 @@ function TabBarBody() {
       }}
       tintColor={theme.primary}
     >
-      <NativeTabs.BottomAccessory>
-        <GlobalMiniPlayer />
-      </NativeTabs.BottomAccessory>
+      {currentTrack ? (
+        <NativeTabs.BottomAccessory>
+          <GlobalMiniPlayer />
+        </NativeTabs.BottomAccessory>
+      ) : null}
       {NATIVE_TAB_ROUTES.map((route) => (
         <NativeTabs.Trigger
           key={route.id}

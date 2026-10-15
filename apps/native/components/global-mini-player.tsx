@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
   blurContainer: {
     alignItems: "center",
     borderRadius: 16,
-    borderWidth: 1,
+    borderWidth: 0,
     flexDirection: "row",
     gap: 10,
     overflow: "hidden",
@@ -60,8 +60,7 @@ const styles = StyleSheet.create({
   container: {
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    padding: 0,
     width: "100%",
   },
   copy: {

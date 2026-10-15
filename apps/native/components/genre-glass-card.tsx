@@ -69,6 +69,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: 4,
     justifyContent: "center",
+    minHeight: 170,
     overflow: "hidden",
     paddingHorizontal: 12,
     paddingVertical: 24,

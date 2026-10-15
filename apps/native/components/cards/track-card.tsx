@@ -46,7 +46,13 @@ const styles = StyleSheet.create({
     return "0:00";
   };
 
-export function TrackCard({ track }: { track: TrackSummary }) {
+export function TrackCard({
+  compact = false,
+  track,
+}: {
+  compact?: boolean;
+  track: TrackSummary;
+}) {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     { currentTrack, isPlaying, playTrack, togglePlay } =
@@ -58,7 +64,10 @@ export function TrackCard({ track }: { track: TrackSummary }) {
       "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
 
   return (
-    <NativeCardShell href={`/tracks/${track.id}`} width={TRACK_CARD_WIDTH}>
+    <NativeCardShell
+      href={`/tracks/${track.id}`}
+      width={compact ? 132 : TRACK_CARD_WIDTH}
+    >
       <View style={styles.thumbRatio}>
         <NativeImage
           source={track.coverArtUrl ?? undefined}

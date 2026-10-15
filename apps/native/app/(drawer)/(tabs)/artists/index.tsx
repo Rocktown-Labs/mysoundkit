@@ -1,4 +1,5 @@
 /* oxlint-disable one-var, sort-vars, no-nested-ternary, default-case, react/preserve-manual-memoization */
+/* eslint-disable complexity */
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import type { Href } from "expo-router";
@@ -204,7 +205,7 @@ function LeaderboardSection({
           <Text style={styles.sectionSubtitle}>{description}</Text>
         </View>
 
-        <Link href="/artist" asChild>
+        <Link href={`/artist?category=${type}` as Href} asChild>
           <Pressable style={styles.viewAllBtn}>
             <Text style={styles.viewAllText}>View All</Text>
           </Pressable>
@@ -214,7 +215,7 @@ function LeaderboardSection({
       <View style={styles.leaderboardCard}>
         {artists.length > 0 ? (
           artists
-            .slice(0, 4)
+            .slice(0, 5)
             .map((artist, idx) => (
               <ArtistRankedRow
                 artist={artist}
@@ -281,6 +282,7 @@ export default function ArtistsScreen() {
       category: "rising",
       genre: queryPayload.genre,
       limit: 6,
+      q: searchQuery || undefined,
       region: queryPayload.region,
       regionType: queryPayload.regionType,
       sort: queryPayload.sort,
@@ -289,6 +291,7 @@ export default function ArtistsScreen() {
       category: "new",
       genre: queryPayload.genre,
       limit: 6,
+      q: searchQuery || undefined,
       region: queryPayload.region,
       regionType: queryPayload.regionType,
       sort: queryPayload.sort,
@@ -297,6 +300,7 @@ export default function ArtistsScreen() {
       category: "top",
       genre: queryPayload.genre,
       limit: 6,
+      q: searchQuery || undefined,
       region: queryPayload.region,
       regionType: queryPayload.regionType,
       sort: queryPayload.sort,
@@ -633,7 +637,7 @@ export default function ArtistsScreen() {
             <Text style={styles.genreSubheading}>
               {genreFilter === "all" ? "Hip-Hop" : activeGenreLabel}
             </Text>
-            <Link href="/artist" asChild>
+            <Link href="/artist?category=top" asChild>
               <Pressable style={styles.viewAllBtn}>
                 <Text style={styles.viewAllText}>View All</Text>
               </Pressable>

@@ -182,7 +182,8 @@ function ArtistHero({ artist }: { artist: ArtistDetail }) {
         {artist.coverImageUrl ? (
           <NativeImage
             source={artist.coverImageUrl}
-            style={{ height: "100%", width: "100%" }}
+            contentFit="cover"
+            style={styles.heroImage}
           />
         ) : (
           <View style={styles.heroFallback}>
@@ -494,11 +495,11 @@ function ArtistFeed({
     <View style={styles.feedGap}>
       {tracks.length > 0 ? (
         <NativeSection title="Tracks">
-          <View style={styles.tripleGrid}>
+          <NativeRail>
             {tracks.slice(0, FEED_TRACKS_PREVIEW).map((track) => (
-              <TrackCard key={track.id} track={track} />
+              <TrackCard compact key={track.id} track={track} />
             ))}
-          </View>
+          </NativeRail>
           {tracks.length > FEED_TRACKS_PREVIEW ? (
             <ExpoLink
               asChild
@@ -519,7 +520,7 @@ function ArtistFeed({
         >
           <NativeRail>
             {projects.slice(0, FEED_RAIL_PREVIEW).map((project) => (
-              <ProjectCard key={project.id} project={project} />
+              <ProjectCard compact key={project.id} project={project} />
             ))}
           </NativeRail>
         </NativeSection>
@@ -532,7 +533,7 @@ function ArtistFeed({
         >
           <NativeRail>
             {videos.slice(0, FEED_RAIL_PREVIEW).map((video) => (
-              <VideoCard key={video.id} video={video} />
+              <VideoCard compact key={video.id} video={video} />
             ))}
           </NativeRail>
         </NativeSection>
@@ -545,7 +546,7 @@ function ArtistFeed({
         >
           <NativeRail>
             {featured.map((track) => (
-              <TrackCard key={track.id} track={track} />
+              <TrackCard compact key={track.id} track={track} />
             ))}
           </NativeRail>
         </NativeSection>
@@ -679,8 +680,8 @@ const styles = StyleSheet.create({
   },
   avatarWrap: {
     borderRadius: 25,
-    height: 100,
-    width: 100,
+    height: 88,
+    width: 88,
   },
   bio: {
     color: "#F8F8F8",
@@ -728,14 +729,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
   },
-  followButtonSlot: { alignSelf: "flex-start" },
+  followButtonSlot: { alignSelf: "center" },
   followButtonText: { fontSize: 13, fontWeight: "800" },
   genrePill: {
+    alignSelf: "center",
     backgroundColor: "rgba(184, 163, 255, 0.14)",
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    alignSelf: "flex-start",
   },
   genrePillText: {
     color: "#B8A3FF",
@@ -743,7 +744,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   handle: { color: "#8F8F8F", fontSize: 13 },
-  hero: { height: 190, width: "100%" },
+  hero: { height: 112, width: "100%" },
   heroFallback: {
     alignItems: "center",
     height: "100%",
@@ -751,18 +752,20 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   heroGradient: {
-    height: 80,
+    height: 56,
     opacity: 0.9,
     position: "absolute",
     width: "100%",
   },
   heroWrap: { backgroundColor: "#020202" },
+  heroImage: { height: "100%", width: "100%" },
   identityRow: {
-    alignItems: "flex-start",
-    flexDirection: "row",
+    alignItems: "center",
+    flexDirection: "column",
     gap: 14,
+    width: "100%",
   },
-  identityText: { flex: 1, gap: 3, marginTop: 4 },
+  identityText: { alignItems: "center", gap: 3, marginTop: 4, width: "100%" },
   linkButton: {
     alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.08)",
@@ -799,8 +802,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 14,
     marginHorizontal: 16,
-    marginTop: -46,
-    padding: 18,
+    marginTop: -22,
+    padding: 16,
   },
   statChip: {
     alignItems: "center",

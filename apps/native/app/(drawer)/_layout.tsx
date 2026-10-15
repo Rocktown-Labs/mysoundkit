@@ -33,15 +33,6 @@ function DrawerLayout() {
           }}
         />
         <Drawer.Screen
-          name="library"
-          options={{
-            drawerIcon: ({ color, size }) => (
-              <Ionicons color={color} name="library-outline" size={size} />
-            ),
-            drawerLabel: "Library",
-          }}
-        />
-        <Drawer.Screen
           name="dashboard"
           options={{
             drawerIcon: ({ color, size }) => (

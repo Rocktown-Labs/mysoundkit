@@ -29,6 +29,23 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 
 const RELATED_ARTIST_LIMIT = 5;
 
+const durationInSeconds = (duration?: null | string): null | number => {
+  if (!duration) {
+    return null;
+  }
+  const parts = duration.split(":").map(Number);
+  if (parts.some((part) => !Number.isFinite(part))) {
+    return null;
+  }
+  if (parts.length === 2) {
+    return parts[0] * 60 + parts[1];
+  }
+  if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  }
+  return null;
+};
+
 const assetIconFor = (assetKind: string): keyof typeof Ionicons.glyphMap => {
   const kind = assetKind.toLowerCase();
   if (kind.includes("stem") || kind.includes("session")) {
@@ -47,6 +64,30 @@ const assetIconFor = (assetKind: string): keyof typeof Ionicons.glyphMap => {
     return "document-text-outline";
   }
   return "musical-notes-outline";
+};
+
+const representativeAssets = <T extends Record<string, unknown>>(
+  assets: T[]
+) => {
+  const seen = new Set<string>();
+  return assets.filter((asset) => {
+    const rawKind =
+      typeof asset.assetKind === "string"
+        ? asset.assetKind
+        : typeof asset.kind === "string"
+          ? asset.kind
+          : "master";
+    const group =
+      rawKind.toLowerCase().includes("cover") ||
+      rawKind.toLowerCase().includes("art")
+        ? "cover"
+        : "master";
+    if (seen.has(group)) {
+      return false;
+    }
+    seen.add(group);
+    return true;
+  });
 };
 
 export default function TrackDetailScreen() {
@@ -166,7 +207,7 @@ export default function TrackDetailScreen() {
     playerTrack: PlayerTrack = {
       artist: artistName,
       cover: data.coverArtUrl ?? null,
-      duration: null,
+      duration: durationInSeconds(data.duration),
       id: data.id,
       src: playbackSrc ?? "",
       title: data.title,
@@ -275,6 +316,12 @@ export default function TrackDetailScreen() {
                   ) : null}
                 </View>
               )}
+              <View style={styles.runtimeInline}>
+                <Text style={styles.runtimeLabel}>RUNTIME</Text>
+                <Text style={styles.runtimeInlineValue}>
+                  {data.duration ?? "Unavailable"}
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -363,18 +410,12 @@ export default function TrackDetailScreen() {
             </Pressable>
           </View>
 
-          {/* RUNTIME */}
-          <View style={styles.runtimeBlock}>
-            <Text style={styles.sectionEyebrow}>RUNTIME</Text>
-            <Text style={styles.runtimeValue}>{data.duration ?? "2:57"}</Text>
-          </View>
-
           {/* INCLUDED FILES */}
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionEyebrow}>INCLUDED FILES</Text>
             <View style={styles.includedFilesCard}>
               {data.assets && data.assets.length > 0 ? (
-                data.assets.map((asset, idx) => {
+                representativeAssets(data.assets).map((asset, idx) => {
                   const rawAsset = asset as Record<string, unknown>,
                     assetKind =
                       typeof rawAsset.assetKind === "string"
@@ -785,13 +826,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
-  runtimeBlock: {
-    gap: 4,
-  },
-  runtimeValue: {
-    color: "#FFFFFF",
-    fontSize: 22,
+  runtimeInline: { alignItems: "center", flexDirection: "row", gap: 6 },
+  runtimeInlineValue: { color: "#8F8F8F", fontSize: 13, fontWeight: "600" },
+  runtimeLabel: {
+    color: "#8F8F8F",
+    fontSize: 10,
     fontWeight: "900",
+    letterSpacing: 1,
   },
   sectionBlock: {
     gap: 12,
