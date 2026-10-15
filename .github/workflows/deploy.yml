@@ -226,6 +226,15 @@ jobs:
           VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
           TURNSTILE_HOSTNAMES: ${{ vars.TURNSTILE_HOSTNAMES }}
           TURNSTILE_SECRET: ${{ secrets.TURNSTILE_SECRET }}
+          # Printful POD (issue #406) — production-only bindings in
+          # alchemy.run.ts; previews and local dev never receive them.
+          PRINTFUL_API_KEY: ${{ secrets.PRINTFUL_API_KEY }}
+          PRINTFUL_STORE_ID: ${{ secrets.PRINTFUL_STORE_ID }}
+          PRINTFUL_WEBHOOK_SECRET: ${{ secrets.PRINTFUL_WEBHOOK_SECRET }}
+          # Kunaki XML fulfillment (physical media) credentials.
+          KUNAKI_USER_ID: ${{ secrets.KUNAKI_USER_ID }}
+          KUNAKI_PASSWORD: ${{ secrets.KUNAKI_PASSWORD }}
+          KUNAKI_MODE: ${{ vars.KUNAKI_MODE }}
 
   real-e2e:
     name: Real Backend E2E
