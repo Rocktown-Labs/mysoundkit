@@ -32,14 +32,20 @@ const styles = StyleSheet.create({
   thumbRatio: { aspectRatio: 1 },
 });
 
-export function ProjectCard({ project }: { project: PublicProjectSummary }) {
+export function ProjectCard({
+  compact = false,
+  project,
+}: {
+  compact?: boolean;
+  project: PublicProjectSummary;
+}) {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
   return (
     <NativeCardShell
       href={`/projects/${project.slug || project.id}`}
-      width={PROJECT_CARD_WIDTH}
+      width={compact ? 140 : PROJECT_CARD_WIDTH}
     >
       <View style={styles.thumbRatio}>
         <NativeImage

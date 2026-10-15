@@ -1,23 +1,91 @@
-import { Link, useLocalSearchParams, Stack } from "expo-router";
+/* eslint-disable complexity, eqeqeq, no-eq-null, no-nested-ternary, sort-vars */
+import { Ionicons } from "@expo/vector-icons";
+import { Link, Stack, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { NativeImage } from "@/components/native-image";
 import { NAV_THEME } from "@/lib/constants";
-import { useVideoQuery, resolveApiUrl } from "@/lib/soundkit-api";
+import {
+  resolveApiUrl,
+  useVideoCommentsQuery,
+  useVideoQuery,
+} from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 const styles = StyleSheet.create({
-  meta: { fontSize: 12 },
+  action: { alignItems: "center", gap: 5, minWidth: 52 },
+  actionLabel: { fontSize: 11, fontWeight: "700" },
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 4,
+  },
+  authorAvatar: { borderRadius: 22, height: 44, width: 44 },
+  authorRow: { alignItems: "center", flexDirection: "row", gap: 12 },
+  commentBody: { flex: 1, gap: 3 },
+  commentRow: { alignItems: "flex-start", flexDirection: "row", gap: 10 },
+  commentSheet: {
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    flex: 1,
+    marginTop: "28%",
+    overflow: "hidden",
+  },
+  commentText: { fontSize: 14, lineHeight: 20 },
+  commentTime: { fontSize: 11 },
+  commentsList: { gap: 20, paddingBottom: 32 },
+  content: { gap: 16, padding: 16, paddingBottom: 48 },
+  description: { fontSize: 14, lineHeight: 21 },
+  emptyComments: { paddingTop: 32, textAlign: "center" },
+  handle: {
+    alignSelf: "center",
+    borderRadius: 999,
+    height: 4,
+    marginBottom: 16,
+    width: 42,
+  },
+  meta: { fontSize: 13 },
+  metadata: { gap: 5 },
   poster: {
     aspectRatio: 16 / 9,
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: "hidden",
     width: "100%",
   },
-  sectionGap: { gap: 18 },
-  subtitle: { fontSize: 14, fontWeight: "600" },
-  title: { fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },
+  screen: { flex: 1 },
+  sheetBackdrop: {
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  sheetHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 12,
+  },
+  sheetTitle: { fontSize: 22, fontWeight: "800" },
+  subtitle: { fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", letterSpacing: -0.4 },
+  unavailableOverlay: {
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    inset: 0,
+    justifyContent: "center",
+    position: "absolute",
+  },
+  unavailableText: { color: "#FFFFFF", fontSize: 13, marginTop: 8 },
 });
 
 export default function VideoDetailScreen() {
@@ -25,12 +93,12 @@ export default function VideoDetailScreen() {
     { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     video = useVideoQuery(id ?? ""),
-    data = video.data,
+    comments = useVideoCommentsQuery(id ?? ""),
+    [commentsOpen, setCommentsOpen] = useState(false),
+    { data } = video,
     playbackSource =
       data?.sourceProvider === "mux" &&
       data.muxPlaybackId &&
-      // Signed playback needs short-lived JWTs from the server; only public
-      // policies stream through the direct stream.mux.com HLS URL.
       data.playbackPolicy === "public"
         ? `https://stream.mux.com/${data.muxPlaybackId}.m3u8`
         : (resolveApiUrl(data?.externalPlaybackUrl ?? null) ?? undefined),
@@ -41,7 +109,7 @@ export default function VideoDetailScreen() {
     });
 
   return (
-    <>
+    <View style={StyleSheet.flatten(styles.screen)}>
       <Stack.Screen
         options={{
           headerBackTitle: "Back",
@@ -51,62 +119,283 @@ export default function VideoDetailScreen() {
           title: data?.title ?? "Video",
         }}
       />
-      <View
-        style={[
-          styles.sectionGap,
-          { backgroundColor: theme.background, flex: 1, padding: 20 },
-        ]}
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        style={StyleSheet.flatten({
+          backgroundColor: theme.background,
+        })}
       >
         {video.isLoading || data == null ? (
           <ActivityIndicator color={theme.primary} style={{ marginTop: 40 }} />
-        ) : playbackSource == null ? (
-          <>
-            <NativeImage
-              source={data.thumbnailUrl ?? undefined}
-              style={styles.poster}
-            />
-            <Text style={{ color: theme.mutedText, fontSize: 13 }}>
-              This video has no public playback available yet.
-            </Text>
-          </>
         ) : (
-          <VideoView
-            allowsPictureInPicture
-            contentFit="contain"
-            fullscreenOptions={{ enable: true }}
-            player={player}
-            style={styles.poster}
-          />
-        )}
-
-        {data != null ? (
           <>
-            <Text style={[styles.title, { color: theme.text }]}>
-              {data.title}
-            </Text>
-            {data.creatorUsername ? (
-              <Link href={`/artist/${data.creatorUsername}` as never} asChild>
-                <Text style={[styles.subtitle, { color: theme.primary }]}>
-                  {data.creatorName ?? "SoundKit creator"}
-                </Text>
-              </Link>
+            {playbackSource ? (
+              <VideoView
+                allowsPictureInPicture
+                contentFit="contain"
+                fullscreenOptions={{ enable: true }}
+                player={player}
+                style={styles.poster}
+              />
             ) : (
-              <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-                {data.creatorName ?? "SoundKit creator"}
-              </Text>
+              <View style={styles.poster}>
+                <NativeImage
+                  contentFit="cover"
+                  source={data.thumbnailUrl ?? undefined}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.unavailableOverlay}>
+                  <Ionicons
+                    color="#FFFFFF"
+                    name="play-circle-outline"
+                    size={48}
+                  />
+                  <Text style={styles.unavailableText}>
+                    This video has no public playback yet.
+                  </Text>
+                </View>
+              </View>
             )}
-            <Text style={[styles.meta, { color: theme.mutedText }]}>
-              {data.viewCount ?? "0"} views •{" "}
-              {data.videoKind.replace(/_/g, " ")}
-            </Text>
-            {data.description ? (
-              <Text style={{ color: theme.text, fontSize: 14, lineHeight: 20 }}>
-                {data.description}
+            <View style={styles.metadata}>
+              <Text
+                style={StyleSheet.flatten([
+                  styles.title,
+                  { color: theme.text },
+                ])}
+              >
+                {data.title}
               </Text>
+              <View style={styles.authorRow}>
+                <View style={styles.authorAvatar}>
+                  <NativeImage
+                    contentFit="cover"
+                    source={data.creatorAvatarUrl ?? undefined}
+                  />
+                </View>
+                {data.creatorUsername ? (
+                  <Link
+                    href={`/artist/${data.creatorUsername}` as never}
+                    asChild
+                  >
+                    <Text
+                      style={StyleSheet.flatten([
+                        styles.subtitle,
+                        { color: theme.primary },
+                      ])}
+                    >
+                      {data.creatorName ?? "SoundKit creator"}
+                    </Text>
+                  </Link>
+                ) : (
+                  <Text
+                    style={StyleSheet.flatten([
+                      styles.subtitle,
+                      { color: theme.text },
+                    ])}
+                  >
+                    {data.creatorName ?? "SoundKit creator"}
+                  </Text>
+                )}
+              </View>
+              <Text
+                style={StyleSheet.flatten([
+                  styles.meta,
+                  { color: theme.mutedText },
+                ])}
+              >
+                {(data.viewCount ?? 0).toLocaleString()} views ·{" "}
+                {data.videoKind.replaceAll("_", " ")}
+              </Text>
+            </View>
+            <View style={styles.actionRow}>
+              <Pressable
+                accessibilityLabel="Like video"
+                accessibilityRole="button"
+                style={styles.action}
+              >
+                <Ionicons color={theme.text} name="heart-outline" size={24} />
+                <Text
+                  style={StyleSheet.flatten([
+                    styles.actionLabel,
+                    { color: theme.mutedText },
+                  ])}
+                >
+                  Like
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Share video"
+                accessibilityRole="button"
+                onPress={() => {
+                  void Share.share({ message: data.title });
+                }}
+                style={styles.action}
+              >
+                <Ionicons color={theme.text} name="share-outline" size={24} />
+                <Text
+                  style={StyleSheet.flatten([
+                    styles.actionLabel,
+                    { color: theme.mutedText },
+                  ])}
+                >
+                  Share
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Open comments"
+                accessibilityRole="button"
+                onPress={() => {
+                  setCommentsOpen(true);
+                }}
+                style={styles.action}
+              >
+                <Ionicons
+                  color={theme.text}
+                  name="chatbubble-outline"
+                  size={24}
+                />
+                <Text
+                  style={StyleSheet.flatten([
+                    styles.actionLabel,
+                    { color: theme.mutedText },
+                  ])}
+                >
+                  Comments {comments.data?.length ?? 0}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel="More video actions"
+                accessibilityRole="button"
+                style={styles.action}
+              >
+                <Ionicons
+                  color={theme.text}
+                  name="ellipsis-horizontal"
+                  size={24}
+                />
+                <Text
+                  style={StyleSheet.flatten([
+                    styles.actionLabel,
+                    { color: theme.mutedText },
+                  ])}
+                >
+                  More
+                </Text>
+              </Pressable>
+            </View>
+            {data.description ? (
+              <View>
+                <Text
+                  style={StyleSheet.flatten([
+                    styles.description,
+                    { color: theme.text },
+                  ])}
+                >
+                  {data.description}
+                </Text>
+              </View>
             ) : null}
           </>
-        ) : null}
-      </View>
-    </>
+        )}
+      </ScrollView>
+      <Modal
+        animationType="slide"
+        onRequestClose={() => {
+          setCommentsOpen(false);
+        }}
+        transparent
+        visible={commentsOpen}
+      >
+        <View style={styles.sheetBackdrop}>
+          <View
+            style={StyleSheet.flatten([
+              styles.commentSheet,
+              { backgroundColor: theme.background },
+            ])}
+          >
+            <View
+              style={StyleSheet.flatten([
+                styles.handle,
+                { backgroundColor: theme.muted },
+              ])}
+            />
+            <View style={styles.sheetHeader}>
+              <Text
+                style={StyleSheet.flatten([
+                  styles.sheetTitle,
+                  { color: theme.text },
+                ])}
+              >
+                Comments {comments.data?.length ?? 0}
+              </Text>
+              <Pressable
+                accessibilityLabel="Close comments"
+                accessibilityRole="button"
+                onPress={() => {
+                  setCommentsOpen(false);
+                }}
+              >
+                <Ionicons color={theme.text} name="close" size={28} />
+              </Pressable>
+            </View>
+            <ScrollView
+              contentContainerStyle={styles.commentsList}
+              showsVerticalScrollIndicator={false}
+            >
+              {comments.isLoading ? (
+                <ActivityIndicator color={theme.primary} />
+              ) : comments.data?.length ? (
+                comments.data.map((comment) => (
+                  <View key={comment.id} style={styles.commentRow}>
+                    <View style={styles.authorAvatar}>
+                      <NativeImage
+                        contentFit="cover"
+                        source={comment.authorAvatarUrl ?? undefined}
+                      />
+                    </View>
+                    <View style={styles.commentBody}>
+                      <Text
+                        style={StyleSheet.flatten([
+                          styles.subtitle,
+                          { color: theme.text },
+                        ])}
+                      >
+                        {comment.authorName}
+                      </Text>
+                      <Text
+                        style={StyleSheet.flatten([
+                          styles.commentText,
+                          { color: theme.text },
+                        ])}
+                      >
+                        {comment.body}
+                      </Text>
+                      <Text
+                        style={StyleSheet.flatten([
+                          styles.commentTime,
+                          { color: theme.mutedText },
+                        ])}
+                      >
+                        {new Date(comment.createdAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <Text
+                  style={StyleSheet.flatten([
+                    styles.emptyComments,
+                    { color: theme.mutedText },
+                  ])}
+                >
+                  No comments yet. Start the conversation.
+                </Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }

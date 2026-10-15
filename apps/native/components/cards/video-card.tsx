@@ -50,13 +50,22 @@ const styles = StyleSheet.create({
     teaser: "Teaser",
   };
 
-export function VideoCard({ video }: { video: VideoSummary }) {
+export function VideoCard({
+  compact = false,
+  video,
+}: {
+  compact?: boolean;
+  video: VideoSummary;
+}) {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     isLive = video.status === "live";
 
   return (
-    <NativeCardShell href={`/videos/${video.id}`} width={VIDEO_CARD_WIDTH}>
+    <NativeCardShell
+      href={`/videos/${video.id}`}
+      width={compact ? 188 : VIDEO_CARD_WIDTH}
+    >
       <View style={styles.thumbRatio}>
         <NativeImage
           source={video.thumbnailUrl ?? undefined}
