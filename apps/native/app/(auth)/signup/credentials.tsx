@@ -2,7 +2,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import {
   AuthDivider,
@@ -15,7 +22,7 @@ import {
   getAuthErrorMessage,
   useTurnstileToken,
 } from "@/components/auth/auth-shell";
-import { API_V1_URL } from "@/lib/api";
+import { API_V1_URL, WEB_PUBLIC_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 
@@ -46,6 +53,7 @@ export default function SignupCredentialsScreen() {
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [confirmPassword, setConfirmPassword] = useState(""),
+    [acceptedTerms, setAcceptedTerms] = useState(false),
     [marketingOptIn, setMarketingOptIn] = useState(false),
     [error, setError] = useState<null | string>(null),
     [busy, setBusy] = useState(false);
@@ -81,6 +89,12 @@ export default function SignupCredentialsScreen() {
     }
     if (password !== confirmPassword) {
       setError("Passwords do not match. Check both password fields.");
+      return;
+    }
+    if (!acceptedTerms) {
+      setError(
+        "Agree to SoundKit's Terms of Service and Privacy Policy to continue."
+      );
       return;
     }
     const tokenError = turnstile.ensureToken();
@@ -122,9 +136,6 @@ export default function SignupCredentialsScreen() {
     >
       <Stack.Screen options={{ headerShown: false }} />
       <AuthShell
-        backLabel="Back"
-        cardSubtitle="Start with Google or create an account with email. Setup takes a few minutes."
-        cardTitle={`Create ${accountType === "artist" ? "Artist" : "Fan"} account`}
         subtitle="Create your free account. Your artist or fan profile comes next."
         title="Join SoundKit"
       >
@@ -196,9 +207,47 @@ export default function SignupCredentialsScreen() {
           value={confirmPassword}
         />
         <Pressable
+          accessibilityHint="Accepts Terms of Service and Privacy Policy"
+          accessibilityLabel="Agree to Terms of Service and Privacy Policy"
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: acceptedTerms }}
+          onPress={() => {
+            setAcceptedTerms((prev) => !prev);
+          }}
+          style={styles.optInRow}
+        >
+          <Ionicons
+            color={acceptedTerms ? "#B8A3FF" : "#71717A"}
+            name={acceptedTerms ? "checkbox" : "square-outline"}
+            size={18}
+          />
+          <Text style={styles.optInText}>
+            I agree to SoundKit&apos;s{" "}
+            <Text
+              onPress={() => {
+                void Linking.openURL(`${WEB_PUBLIC_URL}/terms`);
+              }}
+              style={styles.inlineLink}
+            >
+              Terms of Service
+            </Text>{" "}
+            and{" "}
+            <Text
+              onPress={() => {
+                void Linking.openURL(`${WEB_PUBLIC_URL}/privacy`);
+              }}
+              style={styles.inlineLink}
+            >
+              Privacy Policy
+            </Text>
+            .
+          </Text>
+        </Pressable>
+        <Pressable
           accessibilityHint="Toggles marketing email updates"
           accessibilityLabel="Marketing updates"
           accessibilityRole="checkbox"
+          accessibilityState={{ checked: marketingOptIn }}
           onPress={() => {
             setMarketingOptIn((prev) => !prev);
           }}
@@ -238,6 +287,10 @@ export default function SignupCredentialsScreen() {
 }
 
 const styles = StyleSheet.create({
+  inlineLink: {
+    color: "#B8A3FF",
+    fontWeight: "600",
+  },
   loginAction: {
     color: "#B8A3FF",
     fontSize: 13,

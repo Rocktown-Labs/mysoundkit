@@ -2,7 +2,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Link, Stack, useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import {
   AuthDivider,
@@ -15,7 +22,7 @@ import {
   getAuthErrorMessage,
   useTurnstileToken,
 } from "@/components/auth/auth-shell";
-import { API_V1_URL } from "@/lib/api";
+import { API_V1_URL, WEB_PUBLIC_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 
@@ -56,6 +63,7 @@ export default function SignupScreen() {
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [confirmPassword, setConfirmPassword] = useState(""),
+    [acceptedTerms, setAcceptedTerms] = useState(false),
     [marketingOptIn, setMarketingOptIn] = useState(false),
     [step, setStep] = useState<"credentials" | "path">("credentials"),
     [selectingType, setSelectingType] = useState<"artist" | "fan" | null>(null),
@@ -102,6 +110,12 @@ export default function SignupScreen() {
       setError("Passwords do not match. Check both password fields.");
       return;
     }
+    if (!acceptedTerms) {
+      setError(
+        "Agree to SoundKit's Terms of Service and Privacy Policy to continue."
+      );
+      return;
+    }
     const tokenError = turnstile.ensureToken();
     if (tokenError) {
       setError(tokenError);
@@ -141,9 +155,6 @@ export default function SignupScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       {showPathChooser ? (
         <AuthShell
-          backLabel="Back to home"
-          cardSubtitle="Select your role below. Both options sit side-by-side so you can compare and continue."
-          cardTitle="Select your role"
           subtitle="Choose how you want to use the platform."
           title="Choose Your Path"
         >
@@ -203,9 +214,6 @@ export default function SignupScreen() {
         </AuthShell>
       ) : (
         <AuthShell
-          backLabel="Back to home"
-          cardSubtitle="Start with Google or create an account with email. Setup takes a few minutes."
-          cardTitle="Create SoundKit account"
           subtitle="Create your free account first, then choose how you want to use SoundKit."
           title="Join SoundKit"
         >
@@ -245,9 +253,47 @@ export default function SignupScreen() {
             value={confirmPassword}
           />
           <Pressable
+            accessibilityHint="Accepts Terms of Service and Privacy Policy"
+            accessibilityLabel="Agree to Terms of Service and Privacy Policy"
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: acceptedTerms }}
+            onPress={() => {
+              setAcceptedTerms((prev) => !prev);
+            }}
+            style={styles.optInRow}
+          >
+            <Ionicons
+              color={acceptedTerms ? "#B8A3FF" : "#71717A"}
+              name={acceptedTerms ? "checkbox" : "square-outline"}
+              size={18}
+            />
+            <Text style={styles.optInText}>
+              I agree to SoundKit&apos;s{" "}
+              <Text
+                onPress={() => {
+                  void Linking.openURL(`${WEB_PUBLIC_URL}/terms`);
+                }}
+                style={styles.inlineLink}
+              >
+                Terms of Service
+              </Text>{" "}
+              and{" "}
+              <Text
+                onPress={() => {
+                  void Linking.openURL(`${WEB_PUBLIC_URL}/privacy`);
+                }}
+                style={styles.inlineLink}
+              >
+                Privacy Policy
+              </Text>
+              .
+            </Text>
+          </Pressable>
+          <Pressable
             accessibilityHint="Toggles marketing email updates"
             accessibilityLabel="Marketing updates"
             accessibilityRole="checkbox"
+            accessibilityState={{ checked: marketingOptIn }}
             onPress={() => {
               setMarketingOptIn((prev) => !prev);
             }}
@@ -342,6 +388,10 @@ const styles = StyleSheet.create({
   cardsRow: {
     flexDirection: "row",
     gap: 10,
+  },
+  inlineLink: {
+    color: "#B8A3FF",
+    fontWeight: "600",
   },
   loginAction: {
     color: "#B8A3FF",

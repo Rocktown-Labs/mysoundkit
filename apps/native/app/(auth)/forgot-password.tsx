@@ -68,15 +68,7 @@ export default function ForgotPasswordScreen() {
       keyboardShouldPersistTaps="handled"
       style={{ backgroundColor: "#020202", flex: 1 }}
     >
-      <Stack.Screen
-        options={{
-          headerBackTitle: "Log In",
-          headerShown: true,
-          headerStyle: { backgroundColor: "#020202" },
-          headerTintColor: "#F8F8F8",
-          title: "Forgot Password",
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
       <AuthShell
         subtitle="Enter the email tied to your SoundKit account and we'll send a reset link."
         title="Reset your password"

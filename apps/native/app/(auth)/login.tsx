@@ -157,9 +157,6 @@ export default function LoginScreen() {
     >
       <Stack.Screen options={{ headerShown: false }} />
       <AuthShell
-        backLabel="Back to home"
-        cardSubtitle="Use Google, Face ID / biometrics, or your SoundKit email and password to continue."
-        cardTitle="Sign in"
         subtitle="Sign in to your SoundKit account."
         title="Welcome back"
       >

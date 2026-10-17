@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 import { TurnstileBridge } from "@/components/turnstile-bridge";
@@ -38,22 +39,17 @@ export const getAuthErrorMessage = (error: unknown): string => {
   return "Something went wrong. Please try again.";
 };
 
-/** Shared shell for the auth routes: back link, centered SoundKit logo, heading, and web-parity dark card body. */
+/** Shared shell for the auth routes: native back button to the left of the centered SoundKit logo, heading, and dark card body. */
 export function AuthShell({
   backLabel = "Back",
-  cardSubtitle,
-  cardTitle,
   children,
   onBackPress,
   showBackButton = true,
-  // Kept for backwards compatibility with existing callers
   showGuestContinue: _showGuestContinue,
   subtitle,
   title,
 }: {
   backLabel?: string;
-  cardSubtitle?: string;
-  cardTitle?: string;
   children: ReactNode;
   onBackPress?: () => void;
   showBackButton?: boolean;
@@ -61,7 +57,8 @@ export function AuthShell({
   subtitle?: string;
   title: string;
 }) {
-  const router = useRouter();
+  const router = useRouter(),
+    insets = useSafeAreaInsets();
 
   const handleBack = () => {
     if (onBackPress) {
@@ -76,47 +73,46 @@ export function AuthShell({
   };
 
   return (
-    <View style={styles.shell}>
+    <View
+      style={[
+        styles.shell,
+        {
+          paddingBottom: Math.max(insets.bottom + 20, 32),
+          paddingTop: Math.max(insets.top + 12, 32),
+        },
+      ]}
+    >
       <View style={styles.container}>
         <View style={styles.headerBlock}>
-          {showBackButton ? (
-            <Pressable
-              accessibilityLabel={backLabel}
-              accessibilityRole="button"
-              hitSlop={10}
-              onPress={handleBack}
-              style={({ pressed }) => [
-                styles.backButton,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Ionicons color="#A1A1AA" name="arrow-back" size={16} />
-              <Text style={styles.backButtonText}>{backLabel}</Text>
-            </Pressable>
-          ) : null}
+          <View style={styles.logoRow}>
+            {showBackButton ? (
+              <Pressable
+                accessibilityLabel={backLabel}
+                accessibilityRole="button"
+                hitSlop={10}
+                onPress={handleBack}
+                style={({ pressed }) => [
+                  styles.nativeBackButton,
+                  pressed && styles.nativeBackButtonPressed,
+                ]}
+              >
+                <Ionicons color="#FAFAFA" name="chevron-back" size={22} />
+              </Pressable>
+            ) : null}
 
-          <Image
-            accessibilityLabel="SoundKit"
-            resizeMode="contain"
-            source={logoImage}
-            style={styles.logoImage}
-          />
+            <Image
+              accessibilityLabel="SoundKit"
+              resizeMode="contain"
+              source={logoImage}
+              style={styles.logoImage}
+            />
+          </View>
 
           <Text style={styles.title}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
 
         <View style={styles.formCard}>
-          {cardTitle || cardSubtitle ? (
-            <View style={styles.cardHeader}>
-              {cardTitle ? (
-                <Text style={styles.cardTitleText}>{cardTitle}</Text>
-              ) : null}
-              {cardSubtitle ? (
-                <Text style={styles.cardSubtitleText}>{cardSubtitle}</Text>
-              ) : null}
-            </View>
-          ) : null}
           <View style={styles.body}>{children}</View>
         </View>
       </View>
@@ -398,36 +394,8 @@ export function useTurnstileToken(action: TurnstileAction) {
 }
 
 const styles = StyleSheet.create({
-  backButton: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 6,
-    marginBottom: 18,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  backButtonText: {
-    color: "#A1A1AA",
-    fontSize: 13,
-    fontWeight: "600",
-  },
   body: {
     gap: 14,
-  },
-  cardHeader: {
-    gap: 4,
-    marginBottom: 16,
-  },
-  cardSubtitleText: {
-    color: "#A1A1AA",
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  cardTitleText: {
-    color: "#FAFAFA",
-    fontSize: 18,
-    fontWeight: "700",
-    letterSpacing: -0.3,
   },
   container: {
     alignSelf: "center",
@@ -484,7 +452,8 @@ const styles = StyleSheet.create({
   },
   headerBlock: {
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 22,
+    width: "100%",
   },
   input: {
     backgroundColor: "#050507",
@@ -507,8 +476,31 @@ const styles = StyleSheet.create({
   },
   logoImage: {
     height: 52,
-    marginBottom: 16,
     width: 150,
+  },
+  logoRow: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+    minHeight: 52,
+    position: "relative",
+    width: "100%",
+  },
+  nativeBackButton: {
+    alignItems: "center",
+    backgroundColor: "#141417",
+    borderColor: "#27272A",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: "center",
+    left: 0,
+    position: "absolute",
+    width: 40,
+  },
+  nativeBackButtonPressed: {
+    backgroundColor: "#27272A",
+    transform: [{ scale: 0.96 }],
   },
   outlineButton: {
     alignItems: "center",
@@ -554,7 +546,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     paddingHorizontal: 20,
-    paddingVertical: 36,
   },
   subtitle: {
     color: "#A1A1AA",
