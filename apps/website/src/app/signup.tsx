@@ -97,7 +97,7 @@ function SignupPage() {
       <AuthShell
         backHref="/"
         backLabel="Back to home"
-        subtitle="Create your free account first, then choose how you want to use SoundKit."
+        subtitle="Get started for free"
         title="Join SoundKit"
       >
         <CredentialsForm

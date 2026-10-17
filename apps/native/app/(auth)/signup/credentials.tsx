@@ -135,10 +135,7 @@ export default function SignupCredentialsScreen() {
       style={styles.page}
     >
       <Stack.Screen options={{ headerShown: false }} />
-      <AuthShell
-        subtitle="Create your free account. Your artist or fan profile comes next."
-        title="Join SoundKit"
-      >
+      <AuthShell subtitle="Get started for free" title="Join SoundKit">
         <View style={styles.roleCardsRow}>
           {ROLE_CARDS.map((role) => {
             const active = accountType === role.type;

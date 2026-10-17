@@ -213,10 +213,7 @@ export default function SignupScreen() {
           </View>
         </AuthShell>
       ) : (
-        <AuthShell
-          subtitle="Create your free account first, then choose how you want to use SoundKit."
-          title="Join SoundKit"
-        >
+        <AuthShell subtitle="Get started for free" title="Join SoundKit">
           <AuthGoogleButton
             callbackURL="/signup"
             disabled={busy}
