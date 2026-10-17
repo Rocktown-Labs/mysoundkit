@@ -27,6 +27,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
 
+import { LiquidGlassView } from "@/components/liquid-glass";
 import { NativeImage } from "@/components/native-image";
 import { useAudioPlayerContext } from "@/contexts/audio-player-context";
 import type { PlayerTrack, RepeatMode } from "@/contexts/audio-player-context";
@@ -741,148 +742,168 @@ function NowPlayingQueueSheet({
           exiting={SlideOutDown.springify().dampingRatio(0.86).duration(280)}
           style={[styles.queueSheet, dragStyle]}
         >
-          {/* Drag handle */}
-          <View style={styles.sheetHandleHit}>
-            <View style={styles.sheetHandleBar} />
-          </View>
+          <LiquidGlassView
+            borderRadius={28}
+            intensity={85}
+            style={{
+              borderBottomLeftRadius: 0,
+              borderBottomRightRadius: 0,
+              paddingBottom: 28,
+            }}
+            variant="sheet"
+          >
+            {/* Drag handle */}
+            <View style={styles.sheetHandleHit}>
+              <View style={styles.sheetHandleBar} />
+            </View>
 
-          <View style={styles.queueHeader}>
-            <Text style={styles.queueHeaderText}>Up Next ({queue.length})</Text>
-            <View style={{ flexDirection: "row", gap: 14 }}>
-              {queue.length > 0 ? (
+            <View style={styles.queueHeader}>
+              <Text style={styles.queueHeaderText}>
+                Up Next ({queue.length})
+              </Text>
+              <View style={{ flexDirection: "row", gap: 14 }}>
+                {queue.length > 0 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    hitSlop={6}
+                    onPress={clearQueue}
+                  >
+                    <Text style={styles.queueClearText}>Clear</Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   accessibilityRole="button"
                   hitSlop={6}
-                  onPress={clearQueue}
+                  onPress={onClose}
                 >
-                  <Text style={styles.queueClearText}>Clear</Text>
+                  <Ionicons color="#F8F8F8" name="close" size={20} />
                 </Pressable>
-              ) : null}
-              <Pressable
-                accessibilityRole="button"
-                hitSlop={6}
-                onPress={onClose}
-              >
-                <Ionicons color="#F8F8F8" name="close" size={20} />
-              </Pressable>
-            </View>
-          </View>
-
-          <ScrollView
-            style={{ maxHeight: 320 }}
-            showsVerticalScrollIndicator={true}
-          >
-            {queue.length === 0 ? (
-              <View style={{ alignItems: "center", paddingVertical: 32 }}>
-                <Text style={{ color: "#8F8F8F", fontSize: 13 }}>
-                  No tracks in queue. Play songs to build your mix.
-                </Text>
               </View>
-            ) : (
-              queue.map((track, index) => (
-                <View key={track.id} style={styles.queueItemRow}>
-                  <Pressable
-                    accessibilityHint="Plays this track"
-                    accessibilityLabel={track.title}
-                    accessibilityRole="button"
-                    onPress={() => {
-                      playTrack(track);
-                      onClose();
-                    }}
-                    style={({ pressed }) => [
-                      styles.queueItem,
-                      {
-                        backgroundColor: pressed
-                          ? "rgba(255, 255, 255, 0.06)"
-                          : "transparent",
-                      },
-                    ]}
-                  >
-                    <View style={styles.queueItemArt}>
-                      {track.cover ? (
-                        <NativeImage
-                          source={track.cover}
-                          style={{ height: "100%", width: "100%" }}
-                        />
-                      ) : (
-                        <View style={styles.queueItemArtFallback}>
-                          <Ionicons
-                            color="#8F8F8F"
-                            name="musical-notes"
-                            size={14}
-                          />
-                        </View>
-                      )}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text numberOfLines={1} style={styles.queueItemTitle}>
-                        {track.title}
-                      </Text>
-                      <Text numberOfLines={1} style={styles.queueItemSubtitle}>
-                        {track.artist}
-                      </Text>
-                    </View>
-                  </Pressable>
-                  <View style={styles.queueItemControls}>
-                    <Pressable
-                      accessibilityHint="Moves track up in the queue"
-                      accessibilityLabel="Move up"
-                      accessibilityRole="button"
-                      disabled={index === 0}
-                      hitSlop={6}
-                      onPress={() => {
-                        moveQueueItem(track.id, -1);
-                      }}
-                      style={({ pressed }) => [
-                        styles.queueControl,
-                        index === 0 && styles.queueControlDisabled,
-                        pressed && { opacity: 0.6 },
-                      ]}
-                    >
-                      <Ionicons color="#F8F8F8" name="chevron-up" size={16} />
-                    </Pressable>
-                    <Pressable
-                      accessibilityHint="Moves track down in the queue"
-                      accessibilityLabel="Move down"
-                      accessibilityRole="button"
-                      disabled={index === queue.length - 1}
-                      hitSlop={6}
-                      onPress={() => {
-                        moveQueueItem(track.id, 1);
-                      }}
-                      style={({ pressed }) => [
-                        styles.queueControl,
-                        index === queue.length - 1 &&
-                          styles.queueControlDisabled,
-                        pressed && { opacity: 0.6 },
-                      ]}
-                    >
-                      <Ionicons color="#F8F8F8" name="chevron-down" size={16} />
-                    </Pressable>
-                    <Pressable
-                      accessibilityHint="Removes track from the queue"
-                      accessibilityLabel="Remove"
-                      accessibilityRole="button"
-                      hitSlop={6}
-                      onPress={() => {
-                        removeFromQueue(track.id);
-                      }}
-                      style={({ pressed }) => [
-                        styles.queueControl,
-                        pressed && { opacity: 0.6 },
-                      ]}
-                    >
-                      <Ionicons
-                        color="rgba(255, 255, 255, 0.45)"
-                        name="close-circle-outline"
-                        size={18}
-                      />
-                    </Pressable>
-                  </View>
+            </View>
+
+            <ScrollView
+              style={{ maxHeight: 320 }}
+              showsVerticalScrollIndicator={true}
+            >
+              {queue.length === 0 ? (
+                <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                  <Text style={{ color: "#8F8F8F", fontSize: 13 }}>
+                    No tracks in queue. Play songs to build your mix.
+                  </Text>
                 </View>
-              ))
-            )}
-          </ScrollView>
+              ) : (
+                queue.map((track, index) => (
+                  <View key={track.id} style={styles.queueItemRow}>
+                    <Pressable
+                      accessibilityHint="Plays this track"
+                      accessibilityLabel={track.title}
+                      accessibilityRole="button"
+                      onPress={() => {
+                        playTrack(track);
+                        onClose();
+                      }}
+                      style={({ pressed }) => [
+                        styles.queueItem,
+                        {
+                          backgroundColor: pressed
+                            ? "rgba(255, 255, 255, 0.06)"
+                            : "transparent",
+                        },
+                      ]}
+                    >
+                      <View style={styles.queueItemArt}>
+                        {track.cover ? (
+                          <NativeImage
+                            source={track.cover}
+                            style={{ height: "100%", width: "100%" }}
+                          />
+                        ) : (
+                          <View style={styles.queueItemArtFallback}>
+                            <Ionicons
+                              color="#8F8F8F"
+                              name="musical-notes"
+                              size={14}
+                            />
+                          </View>
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text numberOfLines={1} style={styles.queueItemTitle}>
+                          {track.title}
+                        </Text>
+                        <Text
+                          numberOfLines={1}
+                          style={styles.queueItemSubtitle}
+                        >
+                          {track.artist}
+                        </Text>
+                      </View>
+                    </Pressable>
+                    <View style={styles.queueItemControls}>
+                      <Pressable
+                        accessibilityHint="Moves track up in the queue"
+                        accessibilityLabel="Move up"
+                        accessibilityRole="button"
+                        disabled={index === 0}
+                        hitSlop={6}
+                        onPress={() => {
+                          moveQueueItem(track.id, -1);
+                        }}
+                        style={({ pressed }) => [
+                          styles.queueControl,
+                          index === 0 && styles.queueControlDisabled,
+                          pressed && { opacity: 0.6 },
+                        ]}
+                      >
+                        <Ionicons color="#F8F8F8" name="chevron-up" size={16} />
+                      </Pressable>
+                      <Pressable
+                        accessibilityHint="Moves track down in the queue"
+                        accessibilityLabel="Move down"
+                        accessibilityRole="button"
+                        disabled={index === queue.length - 1}
+                        hitSlop={6}
+                        onPress={() => {
+                          moveQueueItem(track.id, 1);
+                        }}
+                        style={({ pressed }) => [
+                          styles.queueControl,
+                          index === queue.length - 1 &&
+                            styles.queueControlDisabled,
+                          pressed && { opacity: 0.6 },
+                        ]}
+                      >
+                        <Ionicons
+                          color="#F8F8F8"
+                          name="chevron-down"
+                          size={16}
+                        />
+                      </Pressable>
+                      <Pressable
+                        accessibilityHint="Removes track from the queue"
+                        accessibilityLabel="Remove"
+                        accessibilityRole="button"
+                        hitSlop={6}
+                        onPress={() => {
+                          removeFromQueue(track.id);
+                        }}
+                        style={({ pressed }) => [
+                          styles.queueControl,
+                          pressed && { opacity: 0.6 },
+                        ]}
+                      >
+                        <Ionicons
+                          color="rgba(255, 255, 255, 0.45)"
+                          name="close-circle-outline"
+                          size={18}
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </LiquidGlassView>
         </Animated.View>
       </GestureDetector>
     </View>
@@ -1031,14 +1052,39 @@ export function NowPlayingModal() {
       >
         <GestureDetector gesture={panGesture}>
           <Animated.View style={[styles.sheetContainer, animatedSheetStyle]}>
-            {/* Ambient background blur */}
+            {/* Ambient album artwork behind Liquid Glass blur */}
+            {currentTrack.cover ? (
+              <NativeImage
+                contentFit="cover"
+                source={currentTrack.cover}
+                style={[
+                  StyleSheet.absoluteFill,
+                  { opacity: 0.38, transform: [{ scale: 1.35 }] },
+                ]}
+              />
+            ) : null}
             <BlurView
-              intensity={90}
+              intensity={95}
+              style={StyleSheet.absoluteFill}
+              tint="systemChromeMaterialDark"
+            />
+            <View
+              pointerEvents="none"
               style={[
                 StyleSheet.absoluteFill,
-                { backgroundColor: "rgba(16, 16, 20, 0.94)" },
+                { backgroundColor: "rgba(12, 10, 20, 0.56)" },
               ]}
-              tint="dark"
+            />
+            <View
+              pointerEvents="none"
+              style={{
+                backgroundColor: "rgba(255, 255, 255, 0.24)",
+                height: StyleSheet.hairlineWidth,
+                left: 20,
+                position: "absolute",
+                right: 20,
+                top: 0,
+              }}
             />
 
             {/* Top drag handle */}

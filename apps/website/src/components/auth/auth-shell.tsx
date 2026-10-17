@@ -20,7 +20,7 @@ export function AuthShell({
   return (
     <main className="min-h-screen bg-background px-4 py-10 sm:py-16">
       <div className="mx-auto w-full max-w-md">
-        <div className="mb-8 text-center">
+        <div className="mb-8 flex flex-col items-center text-center">
           <Button
             asChild
             className="mb-6 text-muted-foreground"
@@ -31,7 +31,11 @@ export function AuthShell({
               {backLabel}
             </a>
           </Button>
-          <SoundKitBrand variant="wordmark" wordmarkClassName="h-11" />
+          <SoundKitBrand
+            className="mx-auto justify-center"
+            variant="wordmark"
+            wordmarkClassName="mx-auto h-11"
+          />
           <h1 className="mt-6 font-[family-name:var(--font-playfair)] text-3xl font-bold">
             {title}
           </h1>

@@ -1,23 +1,13 @@
 /* oxlint-disable one-var, sort-vars */
 import { Link } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { createAnimatedComponent } from "react-native-reanimated";
 
 import { genreActivityLabel, genreEmoji } from "@/lib/genre-meta";
 
-const AnimatedPressable = createAnimatedComponent(Pressable);
-
-// Reanimated CSS-transition props are not part of stock RN's ViewStyle, so
-// they live outside StyleSheet.create (which type-checks against ViewStyle).
-const PRESS_TRANSITION = {
-  transitionDuration: 120,
-  transitionProperty: "transform, background-color",
-} as const;
-
 /**
- * Apple-glass genre tile for the 3-column browse grids: a translucent
+ * Apple-glass genre tile for the 2-column browse grids: a translucent
  * material with a light-catching top edge, emoji-forward, with quick
- * press-in feedback (0.97 scale, 120ms UI-thread CSS transition).
+ * press-in feedback matching the mobile web genre grid.
  */
 export function GenreGlassCard({
   count,
@@ -30,24 +20,19 @@ export function GenreGlassCard({
 }) {
   return (
     <Link asChild href={`/genres/${encodeURIComponent(slug)}`}>
-      <AnimatedPressable
+      <Pressable
         accessibilityHint={`Browse ${title}`}
         accessibilityLabel={`${title}, ${genreActivityLabel(count)}`}
         accessibilityRole="button"
-        style={({ pressed }: { pressed: boolean }) => [
-          styles.card,
-          PRESS_TRANSITION,
-          pressed && styles.cardPressed,
-        ]}
+        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       >
-        {/* Light-catching top edge of the glass material */}
         <View style={styles.topEdge} />
         <Text style={styles.emoji}>{genreEmoji(slug)}</Text>
         <Text numberOfLines={1} style={styles.name}>
           {title}
         </Text>
         <Text style={styles.count}>{genreActivityLabel(count)}</Text>
-      </AnimatedPressable>
+      </Pressable>
     </Link>
   );
 }
@@ -60,8 +45,9 @@ export function GenreGlassGrid({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   card: {
     alignItems: "center",
-    backgroundColor: "#080808",
-    borderColor: "#212121",
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    borderCurve: "continuous",
     borderRadius: 18,
     borderWidth: 1,
     elevation: 3,
@@ -69,19 +55,21 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: 4,
     justifyContent: "center",
-    minHeight: 170,
+    maxWidth: "48.5%",
+    minHeight: 156,
     overflow: "hidden",
     paddingHorizontal: 12,
-    paddingVertical: 24,
+    paddingVertical: 22,
     position: "relative",
     shadowColor: "#000000",
     shadowOffset: { height: 6, width: 0 },
     shadowOpacity: 0.35,
     shadowRadius: 10,
+    width: "48%",
   },
   cardPressed: {
-    backgroundColor: "#161616",
-    borderColor: "#2f2f2f",
+    backgroundColor: "rgba(255, 255, 255, 0.09)",
+    borderColor: "rgba(184, 163, 255, 0.35)",
     transform: [{ scale: 0.98 }],
   },
   count: {
@@ -99,6 +87,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
+    justifyContent: "space-between",
   },
   name: {
     color: "#F8F8F8",
@@ -107,7 +96,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   topEdge: {
-    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    backgroundColor: "rgba(255, 255, 255, 0.16)",
     borderRadius: 999,
     height: 1,
     left: 16,

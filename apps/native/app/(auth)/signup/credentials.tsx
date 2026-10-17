@@ -1,11 +1,20 @@
-/* oxlint-disable one-var, sort-vars, complexity */
+/* oxlint-disable one-var, sort-vars, sort-keys, complexity */
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import {
+  AuthDivider,
   AuthErrorBanner,
+  AuthGoogleButton,
   AuthPasswordField,
   AuthPrimaryButton,
   AuthShell,
@@ -13,22 +22,39 @@ import {
   getAuthErrorMessage,
   useTurnstileToken,
 } from "@/components/auth/auth-shell";
-import { API_V1_URL } from "@/lib/api";
+import { API_V1_URL, WEB_PUBLIC_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u,
-  MARKETING_OPT_IN_VERSION = "2026-01";
+  MARKETING_OPT_IN_VERSION = "2026-01",
+  ROLE_CARDS = [
+    {
+      description: "Release music & earn",
+      icon: "mic-outline" as const,
+      label: "I'm an Artist",
+      type: "artist" as const,
+    },
+    {
+      description: "Discover & support",
+      icon: "people-outline" as const,
+      label: "I'm a Fan",
+      type: "fan" as const,
+    },
+  ];
 
 export default function SignupCredentialsScreen() {
   const router = useRouter(),
     { type } = useLocalSearchParams<{ type?: string }>(),
-    accountType = type === "fan" ? "fan" : "artist",
+    [accountType, setAccountType] = useState<"artist" | "fan">(
+      type === "fan" ? "fan" : "artist"
+    ),
     turnstile = useTurnstileToken("signup"),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [confirmPassword, setConfirmPassword] = useState(""),
-    [marketingOptIn, setMarketingOptIn] = useState(true),
+    [acceptedTerms, setAcceptedTerms] = useState(false),
+    [marketingOptIn, setMarketingOptIn] = useState(false),
     [error, setError] = useState<null | string>(null),
     [busy, setBusy] = useState(false);
 
@@ -62,7 +88,13 @@ export default function SignupCredentialsScreen() {
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError("Passwords do not match. Check both password fields.");
+      return;
+    }
+    if (!acceptedTerms) {
+      setError(
+        "Agree to SoundKit's Terms of Service and Privacy Policy to continue."
+      );
       return;
     }
     const tokenError = turnstile.ensureToken();
@@ -75,8 +107,6 @@ export default function SignupCredentialsScreen() {
       const result = await authClient.signUp.email(
         {
           email: trimmedEmail,
-          // The real name is collected during onboarding (username step);
-          // better-auth requires a non-empty placeholder like the web form.
           name: accountType === "artist" ? "Artist" : "Fan",
           password,
         },
@@ -100,77 +130,156 @@ export default function SignupCredentialsScreen() {
 
   return (
     <ScrollView
-      contentContainerStyle={{ flexGrow: 1 }}
+      contentContainerStyle={styles.scroll}
       keyboardShouldPersistTaps="handled"
-      style={{ backgroundColor: "#020202", flex: 1 }}
+      style={styles.page}
     >
-      <Stack.Screen
-        options={{
-          headerBackTitle: "Back",
-          headerShown: true,
-          headerStyle: { backgroundColor: "#020202" },
-          headerTintColor: "#F8F8F8",
-          title: accountType === "artist" ? "Artist Account" : "Fan Account",
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
       <AuthShell
         subtitle="Create your free account. Your artist or fan profile comes next."
-        title="Sign Up"
+        title="Join SoundKit"
       >
+        <View style={styles.roleCardsRow}>
+          {ROLE_CARDS.map((role) => {
+            const active = accountType === role.type;
+            return (
+              <Pressable
+                accessibilityLabel={role.label}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                key={role.type}
+                onPress={() => {
+                  setAccountType(role.type);
+                }}
+                style={[styles.roleCard, active && styles.roleCardActive]}
+              >
+                <View
+                  style={[
+                    styles.roleIconWrap,
+                    active && styles.roleIconWrapActive,
+                  ]}
+                >
+                  <Ionicons
+                    color={active ? "#B8A3FF" : "#A1A1AA"}
+                    name={role.icon}
+                    size={18}
+                  />
+                </View>
+                <Text style={styles.roleCardTitle}>{role.label}</Text>
+                <Text numberOfLines={1} style={styles.roleCardDescription}>
+                  {role.description}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <AuthGoogleButton
+          callbackURL={`/signup/onboarding?type=${accountType}`}
+          disabled={busy}
+          onError={setError}
+        />
+        <AuthDivider label="or use email" />
         <AuthErrorBanner message={error} />
         <AuthTextInput
           autoComplete="email"
           keyboardType="email-address"
+          label="Email"
           onChangeText={setEmail}
-          placeholder="Email"
+          placeholder="you@example.com"
           value={email}
         />
         <AuthPasswordField
           autoComplete="new-password"
+          label="Password"
           onChangeText={setPassword}
-          placeholder="Password (at least 8 characters)"
+          placeholder="At least 8 characters"
           value={password}
         />
         <AuthPasswordField
           autoComplete="new-password"
+          label="Confirm password"
           onChangeText={setConfirmPassword}
           onSubmitEditing={() => {
             void submit();
           }}
-          placeholder="Confirm password"
+          placeholder="Repeat your password"
           value={confirmPassword}
         />
-        {turnstile.bridge}
+        <Pressable
+          accessibilityHint="Accepts Terms of Service and Privacy Policy"
+          accessibilityLabel="Agree to Terms of Service and Privacy Policy"
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: acceptedTerms }}
+          onPress={() => {
+            setAcceptedTerms((prev) => !prev);
+          }}
+          style={styles.optInRow}
+        >
+          <Ionicons
+            color={acceptedTerms ? "#B8A3FF" : "#71717A"}
+            name={acceptedTerms ? "checkbox" : "square-outline"}
+            size={18}
+          />
+          <Text style={styles.optInText}>
+            I agree to SoundKit&apos;s{" "}
+            <Text
+              onPress={() => {
+                void Linking.openURL(`${WEB_PUBLIC_URL}/terms`);
+              }}
+              style={styles.inlineLink}
+            >
+              Terms of Service
+            </Text>{" "}
+            and{" "}
+            <Text
+              onPress={() => {
+                void Linking.openURL(`${WEB_PUBLIC_URL}/privacy`);
+              }}
+              style={styles.inlineLink}
+            >
+              Privacy Policy
+            </Text>
+            .
+          </Text>
+        </Pressable>
         <Pressable
           accessibilityHint="Toggles marketing email updates"
           accessibilityLabel="Marketing updates"
           accessibilityRole="checkbox"
+          accessibilityState={{ checked: marketingOptIn }}
           onPress={() => {
             setMarketingOptIn((prev) => !prev);
           }}
           style={styles.optInRow}
         >
           <Ionicons
-            color={marketingOptIn ? "#B8A3FF" : "#8F8F8F"}
+            color={marketingOptIn ? "#B8A3FF" : "#71717A"}
             name={marketingOptIn ? "checkbox" : "square-outline"}
-            size={20}
+            size={18}
           />
           <Text style={styles.optInText}>
-            Send me SoundKit updates and drops
+            Send me SoundKit product updates, onboarding tips, and occasional
+            offers.
           </Text>
         </Pressable>
+        {turnstile.bridge}
         <AuthPrimaryButton
           busy={busy}
-          label="Create Account"
+          label={
+            busy
+              ? "Creating your account…"
+              : `Create ${accountType === "artist" ? "Artist" : "Fan"} account`
+          }
           onPress={() => {
             void submit();
           }}
         />
-        <View style={styles.footnote}>
-          <Text style={styles.footnoteText}>
-            By continuing you agree to SoundKit&apos;s terms. You must be 13 or
-            older to create an account.
-          </Text>
+        <View style={styles.loginRow}>
+          <Text style={styles.loginPrompt}>Already have an account?</Text>
+          <Link asChild href="/login">
+            <Text style={styles.loginAction}>Sign in</Text>
+          </Link>
         </View>
       </AuthShell>
     </ScrollView>
@@ -178,21 +287,85 @@ export default function SignupCredentialsScreen() {
 }
 
 const styles = StyleSheet.create({
-  footnote: { marginTop: 12 },
-  footnoteText: {
-    color: "#8F8F8F",
-    fontSize: 11,
-    lineHeight: 16,
-    textAlign: "center",
+  inlineLink: {
+    color: "#B8A3FF",
+    fontWeight: "600",
   },
-  optInRow: {
+  loginAction: {
+    color: "#B8A3FF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  loginPrompt: {
+    color: "#A1A1AA",
+    fontSize: 13,
+  },
+  loginRow: {
     alignItems: "center",
     flexDirection: "row",
+    gap: 6,
+    justifyContent: "center",
+    marginTop: 6,
+  },
+  optInRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
     gap: 10,
+    marginTop: 2,
   },
   optInText: {
-    color: "#8F8F8F",
+    color: "#A1A1AA",
     flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  page: {
+    backgroundColor: "#020202",
+    flex: 1,
+  },
+  roleCard: {
+    alignItems: "center",
+    backgroundColor: "#050507",
+    borderColor: "#27272A",
+    borderRadius: 12,
+    borderWidth: 1,
+    flex: 1,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+  },
+  roleCardActive: {
+    backgroundColor: "rgba(184, 163, 255, 0.08)",
+    borderColor: "#B8A3FF",
+  },
+  roleCardDescription: {
+    color: "#A1A1AA",
+    fontSize: 11,
+    textAlign: "center",
+  },
+  roleCardTitle: {
+    color: "#FAFAFA",
     fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  roleCardsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 4,
+  },
+  roleIconWrap: {
+    alignItems: "center",
+    backgroundColor: "#18181B",
+    borderRadius: 999,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  roleIconWrapActive: {
+    backgroundColor: "rgba(184, 163, 255, 0.18)",
+  },
+  scroll: {
+    flexGrow: 1,
   },
 });

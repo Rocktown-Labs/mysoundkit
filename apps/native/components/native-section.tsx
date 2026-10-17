@@ -6,7 +6,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
-const styles = StyleSheet.create({
+const VIEW_ALL_MIN_HITSLOP = 8,
+  styles = StyleSheet.create({
     chevron: { marginLeft: 4 },
     container: {
       alignItems: "center",
@@ -23,8 +24,7 @@ const styles = StyleSheet.create({
       flexShrink: 1,
       gap: 8,
     },
-  }),
-  VIEW_ALL_MIN_HITSLOP = 8;
+  });
 
 /** Section header with title, optional description, and a View All affordance. */
 export function NativeSection({
@@ -33,6 +33,7 @@ export function NativeSection({
   hideWhenEmpty,
   isEmpty,
   isLoading,
+  onViewAllPress,
   title,
   viewAllHref,
 }: {
@@ -41,13 +42,15 @@ export function NativeSection({
   hideWhenEmpty?: boolean;
   isEmpty?: boolean;
   isLoading?: boolean;
+  onViewAllPress?: () => void;
   title: string;
   viewAllHref?: string;
 }) {
   const { colorScheme } = useColorScheme(),
+    hasViewAll = Boolean(viewAllHref ?? onViewAllPress),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
-  if (hideWhenEmpty && isEmpty !== true && isLoading !== true) {
+  if (hideWhenEmpty && isEmpty === true && isLoading !== true) {
     return null;
   }
 
@@ -55,20 +58,21 @@ export function NativeSection({
     <View>
       <Pressable
         accessibilityRole="header"
-        disabled={viewAllHref == null}
+        disabled={!hasViewAll}
         onPress={
-          viewAllHref
+          onViewAllPress ??
+          (viewAllHref
             ? () => {
                 router.push(viewAllHref as never);
               }
-            : undefined
+            : undefined)
         }
         style={styles.container}
       >
         <View style={styles.titleRow}>
           <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
         </View>
-        {viewAllHref ? (
+        {hasViewAll ? (
           <View
             hitSlop={VIEW_ALL_MIN_HITSLOP}
             style={{

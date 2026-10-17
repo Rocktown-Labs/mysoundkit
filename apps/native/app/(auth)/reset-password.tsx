@@ -60,15 +60,7 @@ export default function ResetPasswordScreen() {
       keyboardShouldPersistTaps="handled"
       style={{ backgroundColor: "#020202", flex: 1 }}
     >
-      <Stack.Screen
-        options={{
-          headerBackTitle: "Back",
-          headerShown: true,
-          headerStyle: { backgroundColor: "#020202" },
-          headerTintColor: "#F8F8F8",
-          title: "New Password",
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
       <AuthShell
         subtitle="Choose a new password for your SoundKit account."
         title="Set a new password"

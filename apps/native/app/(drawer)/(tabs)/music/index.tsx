@@ -17,6 +17,7 @@ import { CartHeaderButton } from "@/components/cart/cart-header-button";
 import { Container } from "@/components/container";
 import { DiscoverSection } from "@/components/discover-section";
 import type { DiscoverCardData } from "@/components/discover-section";
+import { LiquidGlassView } from "@/components/liquid-glass";
 import { NAV_THEME } from "@/lib/constants";
 import {
   useCommunitiesQuery,
@@ -334,7 +335,11 @@ export default function MusicScreen() {
 
         {/* Floating dropdown overlay when open */}
         {pickerOpen ? (
-          <View style={styles.dropdownModalCard}>
+          <LiquidGlassView
+            borderRadius={16}
+            style={styles.dropdownModalCard}
+            variant="sheet"
+          >
             <View style={styles.dropdownHeader}>
               <Text style={styles.dropdownTitle}>
                 {pickerOpen === "location"
@@ -443,7 +448,7 @@ export default function MusicScreen() {
                       </Pressable>
                     ))}
             </ScrollView>
-          </View>
+          </LiquidGlassView>
         ) : null}
 
         {/* Section 1: Top Songs */}
@@ -514,51 +519,62 @@ export default function MusicScreen() {
         >
           <Pressable
             onPress={(e) => e.stopPropagation()}
-            style={styles.catalogModalCard}
+            style={{ maxWidth: 440, width: "90%" }}
           >
-            <View style={styles.catalogModalHeader}>
-              <View>
-                <Text style={styles.catalogModalTitle}>Music</Text>
-                <Text style={styles.catalogModalSubtitle}>
-                  Jump into SoundKit catalog routes.
-                </Text>
-              </View>
-              <Pressable
-                accessibilityLabel="Close"
-                onPress={() => setCatalogModalVisible(false)}
-                style={styles.closeBtn}
-              >
-                <Ionicons color="#e4e4e7" name="close-circle" size={24} />
-              </Pressable>
-            </View>
-
-            <View style={styles.catalogRoutesList}>
-              {CATALOG_ROUTES.map((route) => (
+            <LiquidGlassView
+              borderRadius={22}
+              intensity={85}
+              style={styles.catalogModalCard}
+              variant="sheet"
+            >
+              <View style={styles.catalogModalHeader}>
+                <View>
+                  <Text style={styles.catalogModalTitle}>Music</Text>
+                  <Text style={styles.catalogModalSubtitle}>
+                    Jump into SoundKit catalog routes.
+                  </Text>
+                </View>
                 <Pressable
-                  key={route.title}
-                  onPress={() => {
-                    setCatalogModalVisible(false);
-                    router.push(route.href as Href);
-                  }}
-                  style={({ pressed }) => [
-                    styles.catalogRouteItem,
-                    {
-                      backgroundColor: pressed ? "#212121" : "#111111",
-                    },
-                  ]}
+                  accessibilityLabel="Close"
+                  onPress={() => setCatalogModalVisible(false)}
+                  style={styles.closeBtn}
                 >
-                  <View style={styles.catalogRouteIconBox}>
-                    <Ionicons color="#B8A3FF" name={route.icon} size={20} />
-                  </View>
-                  <View style={styles.catalogRouteCopy}>
-                    <Text style={styles.catalogRouteTitle}>{route.title}</Text>
-                    <Text numberOfLines={1} style={styles.catalogRouteDesc}>
-                      {route.description}
-                    </Text>
-                  </View>
+                  <Ionicons color="#e4e4e7" name="close-circle" size={24} />
                 </Pressable>
-              ))}
-            </View>
+              </View>
+
+              <View style={styles.catalogRoutesList}>
+                {CATALOG_ROUTES.map((route) => (
+                  <Pressable
+                    key={route.title}
+                    onPress={() => {
+                      setCatalogModalVisible(false);
+                      router.push(route.href as Href);
+                    }}
+                    style={({ pressed }) => [
+                      styles.catalogRouteItem,
+                      {
+                        backgroundColor: pressed
+                          ? "rgba(255, 255, 255, 0.1)"
+                          : "rgba(255, 255, 255, 0.05)",
+                      },
+                    ]}
+                  >
+                    <View style={styles.catalogRouteIconBox}>
+                      <Ionicons color="#B8A3FF" name={route.icon} size={20} />
+                    </View>
+                    <View style={styles.catalogRouteCopy}>
+                      <Text style={styles.catalogRouteTitle}>
+                        {route.title}
+                      </Text>
+                      <Text numberOfLines={1} style={styles.catalogRouteDesc}>
+                        {route.description}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            </LiquidGlassView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -582,14 +598,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   catalogModalCard: {
-    backgroundColor: "#060606",
-    borderColor: "#212121",
-    borderRadius: 20,
-    borderWidth: 1,
     gap: 16,
-    maxWidth: 440,
     padding: 20,
-    width: "90%",
+    width: "100%",
   },
   catalogModalHeader: {
     alignItems: "center",
@@ -616,7 +627,7 @@ const styles = StyleSheet.create({
   },
   catalogRouteIconBox: {
     alignItems: "center",
-    backgroundColor: "#212121",
+    backgroundColor: "rgba(184, 163, 255, 0.16)",
     borderRadius: 10,
     height: 38,
     justifyContent: "center",
@@ -624,7 +635,7 @@ const styles = StyleSheet.create({
   },
   catalogRouteItem: {
     alignItems: "center",
-    borderColor: "#212121",
+    borderColor: "rgba(255, 255, 255, 0.12)",
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: "row",

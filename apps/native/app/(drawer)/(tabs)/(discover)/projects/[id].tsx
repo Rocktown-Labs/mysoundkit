@@ -15,7 +15,10 @@ import {
 import Animated, { FadeIn, FadeInDown, FadeOut } from "react-native-reanimated";
 
 import { TrackCard } from "@/components/cards/track-card";
+import { LiquidGlassView } from "@/components/liquid-glass";
 import { NativeImage } from "@/components/native-image";
+import { NativeRail } from "@/components/native-rail";
+import { NativeSection } from "@/components/native-section";
 import { useAudioPlayerContext } from "@/contexts/audio-player-context";
 import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
@@ -98,7 +101,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
   },
   primaryActionText: { color: "#09090B", fontSize: 17, fontWeight: "900" },
-  relatedRail: { gap: 14 },
   roundAction: {
     alignItems: "center",
     backgroundColor: "#292929",
@@ -115,15 +117,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
   },
   sheet: {
-    backgroundColor: "rgba(24, 24, 24, 0.98)",
-    borderColor: "#3A3A3A",
-    borderRadius: 28,
-    borderWidth: 1,
     gap: 8,
-    marginBottom: 92,
-    marginRight: 12,
     padding: 20,
-    width: "88%",
   },
   sheetBackdrop: {
     alignItems: "flex-end",
@@ -162,6 +157,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     paddingBottom: 18,
+  },
+  sheetWrap: {
+    marginBottom: 92,
+    marginRight: 12,
+    width: "88%",
   },
   title: {
     fontSize: 32,
@@ -238,6 +238,7 @@ export default function ProjectDetailScreen() {
           headerShown: true,
           headerStyle: { backgroundColor: theme.background },
           headerTintColor: theme.text,
+          headerTransparent: false,
           title: data?.title ?? "Project",
         }}
       />
@@ -422,16 +423,24 @@ export default function ProjectDetailScreen() {
             </View>
             {moreFromArtist.length > 0 ? (
               <View style={styles.section}>
-                <Text style={styles.sectionHeading}>MORE FROM THIS ARTIST</Text>
-                <ScrollView
-                  contentContainerStyle={styles.relatedRail}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
+                <NativeSection
+                  title="More From This Artist"
+                  viewAllHref={
+                    data.artistUsername
+                      ? `/artist/${data.artistUsername}?tab=tracks`
+                      : "/tracks"
+                  }
                 >
-                  {moreFromArtist.map((artistTrack) => (
-                    <TrackCard key={artistTrack.id} track={artistTrack} />
-                  ))}
-                </ScrollView>
+                  <NativeRail>
+                    {moreFromArtist.map((artistTrack) => (
+                      <TrackCard
+                        compact
+                        key={artistTrack.id}
+                        track={artistTrack}
+                      />
+                    ))}
+                  </NativeRail>
+                </NativeSection>
               </View>
             ) : null}
           </>
@@ -461,72 +470,78 @@ export default function ProjectDetailScreen() {
           <Animated.View
             entering={FadeInDown.springify().damping(18).stiffness(180)}
             exiting={FadeOut.duration(140)}
-            style={styles.sheet}
+            style={styles.sheetWrap}
           >
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>
-              {menuTrack?.title ?? data?.title ?? "Project actions"}
-            </Text>
-            <Text style={styles.sheetSubtitle}>
-              {menuTrack ? "Track actions" : "Release actions"}
-            </Text>
-            <View style={styles.sheetTopActions}>
-              <ActionSheetTopAction
+            <LiquidGlassView
+              borderRadius={28}
+              style={styles.sheet}
+              variant="sheet"
+            >
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetTitle}>
+                {menuTrack?.title ?? data?.title ?? "Project actions"}
+              </Text>
+              <Text style={styles.sheetSubtitle}>
+                {menuTrack ? "Track actions" : "Release actions"}
+              </Text>
+              <View style={styles.sheetTopActions}>
+                <ActionSheetTopAction
+                  icon="add-circle-outline"
+                  label="Add"
+                  onPress={() => {
+                    if (menuTrack) {
+                      addToQueue(toPlayerTrack(menuTrack));
+                    } else {
+                      for (const track of data?.tracks ?? []) {
+                        addToQueue(toPlayerTrack(track));
+                      }
+                    }
+                    setMenuTrack(null);
+                    setIsMenuVisible(false);
+                  }}
+                />
+                <ActionSheetTopAction
+                  icon={isFavorite ? "heart" : "heart-outline"}
+                  label={isFavorite ? "Favorited" : "Favorite"}
+                  onPress={() => {
+                    setIsFavorite((value) => !value);
+                    setMenuTrack(null);
+                    setIsMenuVisible(false);
+                  }}
+                />
+                <ActionSheetTopAction
+                  icon="share-outline"
+                  label="Share"
+                  onPress={() => {
+                    void Share.share({
+                      message: `Listen to ${menuTrack?.title ?? data?.title ?? "this release"} on SoundKit.`,
+                    });
+                    setMenuTrack(null);
+                    setIsMenuVisible(false);
+                  }}
+                />
+              </View>
+              <ActionSheetRow
+                icon="list-outline"
+                label="Add to Playlist"
+                onPress={() => {
+                  setMenuTrack(null);
+                  setIsMenuVisible(false);
+                  router.push(session ? "/library/playlists" : "/(auth)/login");
+                }}
+              />
+              <ActionSheetRow
                 icon="add-circle-outline"
-                label="Add"
+                label="Add to Queue"
                 onPress={() => {
                   if (menuTrack) {
                     addToQueue(toPlayerTrack(menuTrack));
-                  } else {
-                    for (const track of data?.tracks ?? []) {
-                      addToQueue(toPlayerTrack(track));
-                    }
                   }
                   setMenuTrack(null);
                   setIsMenuVisible(false);
                 }}
               />
-              <ActionSheetTopAction
-                icon={isFavorite ? "heart" : "heart-outline"}
-                label={isFavorite ? "Favorited" : "Favorite"}
-                onPress={() => {
-                  setIsFavorite((value) => !value);
-                  setMenuTrack(null);
-                  setIsMenuVisible(false);
-                }}
-              />
-              <ActionSheetTopAction
-                icon="share-outline"
-                label="Share"
-                onPress={() => {
-                  void Share.share({
-                    message: `Listen to ${menuTrack?.title ?? data?.title ?? "this release"} on SoundKit.`,
-                  });
-                  setMenuTrack(null);
-                  setIsMenuVisible(false);
-                }}
-              />
-            </View>
-            <ActionSheetRow
-              icon="list-outline"
-              label="Add to Playlist"
-              onPress={() => {
-                setMenuTrack(null);
-                setIsMenuVisible(false);
-                router.push(session ? "/library/playlists" : "/(auth)/login");
-              }}
-            />
-            <ActionSheetRow
-              icon="add-circle-outline"
-              label="Add to Queue"
-              onPress={() => {
-                if (menuTrack) {
-                  addToQueue(toPlayerTrack(menuTrack));
-                }
-                setMenuTrack(null);
-                setIsMenuVisible(false);
-              }}
-            />
+            </LiquidGlassView>
           </Animated.View>
         </Animated.View>
       </Modal>

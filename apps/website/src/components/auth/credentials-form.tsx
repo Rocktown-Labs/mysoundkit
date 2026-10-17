@@ -32,10 +32,12 @@ const accountLabel = (accountType: "artist" | "fan") =>
 export function CredentialsForm({
   accountType,
   mode = "signup",
+  onSignupSuccess,
   redirect = "/dashboard",
 }: {
   accountType?: "artist" | "fan";
   mode?: "login" | "signup";
+  onSignupSuccess?: (options: { marketingOptIn: boolean }) => void;
   redirect?: string;
 }) {
   const router = useRouter(),
@@ -52,7 +54,9 @@ export function CredentialsForm({
     siteOrigin = typeof window === "undefined" ? "" : window.location.origin,
     callbackURL = accountType
       ? `${siteOrigin}/signup/${accountType}/onboarding?intent=${accountType}`
-      : `${siteOrigin}${redirect}`,
+      : isSignup
+        ? `${siteOrigin}/signup`
+        : `${siteOrigin}${redirect}`,
     persistSignupIntent = async () => {
       if (!accountType) {
         return;
@@ -135,6 +139,10 @@ export function CredentialsForm({
             marketing_opt_in: marketingOptIn,
           });
           setIsSubmitting(false);
+          if (onSignupSuccess) {
+            onSignupSuccess({ marketingOptIn });
+            return;
+          }
           await router.navigate({
             to: accountType ? `/signup/${accountType}/onboarding` : "/signup",
           });
