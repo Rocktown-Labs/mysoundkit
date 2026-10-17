@@ -1,8 +1,8 @@
 /* eslint-disable one-var, sort-vars */
 import { Ionicons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { LiquidGlassView } from "@/components/liquid-glass";
 import { NativeImage } from "@/components/native-image";
 import { useAudioPlayerContext } from "@/contexts/audio-player-context";
 import { NAV_THEME } from "@/lib/constants";
@@ -23,11 +23,11 @@ const styles = StyleSheet.create({
   },
   art: {
     alignItems: "center",
-    borderRadius: 8,
-    height: 38,
+    borderRadius: 10,
+    height: 40,
     justifyContent: "center",
     overflow: "hidden",
-    width: 38,
+    width: 40,
   },
   badge: {
     alignItems: "center",
@@ -47,20 +47,18 @@ const styles = StyleSheet.create({
   },
   blurContainer: {
     alignItems: "center",
-    borderRadius: 16,
-    borderWidth: 0,
     flexDirection: "row",
     gap: 10,
-    overflow: "hidden",
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     position: "relative",
     width: "100%",
   },
   container: {
     alignItems: "center",
     justifyContent: "center",
-    padding: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     width: "100%",
   },
   copy: {
@@ -70,10 +68,11 @@ const styles = StyleSheet.create({
   },
   playButton: {
     alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderRadius: 999,
-    height: 32,
+    height: 34,
     justifyContent: "center",
-    width: 32,
+    width: 34,
   },
   progressBarBackground: {
     bottom: 0,
@@ -97,8 +96,7 @@ const styles = StyleSheet.create({
 });
 
 /**
- * High-polish floating mini-player pill sitting docked in the tab bar bottom accessory.
- * Combines Apple Music's fluid typography & direct controls with SoundKit web's queue & expand actions.
+ * High-polish Liquid Glass floating mini-player pill sitting docked in the tab bar bottom accessory.
  */
 export function GlobalMiniPlayer() {
   const {
@@ -132,19 +130,15 @@ export function GlobalMiniPlayer() {
           {
             opacity: pressed ? 0.95 : 1,
             transform: [{ scale: pressed ? 0.985 : 1 }],
+            width: "100%",
           },
         ]}
       >
-        <BlurView
-          intensity={85}
-          style={[
-            styles.blurContainer,
-            {
-              backgroundColor: "rgba(22, 22, 26, 0.85)",
-              borderColor: "rgba(255, 255, 255, 0.12)",
-            },
-          ]}
-          tint="dark"
+        <LiquidGlassView
+          borderRadius={20}
+          intensity={80}
+          style={styles.blurContainer}
+          variant="chrome"
         >
           {/* Album artwork thumbnail */}
           <View style={[styles.art, { backgroundColor: theme.muted }]}>
@@ -169,7 +163,7 @@ export function GlobalMiniPlayer() {
             </Text>
             <Text
               numberOfLines={1}
-              style={[styles.subtitle, { color: "#8F8F8F" }]}
+              style={[styles.subtitle, { color: "rgba(255, 255, 255, 0.65)" }]}
             >
               {currentTrack.artist}
             </Text>
@@ -177,7 +171,6 @@ export function GlobalMiniPlayer() {
 
           {/* Quick controls row */}
           <View style={styles.actionsRow}>
-            {/* Play/Pause Button */}
             <Pressable
               accessibilityHint={
                 isPlaying ? "Pauses playback" : "Starts playback"
@@ -192,7 +185,6 @@ export function GlobalMiniPlayer() {
               style={({ pressed }) => [
                 styles.playButton,
                 {
-                  backgroundColor: "#ffffff",
                   opacity: pressed ? 0.75 : 1,
                   transform: [{ scale: pressed ? 0.92 : 1 }],
                 },
@@ -206,7 +198,6 @@ export function GlobalMiniPlayer() {
               />
             </Pressable>
 
-            {/* Next Track Button */}
             <Pressable
               accessibilityHint="Skips to next track"
               accessibilityLabel="Next track"
@@ -224,7 +215,6 @@ export function GlobalMiniPlayer() {
               <Ionicons color="#f4f4f5" name="play-skip-forward" size={17} />
             </Pressable>
 
-            {/* Queue Button with Badge count (from Image 3) */}
             <Pressable
               accessibilityHint="Toggles up next queue"
               accessibilityLabel="Queue"
@@ -241,7 +231,11 @@ export function GlobalMiniPlayer() {
               ]}
             >
               <View style={{ position: "relative" }}>
-                <Ionicons color="#8F8F8F" name="list" size={18} />
+                <Ionicons
+                  color="rgba(255, 255, 255, 0.75)"
+                  name="list"
+                  size={18}
+                />
                 {queueCount > 0 ? (
                   <View
                     style={[styles.badge, { backgroundColor: theme.primary }]}
@@ -254,7 +248,6 @@ export function GlobalMiniPlayer() {
               </View>
             </Pressable>
 
-            {/* Dismiss Player Button */}
             <Pressable
               accessibilityHint="Dismisses player"
               accessibilityLabel="Dismiss player"
@@ -269,7 +262,11 @@ export function GlobalMiniPlayer() {
                 { opacity: pressed ? 0.6 : 1 },
               ]}
             >
-              <Ionicons color="#8F8F8F" name="close" size={18} />
+              <Ionicons
+                color="rgba(255, 255, 255, 0.65)"
+                name="close"
+                size={18}
+              />
             </Pressable>
           </View>
 
@@ -277,7 +274,7 @@ export function GlobalMiniPlayer() {
           <View
             style={[
               styles.progressBarBackground,
-              { backgroundColor: "rgba(255, 255, 255, 0.08)" },
+              { backgroundColor: "rgba(255, 255, 255, 0.1)" },
             ]}
           >
             <View
@@ -290,7 +287,7 @@ export function GlobalMiniPlayer() {
               ]}
             />
           </View>
-        </BlurView>
+        </LiquidGlassView>
       </Pressable>
     </View>
   );

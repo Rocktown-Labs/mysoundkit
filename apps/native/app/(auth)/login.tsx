@@ -19,7 +19,9 @@ import { authClient } from "@/lib/auth-client";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
 const redirectHrefFor = (redirect: undefined | string): Href =>
-  (redirect && redirect.startsWith("/") ? redirect : "/") as Href;
+  (redirect && redirect.startsWith("/") && redirect !== "/"
+    ? redirect
+    : "/(drawer)/(tabs)/(discover)") as Href;
 
 export default function LoginScreen() {
   const router = useRouter(),

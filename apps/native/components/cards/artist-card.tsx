@@ -34,6 +34,7 @@ const styles = StyleSheet.create({
       flexDirection: "row",
       gap: 4,
       paddingBottom: 10,
+      paddingHorizontal: 10,
     },
     metaText: { fontSize: 11 },
     verified: { fontSize: 11, marginLeft: 2 },
@@ -46,7 +47,7 @@ export function ArtistCard({ artist }: { artist: ArtistSummary }) {
 
   return (
     <NativeCardShell
-      href={`/artist/${artist.username}`}
+      href={`/artists/${artist.username}`}
       width={ARTIST_CARD_WIDTH}
     >
       <View style={styles.avatarWrapper}>

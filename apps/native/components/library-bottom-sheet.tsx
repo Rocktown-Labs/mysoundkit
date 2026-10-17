@@ -1,15 +1,20 @@
+/* oxlint-disable one-var */
 import { Ionicons } from "@expo/vector-icons";
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
-import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
+import type {
+  BottomSheetBackdropProps,
+  BottomSheetBackgroundProps,
+} from "@gorhom/bottom-sheet";
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import type { ForwardedRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { LibraryGrid } from "@/components/library-grid";
+import { LiquidGlassView } from "@/components/liquid-glass";
 import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
@@ -27,6 +32,23 @@ function renderSheetBackdrop(props: BottomSheetBackdropProps) {
       appearsOnIndex={0}
       disappearsOnIndex={-1}
       opacity={0.65}
+    />
+  );
+}
+
+function renderSheetBackground({ style }: BottomSheetBackgroundProps) {
+  return (
+    <LiquidGlassView
+      borderRadius={26}
+      intensity={85}
+      style={[
+        style,
+        {
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
+        },
+      ]}
+      variant="sheet"
     />
   );
 }
@@ -59,8 +81,8 @@ function LibraryBottomSheetBase(
   return (
     <BottomSheetModal
       backdropComponent={renderSheetBackdrop}
-      backgroundStyle={{ backgroundColor: "#060606" }}
-      handleIndicatorStyle={{ backgroundColor: "#2A2D35" }}
+      backgroundComponent={renderSheetBackground}
+      handleIndicatorStyle={{ backgroundColor: "rgba(255, 255, 255, 0.28)" }}
       ref={sheetRef}
       snapPoints={SNAP_POINTS}
     >

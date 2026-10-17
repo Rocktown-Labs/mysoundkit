@@ -1,8 +1,12 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { Ionicons } from "@expo/vector-icons";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import { Redirect } from "expo-router";
 import { Drawer } from "expo-router/drawer";
+import { ActivityIndicator, View } from "react-native";
 
+import { useGuestMode } from "@/contexts/guest-mode-context";
+import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
@@ -10,7 +14,28 @@ export const unstable_settings = { initialRouteName: "(tabs)" };
 
 function DrawerLayout() {
   const { colorScheme } = useColorScheme(),
-    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
+    { data: session, isPending } = authClient.useSession(),
+    { isGuestMode } = useGuestMode();
+
+  if (isPending && !isGuestMode) {
+    return (
+      <View
+        style={{
+          alignItems: "center",
+          backgroundColor: theme.background,
+          flex: 1,
+          justifyContent: "center",
+        }}
+      >
+        <ActivityIndicator color={theme.primary} />
+      </View>
+    );
+  }
+
+  if (!session?.user && !isGuestMode) {
+    return <Redirect href="/(auth)/login" />;
+  }
 
   return (
     <BottomSheetModalProvider>

@@ -5,7 +5,6 @@ import { Link, useRouter } from "expo-router";
 import type { Href } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +14,8 @@ import {
 } from "react-native";
 
 import { Container } from "@/components/container";
+import { LiquidGlassView } from "@/components/liquid-glass";
+import { NativeImage } from "@/components/native-image";
 import { NAV_THEME } from "@/lib/constants";
 import { useArtistsQuery, useGenresQuery } from "@/lib/soundkit-api";
 import type { ArtistSummary } from "@/lib/soundkit-api";
@@ -61,9 +62,12 @@ const NORTH_AMERICA_LOCATIONS = [
   SORT_OPTIONS = [
     { label: "Rank (High to Low)", value: "rank-asc" },
     { label: "Rank (Low to High)", value: "rank-desc" },
+    { label: "Followers (High to Low)", value: "followers-desc" },
+    { label: "Weekly Plays (High to Low)", value: "plays-desc" },
     { label: "Name (A-Z)", value: "name-asc" },
     { label: "Name (Z-A)", value: "name-desc" },
-  ];
+  ],
+  TOP_SECTION_LIMIT = 20;
 
 interface LeaderboardSectionProps {
   artists: ArtistSummary[];
@@ -71,33 +75,31 @@ interface LeaderboardSectionProps {
   iconName: keyof typeof Ionicons.glyphMap;
   title: string;
   type: "new" | "rising" | "top";
+  viewAllHref: string;
 }
 
-function ArtistRankedRow({
+function ArtistRailCard({
   artist,
-  rank,
   type,
 }: {
   artist: ArtistSummary;
-  rank: number;
   type: "new" | "rising" | "top";
 }) {
   const router = useRouter(),
     statLabel = useMemo(() => {
       switch (type) {
         case "rising": {
-          const plays =
-            artist.weeklyPlays ?? (rank === 1 ? 2 : rank === 2 ? 1 : 6);
-          return `${plays} plays this week`;
+          const plays = artist.weeklyPlays ?? 0;
+          return `${plays.toLocaleString()} plays this week`;
         }
         case "new": {
-          return `Joined recently • ${artist.followers ?? 1} followers`;
+          return `${(artist.followers ?? 0).toLocaleString()} followers`;
         }
         case "top": {
-          return `${artist.followers ?? 1} followers • 0 wins`;
+          return `${(artist.followers ?? 0).toLocaleString()} followers`;
         }
       }
-    }, [artist, rank, type]);
+    }, [artist, type]);
 
   let statColor = "#B8A3FF",
     statIcon: "people-outline" | "trending-up" | "trophy-outline" =
@@ -110,44 +112,30 @@ function ArtistRankedRow({
     statIcon = "trophy-outline";
   }
 
-  let rankBadgeStyle = styles.rankBadgeOther,
-    rankTextColor = "#8F8F8F";
-  if (rank === 1) {
-    rankBadgeStyle = styles.rankBadge1;
-    rankTextColor = "#B8A3FF";
-  } else if (rank === 2) {
-    rankBadgeStyle = styles.rankBadge2;
-    rankTextColor = "#d4d4d8";
-  }
-
-  const href = artist.username ? `/artist/${artist.username}` : "/artist";
+  const href = artist.username
+    ? `/artists/${artist.username}`
+    : "/artists/list";
 
   return (
     <Pressable
       accessibilityHint={`Opens profile of ${artist.name}`}
-      accessibilityLabel={`Rank ${rank}: ${artist.name}`}
+      accessibilityLabel={artist.name}
       accessibilityRole="button"
       onPress={() => router.push(href as Href)}
       style={({ pressed }) => [
-        styles.rankedRow,
-        {
-          backgroundColor: pressed ? "#1c1c20" : "transparent",
-        },
+        styles.railCard,
+        pressed && styles.railCardPressed,
       ]}
     >
-      {/* Rank badge */}
-      <View style={[styles.rankBadge, rankBadgeStyle]}>
-        <Text style={[styles.rankBadgeText, { color: rankTextColor }]}>
-          {rank}
-        </Text>
-      </View>
-
-      {/* Avatar */}
-      <View style={styles.avatarBox}>
+      <View style={styles.railAvatarBox}>
         {artist.avatarUrl ? (
-          <Image source={{ uri: artist.avatarUrl }} style={styles.avatarImg} />
+          <NativeImage
+            contentFit="cover"
+            source={artist.avatarUrl}
+            style={styles.railAvatarImg}
+          />
         ) : (
-          <View style={styles.avatarPlaceholder}>
+          <View style={styles.railAvatarPlaceholder}>
             <Text style={styles.avatarInitials}>
               {artist.name
                 .split(" ")
@@ -159,7 +147,6 @@ function ArtistRankedRow({
         )}
       </View>
 
-      {/* Artist info */}
       <View style={styles.artistInfo}>
         <View style={styles.artistNameRow}>
           <Text numberOfLines={1} style={styles.artistName}>
@@ -171,14 +158,17 @@ function ArtistRankedRow({
         </View>
 
         <Text numberOfLines={1} style={styles.artistMeta}>
-          {[artist.genre ?? "Hip-Hop", artist.location ?? "Little Rock, AR"]
+          {[artist.genre ?? "Hip-Hop", artist.location]
             .filter(Boolean)
             .join(" • ")}
         </Text>
 
         <View style={styles.statRow}>
           <Ionicons color={statColor} name={statIcon} size={12} />
-          <Text style={[styles.statText, { color: statColor }]}>
+          <Text
+            numberOfLines={1}
+            style={[styles.statText, { color: statColor }]}
+          >
             {statLabel}
           </Text>
         </View>
@@ -193,7 +183,10 @@ function LeaderboardSection({
   iconName,
   title,
   type,
+  viewAllHref,
 }: LeaderboardSectionProps) {
+  const topTwenty = artists.slice(0, TOP_SECTION_LIMIT);
+
   return (
     <View style={styles.sectionContainer}>
       <View style={styles.sectionHeaderRow}>
@@ -205,33 +198,35 @@ function LeaderboardSection({
           <Text style={styles.sectionSubtitle}>{description}</Text>
         </View>
 
-        <Link href={`/artist?category=${type}` as Href} asChild>
-          <Pressable style={styles.viewAllBtn}>
+        <Link href={viewAllHref as Href} asChild>
+          <Pressable hitSlop={8} style={styles.viewAllBtn}>
             <Text style={styles.viewAllText}>View All</Text>
+            <Ionicons color="#B8A3FF" name="chevron-forward" size={14} />
           </Pressable>
         </Link>
       </View>
 
-      <View style={styles.leaderboardCard}>
-        {artists.length > 0 ? (
-          artists
-            .slice(0, 5)
-            .map((artist, idx) => (
-              <ArtistRankedRow
-                artist={artist}
-                key={artist.id || artist.name}
-                rank={idx + 1}
-                type={type}
-              />
-            ))
-        ) : (
-          <View style={styles.emptyLeaderboard}>
-            <Text style={styles.emptyText}>
-              No artists found for this selection yet.
-            </Text>
-          </View>
-        )}
-      </View>
+      {topTwenty.length > 0 ? (
+        <ScrollView
+          contentContainerStyle={styles.horizontalRail}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+        >
+          {topTwenty.map((artist) => (
+            <ArtistRailCard
+              artist={artist}
+              key={artist.id || artist.username || artist.name}
+              type={type}
+            />
+          ))}
+        </ScrollView>
+      ) : (
+        <View style={styles.emptyLeaderboard}>
+          <Text style={styles.emptyText}>
+            No artists found for this selection yet.
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -281,7 +276,7 @@ export default function ArtistsScreen() {
     risingQuery = useArtistsQuery({
       category: "rising",
       genre: queryPayload.genre,
-      limit: 6,
+      limit: TOP_SECTION_LIMIT,
       q: searchQuery || undefined,
       region: queryPayload.region,
       regionType: queryPayload.regionType,
@@ -290,7 +285,7 @@ export default function ArtistsScreen() {
     newQuery = useArtistsQuery({
       category: "new",
       genre: queryPayload.genre,
-      limit: 6,
+      limit: TOP_SECTION_LIMIT,
       q: searchQuery || undefined,
       region: queryPayload.region,
       regionType: queryPayload.regionType,
@@ -299,7 +294,7 @@ export default function ArtistsScreen() {
     topQuery = useArtistsQuery({
       category: "top",
       genre: queryPayload.genre,
-      limit: 6,
+      limit: TOP_SECTION_LIMIT,
       q: searchQuery || undefined,
       region: queryPayload.region,
       regionType: queryPayload.regionType,
@@ -308,7 +303,7 @@ export default function ArtistsScreen() {
     genreArtistsQuery = useArtistsQuery({
       category: "top",
       genre: genreFilter === "all" ? "hip-hop" : genreFilter,
-      limit: 6,
+      limit: TOP_SECTION_LIMIT,
       region: queryPayload.region,
       regionType: queryPayload.regionType,
     }),
@@ -325,14 +320,33 @@ export default function ArtistsScreen() {
       [topQuery.data, searchQuery]
     ),
     genreRailArtists = useMemo(
-      () => genreArtistsQuery.data ?? [],
+      () => (genreArtistsQuery.data ?? []).slice(0, TOP_SECTION_LIMIT),
       [genreArtistsQuery.data]
     ),
     activeGenreLabel =
       genres.find((g) => g.slug === genreFilter)?.name ?? "All Genres",
     activeSortLabel =
       SORT_OPTIONS.find((s) => s.value === sortFilter)?.label ??
-      "Rank (High to Low)";
+      "Rank (High to Low)",
+    buildViewAllHref = (
+      category: "new" | "rising" | "top",
+      genreOverride?: string
+    ) => {
+      const params = new URLSearchParams({ category });
+      const resolvedGenre =
+        genreOverride ?? (genreFilter === "all" ? undefined : genreFilter);
+      if (resolvedGenre) {
+        params.set("genre", resolvedGenre);
+      }
+      if (sortFilter) {
+        params.set("sort", sortFilter);
+      }
+      if (activeLocation.region && activeLocation.region !== "all") {
+        params.set("region", activeLocation.region);
+      }
+      params.set("regionType", activeLocation.regionType);
+      return `/artists/list?${params.toString()}`;
+    };
 
   let pickerHeaderTitle = "Sort Order";
   if (activePicker === "na") {
@@ -475,7 +489,6 @@ export default function ArtistsScreen() {
   return (
     <Container>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Top search bar matching Image 5 */}
         <View style={styles.searchBar}>
           <Ionicons color="#8F8F8F" name="search" size={16} />
           <TextInput
@@ -494,7 +507,6 @@ export default function ArtistsScreen() {
           ) : null}
         </View>
 
-        {/* Page Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text }]}>
             Discover Artists
@@ -505,9 +517,7 @@ export default function ArtistsScreen() {
           </Text>
         </View>
 
-        {/* Filter Dropdowns Grid */}
         <View style={styles.filtersGrid}>
-          {/* North America */}
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>North America</Text>
             <Pressable
@@ -526,7 +536,6 @@ export default function ArtistsScreen() {
             </Pressable>
           </View>
 
-          {/* Global */}
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>Global</Text>
             <Pressable
@@ -547,7 +556,6 @@ export default function ArtistsScreen() {
             </Pressable>
           </View>
 
-          {/* Genre */}
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>Genre</Text>
             <Pressable
@@ -563,7 +571,6 @@ export default function ArtistsScreen() {
             </Pressable>
           </View>
 
-          {/* Sort By */}
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>Sort By</Text>
             <Pressable
@@ -580,49 +587,51 @@ export default function ArtistsScreen() {
           </View>
         </View>
 
-        {/* Floating Filter Options Overlay */}
         {activePicker ? (
-          <View style={styles.pickerModal}>
+          <LiquidGlassView
+            borderRadius={16}
+            style={styles.pickerModal}
+            variant="sheet"
+          >
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>{pickerHeaderTitle}</Text>
               <Pressable onPress={() => setActivePicker(null)}>
                 <Ionicons color="#8F8F8F" name="close" size={18} />
               </Pressable>
             </View>
-            <ScrollView style={{ maxHeight: 200 }}>
+            <ScrollView style={{ maxHeight: 220 }}>
               {renderPickerContent()}
             </ScrollView>
-          </View>
+          </LiquidGlassView>
         ) : null}
 
-        {/* Section 1: Rising Stars */}
         <LeaderboardSection
           artists={risingArtists}
           description="Artists on the rise with growing momentum"
           iconName="trending-up"
           title="Rising Stars"
           type="rising"
+          viewAllHref={buildViewAllHref("rising")}
         />
 
-        {/* Section 2: New Artists */}
         <LeaderboardSection
           artists={newArtists}
           description="Fresh talent joining the scene"
           iconName="sparkles"
           title="New Artists"
           type="new"
+          viewAllHref={buildViewAllHref("new")}
         />
 
-        {/* Section 3: Top Artists This Month */}
         <LeaderboardSection
           artists={topArtists}
           description="The most popular artists right now"
           iconName="trophy-outline"
           title="Top Artists This Month"
           type="top"
+          viewAllHref={buildViewAllHref("top")}
         />
 
-        {/* Section 4: Top Artists By Genre */}
         <View style={styles.genreRailSection}>
           <View style={styles.sectionHeaderRow}>
             <View>
@@ -637,53 +646,79 @@ export default function ArtistsScreen() {
             <Text style={styles.genreSubheading}>
               {genreFilter === "all" ? "Hip-Hop" : activeGenreLabel}
             </Text>
-            <Link href="/artist?category=top" asChild>
-              <Pressable style={styles.viewAllBtn}>
+            <Link
+              href={
+                buildViewAllHref(
+                  "top",
+                  genreFilter === "all" ? "hip-hop" : genreFilter
+                ) as Href
+              }
+              asChild
+            >
+              <Pressable hitSlop={8} style={styles.viewAllBtn}>
                 <Text style={styles.viewAllText}>View All</Text>
+                <Ionicons color="#B8A3FF" name="chevron-forward" size={14} />
               </Pressable>
             </Link>
           </View>
 
           <ScrollView
-            contentContainerStyle={styles.genreRailRow}
+            contentContainerStyle={styles.horizontalRail}
             horizontal
             showsHorizontalScrollIndicator={false}
           >
             {genreRailArtists.map((artist) => {
               const href = artist.username
-                ? `/artist/${artist.username}`
-                : "/artist";
+                ? `/artists/${artist.username}`
+                : "/artists/list";
 
               return (
                 <Link
                   href={href as Href}
                   asChild
-                  key={artist.id || artist.name}
+                  key={artist.id || artist.username || artist.name}
                 >
-                  <Pressable style={styles.artistProfileCard}>
-                    <View style={styles.artistCardAvatarBox}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.railCard,
+                      pressed && styles.railCardPressed,
+                    ]}
+                  >
+                    <View style={styles.railAvatarBox}>
                       {artist.avatarUrl ? (
-                        <Image
-                          source={{ uri: artist.avatarUrl }}
-                          style={styles.artistCardAvatar}
+                        <NativeImage
+                          contentFit="cover"
+                          source={artist.avatarUrl}
+                          style={styles.railAvatarImg}
                         />
                       ) : (
-                        <View style={styles.artistCardAvatarPlaceholder}>
+                        <View style={styles.railAvatarPlaceholder}>
                           <Ionicons color="#8F8F8F" name="person" size={32} />
                         </View>
                       )}
                     </View>
-                    <Text numberOfLines={1} style={styles.artistCardName}>
-                      {artist.name}
-                    </Text>
-                    <View style={styles.genreBadge}>
-                      <Text style={styles.genreBadgeText}>
-                        {artist.genre ?? "Hip-Hop"}
+                    <View style={styles.artistInfo}>
+                      <View style={styles.artistNameRow}>
+                        <Text numberOfLines={1} style={styles.artistName}>
+                          {artist.name}
+                        </Text>
+                        {artist.verified ? (
+                          <Ionicons
+                            color="#B8A3FF"
+                            name="checkmark-circle"
+                            size={14}
+                          />
+                        ) : null}
+                      </View>
+                      <View style={styles.genreBadge}>
+                        <Text style={styles.genreBadgeText}>
+                          {artist.genre ?? "Hip-Hop"}
+                        </Text>
+                      </View>
+                      <Text style={styles.followersText}>
+                        {(artist.followers ?? 0).toLocaleString()} followers
                       </Text>
                     </View>
-                    <Text style={styles.followersText}>
-                      {artist.followers ?? 1} followers
-                    </Text>
                   </Pressable>
                 </Link>
               );
@@ -696,86 +731,44 @@ export default function ArtistsScreen() {
 }
 
 const styles = StyleSheet.create({
-  artistCardAvatar: {
-    borderRadius: 14,
-    height: 120,
-    width: 120,
-  },
-  artistCardAvatarBox: {
-    borderRadius: 14,
-    height: 120,
-    marginBottom: 8,
-    overflow: "hidden",
-    width: 120,
-  },
-  artistCardAvatarPlaceholder: {
-    alignItems: "center",
-    backgroundColor: "#212121",
-    borderRadius: 14,
-    height: 120,
-    justifyContent: "center",
-    width: 120,
-  },
-  artistCardName: {
-    color: "#ffffff",
-    fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 4,
-    textAlign: "center",
-    width: 120,
-  },
   artistInfo: {
-    flex: 1,
-    gap: 3,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    width: "100%",
   },
   artistMeta: {
     color: "#8F8F8F",
-    fontSize: 12,
+    fontSize: 11,
   },
   artistName: {
     color: "#ffffff",
-    fontSize: 14,
+    flexShrink: 1,
+    fontSize: 13,
     fontWeight: "700",
   },
   artistNameRow: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 6,
-  },
-  artistProfileCard: {
-    alignItems: "center",
-    width: 120,
-  },
-  avatarBox: {
-    height: 44,
-    width: 44,
-  },
-  avatarImg: {
-    borderRadius: 10,
-    height: 44,
-    width: 44,
+    gap: 5,
   },
   avatarInitials: {
     color: "#ffffff",
-    fontSize: 13,
+    fontSize: 22,
     fontWeight: "800",
   },
-  avatarPlaceholder: {
-    alignItems: "center",
-    backgroundColor: "#212121",
-    borderRadius: 10,
-    height: 44,
-    justifyContent: "center",
-    width: 44,
-  },
   content: {
-    gap: 22,
+    gap: 24,
     paddingBottom: 40,
     paddingHorizontal: 20,
     paddingTop: 16,
   },
   emptyLeaderboard: {
-    paddingVertical: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderColor: "#212121",
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 24,
   },
   emptyText: {
     color: "#8F8F8F",
@@ -821,9 +814,9 @@ const styles = StyleSheet.create({
     color: "#8F8F8F",
     fontSize: 11,
     marginTop: 2,
-    textAlign: "center",
   },
   genreBadge: {
+    alignSelf: "flex-start",
     backgroundColor: "#212121",
     borderRadius: 6,
     paddingHorizontal: 8,
@@ -838,11 +831,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 10,
-  },
-  genreRailRow: {
-    gap: 16,
-    paddingRight: 20,
+    marginBottom: 4,
   },
   genreRailSection: {
     gap: 12,
@@ -856,18 +845,14 @@ const styles = StyleSheet.create({
   header: {
     gap: 4,
   },
-  leaderboardCard: {
-    backgroundColor: "#060606",
-    borderColor: "#212121",
-    borderRadius: 18,
-    borderWidth: 1,
-    gap: 4,
-    padding: 10,
+  horizontalRail: {
+    gap: 12,
+    paddingRight: 20,
   },
   pickerHeader: {
     alignItems: "center",
-    borderBottomColor: "#212121",
-    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.12)",
+    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
     justifyContent: "space-between",
     paddingBottom: 8,
@@ -889,46 +874,44 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   pickerModal: {
-    backgroundColor: "#18181c",
-    borderColor: "#212121",
-    borderRadius: 14,
-    borderWidth: 1,
     gap: 8,
-    marginTop: -10,
-    padding: 12,
+    marginTop: -6,
+    padding: 14,
   },
   pickerTitle: {
     color: "#ffffff",
     fontSize: 13,
     fontWeight: "700",
   },
-  rankBadge: {
+  railAvatarBox: {
+    aspectRatio: 1,
+    backgroundColor: "#141418",
+    overflow: "hidden",
+    width: "100%",
+  },
+  railAvatarImg: {
+    height: "100%",
+    width: "100%",
+  },
+  railAvatarPlaceholder: {
     alignItems: "center",
-    borderRadius: 999,
-    height: 30,
+    backgroundColor: "#18181f",
+    height: "100%",
     justifyContent: "center",
-    width: 30,
+    width: "100%",
   },
-  rankBadge1: {
-    backgroundColor: "#a855f725",
+  railCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderCurve: "continuous",
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+    width: 148,
   },
-  rankBadge2: {
-    backgroundColor: "#3f3f4630",
-  },
-  rankBadgeOther: {
-    backgroundColor: "#212121",
-  },
-  rankBadgeText: {
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  rankedRow: {
-    alignItems: "center",
-    borderRadius: 12,
-    flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
+  railCardPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.97 }],
   },
   searchBar: {
     alignItems: "center",
@@ -947,10 +930,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   sectionContainer: {
-    gap: 10,
+    gap: 12,
   },
   sectionHeaderRow: {
-    alignItems: "flex-end",
+    alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
   },
@@ -976,6 +959,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   statText: {
+    flexShrink: 1,
     fontSize: 11,
     fontWeight: "700",
   },
@@ -989,11 +973,14 @@ const styles = StyleSheet.create({
     letterSpacing: -0.6,
   },
   viewAllBtn: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 3,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   viewAllText: {
-    color: "#8F8F8F",
+    color: "#B8A3FF",
     fontSize: 13,
     fontWeight: "700",
   },

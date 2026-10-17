@@ -1,13 +1,15 @@
 /* oxlint-disable one-var, sort-vars, sort-keys, react/set-state-in-effect */
 import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
+import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { TextInputProps } from "react-native";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { LiquidGlassView } from "@/components/liquid-glass";
 import { TurnstileBridge } from "@/components/turnstile-bridge";
 import type { TurnstileAction } from "@/components/turnstile-bridge";
+import { useGuestMode } from "@/contexts/guest-mode-context";
 
 /** Extracts a user-facing message from a better-auth error payload. */
 export const getAuthErrorMessage = (error: unknown): string => {
@@ -26,37 +28,59 @@ export const getAuthErrorMessage = (error: unknown): string => {
   return "Something went wrong. Please try again.";
 };
 
-/** Shared shell for the auth routes: wordmark, back link, heading, and body. */
+/** Shared shell for the auth routes: centered SoundKit logo above the form, heading, and Liquid Glass body. */
 export function AuthShell({
   children,
+  showGuestContinue = true,
   subtitle,
   title,
 }: {
   children: ReactNode;
+  showGuestContinue?: boolean;
   subtitle?: string;
   title: string;
 }) {
+  const router = useRouter(),
+    { enterGuestMode } = useGuestMode();
+
   return (
     <View style={styles.shell}>
-      <View style={styles.header}>
-        <Link asChild href="/">
-          <Pressable
-            accessibilityHint="Exits to the app"
-            accessibilityLabel="Back to SoundKit"
-            accessibilityRole="button"
-            hitSlop={8}
-          >
-            <Ionicons color="#B8A3FF" name="chevron-back" size={24} />
-          </Pressable>
-        </Link>
-        <View style={styles.wordmark}>
-          <Ionicons color="#B8A3FF" name="musical-notes" size={20} />
-          <Text style={styles.wordmarkText}>SoundKit</Text>
+      <View style={styles.logoHeader}>
+        <View style={styles.logoBadge}>
+          <Ionicons color="#B8A3FF" name="musical-notes" size={28} />
         </View>
+        <Text style={styles.wordmarkText}>SoundKit</Text>
       </View>
-      <Text style={styles.title}>{title}</Text>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-      <View style={styles.body}>{children}</View>
+
+      <View style={styles.headingWrap}>
+        <Text style={styles.title}>{title}</Text>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      </View>
+
+      <LiquidGlassView borderRadius={22} style={styles.formCard} variant="card">
+        <View style={styles.body}>{children}</View>
+      </LiquidGlassView>
+
+      {showGuestContinue ? (
+        <Pressable
+          accessibilityHint="Enters SoundKit as a guest with 5 minutes of daily playback"
+          accessibilityLabel="Continue as Guest"
+          accessibilityRole="button"
+          onPress={() => {
+            enterGuestMode();
+            router.replace("/(drawer)/(tabs)/(discover)");
+          }}
+          style={({ pressed }) => [
+            styles.guestButton,
+            pressed && styles.guestButtonPressed,
+          ]}
+        >
+          <Ionicons color="#B8A3FF" name="headset-outline" size={16} />
+          <Text style={styles.guestButtonText}>
+            Continue as Guest (5 min free preview)
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -125,7 +149,7 @@ export function AuthPasswordField({
 }
 
 export function AuthTextInput(props: {
-  autoCapitalize?: "none" | "sentences";
+  autoCapitalize?: TextInputProps["autoCapitalize"];
   autoComplete?: TextInputProps["autoComplete"];
   keyboardType?: TextInputProps["keyboardType"];
   onBlur?: () => void;
@@ -238,6 +262,7 @@ export function useTurnstileToken(action: TurnstileAction) {
 const styles = StyleSheet.create({
   body: {
     gap: 12,
+    padding: 18,
   },
   errorBanner: {
     alignItems: "center",
@@ -255,15 +280,38 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
   },
-  header: {
+  formCard: {
+    width: "100%",
+  },
+  guestButton: {
     alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderColor: "rgba(255, 255, 255, 0.14)",
+    borderRadius: 999,
+    borderWidth: 1,
     flexDirection: "row",
-    justifyContent: "space-between",
+    gap: 8,
+    justifyContent: "center",
+    marginTop: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+  },
+  guestButtonPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.99 }],
+  },
+  guestButtonText: {
+    color: "#DFD5FF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  headingWrap: {
+    alignItems: "center",
     marginBottom: 22,
   },
   input: {
-    backgroundColor: "#0B0B0B",
-    borderColor: "#212121",
+    backgroundColor: "rgba(10, 10, 14, 0.78)",
+    borderColor: "rgba(255, 255, 255, 0.14)",
     borderRadius: 12,
     borderWidth: 1,
     color: "#F8F8F8",
@@ -276,6 +324,22 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 6,
     top: 8,
+  },
+  logoBadge: {
+    alignItems: "center",
+    backgroundColor: "rgba(184, 163, 255, 0.14)",
+    borderColor: "rgba(184, 163, 255, 0.35)",
+    borderRadius: 18,
+    borderWidth: 1,
+    height: 56,
+    justifyContent: "center",
+    width: 56,
+  },
+  logoHeader: {
+    alignItems: "center",
+    gap: 10,
+    justifyContent: "center",
+    marginBottom: 18,
   },
   primaryButton: {
     alignItems: "center",
@@ -292,31 +356,30 @@ const styles = StyleSheet.create({
   shell: {
     backgroundColor: "#020202",
     flex: 1,
+    justifyContent: "center",
     padding: 24,
-    paddingTop: 72,
+    paddingTop: 56,
   },
   subtitle: {
     color: "#8F8F8F",
     fontSize: 14,
     lineHeight: 20,
-    marginBottom: 26,
+    maxWidth: 320,
+    textAlign: "center",
   },
   title: {
     color: "#F8F8F8",
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: "800",
     letterSpacing: -0.6,
     marginBottom: 6,
-  },
-  wordmark: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 7,
+    textAlign: "center",
   },
   wordmarkText: {
     color: "#F8F8F8",
-    fontSize: 17,
-    fontWeight: "800",
-    letterSpacing: -0.3,
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: -0.4,
+    textTransform: "uppercase",
   },
 });

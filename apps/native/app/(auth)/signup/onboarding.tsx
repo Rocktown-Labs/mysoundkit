@@ -401,7 +401,11 @@ export default function OnboardingScreen() {
           void Linking.openURL(payload.checkoutUrl);
         }
         setBusy(false);
-        router.replace(accountType === "artist" ? "/dashboard" : "/");
+        router.replace(
+          accountType === "artist"
+            ? "/dashboard"
+            : "/(drawer)/(tabs)/(discover)"
+        );
       } catch (submitError) {
         setError(getAuthErrorMessage(submitError));
         setBusy(false);
@@ -420,7 +424,7 @@ export default function OnboardingScreen() {
       } catch {
         // Exit is best-effort.
       }
-      router.replace("/");
+      router.replace("/(drawer)/(tabs)/(discover)");
     },
     genres = genresQuery.data ?? [];
 
@@ -456,7 +460,10 @@ export default function OnboardingScreen() {
           </Text>
         </View>
 
-        <AuthShell title={stepTitles[step] ?? "Set up your account"}>
+        <AuthShell
+          showGuestContinue={false}
+          title={stepTitles[step] ?? "Set up your account"}
+        >
           <AuthErrorBanner message={error} />
 
           {/* Artist step 1: roles */}

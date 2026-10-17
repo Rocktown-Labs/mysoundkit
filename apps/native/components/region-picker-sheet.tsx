@@ -4,11 +4,15 @@ import {
   BottomSheetModal,
   BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
-import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
+import type {
+  BottomSheetBackdropProps,
+  BottomSheetBackgroundProps,
+} from "@gorhom/bottom-sheet";
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import type { ForwardedRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { LiquidGlassView } from "@/components/liquid-glass";
 import { NativeMap } from "@/components/native-map";
 import { NAV_THEME } from "@/lib/constants";
 import type { MapScope } from "@/lib/explore-region";
@@ -38,6 +42,23 @@ function renderSheetBackdrop(props: BottomSheetBackdropProps) {
   );
 }
 
+function renderSheetBackground({ style }: BottomSheetBackgroundProps) {
+  return (
+    <LiquidGlassView
+      borderRadius={26}
+      intensity={85}
+      style={[
+        style,
+        {
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
+        },
+      ]}
+      variant="sheet"
+    />
+  );
+}
+
 function RegionPickerSheetBase(
   { onRegionChange, scope, selectedRegion }: RegionPickerSheetProps,
   ref: ForwardedRef<RegionPickerSheetHandle>
@@ -62,8 +83,8 @@ function RegionPickerSheetBase(
   return (
     <BottomSheetModal
       backdropComponent={renderSheetBackdrop}
-      backgroundStyle={{ backgroundColor: "#060606" }}
-      handleIndicatorStyle={{ backgroundColor: "#2A2D35" }}
+      backgroundComponent={renderSheetBackground}
+      handleIndicatorStyle={{ backgroundColor: "rgba(255, 255, 255, 0.28)" }}
       ref={sheetRef}
       snapPoints={SNAP_POINTS}
     >

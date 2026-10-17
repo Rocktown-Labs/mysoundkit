@@ -1,7 +1,6 @@
 /* oxlint-disable one-var, sort-vars, sort-keys, no-nested-ternary, complexity, eqeqeq, no-eq-null, react-hooks/set-state-in-render */
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, Link as ExpoLink, Stack } from "expo-router";
-import type { Href } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -22,6 +21,7 @@ import { ProjectCard } from "@/components/cards/project-card";
 import { TrackCard } from "@/components/cards/track-card";
 import { VideoCard } from "@/components/cards/video-card";
 import { Container } from "@/components/container";
+import { LiquidGlassView } from "@/components/liquid-glass";
 import { NativeEmptyState } from "@/components/native-collection-grid";
 import { NativeImage } from "@/components/native-image";
 import { NativeRail } from "@/components/native-rail";
@@ -77,6 +77,7 @@ export default function ArtistDetailScreen() {
             headerShown: true,
             headerStyle: { backgroundColor: theme.background },
             headerTintColor: theme.text,
+            headerTransparent: false,
             title: "Artist",
           }}
         />
@@ -96,6 +97,7 @@ export default function ArtistDetailScreen() {
             headerShown: true,
             headerStyle: { backgroundColor: theme.background },
             headerTintColor: theme.text,
+            headerTransparent: false,
             title: "Artist Not Found",
           }}
         />
@@ -108,12 +110,13 @@ export default function ArtistDetailScreen() {
     );
   }
 
-  const stats = [
-    { label: "Tracks", value: (data.trackCount ?? 0).toLocaleString() },
-    { label: "Followers", value: (data.followers ?? 0).toLocaleString() },
-    { label: "Rank", value: data.rank ? `#${data.rank}` : "—" },
-    { label: "Listeners", value: (data.weeklyPlays ?? 0).toLocaleString() },
-  ];
+  const cleanRank = data.rank ? String(data.rank).replace(/^#+/u, "") : "",
+    stats = [
+      { label: "Tracks", value: (data.trackCount ?? 0).toLocaleString() },
+      { label: "Followers", value: (data.followers ?? 0).toLocaleString() },
+      { label: "Rank", value: cleanRank ? `#${cleanRank}` : "—" },
+      { label: "Listeners", value: (data.weeklyPlays ?? 0).toLocaleString() },
+    ];
 
   return (
     <>
@@ -123,50 +126,49 @@ export default function ArtistDetailScreen() {
           headerShown: true,
           headerStyle: { backgroundColor: theme.background },
           headerTintColor: theme.text,
+          headerTransparent: false,
           title: data.name,
         }}
       />
-      <Container>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          style={{ backgroundColor: theme.background }}
-        >
-          <ArtistHero artist={data} />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        style={{ backgroundColor: theme.background, flex: 1 }}
+      >
+        <ArtistHero artist={data} />
 
-          <ProfileCard
-            artist={data}
-            isFollowing={isFollowing}
-            onFollowToggle={() => {
-              setFollowOverride(!isFollowing);
-            }}
-            stats={stats}
-          />
+        <ProfileCard
+          artist={data}
+          isFollowing={isFollowing}
+          onFollowToggle={() => {
+            setFollowOverride(!isFollowing);
+          }}
+          stats={stats}
+        />
 
-          <ArtistTabs
-            activeTab={activeTab}
-            onSelect={setActiveTab}
-            themeText={theme.text}
-          />
-          <View style={styles.tabBody}>
-            {activeTab === "feed" ? (
-              <ArtistFeed artist={data} media={mediaData} />
-            ) : null}
-            {activeTab === "tracks" ? (
-              <ArtistTracksGrid tracks={mediaData?.tracks ?? []} />
-            ) : null}
-            {activeTab === "projects" ? (
-              <ArtistProjectsGrid projects={mediaData?.projects ?? []} />
-            ) : null}
-            {activeTab === "videos" ? (
-              <ArtistVideosGrid videos={mediaData?.videos ?? []} />
-            ) : null}
-            {activeTab === "credits" ? (
-              <ArtistCredits credits={mediaData?.credits ?? []} />
-            ) : null}
-          </View>
-        </ScrollView>
-      </Container>
+        <ArtistTabs
+          activeTab={activeTab}
+          onSelect={setActiveTab}
+          themeText={theme.text}
+        />
+        <View style={styles.tabBody}>
+          {activeTab === "feed" ? (
+            <ArtistFeed media={mediaData} onSelectTab={setActiveTab} />
+          ) : null}
+          {activeTab === "tracks" ? (
+            <ArtistTracksGrid tracks={mediaData?.tracks ?? []} />
+          ) : null}
+          {activeTab === "projects" ? (
+            <ArtistProjectsGrid projects={mediaData?.projects ?? []} />
+          ) : null}
+          {activeTab === "videos" ? (
+            <ArtistVideosGrid videos={mediaData?.videos ?? []} />
+          ) : null}
+          {activeTab === "credits" ? (
+            <ArtistCredits credits={mediaData?.credits ?? []} />
+          ) : null}
+        </View>
+      </ScrollView>
     </>
   );
 }
@@ -267,7 +269,11 @@ function ProfileCard({
     ).filter(hasLinkUrl);
 
   return (
-    <View style={styles.profileCard}>
+    <LiquidGlassView
+      borderRadius={22}
+      style={styles.profileCard}
+      variant="card"
+    >
       <View style={styles.identityRow}>
         <View style={styles.avatarWrap}>
           <NativeImage
@@ -373,7 +379,7 @@ function ProfileCard({
           links={followLinks}
         />
       ) : null}
-    </View>
+    </LiquidGlassView>
   );
 }
 
@@ -480,11 +486,11 @@ function ArtistTabs({
 }
 
 function ArtistFeed({
-  artist,
   media,
+  onSelectTab,
 }: {
-  artist: ArtistDetail;
   media?: ArtistMedia;
+  onSelectTab: (tab: ProfileTab) => void;
 }) {
   const tracks = media?.tracks ?? [],
     projects = media?.projects ?? [],
@@ -494,29 +500,26 @@ function ArtistFeed({
   return (
     <View style={styles.feedGap}>
       {tracks.length > 0 ? (
-        <NativeSection title="Tracks">
+        <NativeSection
+          onViewAllPress={() => {
+            onSelectTab("tracks");
+          }}
+          title="Tracks"
+        >
           <NativeRail>
             {tracks.slice(0, FEED_TRACKS_PREVIEW).map((track) => (
               <TrackCard compact key={track.id} track={track} />
             ))}
           </NativeRail>
-          {tracks.length > FEED_TRACKS_PREVIEW ? (
-            <ExpoLink
-              asChild
-              href={`/artist/${artist.username}?tab=tracks` as Href}
-            >
-              <Pressable>
-                <Text style={styles.viewAllInline}>View all tracks</Text>
-              </Pressable>
-            </ExpoLink>
-          ) : null}
         </NativeSection>
       ) : null}
 
       {projects.length > 0 ? (
         <NativeSection
+          onViewAllPress={() => {
+            onSelectTab("projects");
+          }}
           title="Projects"
-          viewAllHref={`/artist/${artist.username}?tab=projects` as never}
         >
           <NativeRail>
             {projects.slice(0, FEED_RAIL_PREVIEW).map((project) => (
@@ -528,8 +531,10 @@ function ArtistFeed({
 
       {videos.length > 0 ? (
         <NativeSection
+          onViewAllPress={() => {
+            onSelectTab("videos");
+          }}
           title="Videos"
-          viewAllHref={`/artist/${artist.username}?tab=videos` as never}
         >
           <NativeRail>
             {videos.slice(0, FEED_RAIL_PREVIEW).map((video) => (
@@ -744,7 +749,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   handle: { color: "#8F8F8F", fontSize: 13 },
-  hero: { height: 112, width: "100%" },
+  hero: { height: 140, width: "100%" },
   heroFallback: {
     alignItems: "center",
     height: "100%",
@@ -769,7 +774,7 @@ const styles = StyleSheet.create({
   linkButton: {
     alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.08)",
-    borderColor: "#212121",
+    borderColor: "rgba(255, 255, 255, 0.14)",
     borderRadius: 999,
     borderWidth: 1,
     height: 36,
@@ -796,19 +801,15 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   profileCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderColor: "#212121",
-    borderRadius: 22,
-    borderWidth: 1,
     gap: 14,
     marginHorizontal: 16,
-    marginTop: -22,
-    padding: 16,
+    marginTop: -24,
+    padding: 18,
   },
   statChip: {
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderColor: "#212121",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: "rgba(255, 255, 255, 0.12)",
     borderRadius: 12,
     borderWidth: 1,
     flex: 1,
@@ -836,7 +837,7 @@ const styles = StyleSheet.create({
   tripleGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 12,
   },
   verifiedBadge: {
     alignItems: "center",
@@ -850,11 +851,5 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: -2,
     width: 26,
-  },
-  viewAllInline: {
-    color: "#B8A3FF",
-    fontSize: 13,
-    fontWeight: "700",
-    marginTop: 12,
   },
 });
