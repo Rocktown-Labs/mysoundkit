@@ -635,14 +635,11 @@ export const createAuth = () => {
       "https://www.mysoundkit.com",
       "https://*.mysoundkit.com",
       "soundkit://",
-      ...(isDevelopment
-        ? [
-            "exp://",
-            "exp://**",
-            "exp://192.168.*.*:*/**",
-            "http://localhost:8081",
-          ]
-        : []),
+      "soundkit://**",
+      "exp://",
+      "exp://**",
+      "exp://192.168.*.*:*/**",
+      ...(isDevelopment ? ["http://localhost:8081"] : []),
     ],
   });
 };
