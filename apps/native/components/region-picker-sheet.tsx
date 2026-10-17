@@ -101,6 +101,9 @@ function RegionPickerSheetBase(
         <NativeMap
           onRegionSelect={(regionName) => {
             onRegionChange(scope, regionName);
+            /* Close on country/state pick so the user returns to the feed;
+               scope changes keep the sheet open for further drill-down. */
+            sheetRef.current?.dismiss();
           }}
           onResetGlobal={() => {
             onRegionChange("global", null);

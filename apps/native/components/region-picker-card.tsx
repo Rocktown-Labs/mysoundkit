@@ -6,25 +6,33 @@ import { mapScopeLabel } from "@/lib/map-scopes";
 import type { MapScope } from "@/lib/map-scopes";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
+/* oxlint-disable one-var */
+
+const badgeForScope = (scope: MapScope): string =>
+  scope === "global" ? "Worldwide" : "Regional";
+
 /**
  * Compact card showing the active Discover region. Pressing it opens the
  * region selection menu.
  */
 export function RegionPickerCard({
   onPress,
+  regionName,
   scope,
 }: {
   onPress: () => void;
+  regionName?: null | string;
   scope: MapScope;
 }) {
   const { colorScheme } = useColorScheme(),
-    isGlobal = scope === "global",
+    badgeLabel = regionName ? mapScopeLabel(scope) : badgeForScope(scope),
+    displayRegion = regionName ?? mapScopeLabel(scope),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
   return (
     <Pressable
       accessibilityHint="Opens the region selector"
-      accessibilityLabel={`Region: ${mapScopeLabel(scope)}`}
+      accessibilityLabel={`Region: ${displayRegion}`}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [
@@ -44,12 +52,12 @@ export function RegionPickerCard({
       <View style={styles.copy}>
         <Text style={[styles.eyebrow, { color: theme.mutedText }]}>Region</Text>
         <Text style={[styles.region, { color: theme.text }]}>
-          {mapScopeLabel(scope)}
+          {displayRegion}
         </Text>
       </View>
       <View style={[styles.badge, { backgroundColor: theme.muted }]}>
         <Text style={[styles.badgeText, { color: theme.mutedText }]}>
-          {isGlobal ? "Worldwide" : "Regional"}
+          {badgeLabel}
         </Text>
       </View>
       <Ionicons color={theme.mutedText} name="chevron-down" size={18} />
