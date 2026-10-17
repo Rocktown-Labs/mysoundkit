@@ -381,8 +381,11 @@ export function useTurnstileToken(action: TurnstileAction) {
       return null;
     },
     headers: (): Record<string, string> =>
-      availableRef.current && tokenRef.current.length > 0
-        ? { "X-Turnstile-Token": tokenRef.current }
+      tokenRef.current.length > 0
+        ? {
+            "X-Turnstile-Token": tokenRef.current,
+            "x-captcha-response": tokenRef.current,
+          }
         : {},
     reset: () => {
       tokenRef.current = "";
