@@ -28,7 +28,7 @@ interface NativeBridgeMessage {
 
 /** Hosted on an approved hostname so the widget's siteverify `hostname`
  * matches the server's TURNSTILE_HOSTNAMES. The native app loads this page in
- * a hidden WebView and collects the single-use token via postMessage. */
+ * a WebView and collects the single-use token via postMessage. */
 function postToNative(message: NativeBridgeMessage) {
   try {
     const payload = JSON.stringify(message);
@@ -47,36 +47,27 @@ function TurnstileBridgePage() {
   const { action } = Route.useSearch();
 
   useEffect(() => {
-    if (!isTurnstileConfigured) {
-      postToNative({
-        available: false,
-        source: "soundkit-turnstile",
-        token: "",
-      });
-    }
+    postToNative({
+      available: isTurnstileConfigured,
+      source: "soundkit-turnstile",
+      token: "",
+    });
   }, []);
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-background">
+    <main className="flex h-[68px] items-center justify-center overflow-hidden bg-transparent m-0 p-0">
       {isTurnstileConfigured ? (
-        <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <TurnstileWidget
-            action={action}
-            onTokenChange={(token) => {
-              postToNative({
-                available: true,
-                source: "soundkit-turnstile",
-                token,
-              });
-            }}
-          />
-          <p className="text-xs">SoundKit security check</p>
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          Security verification is not configured for this deployment.
-        </p>
-      )}
+        <TurnstileWidget
+          action={action}
+          onTokenChange={(token) => {
+            postToNative({
+              available: true,
+              source: "soundkit-turnstile",
+              token,
+            });
+          }}
+        />
+      ) : null}
     </main>
   );
 }

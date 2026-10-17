@@ -130,6 +130,8 @@ function toTrackCards(tracks?: readonly TrackSummary[]): DiscoverCardData[] {
     href: `/tracks/${track.id}`,
     id: track.id,
     imageUrl: track.coverArtUrl,
+    meta: `${track.duration || "0:00"} • ${(track.plays ?? 0).toLocaleString()} plays`,
+    showHeart: true,
     subtitle: track.artistName,
     title: track.title,
   }));

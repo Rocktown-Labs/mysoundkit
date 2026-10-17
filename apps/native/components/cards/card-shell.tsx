@@ -2,53 +2,58 @@
 import { router } from "expo-router";
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { createAnimatedComponent } from "react-native-reanimated";
 
 import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
-// Reanimated CSS-transition props are not part of stock RN's ViewStyle, so
-// they live outside StyleSheet.create (which type-checks against ViewStyle).
-// The AnimatedPressable style array accepts them via Reanimated's types.
-const PRESS_TRANSITION = {
-  transitionDuration: 120,
-  transitionProperty: "transform, opacity",
-} as const;
+const styles = StyleSheet.create({
+  badge: {
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  card: {
+    gap: 8,
+  },
+  cardFramed: {
+    borderCurve: "continuous",
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 0,
+    overflow: "hidden",
+  },
+  cardPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.97 }],
+  },
+  meta: {
+    gap: 3,
+    paddingHorizontal: 2,
+  },
+  metaFramed: {
+    gap: 2,
+    padding: 10,
+  },
+  subtitle: { fontSize: 12, lineHeight: 16 },
+  thumb: { width: "100%" },
+  title: { fontSize: 14, fontWeight: "700", lineHeight: 18 },
+});
 
-const AnimatedPressable = createAnimatedComponent(Pressable),
-  styles = StyleSheet.create({
-    badge: {
-      borderRadius: 6,
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-    },
-    badgeText: {
-      fontSize: 9,
-      fontWeight: "800",
-      letterSpacing: 0.4,
-      textTransform: "uppercase",
-    },
-    card: {
-      borderRadius: 14,
-      borderWidth: 1,
-      overflow: "hidden",
-    },
-    meta: {
-      gap: 2,
-      padding: 10,
-    },
-    subtitle: { fontSize: 12, lineHeight: 16 },
-    thumb: { width: "100%" },
-    title: { fontSize: 13, fontWeight: "700", lineHeight: 17 },
-  });
-
-/** Themed tappable card shell used by all browse cards. */
+/** Themed tappable card shell used by all browse cards (frameless by default like web PublicCard). */
 export function NativeCardShell({
   children,
+  framed = false,
   href,
   width,
 }: {
   children: ReactNode;
+  framed?: boolean;
   href: string;
   width: number;
 }) {
@@ -56,20 +61,20 @@ export function NativeCardShell({
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
   return (
-    <AnimatedPressable
+    <Pressable
       onPress={() => {
         router.push(href as never);
       }}
-      style={({ pressed }: { pressed: boolean }) => [
+      style={({ pressed }) => [
         styles.card,
-        { backgroundColor: theme.card, borderColor: theme.border },
+        framed && styles.cardFramed,
+        framed && { backgroundColor: theme.card, borderColor: theme.border },
         width > 0 ? { width } : null,
-        PRESS_TRANSITION,
-        pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
+        pressed && styles.cardPressed,
       ]}
     >
       {children}
-    </AnimatedPressable>
+    </Pressable>
   );
 }
 
@@ -103,18 +108,20 @@ export function CardBadge({
 }
 
 export function CardMeta({
+  framed = false,
   subtitle,
   subtitleColor,
   title,
   titleColor,
 }: {
+  framed?: boolean;
   subtitle?: string;
   subtitleColor?: string;
   title: string;
   titleColor: string;
 }) {
   return (
-    <View style={styles.meta}>
+    <View style={framed ? styles.metaFramed : styles.meta}>
       <Text numberOfLines={1} style={[styles.title, { color: titleColor }]}>
         {title}
       </Text>

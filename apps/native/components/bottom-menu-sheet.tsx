@@ -4,13 +4,17 @@ import {
   BottomSheetModal,
   BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
-import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
+import type {
+  BottomSheetBackdropProps,
+  BottomSheetBackgroundProps,
+} from "@gorhom/bottom-sheet";
 import { Link } from "expo-router";
 import type { Href } from "expo-router";
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import type { ComponentRef, ForwardedRef, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { LiquidGlassView } from "@/components/liquid-glass";
 import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
@@ -30,6 +34,23 @@ interface BottomMenuSheetProps {
   description?: ReactNode;
   items: readonly MenuSheetItem[];
   title: string;
+}
+
+function renderSheetBackground({ style }: BottomSheetBackgroundProps) {
+  return (
+    <LiquidGlassView
+      borderRadius={26}
+      intensity={85}
+      style={[
+        style,
+        {
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
+        },
+      ]}
+      variant="sheet"
+    />
+  );
 }
 
 function BottomMenuSheetBase(
@@ -53,8 +74,8 @@ function BottomMenuSheetBase(
   return (
     <BottomSheetModal
       backdropComponent={renderSheetBackdrop}
-      backgroundStyle={{ backgroundColor: theme.card }}
-      handleIndicatorStyle={{ backgroundColor: theme.border }}
+      backgroundComponent={renderSheetBackground}
+      handleIndicatorStyle={{ backgroundColor: "rgba(255, 255, 255, 0.28)" }}
       ref={sheetRef}
       snapPoints={SNAP_POINTS}
     >
@@ -84,8 +105,10 @@ function BottomMenuSheetBase(
                   style={({ pressed }) => [
                     styles.item,
                     {
-                      backgroundColor: pressed ? theme.muted : theme.background,
-                      borderColor: theme.border,
+                      backgroundColor: pressed
+                        ? "rgba(255, 255, 255, 0.1)"
+                        : "rgba(255, 255, 255, 0.05)",
+                      borderColor: "rgba(255, 255, 255, 0.12)",
                       opacity: pressed ? 0.85 : 1,
                     },
                   ]}
@@ -94,7 +117,7 @@ function BottomMenuSheetBase(
                     <View
                       style={[
                         styles.icon,
-                        { backgroundColor: `${theme.primary}18` },
+                        { backgroundColor: `${theme.primary}22` },
                       ]}
                     >
                       <Ionicons
@@ -148,8 +171,8 @@ const BottomMenuSheet = forwardRef(BottomMenuSheetBase),
     <BottomSheetBackdrop
       {...props}
       appearsOnIndex={0}
-      disappearsOnIndex={0}
-      opacity={0.4}
+      disappearsOnIndex={-1}
+      opacity={0.55}
     />
   ),
   styles = StyleSheet.create({

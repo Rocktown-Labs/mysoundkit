@@ -58,7 +58,9 @@ export const verifyTurnstileRequest = async ({
     return getEnvValue("TURNSTILE_DISABLED").toLowerCase() === "true";
   }
 
-  const token = request.headers.get("X-Turnstile-Token");
+  const token =
+    request.headers.get("X-Turnstile-Token") ??
+    request.headers.get("x-captcha-response");
   if (!token || token.length > 2048) {
     return false;
   }

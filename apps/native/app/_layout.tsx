@@ -1,4 +1,4 @@
-/* oxlint-disable one-var */
+/* oxlint-disable one-var, unicorn/no-useless-undefined */
 import "@/polyfills";
 import { DarkTheme, ThemeProvider } from "@react-navigation/native";
 import type { Theme } from "@react-navigation/native";
@@ -17,6 +17,7 @@ import { CartModal } from "@/components/cart/cart-modal";
 import { NowPlayingModal } from "@/components/now-playing-modal";
 import { AudioPlayerProvider } from "@/contexts/audio-player-context";
 import { CartProvider } from "@/contexts/cart-context";
+import { GuestModeProvider } from "@/contexts/guest-mode-context";
 import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
 
@@ -65,25 +66,30 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthQuerySync />
-      <AudioPlayerProvider>
-        <CartProvider>
-          <ThemeProvider value={DARK_THEME}>
-            {/* oxlint-disable-next-line react/style-prop-object */}
-            <StatusBar style="light" />
-            <GestureHandlerRootView style={styles.container}>
-              <Stack>
-                <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="(drawer)"
-                  options={{ headerShown: false }}
-                />
-              </Stack>
-              <NowPlayingModal />
-              <CartModal />
-            </GestureHandlerRootView>
-          </ThemeProvider>
-        </CartProvider>
-      </AudioPlayerProvider>
+      <GuestModeProvider>
+        <AudioPlayerProvider>
+          <CartProvider>
+            <ThemeProvider value={DARK_THEME}>
+              {/* oxlint-disable-next-line react/style-prop-object */}
+              <StatusBar style="light" />
+              <GestureHandlerRootView style={styles.container}>
+                <Stack>
+                  <Stack.Screen
+                    name="(auth)"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="(drawer)"
+                    options={{ headerShown: false }}
+                  />
+                </Stack>
+                <NowPlayingModal />
+                <CartModal />
+              </GestureHandlerRootView>
+            </ThemeProvider>
+          </CartProvider>
+        </AudioPlayerProvider>
+      </GuestModeProvider>
     </QueryClientProvider>
   );
 }

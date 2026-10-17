@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { LiquidGlassView } from "@/components/liquid-glass";
 import { formatCartPrice, useCart } from "@/contexts/cart-context";
 import { API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
@@ -140,13 +141,16 @@ export function CartModal() {
           onPress={closeCart}
           style={StyleSheet.absoluteFill}
         />
-        <View
+        <LiquidGlassView
+          borderRadius={28}
+          intensity={85}
           style={[
             styles.sheet,
             {
               paddingBottom: Math.max(insets.bottom, 20),
             },
           ]}
+          variant="sheet"
         >
           {/* Header */}
           <View style={styles.header}>
@@ -304,7 +308,7 @@ export function CartModal() {
               </Pressable>
             </View>
           ) : null}
-        </View>
+        </LiquidGlassView>
       </View>
     </Modal>
   );
@@ -336,7 +340,7 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     alignItems: "center",
-    backgroundColor: "#161616",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
     borderRadius: 999,
     height: 32,
     justifyContent: "center",
@@ -344,7 +348,7 @@ const styles = StyleSheet.create({
   },
   emptyIconCircle: {
     alignItems: "center",
-    backgroundColor: "#111111",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
     borderRadius: 999,
     height: 72,
     justifyContent: "center",
@@ -385,16 +389,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   footer: {
-    borderTopColor: "#1e1e1e",
-    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
+    borderTopWidth: StyleSheet.hairlineWidth,
     gap: 12,
     paddingHorizontal: 20,
     paddingTop: 16,
   },
   header: {
     alignItems: "flex-start",
-    borderBottomColor: "#1e1e1e",
-    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
     justifyContent: "space-between",
     paddingBottom: 16,
@@ -450,8 +454,8 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   itemRow: {
-    backgroundColor: "#080808",
-    borderColor: "#1e1e1e",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "rgba(255, 255, 255, 0.12)",
     borderRadius: 14,
     borderWidth: 1,
     gap: 14,
@@ -468,22 +472,19 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   scrim: {
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
     flex: 1,
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: "#0d0d10",
-    borderTopColor: "#222222",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     maxHeight: "85%",
   },
   stepper: {
     alignItems: "center",
-    backgroundColor: "#111111",
-    borderColor: "#222222",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: "rgba(255, 255, 255, 0.12)",
     borderRadius: 8,
     borderWidth: 1,
     flexDirection: "row",
@@ -520,7 +521,7 @@ const styles = StyleSheet.create({
   },
   trashBtn: {
     alignItems: "center",
-    backgroundColor: "#161616",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
     borderRadius: 8,
     height: 30,
     justifyContent: "center",

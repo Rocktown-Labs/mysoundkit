@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 
+import { TrackCard } from "@/components/cards/track-card";
 import { Container } from "@/components/container";
 import { NativeEmptyState } from "@/components/native-collection-grid";
 import { NativeImage } from "@/components/native-image";
@@ -612,29 +613,7 @@ export default function TrackDetailScreen() {
                 showsHorizontalScrollIndicator={false}
               >
                 {relatedTracks.map((item) => (
-                  <Link
-                    asChild
-                    href={`/tracks/${item.id}` as never}
-                    key={item.id}
-                  >
-                    <Pressable style={styles.relatedCard}>
-                      <View style={styles.relatedCover}>
-                        <NativeImage
-                          source={item.coverArtUrl ?? undefined}
-                          style={styles.relatedImage}
-                        />
-                        <View style={styles.relatedPlayPill}>
-                          <Text style={styles.relatedPlayText}>Play</Text>
-                        </View>
-                      </View>
-                      <Text numberOfLines={1} style={styles.relatedTitle}>
-                        {item.title}
-                      </Text>
-                      <Text numberOfLines={1} style={styles.relatedArtist}>
-                        {item.artistName}
-                      </Text>
-                    </Pressable>
-                  </Link>
+                  <TrackCard compact key={item.id} track={item} />
                 ))}
               </ScrollView>
             </View>
