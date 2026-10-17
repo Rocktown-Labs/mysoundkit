@@ -10,6 +10,8 @@ import type { Topology } from "topojson-specification";
 
 import { mapScopeLabel } from "@/lib/explore-region";
 import type { MapScope } from "@/lib/explore-region";
+import { isWorldCountryInMapScope } from "@/lib/map-country-scopes";
+import { mapScopes } from "@/lib/map-scopes";
 
 import usTopo from "../assets/maps/us-states-10m.json";
 import worldTopo from "../assets/maps/world-countries-110m.json";
@@ -47,30 +49,6 @@ const MAP_COLORS = {
   text: "#F8F8F8",
 } as const;
 
-export const COUNTRY_OPTIONS = [
-  { id: "usa", label: "USA" },
-  { id: "canada", label: "Canada" },
-  { id: "mexico", label: "Mexico" },
-  { id: "uk", label: "United Kingdom" },
-  { id: "germany", label: "Germany" },
-  { id: "france", label: "France" },
-  { id: "japan", label: "Japan" },
-  { id: "australia", label: "Australia" },
-  { id: "global", label: "Worldwide" },
-] as const;
-
-const COUNTRY_ID_TO_SCOPE: Readonly<Record<string, MapScope>> = {
-  australia: "oceania",
-  canada: "canada",
-  france: "europe",
-  germany: "europe",
-  global: "global",
-  japan: "asia",
-  mexico: "mexico",
-  uk: "europe",
-  usa: "usa",
-};
-
 const geographyName = (properties: unknown, id: unknown): string | null => {
   const props = properties as Record<string, unknown> | undefined,
     candidate = props?.name ?? props?.NAME ?? id;
@@ -101,6 +79,8 @@ export interface NativeMapProps {
   onRegionSelect: (regionName: string | null) => void;
   onResetGlobal?: () => void;
   onScopeChange: (scope: MapScope, regionName?: null | string) => void;
+  /** Non-interactive compact variant used as the Discover map preview. */
+  preview?: boolean;
   scope: MapScope;
   selectedRegion: null | string;
 }
@@ -109,6 +89,7 @@ export function NativeMap({
   onRegionSelect,
   onResetGlobal,
   onScopeChange,
+  preview = false,
   scope,
   selectedRegion,
 }: NativeMapProps) {
@@ -140,16 +121,204 @@ export function NativeMap({
       } else {
         projection.fitSize([view.width, view.height], collection);
       }
-      const generator = geoPath(projection);
-      return collection.features.map((geography) => ({
+      const generator = geoPath(projection),
+        // Scope slices (web parity): drop countries outside the active scope
+        // so e.g. the Europe scope renders only European shapes instead of a
+        // zoomed chunk of the world map.
+        features = collection.features.filter((geography) => {
+          const name = geographyName(geography.properties, geography.id);
+          return name != null && isWorldCountryInMapScope(scope, name);
+        });
+      return features.map((geography) => ({
         d: generator(geography) ?? "",
         id: String(geography.id ?? ""),
         name: geographyName(geography.properties, geography.id),
       }));
     }, [collection, scope, view.height, view.width]),
     activeCountryLabel = mapScopeLabel(scope),
-    displayRegionName =
-      selectedRegion ?? (scope === "usa" ? "Arkansas" : "Global");
+    displayRegionName = selectedRegion ?? mapScopeLabel(scope);
+
+  const mapCard = (
+    <View
+      style={[
+        styles.mapCard,
+        {
+          backgroundColor: MAP_COLORS.card,
+          borderColor: MAP_COLORS.border,
+        },
+      ]}
+    >
+      {preview ? null : (
+        <>
+          {/* Scope dropdown selector */}
+          <Pressable
+            accessibilityLabel={`Change region, currently ${activeCountryLabel}`}
+            accessibilityRole="button"
+            onPress={() => {
+              setCountryPickerOpen(!countryPickerOpen);
+            }}
+            style={({ pressed }) => [
+              styles.countryDropdown,
+              {
+                backgroundColor: pressed
+                  ? MAP_COLORS.surfacePressed
+                  : MAP_COLORS.surface,
+                borderColor: MAP_COLORS.border,
+              },
+            ]}
+          >
+            <Text style={styles.countryDropdownText}>{activeCountryLabel}</Text>
+            <Ionicons
+              color="#8F8F8F"
+              name={countryPickerOpen ? "chevron-up" : "chevron-down"}
+              size={16}
+            />
+          </Pressable>
+
+          {/* Floating dropdown options when open */}
+          {countryPickerOpen ? (
+            <View style={styles.dropdownMenu}>
+              <ScrollView bounces={false} style={styles.dropdownScroll}>
+                {mapScopes.map((option) => {
+                  const isSelected = scope === option.id;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      onPress={() => {
+                        onScopeChange(option.id, null);
+                        setCountryPickerOpen(false);
+                      }}
+                      style={({ pressed }) => [
+                        styles.dropdownMenuItem,
+                        {
+                          backgroundColor: isSelected
+                            ? "rgba(168, 85, 247, 0.15)"
+                            : pressed
+                              ? MAP_COLORS.surface
+                              : "transparent",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        color={isSelected ? "#C084FC" : "#8F8F8F"}
+                        name={option.icon as keyof typeof Ionicons.glyphMap}
+                        size={14}
+                      />
+                      <Text
+                        style={[
+                          styles.dropdownMenuItemText,
+                          isSelected && {
+                            color: "#C084FC",
+                            fontWeight: "700",
+                          },
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : null}
+        </>
+      )}
+
+      {/* Floating selected badge over map */}
+      {displayRegionName ? (
+        <View style={styles.floatingRegionBadge}>
+          <Ionicons color="#000000" name="location-sharp" size={14} />
+          <Text style={styles.floatingRegionBadgeText}>
+            {displayRegionName}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* Map SVG Canvas — explicit measured dimensions so the shapes
+            always render, even inside bottom-sheet scroll containers. */}
+      <View
+        onLayout={(e) => {
+          const { height, width } = e.nativeEvent.layout;
+          setCanvasSize({ height, width });
+        }}
+        style={[styles.mapCanvas, preview && styles.mapCanvasPreview]}
+      >
+        <Svg
+          height={canvasSize.height}
+          preserveAspectRatio="xMidYMid meet"
+          viewBox={`0 0 ${view.width} ${view.height}`}
+          width={canvasSize.width}
+        >
+          {paths.map((path) => {
+            const isSelected =
+                Boolean(path.name) &&
+                selectedRegion?.toLowerCase() === path.name?.toLowerCase(),
+              isPressed = pressedPathName === path.name,
+              interactive = !preview && path.name != null;
+
+            return (
+              <Path
+                d={path.d}
+                fill={
+                  isSelected
+                    ? isPressed
+                      ? MAP_COLORS.selectedPressed
+                      : MAP_COLORS.selected
+                    : isPressed
+                      ? MAP_COLORS.shapePressed
+                      : MAP_COLORS.shape
+                }
+                key={path.id || path.d}
+                onPress={
+                  interactive
+                    ? () => {
+                        onRegionSelect(path.name as string);
+                      }
+                    : undefined
+                }
+                onPressIn={
+                  interactive
+                    ? () => {
+                        setPressedPathName(path.name ?? null);
+                      }
+                    : undefined
+                }
+                onPressOut={() => {
+                  setPressedPathName(null);
+                }}
+                stroke={
+                  isSelected ? MAP_COLORS.strokeSelected : MAP_COLORS.stroke
+                }
+                strokeWidth={isSelected ? 1.8 : 0.6}
+              />
+            );
+          })}
+        </Svg>
+      </View>
+
+      {preview ? (
+        <View style={styles.hintPill}>
+          <Ionicons color="#C084FC" name="expand-outline" size={13} />
+          <Text style={styles.hintText}>Tap to change region</Text>
+        </View>
+      ) : (
+        <View style={styles.legendPill}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#2E3138" }]} />
+            <Text style={styles.legendText}>Available</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#A855F7" }]} />
+            <Text style={styles.legendText}>Selected</Text>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+
+  if (preview) {
+    return <View style={styles.wrapper}>{mapCard}</View>;
+  }
 
   return (
     <View style={styles.wrapper}>
@@ -184,175 +353,7 @@ export function NativeMap({
         ) : null}
       </View>
 
-      {/* Main Map Card */}
-      <View
-        style={[
-          styles.mapCard,
-          {
-            backgroundColor: MAP_COLORS.card,
-            borderColor: MAP_COLORS.border,
-          },
-        ]}
-      >
-        {/* Country dropdown selector */}
-        <Pressable
-          accessibilityLabel={`Change country, currently ${activeCountryLabel}`}
-          accessibilityRole="button"
-          onPress={() => {
-            setCountryPickerOpen(!countryPickerOpen);
-          }}
-          style={({ pressed }) => [
-            styles.countryDropdown,
-            {
-              backgroundColor: pressed
-                ? MAP_COLORS.surfacePressed
-                : MAP_COLORS.surface,
-              borderColor: MAP_COLORS.border,
-            },
-          ]}
-        >
-          <Text style={styles.countryDropdownText}>{activeCountryLabel}</Text>
-          <Ionicons
-            color="#8F8F8F"
-            name={countryPickerOpen ? "chevron-up" : "chevron-down"}
-            size={16}
-          />
-        </Pressable>
-
-        {/* Floating dropdown options when open */}
-        {countryPickerOpen ? (
-          <View style={styles.dropdownMenu}>
-            <ScrollView bounces={false} style={styles.dropdownScroll}>
-              {COUNTRY_OPTIONS.map((country) => {
-                const targetScope = COUNTRY_ID_TO_SCOPE[country.id] ?? "global",
-                  isSelected = scope === targetScope;
-                return (
-                  <Pressable
-                    key={country.id}
-                    onPress={() => {
-                      onScopeChange(
-                        targetScope,
-                        country.id === "usa" || targetScope === "global"
-                          ? null
-                          : country.label
-                      );
-                      setCountryPickerOpen(false);
-                    }}
-                    style={({ pressed }) => [
-                      styles.dropdownMenuItem,
-                      {
-                        backgroundColor: isSelected
-                          ? "rgba(168, 85, 247, 0.15)"
-                          : pressed
-                            ? MAP_COLORS.surface
-                            : "transparent",
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.dropdownMenuItemText,
-                        isSelected && {
-                          color: "#C084FC",
-                          fontWeight: "700",
-                        },
-                      ]}
-                    >
-                      {country.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        ) : null}
-
-        {/* Floating selected badge over map */}
-        {displayRegionName ? (
-          <View style={styles.floatingRegionBadge}>
-            <Ionicons color="#000000" name="location-sharp" size={14} />
-            <Text style={styles.floatingRegionBadgeText}>
-              {displayRegionName}
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Map SVG Canvas — explicit measured dimensions so the shapes
-            always render, even inside bottom-sheet scroll containers. */}
-        <View
-          onLayout={(e) => {
-            const { height, width } = e.nativeEvent.layout;
-            setCanvasSize({ height, width });
-          }}
-          style={styles.mapCanvas}
-        >
-          <Svg
-            height={canvasSize.height}
-            preserveAspectRatio="xMidYMid meet"
-            viewBox={`0 0 ${view.width} ${view.height}`}
-            width={canvasSize.width}
-          >
-            {paths.map((path) => {
-              const isSelected =
-                  Boolean(path.name) &&
-                  (selectedRegion?.toLowerCase() === path.name?.toLowerCase() ||
-                    (!selectedRegion &&
-                      scope === "usa" &&
-                      path.name?.toLowerCase() === "arkansas")),
-                isPressed = pressedPathName === path.name;
-
-              return (
-                <Path
-                  d={path.d}
-                  fill={
-                    isSelected
-                      ? isPressed
-                        ? MAP_COLORS.selectedPressed
-                        : MAP_COLORS.selected
-                      : isPressed
-                        ? MAP_COLORS.shapePressed
-                        : MAP_COLORS.shape
-                  }
-                  key={path.id || path.d}
-                  onPress={
-                    path.name == null
-                      ? undefined
-                      : () => {
-                          onRegionSelect(path.name as string);
-                        }
-                  }
-                  onPressIn={
-                    path.name == null
-                      ? undefined
-                      : () => {
-                          setPressedPathName(path.name ?? null);
-                        }
-                  }
-                  onPressOut={() => {
-                    setPressedPathName(null);
-                  }}
-                  stroke={
-                    isSelected ? MAP_COLORS.strokeSelected : MAP_COLORS.stroke
-                  }
-                  strokeWidth={isSelected ? 1.8 : 0.6}
-                />
-              );
-            })}
-          </Svg>
-        </View>
-
-        {/* Bottom Legend indicator */}
-        <View style={styles.legendPill}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: "#2E3138" }]} />
-            <Text style={styles.legendText}>Available</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: "#A855F7" }]} />
-            <Text style={styles.legendText}>Selected</Text>
-          </View>
-        </View>
-      </View>
+      {mapCard}
     </View>
   );
 }
@@ -389,6 +390,9 @@ const styles = StyleSheet.create({
     zIndex: 50,
   },
   dropdownMenuItem: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
@@ -416,6 +420,26 @@ const styles = StyleSheet.create({
     color: "#000000",
     fontSize: 13,
     fontWeight: "800",
+  },
+  hintPill: {
+    alignItems: "center",
+    backgroundColor: "#0B0B0B",
+    borderColor: "#212121",
+    borderRadius: 999,
+    borderWidth: 1,
+    bottom: 12,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    position: "absolute",
+    right: 16,
+    zIndex: 10,
+  },
+  hintText: {
+    color: "#8F8F8F",
+    fontSize: 11,
+    fontWeight: "600",
   },
   legendDot: {
     borderRadius: 999,
@@ -452,6 +476,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 8,
     width: "100%",
+  },
+  mapCanvasPreview: {
+    height: 150,
   },
   mapCard: {
     borderRadius: 18,

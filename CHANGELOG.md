@@ -4,6 +4,17 @@
 
 ### Fixed
 
+- Fixed native region picks silently collapsing to continent-level queries (`#445`): the Discover screen's inline query builder ignored the picked country unless the scope was USA, so choosing France, the United Kingdom, or Germany all queried all of Europe and Japan queried all of Asia; it now uses the web-parity `exploreRegionQuery()` helper (`apps/native/lib/explore-region.ts` + `apps/native/app/(drawer)/(tabs)/(discover)/index.tsx`) so a country tap queries that country (`region=france&regionType=global`), a state tap queries the state, and non-Americas scopes correctly send `regionType: "global"` instead of `"north-america"`.
+- Fixed the native region map rendering scopes as a zoomed chunk of the world map (`#445`): `NativeMap` (`apps/native/components/native-map.tsx`) now filters world features through the web-parity allow-list in `apps/native/lib/map-country-scopes.ts`, so e.g. the Europe scope renders only European shapes like the web app's slices; also removed the phantom "Arkansas" highlight shown in the Global view.
+- Fixed native region selection resetting to Global on every remount (`#445`): the Discover region choice now persists to AsyncStorage via `apps/native/lib/region-store.ts` and is restored on launch, and the region picker card shows the selected country/state name with its scope as the badge instead of only the scope label.
+
+### Added
+
+- Added web-parity region scopes to the native Discover map (`#445`): the in-map dropdown now lists the same nine scopes as the web app (Global, USA, Canada, Mexico, Africa, Europe, Asia, Latin America, Oceania) instead of nine hardcoded countries, with drill-down via map taps (Europe → France; USA → state).
+- Added a compact non-interactive map preview card on the Discover page (`apps/native/components/map-preview-card.tsx`) that opens the region picker sheet on tap, so the map is visible without opening the sheet (`#446`), and the region picker sheet now closes automatically when a country/state is tapped while staying open on scope changes for chained drill-down (`#446`).
+
+### Changed
+
 - Fixed native card sizing, genre grid layout, and artist/project detail regressions (#443):
   - Replaced `createAnimatedComponent(Pressable)` with React Native `Pressable` in `apps/native/components/cards/card-shell.tsx` and `apps/native/components/genre-glass-card.tsx` so functional `style={({ pressed }) => [...]}` arrays evaluate at runtime, restoring compact card rail sizing (`132px` / `150px` / `240px`) on `/artist/[username]` and `/projects/[id]` and the 2-column Liquid Glass `Browse Genres` grid on `/search` and `/genres`.
   - Fixed `##1` rank formatting and clipped profile header/avatar on `apps/native/app/(drawer)/(tabs)/(discover)/artist/[username].tsx`, added a `NativeStackLayout` under `apps/native/app/(drawer)/(tabs)/artists/_layout.tsx` plus `/artists/list` so the **Artists** bottom tab remains highlighted when viewing an artist profile or filtered directory, and converted "More From This Artist" on `apps/native/app/(drawer)/(tabs)/(discover)/projects/[id].tsx` into a horizontal scrolling `NativeRail` with `TrackCard compact`.

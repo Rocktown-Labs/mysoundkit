@@ -1,6 +1,6 @@
 /* oxlint-disable one-var, sort-vars, no-nested-ternary, require-unicode-regexp */
 /* eslint-disable one-var, sort-vars, no-nested-ternary, require-unicode-regexp */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AvatarHeaderButton } from "@/components/avatar-header-button";
@@ -8,12 +8,15 @@ import { CartHeaderButton } from "@/components/cart/cart-header-button";
 import { Container } from "@/components/container";
 import { DiscoverSection } from "@/components/discover-section";
 import type { DiscoverCardData } from "@/components/discover-section";
+import { MapPreviewCard } from "@/components/map-preview-card";
 import { RegionPickerCard } from "@/components/region-picker-card";
 import { RegionPickerSheet } from "@/components/region-picker-sheet";
 import type { RegionPickerSheetHandle } from "@/components/region-picker-sheet";
 import { useTabMenu } from "@/components/tab-menu-sheets";
 import { NAV_THEME } from "@/lib/constants";
+import { exploreRegionQuery } from "@/lib/explore-region";
 import type { MapScope } from "@/lib/map-scopes";
+import { loadRegionSelection, saveRegionSelection } from "@/lib/region-store";
 import type {
   ArtistSummary,
   BattleSummary,
@@ -150,21 +153,13 @@ function toVideoCards(videos?: readonly VideoSummary[]): DiscoverCardData[] {
 export default function DiscoverScreen() {
   const [activeScope, setActiveScope] = useState<MapScope>("global"),
     { colorScheme } = useColorScheme(),
-    [selectedRegion, setSelectedRegion] = useState<string | null>("Arkansas"),
+    [selectedRegion, setSelectedRegion] = useState<string | null>(null),
     regionSheetRef = useRef<RegionPickerSheetHandle>(null),
     { openLibraryMenu } = useTabMenu(),
-    discoverQuery = {
-      region:
-        selectedRegion && activeScope === "usa"
-          ? `us-${selectedRegion.toLowerCase().replaceAll(/\s+/g, "-")}`
-          : activeScope === "global"
-            ? "all"
-            : activeScope,
-      regionType:
-        activeScope === "global"
-          ? ("global" as const)
-          : ("north-america" as const),
-    },
+    discoverQuery = exploreRegionQuery({
+      mapScope: activeScope,
+      region: selectedRegion,
+    }),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     topArtists = useDiscoverTopArtistsQuery(discoverQuery),
     topSongs = useDiscoverTopSongsQuery(discoverQuery),
@@ -174,6 +169,25 @@ export default function DiscoverScreen() {
     liveStreams = useDiscoverStreamsQuery(discoverQuery),
     projects = useDiscoverProjectsQuery(discoverQuery),
     liveParties = useDiscoverPartiesQuery(discoverQuery);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const restored = await loadRegionSelection();
+        if (!active || !restored) {
+          return;
+        }
+        setActiveScope(restored.mapScope);
+        setSelectedRegion(restored.regionName);
+      } catch {
+        // Persisted selection is optional; keep the defaults.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <Container>
@@ -197,6 +211,14 @@ export default function DiscoverScreen() {
           onPress={() => {
             regionSheetRef.current?.present();
           }}
+          regionName={selectedRegion}
+          scope={activeScope}
+        />
+        <MapPreviewCard
+          onPress={() => {
+            regionSheetRef.current?.present();
+          }}
+          regionName={selectedRegion}
           scope={activeScope}
         />
         <DiscoverSection
@@ -260,6 +282,7 @@ export default function DiscoverScreen() {
         onRegionChange={(newScope, regionName) => {
           setActiveScope(newScope);
           setSelectedRegion(regionName);
+          void saveRegionSelection({ mapScope: newScope, regionName });
         }}
         ref={regionSheetRef}
         scope={activeScope}
