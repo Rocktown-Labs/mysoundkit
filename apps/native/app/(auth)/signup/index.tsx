@@ -1,11 +1,13 @@
-/* oxlint-disable one-var, sort-vars, complexity */
+/* oxlint-disable one-var, sort-vars, sort-keys, complexity */
 import { Ionicons } from "@expo/vector-icons";
 import { Link, Stack, useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import {
+  AuthDivider,
   AuthErrorBanner,
+  AuthGoogleButton,
   AuthPasswordField,
   AuthPrimaryButton,
   AuthShell,
@@ -19,16 +21,27 @@ import { authenticatedFetch } from "@/lib/authenticated-fetch";
 
 const ACCOUNT_TYPES = [
     {
-      description:
-        "Release tracks, join battles, build your audience, and monetize your sound.",
+      bullets: [
+        "Upload & release music",
+        "Sell tracks & kits",
+        "Battle & stream live",
+      ],
+      cta: "Continue as Artist",
+      description: "Release music, build your audience, and earn directly.",
       icon: "mic-outline" as const,
       label: "I'm an Artist",
       type: "artist" as const,
     },
     {
+      bullets: [
+        "Discover public releases",
+        "Follow favorite artists",
+        "Save & buy music",
+      ],
+      cta: "Continue as Fan",
       description:
-        "Discover new music, follow artists, join communities, and support the scene.",
-      icon: "headset-outline" as const,
+        "Discover new music, support artists, and build your library.",
+      icon: "people-outline" as const,
       label: "I'm a Fan",
       type: "fan" as const,
     },
@@ -40,18 +53,19 @@ export default function SignupScreen() {
   const router = useRouter(),
     { data: session } = authClient.useSession(),
     turnstile = useTurnstileToken("signup"),
-    [name, setName] = useState(""),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [confirmPassword, setConfirmPassword] = useState(""),
-    [marketingOptIn, setMarketingOptIn] = useState(true),
+    [marketingOptIn, setMarketingOptIn] = useState(false),
     [step, setStep] = useState<"credentials" | "path">("credentials"),
+    [selectingType, setSelectingType] = useState<"artist" | "fan" | null>(null),
     [error, setError] = useState<null | string>(null),
     [busy, setBusy] = useState(false),
     showPathChooser = step === "path" || Boolean(session?.user);
 
   const selectAccountPath = async (accountType: "artist" | "fan") => {
     setBusy(true);
+    setSelectingType(accountType);
     setError(null);
     try {
       await authenticatedFetch(`${API_V1_URL}/onboarding/state`, {
@@ -69,13 +83,13 @@ export default function SignupScreen() {
       // Best-effort onboarding state persistence.
     }
     setBusy(false);
+    setSelectingType(null);
     router.replace(`/signup/onboarding?type=${accountType}`);
   };
 
   const submitCredentials = async () => {
     setError(null);
-    const trimmedName = name.trim(),
-      trimmedEmail = email.trim();
+    const trimmedEmail = email.trim();
     if (!EMAIL_PATTERN.test(trimmedEmail)) {
       setError("Enter a valid email address.");
       return;
@@ -85,7 +99,7 @@ export default function SignupScreen() {
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError("Passwords do not match. Check both password fields.");
       return;
     }
     const tokenError = turnstile.ensureToken();
@@ -98,7 +112,7 @@ export default function SignupScreen() {
       const result = await authClient.signUp.email(
         {
           email: trimmedEmail,
-          name: trimmedName.length > 0 ? trimmedName : "SoundKit Member",
+          name: "SoundKit Member",
           password,
         },
         { headers: turnstile.headers() }
@@ -120,84 +134,116 @@ export default function SignupScreen() {
 
   return (
     <ScrollView
-      contentContainerStyle={{ flexGrow: 1 }}
+      contentContainerStyle={styles.scroll}
       keyboardShouldPersistTaps="handled"
-      style={{ backgroundColor: "#020202", flex: 1 }}
+      style={styles.page}
     >
       <Stack.Screen options={{ headerShown: false }} />
       {showPathChooser ? (
         <AuthShell
-          showGuestContinue={false}
-          subtitle="Choose how you'll use SoundKit. You can always join the other side later."
+          backLabel="Back to home"
+          cardSubtitle="Select your role below. Both options sit side-by-side so you can compare and continue."
+          cardTitle="Select your role"
+          subtitle="Choose how you want to use the platform."
           title="Choose Your Path"
         >
           <AuthErrorBanner message={error} />
-          <View style={styles.cards}>
-            {ACCOUNT_TYPES.map((accountType) => (
-              <Pressable
-                accessibilityHint={`Continues onboarding as ${accountType.type}`}
-                accessibilityLabel={accountType.label}
-                accessibilityRole="button"
-                disabled={busy}
-                key={accountType.type}
-                onPress={() => {
-                  void selectAccountPath(accountType.type);
-                }}
-                style={({ pressed }) => [
-                  styles.card,
-                  pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
-                ]}
-              >
-                <View style={styles.cardIconWrap}>
-                  <Ionicons color="#B8A3FF" name={accountType.icon} size={26} />
-                </View>
-                <View style={styles.cardCopy}>
+          <View style={styles.cardsRow}>
+            {ACCOUNT_TYPES.map((accountType) => {
+              const isSelecting = selectingType === accountType.type;
+              return (
+                <Pressable
+                  accessibilityHint={`Continues onboarding as ${accountType.type}`}
+                  accessibilityLabel={accountType.label}
+                  accessibilityRole="button"
+                  disabled={busy}
+                  key={accountType.type}
+                  onPress={() => {
+                    void selectAccountPath(accountType.type);
+                  }}
+                  style={({ pressed }) => [
+                    styles.roleCard,
+                    pressed && {
+                      borderColor: "#B8A3FF",
+                      opacity: 0.92,
+                      transform: [{ scale: 0.99 }],
+                    },
+                  ]}
+                >
+                  <View style={styles.cardIconWrap}>
+                    <Ionicons
+                      color="#B8A3FF"
+                      name={accountType.icon}
+                      size={22}
+                    />
+                  </View>
                   <Text style={styles.cardTitle}>{accountType.label}</Text>
                   <Text style={styles.cardDescription}>
                     {accountType.description}
                   </Text>
-                </View>
-                <Ionicons color="#8F8F8F" name="chevron-forward" size={18} />
-              </Pressable>
-            ))}
+                  <View style={styles.bulletList}>
+                    {accountType.bullets.map((bullet) => (
+                      <View key={bullet} style={styles.bulletRow}>
+                        <Text style={styles.bulletCheck}>✓</Text>
+                        <Text numberOfLines={1} style={styles.bulletText}>
+                          {bullet}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={styles.cardCtaButton}>
+                    <Text numberOfLines={1} style={styles.cardCtaText}>
+                      {isSelecting ? "Continuing…" : accountType.cta}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
         </AuthShell>
       ) : (
         <AuthShell
-          subtitle="Create your free SoundKit account first, then choose your artist or fan path."
-          title="Create Account"
+          backLabel="Back to home"
+          cardSubtitle="Start with Google or create an account with email. Setup takes a few minutes."
+          cardTitle="Create SoundKit account"
+          subtitle="Create your free account first, then choose how you want to use SoundKit."
+          title="Join SoundKit"
         >
-          <AuthErrorBanner message={error} />
-          <AuthTextInput
-            autoCapitalize="words"
-            autoComplete="name"
-            onChangeText={setName}
-            placeholder="Name (optional)"
-            value={name}
+          <AuthGoogleButton
+            callbackURL="/signup"
+            disabled={busy}
+            onError={setError}
           />
+          <AuthDivider label="or use email" />
+          <AuthErrorBanner message={error} />
           <AuthTextInput
             autoComplete="email"
             keyboardType="email-address"
+            label="Email"
             onChangeText={setEmail}
-            placeholder="Email"
+            placeholder="you@example.com"
             value={email}
           />
           <AuthPasswordField
             autoComplete="new-password"
+            label="Password"
             onChangeText={setPassword}
-            placeholder="Password (at least 8 characters)"
+            placeholder="At least 8 characters"
             value={password}
           />
+          <Text style={styles.passwordHint}>
+            Use at least 8 characters. A passphrase is easiest to remember.
+          </Text>
           <AuthPasswordField
             autoComplete="new-password"
+            label="Confirm password"
             onChangeText={setConfirmPassword}
             onSubmitEditing={() => {
               void submitCredentials();
             }}
-            placeholder="Confirm password"
+            placeholder="Repeat your password"
             value={confirmPassword}
           />
-          {turnstile.bridge}
           <Pressable
             accessibilityHint="Toggles marketing email updates"
             accessibilityLabel="Marketing updates"
@@ -208,31 +254,27 @@ export default function SignupScreen() {
             style={styles.optInRow}
           >
             <Ionicons
-              color={marketingOptIn ? "#B8A3FF" : "#8F8F8F"}
+              color={marketingOptIn ? "#B8A3FF" : "#71717A"}
               name={marketingOptIn ? "checkbox" : "square-outline"}
-              size={20}
+              size={18}
             />
             <Text style={styles.optInText}>
-              Send me SoundKit updates and drops
+              Send me SoundKit product updates, onboarding tips, and occasional
+              offers.
             </Text>
           </Pressable>
+          {turnstile.bridge}
           <AuthPrimaryButton
             busy={busy}
-            label="Continue"
+            label={busy ? "Creating your account…" : "Create account"}
             onPress={() => {
               void submitCredentials();
             }}
           />
-          <View style={styles.footnote}>
-            <Text style={styles.footnoteText}>
-              By continuing you agree to SoundKit&apos;s terms. You must be 13
-              or older to create an account.
-            </Text>
-          </View>
           <View style={styles.loginRow}>
             <Text style={styles.loginPrompt}>Already have an account?</Text>
             <Link asChild href="/login">
-              <Text style={styles.loginAction}>Log In</Text>
+              <Text style={styles.loginAction}>Sign in</Text>
             </Link>
           </View>
         </AuthShell>
@@ -242,70 +284,113 @@ export default function SignupScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    alignItems: "center",
-    backgroundColor: "rgba(10, 10, 14, 0.78)",
-    borderColor: "rgba(255, 255, 255, 0.14)",
-    borderRadius: 18,
-    borderWidth: 1,
-    flex: 1,
-    gap: 10,
-    justifyContent: "flex-start",
-    minHeight: 190,
-    padding: 14,
+  bulletCheck: {
+    color: "#B8A3FF",
+    fontSize: 11,
+    fontWeight: "700",
   },
-  cardCopy: { alignItems: "center", gap: 4 },
+  bulletList: {
+    alignSelf: "stretch",
+    gap: 5,
+    marginTop: 4,
+  },
+  bulletRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  bulletText: {
+    color: "#A1A1AA",
+    flex: 1,
+    fontSize: 11,
+  },
+  cardCtaButton: {
+    alignItems: "center",
+    alignSelf: "stretch",
+    backgroundColor: "#FAFAFA",
+    borderRadius: 8,
+    justifyContent: "center",
+    marginTop: "auto",
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+  },
+  cardCtaText: {
+    color: "#09090B",
+    fontSize: 12,
+    fontWeight: "700",
+  },
   cardDescription: {
-    color: "#8F8F8F",
-    fontSize: 13,
-    lineHeight: 17,
+    color: "#A1A1AA",
+    fontSize: 12,
+    lineHeight: 16,
     textAlign: "center",
   },
   cardIconWrap: {
     alignItems: "center",
     backgroundColor: "rgba(184, 163, 255, 0.12)",
-    borderRadius: 14,
-    height: 52,
+    borderRadius: 999,
+    height: 44,
     justifyContent: "center",
-    width: 52,
+    width: 44,
   },
   cardTitle: {
-    color: "#F8F8F8",
+    color: "#FAFAFA",
     fontSize: 15,
     fontWeight: "800",
-  },
-  cards: { flexDirection: "row", gap: 10 },
-  footnote: { marginTop: 8 },
-  footnoteText: {
-    color: "#8F8F8F",
-    fontSize: 11,
-    lineHeight: 16,
     textAlign: "center",
+  },
+  cardsRow: {
+    flexDirection: "row",
+    gap: 10,
   },
   loginAction: {
     color: "#B8A3FF",
-    fontSize: 14,
-    fontWeight: "800",
+    fontSize: 13,
+    fontWeight: "700",
   },
   loginPrompt: {
-    color: "#8F8F8F",
-    fontSize: 14,
+    color: "#A1A1AA",
+    fontSize: 13,
   },
   loginRow: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
     justifyContent: "center",
-    marginTop: 14,
+    marginTop: 6,
   },
   optInRow: {
-    alignItems: "center",
+    alignItems: "flex-start",
     flexDirection: "row",
     gap: 10,
+    marginTop: 2,
   },
   optInText: {
-    color: "#8F8F8F",
+    color: "#A1A1AA",
     flex: 1,
-    fontSize: 13,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  page: {
+    backgroundColor: "#020202",
+    flex: 1,
+  },
+  passwordHint: {
+    color: "#71717A",
+    fontSize: 11,
+    marginTop: -6,
+  },
+  roleCard: {
+    alignItems: "center",
+    backgroundColor: "#050507",
+    borderColor: "#27272A",
+    borderRadius: 14,
+    borderWidth: 1,
+    flex: 1,
+    gap: 8,
+    padding: 12,
+  },
+  scroll: {
+    flexGrow: 1,
   },
 });

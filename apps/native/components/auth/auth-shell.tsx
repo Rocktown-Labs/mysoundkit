@@ -1,15 +1,25 @@
-/* oxlint-disable one-var, sort-vars, sort-keys, react/set-state-in-effect */
+/* oxlint-disable one-var, sort-vars, sort-keys, react/set-state-in-effect, unicorn/prefer-module, global-require */
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { TextInputProps } from "react-native";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import type { ImageSourcePropType, TextInputProps } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import Svg, { Path } from "react-native-svg";
 
-import { LiquidGlassView } from "@/components/liquid-glass";
 import { TurnstileBridge } from "@/components/turnstile-bridge";
 import type { TurnstileAction } from "@/components/turnstile-bridge";
-import { useGuestMode } from "@/contexts/guest-mode-context";
+import { authClient } from "@/lib/auth-client";
+
+const logoImage = require("@/assets/images/logo.png") as ImageSourcePropType;
 
 /** Extracts a user-facing message from a better-auth error payload. */
 export const getAuthErrorMessage = (error: unknown): string => {
@@ -28,59 +38,176 @@ export const getAuthErrorMessage = (error: unknown): string => {
   return "Something went wrong. Please try again.";
 };
 
-/** Shared shell for the auth routes: centered SoundKit logo above the form, heading, and Liquid Glass body. */
+/** Shared shell for the auth routes: back link, centered SoundKit logo, heading, and web-parity dark card body. */
 export function AuthShell({
+  backLabel = "Back",
+  cardSubtitle,
+  cardTitle,
   children,
-  showGuestContinue = true,
+  onBackPress,
+  showBackButton = true,
+  // Kept for backwards compatibility with existing callers
+  showGuestContinue: _showGuestContinue,
   subtitle,
   title,
 }: {
+  backLabel?: string;
+  cardSubtitle?: string;
+  cardTitle?: string;
   children: ReactNode;
+  onBackPress?: () => void;
+  showBackButton?: boolean;
   showGuestContinue?: boolean;
   subtitle?: string;
   title: string;
 }) {
-  const router = useRouter(),
-    { enterGuestMode } = useGuestMode();
+  const router = useRouter();
+
+  const handleBack = () => {
+    if (onBackPress) {
+      onBackPress();
+      return;
+    }
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace("/(drawer)/(tabs)/(discover)");
+  };
 
   return (
     <View style={styles.shell}>
-      <View style={styles.logoHeader}>
-        <View style={styles.logoBadge}>
-          <Ionicons color="#B8A3FF" name="musical-notes" size={28} />
+      <View style={styles.container}>
+        <View style={styles.headerBlock}>
+          {showBackButton ? (
+            <Pressable
+              accessibilityLabel={backLabel}
+              accessibilityRole="button"
+              hitSlop={10}
+              onPress={handleBack}
+              style={({ pressed }) => [
+                styles.backButton,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Ionicons color="#A1A1AA" name="arrow-back" size={16} />
+              <Text style={styles.backButtonText}>{backLabel}</Text>
+            </Pressable>
+          ) : null}
+
+          <Image
+            accessibilityLabel="SoundKit"
+            resizeMode="contain"
+            source={logoImage}
+            style={styles.logoImage}
+          />
+
+          <Text style={styles.title}>{title}</Text>
+          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
-        <Text style={styles.wordmarkText}>SoundKit</Text>
+
+        <View style={styles.formCard}>
+          {cardTitle || cardSubtitle ? (
+            <View style={styles.cardHeader}>
+              {cardTitle ? (
+                <Text style={styles.cardTitleText}>{cardTitle}</Text>
+              ) : null}
+              {cardSubtitle ? (
+                <Text style={styles.cardSubtitleText}>{cardSubtitle}</Text>
+              ) : null}
+            </View>
+          ) : null}
+          <View style={styles.body}>{children}</View>
+        </View>
       </View>
+    </View>
+  );
+}
 
-      <View style={styles.headingWrap}>
-        <Text style={styles.title}>{title}</Text>
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-      </View>
+/** 4-color Google OAuth button matching the website's `GoogleAuthButton`. */
+export function AuthGoogleButton({
+  callbackURL = "/(drawer)/(tabs)/(discover)",
+  disabled,
+  label = "Continue with Google",
+  onError,
+}: {
+  callbackURL?: string;
+  disabled?: boolean;
+  label?: string;
+  onError?: (message: string) => void;
+}) {
+  const [loading, setLoading] = useState(false);
 
-      <LiquidGlassView borderRadius={22} style={styles.formCard} variant="card">
-        <View style={styles.body}>{children}</View>
-      </LiquidGlassView>
+  const handleGoogleSignIn = async () => {
+    if (loading || disabled) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await authClient.signIn.social({
+        callbackURL,
+        newUserCallbackURL: callbackURL,
+        provider: "google",
+      });
+      if (result?.error && onError) {
+        onError(getAuthErrorMessage(result.error));
+      }
+    } catch (error) {
+      if (onError) {
+        onError(getAuthErrorMessage(error));
+      }
+    }
+    setLoading(false);
+  };
 
-      {showGuestContinue ? (
-        <Pressable
-          accessibilityHint="Enters SoundKit as a guest with 5 minutes of daily playback"
-          accessibilityLabel="Continue as Guest"
-          accessibilityRole="button"
-          onPress={() => {
-            enterGuestMode();
-            router.replace("/(drawer)/(tabs)/(discover)");
-          }}
-          style={({ pressed }) => [
-            styles.guestButton,
-            pressed && styles.guestButtonPressed,
-          ]}
-        >
-          <Ionicons color="#B8A3FF" name="headset-outline" size={16} />
-          <Text style={styles.guestButtonText}>
-            Continue as Guest (5 min free preview)
-          </Text>
-        </Pressable>
-      ) : null}
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      disabled={disabled || loading}
+      onPress={() => {
+        void handleGoogleSignIn();
+      }}
+      style={({ pressed }) => [
+        styles.outlineButton,
+        (disabled || loading) && { opacity: 0.6 },
+        pressed && !disabled && !loading && styles.outlineButtonPressed,
+      ]}
+    >
+      {loading ? (
+        <ActivityIndicator color="#FFFFFF" size="small" />
+      ) : (
+        <Svg height={18} viewBox="0 0 24 24" width={18}>
+          <Path
+            d="M21.35 12.27c0-.71-.06-1.39-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.91-4.18 2.91-7.22Z"
+            fill="#4285F4"
+          />
+          <Path
+            d="M12 21.63c2.63 0 4.84-.87 6.45-2.36l-3.14-2.45c-.87.58-1.98.92-3.31.92-2.54 0-4.7-1.72-5.47-4.03H3.28v2.53A9.74 9.74 0 0 0 12 21.63Z"
+            fill="#34A853"
+          />
+          <Path
+            d="M6.53 13.71a5.86 5.86 0 0 1 0-3.42V7.76H3.28a9.75 9.75 0 0 0 0 8.48l3.25-2.53Z"
+            fill="#FBBC05"
+          />
+          <Path
+            d="M12 6.26c1.43 0 2.71.49 3.72 1.46l2.79-2.79C16.84 3.36 14.63 2.37 12 2.37a9.74 9.74 0 0 0-8.72 5.39l3.25 2.53C7.3 7.98 9.46 6.26 12 6.26Z"
+            fill="#EA4335"
+          />
+        </Svg>
+      )}
+      <Text style={styles.outlineButtonText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** Horizontal separator with centered label (e.g., "or use email"). */
+export function AuthDivider({ label = "or use email" }: { label?: string }) {
+  return (
+    <View style={styles.dividerRow}>
+      <View style={styles.dividerLine} />
+      <Text style={styles.dividerLabel}>{label}</Text>
+      <View style={styles.dividerLine} />
     </View>
   );
 }
@@ -97,9 +224,10 @@ export function AuthErrorBanner({ message }: { message: null | string }) {
   );
 }
 
-/** Password input with a show/hide toggle. */
+/** Password input with optional label and a show/hide toggle. */
 export function AuthPasswordField({
   autoComplete,
+  label,
   onBlur,
   onChangeText,
   onSubmitEditing,
@@ -107,6 +235,7 @@ export function AuthPasswordField({
   value,
 }: {
   autoComplete?: "current-password" | "new-password";
+  label?: string;
   onBlur?: () => void;
   onChangeText: (value: string) => void;
   onSubmitEditing?: () => void;
@@ -115,35 +244,38 @@ export function AuthPasswordField({
 }) {
   const [visible, setVisible] = useState(false);
   return (
-    <View>
-      <TextInput
-        autoCapitalize="none"
-        autoComplete={autoComplete}
-        onBlur={onBlur}
-        onChangeText={onChangeText}
-        onSubmitEditing={onSubmitEditing}
-        placeholder={placeholder}
-        placeholderTextColor="#8F8F8F"
-        secureTextEntry={!visible}
-        style={styles.input}
-        value={value}
-      />
-      <Pressable
-        accessibilityHint={visible ? "Hides password" : "Shows password"}
-        accessibilityLabel={visible ? "Hide password" : "Show password"}
-        accessibilityRole="button"
-        hitSlop={8}
-        onPress={() => {
-          setVisible((prev) => !prev);
-        }}
-        style={styles.inputToggle}
-      >
-        <Ionicons
-          color="#8F8F8F"
-          name={visible ? "eye-off-outline" : "eye-outline"}
-          size={20}
+    <View style={styles.fieldGroup}>
+      {label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
+      <View style={styles.passwordInputWrap}>
+        <TextInput
+          autoCapitalize="none"
+          autoComplete={autoComplete}
+          onBlur={onBlur}
+          onChangeText={onChangeText}
+          onSubmitEditing={onSubmitEditing}
+          placeholder={placeholder}
+          placeholderTextColor="#71717A"
+          secureTextEntry={!visible}
+          style={[styles.input, styles.passwordInput]}
+          value={value}
         />
-      </Pressable>
+        <Pressable
+          accessibilityHint={visible ? "Hides password" : "Shows password"}
+          accessibilityLabel={visible ? "Hide password" : "Show password"}
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={() => {
+            setVisible((prev) => !prev);
+          }}
+          style={styles.inputToggle}
+        >
+          <Ionicons
+            color="#A1A1AA"
+            name={visible ? "eye-off-outline" : "eye-outline"}
+            size={18}
+          />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -152,6 +284,7 @@ export function AuthTextInput(props: {
   autoCapitalize?: TextInputProps["autoCapitalize"];
   autoComplete?: TextInputProps["autoComplete"];
   keyboardType?: TextInputProps["keyboardType"];
+  label?: string;
   onBlur?: () => void;
   onChangeText: (value: string) => void;
   onSubmitEditing?: () => void;
@@ -159,18 +292,23 @@ export function AuthTextInput(props: {
   value: string;
 }) {
   return (
-    <TextInput
-      autoCapitalize={props.autoCapitalize ?? "none"}
-      autoComplete={props.autoComplete}
-      keyboardType={props.keyboardType}
-      onBlur={props.onBlur}
-      onChangeText={props.onChangeText}
-      onSubmitEditing={props.onSubmitEditing}
-      placeholder={props.placeholder}
-      placeholderTextColor="#8F8F8F"
-      style={styles.input}
-      value={props.value}
-    />
+    <View style={styles.fieldGroup}>
+      {props.label ? (
+        <Text style={styles.fieldLabel}>{props.label}</Text>
+      ) : null}
+      <TextInput
+        autoCapitalize={props.autoCapitalize ?? "none"}
+        autoComplete={props.autoComplete}
+        keyboardType={props.keyboardType}
+        onBlur={props.onBlur}
+        onChangeText={props.onChangeText}
+        onSubmitEditing={props.onSubmitEditing}
+        placeholder={props.placeholder}
+        placeholderTextColor="#71717A"
+        style={styles.input}
+        value={props.value}
+      />
+    </View>
   );
 }
 
@@ -191,7 +329,7 @@ export function AuthPrimaryButton({
       style={({ pressed }) => [
         styles.primaryButton,
         busy && { opacity: 0.6 },
-        pressed && !busy && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+        pressed && !busy && { opacity: 0.88, transform: [{ scale: 0.99 }] },
       ]}
     >
       <Text style={styles.primaryButtonText}>{label}</Text>
@@ -260,15 +398,63 @@ export function useTurnstileToken(action: TurnstileAction) {
 }
 
 const styles = StyleSheet.create({
+  backButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  backButtonText: {
+    color: "#A1A1AA",
+    fontSize: 13,
+    fontWeight: "600",
+  },
   body: {
+    gap: 14,
+  },
+  cardHeader: {
+    gap: 4,
+    marginBottom: 16,
+  },
+  cardSubtitleText: {
+    color: "#A1A1AA",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  cardTitleText: {
+    color: "#FAFAFA",
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  container: {
+    alignSelf: "center",
+    maxWidth: 440,
+    width: "100%",
+  },
+  dividerLabel: {
+    color: "#71717A",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  dividerLine: {
+    backgroundColor: "#27272A",
+    flex: 1,
+    height: 1,
+  },
+  dividerRow: {
+    alignItems: "center",
+    flexDirection: "row",
     gap: 12,
-    padding: 18,
+    marginVertical: 2,
   },
   errorBanner: {
     alignItems: "center",
     backgroundColor: "rgba(224, 93, 77, 0.12)",
     borderColor: "rgba(224, 93, 77, 0.35)",
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     flexDirection: "row",
     gap: 8,
@@ -280,106 +466,109 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
   },
+  fieldGroup: {
+    gap: 6,
+  },
+  fieldLabel: {
+    color: "#E4E4E7",
+    fontSize: 13,
+    fontWeight: "600",
+  },
   formCard: {
+    backgroundColor: "#09090B",
+    borderColor: "#27272A",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 20,
     width: "100%",
   },
-  guestButton: {
+  headerBlock: {
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
-    borderColor: "rgba(255, 255, 255, 0.14)",
-    borderRadius: 999,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 8,
-    justifyContent: "center",
-    marginTop: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 13,
-  },
-  guestButtonPressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.99 }],
-  },
-  guestButtonText: {
-    color: "#DFD5FF",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  headingWrap: {
-    alignItems: "center",
-    marginBottom: 22,
+    marginBottom: 24,
   },
   input: {
-    backgroundColor: "rgba(10, 10, 14, 0.78)",
-    borderColor: "rgba(255, 255, 255, 0.14)",
-    borderRadius: 12,
+    backgroundColor: "#050507",
+    borderColor: "#27272A",
+    borderRadius: 10,
     borderWidth: 1,
-    color: "#F8F8F8",
+    color: "#FAFAFA",
     fontSize: 15,
+    height: 46,
     paddingHorizontal: 14,
-    paddingVertical: 13,
   },
   inputToggle: {
-    padding: 8,
+    alignItems: "center",
+    height: 46,
+    justifyContent: "center",
+    paddingHorizontal: 12,
     position: "absolute",
-    right: 6,
-    top: 8,
+    right: 0,
+    top: 0,
   },
-  logoBadge: {
+  logoImage: {
+    height: 52,
+    marginBottom: 16,
+    width: 150,
+  },
+  outlineButton: {
     alignItems: "center",
-    backgroundColor: "rgba(184, 163, 255, 0.14)",
-    borderColor: "rgba(184, 163, 255, 0.35)",
-    borderRadius: 18,
+    backgroundColor: "#050507",
+    borderColor: "#27272A",
+    borderRadius: 10,
     borderWidth: 1,
-    height: 56,
-    justifyContent: "center",
-    width: 56,
-  },
-  logoHeader: {
-    alignItems: "center",
+    flexDirection: "row",
     gap: 10,
+    height: 46,
     justifyContent: "center",
-    marginBottom: 18,
+    paddingHorizontal: 16,
+  },
+  outlineButtonPressed: {
+    backgroundColor: "#18181B",
+  },
+  outlineButtonText: {
+    color: "#FAFAFA",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  passwordInput: {
+    paddingRight: 42,
+  },
+  passwordInputWrap: {
+    position: "relative",
   },
   primaryButton: {
     alignItems: "center",
-    backgroundColor: "#B8A3FF",
-    borderRadius: 14,
+    backgroundColor: "#FAFAFA",
+    borderRadius: 10,
+    height: 46,
     justifyContent: "center",
-    paddingVertical: 15,
+    marginTop: 2,
   },
   primaryButtonText: {
-    color: "#171717",
-    fontSize: 15,
-    fontWeight: "800",
+    color: "#09090B",
+    fontSize: 14,
+    fontWeight: "700",
   },
   shell: {
     backgroundColor: "#020202",
     flex: 1,
     justifyContent: "center",
-    padding: 24,
-    paddingTop: 56,
+    paddingHorizontal: 20,
+    paddingVertical: 36,
   },
   subtitle: {
-    color: "#8F8F8F",
+    color: "#A1A1AA",
     fontSize: 14,
     lineHeight: 20,
-    maxWidth: 320,
+    maxWidth: 340,
     textAlign: "center",
   },
   title: {
-    color: "#F8F8F8",
+    color: "#FAFAFA",
     fontSize: 28,
     fontWeight: "800",
     letterSpacing: -0.6,
     marginBottom: 6,
     textAlign: "center",
-  },
-  wordmarkText: {
-    color: "#F8F8F8",
-    fontSize: 22,
-    fontWeight: "900",
-    letterSpacing: -0.4,
-    textTransform: "uppercase",
   },
 });

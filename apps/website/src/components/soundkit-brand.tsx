@@ -19,9 +19,12 @@ export function SoundKitBrand({
       <div className={cn("flex items-center justify-center", className)}>
         <AppImage
           alt="SoundKit"
-          className={cn("h-10 w-auto shrink-0", wordmarkClassName)}
+          className={cn(
+            "h-12 w-auto shrink-0 object-contain",
+            wordmarkClassName
+          )}
           height={100}
-          src="/soundkit-wordmark.svg"
+          src="/brand/logo.png"
           width={250}
         />
       </div>

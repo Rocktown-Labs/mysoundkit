@@ -1,5 +1,6 @@
-/* eslint-disable one-var, sort-vars */
+/* oxlint-disable one-var, sort-vars */
 import { Ionicons } from "@expo/vector-icons";
+import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { CardMeta, NativeCardShell } from "@/components/cards/card-shell";
@@ -13,10 +14,23 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 export const TRACK_CARD_WIDTH = 150;
 
 const styles = StyleSheet.create({
+    heartOverlayBtn: {
+      alignItems: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.48)",
+      borderRadius: 999,
+      height: 28,
+      justifyContent: "center",
+      position: "absolute",
+      right: 8,
+      top: 8,
+      width: 28,
+    },
     metaRow: {
       alignItems: "center",
       flexDirection: "row",
       gap: 4,
+      marginTop: -4,
+      paddingHorizontal: 2,
     },
     metaText: { fontSize: 11 },
     playOverlayBtn: {
@@ -26,15 +40,18 @@ const styles = StyleSheet.create({
       borderRadius: 999,
       borderWidth: 1,
       bottom: 8,
-      height: 32,
+      height: 30,
       justifyContent: "center",
       position: "absolute",
       right: 8,
-      width: 32,
+      width: 30,
     },
     thumb: { height: "100%", width: "100%" },
     thumbRatio: {
       aspectRatio: 1,
+      backgroundColor: "#141418",
+      borderCurve: "continuous",
+      borderRadius: 12,
       overflow: "hidden",
       position: "relative",
     },
@@ -55,6 +72,7 @@ export function TrackCard({
 }) {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
+    [isSaved, setIsSaved] = useState(false),
     { currentTrack, isPlaying, playTrack, togglePlay } =
       useAudioPlayerContext(),
     isCurrent = currentTrack?.id === track.id,
@@ -66,14 +84,37 @@ export function TrackCard({
   return (
     <NativeCardShell
       href={`/tracks/${track.id}`}
-      width={compact ? 132 : TRACK_CARD_WIDTH}
+      width={compact ? 140 : TRACK_CARD_WIDTH}
     >
       <View style={styles.thumbRatio}>
         <NativeImage
           source={track.coverArtUrl ?? undefined}
           style={styles.thumb}
         />
-        {/* Quick play/pause overlay button */}
+        <Pressable
+          accessibilityHint={
+            isSaved ? "Removes track from saved" : "Saves track"
+          }
+          accessibilityLabel={
+            isSaved ? `Unsave ${track.title}` : `Save ${track.title}`
+          }
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={(e) => {
+            e.stopPropagation?.();
+            setIsSaved((prev) => !prev);
+          }}
+          style={({ pressed }) => [
+            styles.heartOverlayBtn,
+            pressed && { opacity: 0.75, transform: [{ scale: 0.92 }] },
+          ]}
+        >
+          <Ionicons
+            color={isSaved ? "#F43F5E" : "#FFFFFF"}
+            name={isSaved ? "heart" : "heart-outline"}
+            size={15}
+          />
+        </Pressable>
         <Pressable
           accessibilityHint={isPlayingThis ? "Pauses track" : "Plays track"}
           accessibilityLabel={isPlayingThis ? "Pause" : "Play"}
@@ -108,7 +149,7 @@ export function TrackCard({
           <Ionicons
             color={isPlayingThis ? "#ffffff" : "#f4f4f5"}
             name={isPlayingThis ? "pause" : "play"}
-            size={16}
+            size={14}
             style={isPlayingThis ? undefined : { marginLeft: 1.5 }}
           />
         </Pressable>
@@ -119,11 +160,13 @@ export function TrackCard({
         title={track.title}
         titleColor={theme.text}
       />
-      <View
-        style={[styles.metaRow, { paddingBottom: 10, paddingHorizontal: 10 }]}
-      >
-        <Text style={[styles.metaText, { color: theme.mutedText }]}>
-          {formatDuration(track)} • {track.plays.toLocaleString()} plays
+      <View style={styles.metaRow}>
+        <Ionicons color={theme.mutedText} name="time-outline" size={12} />
+        <Text
+          numberOfLines={1}
+          style={[styles.metaText, { color: theme.mutedText }]}
+        >
+          {formatDuration(track)} • {(track.plays ?? 0).toLocaleString()} plays
         </Text>
       </View>
     </NativeCardShell>

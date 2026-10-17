@@ -22,7 +22,7 @@ import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
 
 export const unstable_settings = {
-  initialRouteName: "(auth)",
+  initialRouteName: "(drawer)",
 };
 
 const DARK_THEME: Theme = {

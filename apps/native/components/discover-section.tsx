@@ -21,12 +21,13 @@ const ART_SIZE = 148,
   styles = StyleSheet.create({
     art: {
       alignItems: "center",
-      borderRadius: 14,
+      borderRadius: 12,
       borderWidth: 1,
       height: ART_SIZE,
       justifyContent: "center",
       marginBottom: 8,
       overflow: "hidden",
+      position: "relative",
       width: ART_SIZE,
     },
     artImage: { height: ART_SIZE, width: ART_SIZE },
@@ -39,7 +40,7 @@ const ART_SIZE = 148,
       right: 6,
     },
     badgeText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
-    cardSubtitle: { fontSize: 12, marginTop: 1, width: CARD_WIDTH },
+    cardSubtitle: { fontSize: 12, marginTop: 2, width: CARD_WIDTH },
     cardTitle: { fontSize: 14, fontWeight: "700", width: CARD_WIDTH },
     emptyBox: {
       borderRadius: 14,
@@ -54,6 +55,25 @@ const ART_SIZE = 148,
       justifyContent: "space-between",
       marginBottom: 10,
     },
+    heartBtn: {
+      alignItems: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.48)",
+      borderRadius: 999,
+      height: 28,
+      justifyContent: "center",
+      position: "absolute",
+      right: 8,
+      top: 8,
+      width: 28,
+    },
+    metaRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: 4,
+      marginTop: 3,
+      width: CARD_WIDTH,
+    },
+    metaText: { fontSize: 11 },
     row: { gap: 12, paddingRight: 20 },
     section: { marginBottom: 4 },
     sectionTitle: { fontSize: 20, fontWeight: "800" },
@@ -66,6 +86,8 @@ export interface DiscoverCardData {
   href: string;
   id: string;
   imageUrl?: null | string;
+  meta?: string;
+  showHeart?: boolean;
   subtitle: string;
   title: string;
 }
@@ -93,7 +115,7 @@ function DiscoverCard({ data }: { data: DiscoverCardData }) {
             styles.art,
             {
               backgroundColor: isEmojiBadge ? "#0d0d10" : theme.muted,
-              borderColor: isEmojiBadge ? "#212121" : theme.border,
+              borderColor: isEmojiBadge ? "#212121" : "transparent",
             },
           ]}
         >
@@ -104,6 +126,11 @@ function DiscoverCard({ data }: { data: DiscoverCardData }) {
           ) : (
             <Ionicons color={theme.mutedText} name="musical-notes" size={34} />
           )}
+          {data.showHeart ? (
+            <View style={styles.heartBtn}>
+              <Ionicons color="#FFFFFF" name="heart-outline" size={15} />
+            </View>
+          ) : null}
           {!isEmojiBadge && data.badge ? (
             <View style={[styles.badge, { backgroundColor: theme.accent }]}>
               <Text
@@ -128,6 +155,17 @@ function DiscoverCard({ data }: { data: DiscoverCardData }) {
         >
           {data.subtitle}
         </Text>
+        {data.meta ? (
+          <View style={styles.metaRow}>
+            <Ionicons color={theme.mutedText} name="time-outline" size={12} />
+            <Text
+              numberOfLines={1}
+              style={[styles.metaText, { color: theme.mutedText }]}
+            >
+              {data.meta}
+            </Text>
+          </View>
+        ) : null}
       </Pressable>
     </Link>
   );

@@ -24,12 +24,18 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: "row",
     gap: 4,
-    paddingBottom: 10,
-    paddingHorizontal: 10,
+    marginTop: -4,
+    paddingHorizontal: 2,
   },
   metaText: { fontSize: 11 },
   thumb: { height: "100%", width: "100%" },
-  thumbRatio: { aspectRatio: 1 },
+  thumbRatio: {
+    aspectRatio: 1,
+    backgroundColor: "#141418",
+    borderCurve: "continuous",
+    borderRadius: 12,
+    overflow: "hidden",
+  },
 });
 
 export function ProjectCard({

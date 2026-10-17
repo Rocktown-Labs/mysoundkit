@@ -148,110 +148,116 @@ function SignupPage() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <button
-            aria-label="Continue as Artist"
-            disabled={selectingPath !== null}
-            onClick={() => {
-              void handleChoosePath("artist");
-            }}
-            type="button"
-            className="group block w-full text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
-            <Card className="h-full hover:border-primary transition-all cursor-pointer">
-              <CardHeader className="text-center">
-                <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                  <Mic className="size-8 text-primary" />
-                </div>
-                <CardTitle className="text-2xl">I&apos;m an Artist</CardTitle>
-                <CardDescription className="text-base">
-                  Release music, build your audience, perform live, battle other
-                  artists, and earn directly on SoundKit.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li className="flex items-center">
-                    <span className="mr-2">✓</span>Upload and release your music
-                  </li>
-                  <li className="flex items-center">
-                    <span className="mr-2">✓</span>Sell music and earn Creator
-                    Rewards
-                  </li>
-                  <li className="flex items-center">
-                    <span className="mr-2">✓</span>Battle and stream live
-                  </li>
-                  <li className="flex items-center">
-                    <span className="mr-2">✓</span>Build a direct fan community
-                  </li>
-                  <li className="pt-2 text-xs text-muted-foreground">
-                    Built for independent musicians and producers.
-                  </li>
-                </ul>
-                <span
-                  className={buttonVariants({
-                    className: "w-full mt-6",
-                    size: "lg",
-                  })}
-                >
-                  {selectingPath === "artist"
-                    ? "Continuing…"
-                    : "Continue as Artist"}
-                </span>
-              </CardContent>
-            </Card>
-          </button>
+        <Card className="border-border/60 bg-card/80 p-4 sm:p-6 shadow-xl shadow-black/10">
+          <div className="grid grid-cols-2 gap-3 sm:gap-6">
+            <button
+              aria-label="Continue as Artist"
+              disabled={selectingPath !== null}
+              onClick={() => {
+                void handleChoosePath("artist");
+              }}
+              type="button"
+              className="group block w-full text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <Card className="h-full hover:border-primary transition-all cursor-pointer">
+                <CardHeader className="text-center">
+                  <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <Mic className="size-8 text-primary" />
+                  </div>
+                  <CardTitle className="text-2xl">I&apos;m an Artist</CardTitle>
+                  <CardDescription className="text-base">
+                    Release music, build your audience, perform live, battle
+                    other artists, and earn directly on SoundKit.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li className="flex items-center">
+                      <span className="mr-2">✓</span>Upload and release your
+                      music
+                    </li>
+                    <li className="flex items-center">
+                      <span className="mr-2">✓</span>Sell music and earn Creator
+                      Rewards
+                    </li>
+                    <li className="flex items-center">
+                      <span className="mr-2">✓</span>Battle and stream live
+                    </li>
+                    <li className="flex items-center">
+                      <span className="mr-2">✓</span>Build a direct fan
+                      community
+                    </li>
+                    <li className="pt-2 text-xs text-muted-foreground">
+                      Built for independent musicians and producers.
+                    </li>
+                  </ul>
+                  <span
+                    className={buttonVariants({
+                      className: "w-full mt-6",
+                      size: "lg",
+                    })}
+                  >
+                    {selectingPath === "artist"
+                      ? "Continuing…"
+                      : "Continue as Artist"}
+                  </span>
+                </CardContent>
+              </Card>
+            </button>
 
-          <button
-            aria-label="Continue as Fan"
-            disabled={selectingPath !== null}
-            onClick={() => {
-              void handleChoosePath("fan");
-            }}
-            type="button"
-            className="group block w-full text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
-            <Card className="h-full hover:border-primary transition-all cursor-pointer">
-              <CardHeader className="text-center">
-                <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                  <Users className="size-8 text-primary" />
-                </div>
-                <CardTitle className="text-2xl">I&apos;m a Fan</CardTitle>
-                <CardDescription className="text-base">
-                  Discover new music, support artists, and build your library
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li className="flex items-center">
-                    <span className="mr-2">✓</span>Discover public SoundKit
-                    releases
-                  </li>
-                  <li className="flex items-center">
-                    <span className="mr-2">✓</span>Follow artists and build your
-                    library
-                  </li>
-                  <li className="flex items-center">
-                    <span className="mr-2">✓</span>Create playlists and save
-                    tracks
-                  </li>
-                  <li className="flex items-center">
-                    <span className="mr-2">✓</span>Purchase music and support
-                    artists
-                  </li>
-                </ul>
-                <span
-                  className={buttonVariants({
-                    className: "w-full mt-6",
-                    size: "lg",
-                  })}
-                >
-                  {selectingPath === "fan" ? "Continuing…" : "Continue as Fan"}
-                </span>
-              </CardContent>
-            </Card>
-          </button>
-        </div>
+            <button
+              aria-label="Continue as Fan"
+              disabled={selectingPath !== null}
+              onClick={() => {
+                void handleChoosePath("fan");
+              }}
+              type="button"
+              className="group block w-full text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <Card className="h-full hover:border-primary transition-all cursor-pointer">
+                <CardHeader className="text-center">
+                  <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <Users className="size-8 text-primary" />
+                  </div>
+                  <CardTitle className="text-2xl">I&apos;m a Fan</CardTitle>
+                  <CardDescription className="text-base">
+                    Discover new music, support artists, and build your library
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li className="flex items-center">
+                      <span className="mr-2">✓</span>Discover public SoundKit
+                      releases
+                    </li>
+                    <li className="flex items-center">
+                      <span className="mr-2">✓</span>Follow artists and build
+                      your library
+                    </li>
+                    <li className="flex items-center">
+                      <span className="mr-2">✓</span>Create playlists and save
+                      tracks
+                    </li>
+                    <li className="flex items-center">
+                      <span className="mr-2">✓</span>Purchase music and support
+                      artists
+                    </li>
+                  </ul>
+                  <span
+                    className={buttonVariants({
+                      className: "w-full mt-6",
+                      size: "lg",
+                    })}
+                  >
+                    {selectingPath === "fan"
+                      ? "Continuing…"
+                      : "Continue as Fan"}
+                  </span>
+                </CardContent>
+              </Card>
+            </button>
+          </div>
+        </Card>
       </div>
     </div>
   );

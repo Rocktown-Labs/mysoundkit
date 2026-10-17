@@ -19,9 +19,13 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   card: {
+    gap: 8,
+  },
+  cardFramed: {
     borderCurve: "continuous",
     borderRadius: 14,
     borderWidth: 1,
+    gap: 0,
     overflow: "hidden",
   },
   cardPressed: {
@@ -29,21 +33,27 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.97 }],
   },
   meta: {
+    gap: 3,
+    paddingHorizontal: 2,
+  },
+  metaFramed: {
     gap: 2,
     padding: 10,
   },
   subtitle: { fontSize: 12, lineHeight: 16 },
   thumb: { width: "100%" },
-  title: { fontSize: 13, fontWeight: "700", lineHeight: 17 },
+  title: { fontSize: 14, fontWeight: "700", lineHeight: 18 },
 });
 
-/** Themed tappable card shell used by all browse cards. */
+/** Themed tappable card shell used by all browse cards (frameless by default like web PublicCard). */
 export function NativeCardShell({
   children,
+  framed = false,
   href,
   width,
 }: {
   children: ReactNode;
+  framed?: boolean;
   href: string;
   width: number;
 }) {
@@ -57,7 +67,8 @@ export function NativeCardShell({
       }}
       style={({ pressed }) => [
         styles.card,
-        { backgroundColor: theme.card, borderColor: theme.border },
+        framed && styles.cardFramed,
+        framed && { backgroundColor: theme.card, borderColor: theme.border },
         width > 0 ? { width } : null,
         pressed && styles.cardPressed,
       ]}
@@ -97,18 +108,20 @@ export function CardBadge({
 }
 
 export function CardMeta({
+  framed = false,
   subtitle,
   subtitleColor,
   title,
   titleColor,
 }: {
+  framed?: boolean;
   subtitle?: string;
   subtitleColor?: string;
   title: string;
   titleColor: string;
 }) {
   return (
-    <View style={styles.meta}>
+    <View style={framed ? styles.metaFramed : styles.meta}>
       <Text numberOfLines={1} style={[styles.title, { color: titleColor }]}>
         {title}
       </Text>
