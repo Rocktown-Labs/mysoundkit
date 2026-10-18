@@ -79,8 +79,6 @@ export interface NativeMapProps {
   onRegionSelect: (regionName: string | null) => void;
   onResetGlobal?: () => void;
   onScopeChange: (scope: MapScope, regionName?: null | string) => void;
-  /** Non-interactive compact variant used as the Discover map preview. */
-  preview?: boolean;
   scope: MapScope;
   selectedRegion: null | string;
 }
@@ -89,7 +87,6 @@ export function NativeMap({
   onRegionSelect,
   onResetGlobal,
   onScopeChange,
-  preview = false,
   scope,
   selectedRegion,
 }: NativeMapProps) {
@@ -148,81 +145,77 @@ export function NativeMap({
         },
       ]}
     >
-      {preview ? null : (
-        <>
-          {/* Scope dropdown selector */}
-          <Pressable
-            accessibilityLabel={`Change region, currently ${activeCountryLabel}`}
-            accessibilityRole="button"
-            onPress={() => {
-              setCountryPickerOpen(!countryPickerOpen);
-            }}
-            style={({ pressed }) => [
-              styles.countryDropdown,
-              {
-                backgroundColor: pressed
-                  ? MAP_COLORS.surfacePressed
-                  : MAP_COLORS.surface,
-                borderColor: MAP_COLORS.border,
-              },
-            ]}
-          >
-            <Text style={styles.countryDropdownText}>{activeCountryLabel}</Text>
-            <Ionicons
-              color="#8F8F8F"
-              name={countryPickerOpen ? "chevron-up" : "chevron-down"}
-              size={16}
-            />
-          </Pressable>
+      {/* Scope dropdown selector */}
+      <Pressable
+        accessibilityLabel={`Change region, currently ${activeCountryLabel}`}
+        accessibilityRole="button"
+        onPress={() => {
+          setCountryPickerOpen(!countryPickerOpen);
+        }}
+        style={({ pressed }) => [
+          styles.countryDropdown,
+          {
+            backgroundColor: pressed
+              ? MAP_COLORS.surfacePressed
+              : MAP_COLORS.surface,
+            borderColor: MAP_COLORS.border,
+          },
+        ]}
+      >
+        <Text style={styles.countryDropdownText}>{activeCountryLabel}</Text>
+        <Ionicons
+          color="#8F8F8F"
+          name={countryPickerOpen ? "chevron-up" : "chevron-down"}
+          size={16}
+        />
+      </Pressable>
 
-          {/* Floating dropdown options when open */}
-          {countryPickerOpen ? (
-            <View style={styles.dropdownMenu}>
-              <ScrollView bounces={false} style={styles.dropdownScroll}>
-                {mapScopes.map((option) => {
-                  const isSelected = scope === option.id;
-                  return (
-                    <Pressable
-                      key={option.id}
-                      onPress={() => {
-                        onScopeChange(option.id, null);
-                        setCountryPickerOpen(false);
-                      }}
-                      style={({ pressed }) => [
-                        styles.dropdownMenuItem,
-                        {
-                          backgroundColor: isSelected
-                            ? "rgba(168, 85, 247, 0.15)"
-                            : pressed
-                              ? MAP_COLORS.surface
-                              : "transparent",
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        color={isSelected ? "#C084FC" : "#8F8F8F"}
-                        name={option.icon as keyof typeof Ionicons.glyphMap}
-                        size={14}
-                      />
-                      <Text
-                        style={[
-                          styles.dropdownMenuItemText,
-                          isSelected && {
-                            color: "#C084FC",
-                            fontWeight: "700",
-                          },
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          ) : null}
-        </>
-      )}
+      {/* Floating dropdown options when open */}
+      {countryPickerOpen ? (
+        <View style={styles.dropdownMenu}>
+          <ScrollView bounces={false} style={styles.dropdownScroll}>
+            {mapScopes.map((option) => {
+              const isSelected = scope === option.id;
+              return (
+                <Pressable
+                  key={option.id}
+                  onPress={() => {
+                    onScopeChange(option.id, null);
+                    setCountryPickerOpen(false);
+                  }}
+                  style={({ pressed }) => [
+                    styles.dropdownMenuItem,
+                    {
+                      backgroundColor: isSelected
+                        ? "rgba(168, 85, 247, 0.15)"
+                        : pressed
+                          ? MAP_COLORS.surface
+                          : "transparent",
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    color={isSelected ? "#C084FC" : "#8F8F8F"}
+                    name={option.icon as keyof typeof Ionicons.glyphMap}
+                    size={14}
+                  />
+                  <Text
+                    style={[
+                      styles.dropdownMenuItemText,
+                      isSelected && {
+                        color: "#C084FC",
+                        fontWeight: "700",
+                      },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
 
       {/* Floating selected badge over map */}
       {displayRegionName ? (
@@ -241,7 +234,7 @@ export function NativeMap({
           const { height, width } = e.nativeEvent.layout;
           setCanvasSize({ height, width });
         }}
-        style={[styles.mapCanvas, preview && styles.mapCanvasPreview]}
+        style={styles.mapCanvas}
       >
         <Svg
           height={canvasSize.height}
@@ -253,8 +246,7 @@ export function NativeMap({
             const isSelected =
                 Boolean(path.name) &&
                 selectedRegion?.toLowerCase() === path.name?.toLowerCase(),
-              isPressed = pressedPathName === path.name,
-              interactive = !preview && path.name != null;
+              isPressed = pressedPathName === path.name;
 
             return (
               <Path
@@ -270,18 +262,18 @@ export function NativeMap({
                 }
                 key={path.id || path.d}
                 onPress={
-                  interactive
-                    ? () => {
+                  path.name == null
+                    ? undefined
+                    : () => {
                         onRegionSelect(path.name as string);
                       }
-                    : undefined
                 }
                 onPressIn={
-                  interactive
-                    ? () => {
+                  path.name == null
+                    ? undefined
+                    : () => {
                         setPressedPathName(path.name ?? null);
                       }
-                    : undefined
                 }
                 onPressOut={() => {
                   setPressedPathName(null);
@@ -296,29 +288,19 @@ export function NativeMap({
         </Svg>
       </View>
 
-      {preview ? (
-        <View style={styles.hintPill}>
-          <Ionicons color="#C084FC" name="expand-outline" size={13} />
-          <Text style={styles.hintText}>Tap to change region</Text>
+      {/* Bottom Legend indicator */}
+      <View style={styles.legendPill}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: "#2E3138" }]} />
+          <Text style={styles.legendText}>Available</Text>
         </View>
-      ) : (
-        <View style={styles.legendPill}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: "#2E3138" }]} />
-            <Text style={styles.legendText}>Available</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: "#A855F7" }]} />
-            <Text style={styles.legendText}>Selected</Text>
-          </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: "#A855F7" }]} />
+          <Text style={styles.legendText}>Selected</Text>
         </View>
-      )}
+      </View>
     </View>
   );
-
-  if (preview) {
-    return <View style={styles.wrapper}>{mapCard}</View>;
-  }
 
   return (
     <View style={styles.wrapper}>
@@ -421,26 +403,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
   },
-  hintPill: {
-    alignItems: "center",
-    backgroundColor: "#0B0B0B",
-    borderColor: "#212121",
-    borderRadius: 999,
-    borderWidth: 1,
-    bottom: 12,
-    flexDirection: "row",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    position: "absolute",
-    right: 16,
-    zIndex: 10,
-  },
-  hintText: {
-    color: "#8F8F8F",
-    fontSize: 11,
-    fontWeight: "600",
-  },
   legendDot: {
     borderRadius: 999,
     height: 8,
@@ -476,9 +438,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 8,
     width: "100%",
-  },
-  mapCanvasPreview: {
-    height: 150,
   },
   mapCard: {
     borderRadius: 18,
