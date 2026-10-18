@@ -1,7 +1,11 @@
 /* eslint-disable one-var */
 import { describe, expect, it } from "vitest";
 
-import { exploreRegionQuery, mapScopeFromValue } from "./explore-region";
+import {
+  exploreRegionQuery,
+  mapScopeFromValue,
+  withGlobalRegionFallback,
+} from "./explore-region";
 
 describe("exploreRegionQuery", () => {
   it("queries the picked country, not its whole continent", () => {
@@ -56,5 +60,44 @@ describe("mapScopeFromValue", () => {
     expect(mapScopeFromValue("north-america")).toBe("usa");
     expect(mapScopeFromValue("bogus")).toBeUndefined();
     expect(mapScopeFromValue(42)).toBeUndefined();
+  });
+});
+
+describe("withGlobalRegionFallback", () => {
+  it("returns regional items when the region has data", async () => {
+    let globalCalled = false;
+    const result = await withGlobalRegionFallback(
+      "texas",
+      () => Promise.resolve(["texas-song"]),
+      () => {
+        globalCalled = true;
+        return Promise.resolve(["global-song"]);
+      }
+    );
+    expect(result).toEqual(["texas-song"]);
+    expect(globalCalled).toBe(false);
+  });
+
+  it("falls back to global data when a specific region returns empty", async () => {
+    const result = await withGlobalRegionFallback(
+      "texas",
+      () => Promise.resolve([]),
+      () => Promise.resolve(["global-song-1", "global-song-2"])
+    );
+    expect(result).toEqual(["global-song-1", "global-song-2"]);
+  });
+
+  it("does not re-fetch global when region is already 'all' or undefined", async () => {
+    let globalCalled = false;
+    const allResult = await withGlobalRegionFallback(
+      "all",
+      () => Promise.resolve([]),
+      () => {
+        globalCalled = true;
+        return Promise.resolve(["global-song"]);
+      }
+    );
+    expect(allResult).toEqual([]);
+    expect(globalCalled).toBe(false);
   });
 });

@@ -13,54 +13,114 @@ export interface LibraryCategory {
     | "recentPlayCount"
     | "savedTrackCount"
     | "watchedCount";
+  description: string;
   href: Href;
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
 }
 
 export const LIBRARY_CATEGORIES: LibraryCategory[] = [
-  {
-    color: "#38bdf8",
-    countKey: "recentPlayCount",
-    href: "/library/recent",
-    icon: "time-outline",
-    title: "Recently Played",
-  },
-  {
-    color: "#B8A3FF",
-    countKey: "playlistCount",
-    href: "/library/playlists",
-    icon: "list-outline",
-    title: "Playlists",
-  },
-  {
-    color: "#f43f5e",
-    countKey: "savedTrackCount",
-    href: "/library/saved",
-    icon: "heart-outline",
-    title: "Saved Tracks",
-  },
-  {
-    color: "#22c55e",
-    countKey: "purchaseCount",
-    href: "/library/purchased",
-    icon: "bag-handle-outline",
-    title: "Purchased",
-  },
-  {
-    color: "#06b6d4",
-    countKey: "watchedCount",
-    href: "/library/watched",
-    icon: "videocam-outline",
-    title: "Recently Watched",
-  },
-  {
-    color: "#9ca3af",
-    href: "/library/settings",
-    icon: "settings-outline",
-    title: "Account",
-  },
-];
+    {
+      color: "#38bdf8",
+      countKey: "recentPlayCount",
+      description: "Your listening history",
+      href: "/library/recent",
+      icon: "time-outline",
+      title: "Recently Played",
+    },
+    {
+      color: "#B8A3FF",
+      countKey: "playlistCount",
+      description: "Your custom playlists",
+      href: "/library/playlists",
+      icon: "list-outline",
+      title: "Playlists",
+    },
+    {
+      color: "#f43f5e",
+      countKey: "savedTrackCount",
+      description: "Songs you've favorited",
+      href: "/library/saved",
+      icon: "heart-outline",
+      title: "Saved Tracks",
+    },
+    {
+      color: "#22c55e",
+      countKey: "purchaseCount",
+      description: "Tracks you own",
+      href: "/library/purchased",
+      icon: "bag-handle-outline",
+      title: "Purchased",
+    },
+    {
+      color: "#06b6d4",
+      countKey: "watchedCount",
+      description: "Watch again or resume",
+      href: "/library/watched",
+      icon: "videocam-outline",
+      title: "Recently Watched",
+    },
+    {
+      color: "#9ca3af",
+      description: "Manage your settings",
+      href: "/library/settings",
+      icon: "settings-outline",
+      title: "Account",
+    },
+  ],
+  styles = StyleSheet.create({
+    card: {
+      borderRadius: 16,
+      borderWidth: 1,
+      flexBasis: "47%",
+      flexGrow: 1,
+      justifyContent: "space-between",
+      minHeight: 158,
+      padding: 14,
+    },
+    cardFooter: {
+      alignItems: "center",
+      borderTopColor: "#18181b",
+      borderTopWidth: 1,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: 10,
+      paddingTop: 10,
+    },
+    cardHeader: {
+      alignItems: "flex-start",
+      gap: 8,
+    },
+    cardTitle: {
+      color: "#ffffff",
+      fontSize: 15,
+      fontWeight: "700",
+    },
+    descriptionText: {
+      color: "#8F8F8F",
+      fontSize: 12,
+      lineHeight: 16,
+    },
+    footerLinkText: {
+      color: "#B8A3FF",
+      flex: 1,
+      fontSize: 11,
+      fontWeight: "700",
+    },
+    grid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 12,
+      width: "100%",
+    },
+    iconWrap: {
+      alignItems: "center",
+      borderRadius: 10,
+      height: 40,
+      justifyContent: "center",
+      width: 40,
+    },
+  });
 
 export function LibraryGrid({ onItemPress }: { onItemPress?: () => void }) {
   const router = useRouter(),
@@ -70,7 +130,13 @@ export function LibraryGrid({ onItemPress }: { onItemPress?: () => void }) {
     <View style={styles.grid}>
       {LIBRARY_CATEGORIES.map((category) => {
         const count =
-          category.countKey && overview ? overview[category.countKey] : null;
+            category.countKey && overview
+              ? (overview[category.countKey] ?? 0)
+              : null,
+          descriptionText =
+            count === null
+              ? category.description
+              : `${count.toLocaleString()} ${category.description.toLowerCase()}`;
 
         return (
           <Pressable
@@ -85,67 +151,40 @@ export function LibraryGrid({ onItemPress }: { onItemPress?: () => void }) {
             style={({ pressed }) => [
               styles.card,
               {
-                backgroundColor: pressed ? "#16181D" : "#060606",
-                borderColor: "#212121",
-                opacity: pressed ? 0.85 : 1,
+                backgroundColor: pressed ? "#111114" : "#060606",
+                borderColor: pressed ? "#B8A3FF" : "#212121",
+                opacity: pressed ? 0.92 : 1,
               },
             ]}
           >
-            <View
-              style={[
-                styles.iconWrap,
-                { backgroundColor: `${category.color}15` },
-              ]}
-            >
-              <Ionicons color={category.color} name={category.icon} size={24} />
+            <View style={styles.cardHeader}>
+              <View
+                style={[
+                  styles.iconWrap,
+                  { backgroundColor: `${category.color}18` },
+                ]}
+              >
+                <Ionicons
+                  color={category.color}
+                  name={category.icon}
+                  size={22}
+                />
+              </View>
+              <Text style={styles.cardTitle}>{category.title}</Text>
+              <Text numberOfLines={2} style={styles.descriptionText}>
+                {descriptionText}
+              </Text>
             </View>
-            <Text style={styles.cardTitle}>{category.title}</Text>
-            {typeof count === "number" && count > 0 ? (
-              <Text style={styles.countText}>{count} items</Text>
-            ) : null}
+
+            <View style={styles.cardFooter}>
+              <Text numberOfLines={1} style={styles.footerLinkText}>
+                View {category.title}
+              </Text>
+              <Ionicons color="#B8A3FF" name="musical-notes" size={13} />
+            </View>
           </Pressable>
         );
       })}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    alignItems: "center",
-    borderRadius: 18,
-    borderWidth: 1,
-    flexBasis: "48%",
-    flexGrow: 1,
-    gap: 12,
-    justifyContent: "center",
-    minHeight: 140,
-    paddingHorizontal: 14,
-    paddingVertical: 20,
-  },
-  cardTitle: {
-    color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  countText: {
-    color: "#8F8F8F",
-    fontSize: 11,
-    fontWeight: "600",
-    marginTop: -6,
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    width: "100%",
-  },
-  iconWrap: {
-    alignItems: "center",
-    borderRadius: 999,
-    height: 48,
-    justifyContent: "center",
-    width: 48,
-  },
-});

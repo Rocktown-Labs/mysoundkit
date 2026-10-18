@@ -2,7 +2,9 @@
 import {
   keepPreviousData,
   useInfiniteQuery,
+  useMutation,
   useQuery,
+  useQueryClient,
 } from "@tanstack/react-query";
 import { hc } from "hono/client";
 import type {
@@ -14,6 +16,7 @@ import type {
 import type { AppType } from "../../server/src/rpc-contract";
 import { API_BASE_URL } from "./api";
 import { authenticatedFetch } from "./authenticated-fetch";
+import { withGlobalRegionFallback } from "./explore-region";
 
 export const apiClient = hc<AppType>(API_BASE_URL, {
   // The Expo auth client persists the session in SecureStore rather than the
@@ -63,12 +66,17 @@ const artistGet = apiClient.v1.artists[":username"].$get,
   artistsGet = apiClient.v1.artists.index.$get,
   battleGet = apiClient.v1.battles[":battleId"].$get,
   battlesGet = apiClient.v1.battles.index.$get,
+  billingCheckoutPost = apiClient.v1.billing.checkout.$post,
+  billingPortalPost = apiClient.v1.billing.portal.$post,
   genresGet = apiClient.v1.discover.genres.$get,
   listeningPartiesGet = apiClient.v1["listening-parties"].index.$get,
   liveExperienceGet = apiClient.v1.live.experiences[":experienceId"].$get,
   liveExperiencesGet = apiClient.v1.live.experiences.public.$get,
   meEntitlementsGet = apiClient.v1.me.entitlements.$get,
   meGet = apiClient.v1.me.index.$get,
+  meNotificationSettingsGet = apiClient.v1.me["notification-settings"].$get,
+  meNotificationSettingsPatch = apiClient.v1.me["notification-settings"].$patch,
+  meProfilePatch = apiClient.v1.me.profile.$patch,
   networkGet = apiClient.v1.network.index.$get,
   openVersesGet = apiClient.v1["open-verses"].index.$get,
   projectsGet = apiClient.v1.projects.index.$get,
@@ -80,11 +88,20 @@ const artistGet = apiClient.v1.artists[":username"].$get,
   videoCommentsGet = apiClient.v1.videos[":videoId"].comments.$get,
   videosGet = apiClient.v1.videos.index.$get,
   libraryOverviewGet = apiClient.v1.library.overview.$get,
+  libraryPlaylistDelete = apiClient.v1.library.playlists[":id"].$delete,
   libraryPlaylistGet = apiClient.v1.library.playlists[":id"].$get,
   libraryPlaylistsGet = apiClient.v1.library.playlists.$get,
+  libraryPlaylistsPost = apiClient.v1.library.playlists.$post,
+  libraryPlaylistTrackDelete =
+    apiClient.v1.library.playlists[":id"].tracks[":trackId"].$delete,
+  libraryPlaylistTracksPost =
+    apiClient.v1.library.playlists[":id"].tracks.$post,
+  libraryPurchaseGet = apiClient.v1.library.purchases[":purchaseId"].$get,
   libraryPurchasesGet = apiClient.v1.library.purchases.$get,
   libraryRecentGet = apiClient.v1.library.recent.$get,
   librarySavedGet = apiClient.v1.library.saved.$get,
+  librarySaveTrackDelete = apiClient.v1.library.saved[":trackId"].$delete,
+  librarySaveTrackPost = apiClient.v1.library.saved[":trackId"].$post,
   libraryWatchedGet = apiClient.v1.library.watched.$get,
   communitiesGet = apiClient.v1.communities.index.$get;
 
@@ -98,6 +115,31 @@ type PublicProjectsQuery = InferRequestType<typeof publicProjectsGet>["query"];
 type ArtistsQuery = InferRequestType<typeof artistsGet>["query"];
 type PublicRegionQuery = InferRequestType<typeof liveExperiencesGet>["query"];
 type OpenVersesQuery = InferRequestType<typeof openVersesGet>["query"];
+
+export type UpdateMeProfileBody = InferRequestType<
+  typeof meProfilePatch
+>["json"];
+export type NotificationSettings = InferResponseType<
+  typeof meNotificationSettingsGet,
+  200
+>;
+export type UpdateNotificationSettingsBody = InferRequestType<
+  typeof meNotificationSettingsPatch
+>["json"];
+export type BillingCheckoutBody = InferRequestType<
+  typeof billingCheckoutPost
+>["json"];
+export type BillingCheckoutResponse = InferResponseType<
+  typeof billingCheckoutPost,
+  200
+>;
+export type BillingPortalBody = InferRequestType<
+  typeof billingPortalPost
+>["json"];
+export type BillingPortalResponse = InferResponseType<
+  typeof billingPortalPost,
+  200
+>;
 
 export type ProjectSummary = InferResponseType<typeof projectsGet, 200>[number];
 export type MeDetail = InferResponseType<typeof meGet, 200>;
@@ -165,6 +207,10 @@ export type PurchasedCatalogItem = InferResponseType<
   typeof libraryPurchasesGet,
   200
 >[number];
+export type PurchasedCatalogDetail = InferResponseType<
+  typeof libraryPurchaseGet,
+  200
+>;
 export type CommunitySummary = InferResponseType<
   typeof communitiesGet,
   200
@@ -213,7 +259,17 @@ const listKey = (scope: string, query: Record<string, unknown>) => [
 export const useTracksQuery = (query: TracksQuery) =>
   useQuery({
     placeholderData: keepPreviousData,
-    queryFn: async () => rpcJson(await tracksGet({ query })),
+    queryFn: () =>
+      withGlobalRegionFallback(
+        query.region,
+        async () => rpcJson(await tracksGet({ query })),
+        async () =>
+          rpcJson(
+            await tracksGet({
+              query: { ...query, region: "all", regionType: "global" },
+            })
+          )
+      ),
     queryKey: listKey("tracks", query),
   });
 
@@ -231,8 +287,23 @@ export const useTracksInfiniteQuery = (query: TracksQuery) => {
       return allPages.length + 1;
     },
     initialPageParam: 1,
-    queryFn: async ({ pageParam = 1 }) =>
-      rpcJson(await tracksGet({ query: { ...query, page: pageParam } })),
+    queryFn: ({ pageParam = 1 }) =>
+      withGlobalRegionFallback(
+        pageParam === 1 ? query.region : undefined,
+        async () =>
+          rpcJson(await tracksGet({ query: { ...query, page: pageParam } })),
+        async () =>
+          rpcJson(
+            await tracksGet({
+              query: {
+                ...query,
+                page: pageParam,
+                region: "all",
+                regionType: "global",
+              },
+            })
+          )
+      ),
     queryKey: [...listKey("tracks", query), "infinite"],
   });
 };
@@ -252,7 +323,17 @@ export const useTrackQuery = (trackId: string) =>
 export const useVideosQuery = (query: VideosQuery) =>
   useQuery({
     placeholderData: keepPreviousData,
-    queryFn: async () => rpcJson(await videosGet({ query })),
+    queryFn: () =>
+      withGlobalRegionFallback(
+        query.region,
+        async () => rpcJson(await videosGet({ query })),
+        async () =>
+          rpcJson(
+            await videosGet({
+              query: { ...query, region: "all", regionType: "global" },
+            })
+          )
+      ),
     queryKey: listKey("videos", query),
   });
 
@@ -281,7 +362,17 @@ export const useVideoCommentsQuery = (videoId: string) =>
 export const usePublicProjectsQuery = (query: PublicProjectsQuery) =>
   useQuery({
     placeholderData: keepPreviousData,
-    queryFn: async () => rpcJson(await publicProjectsGet({ query })),
+    queryFn: () =>
+      withGlobalRegionFallback(
+        query.region,
+        async () => rpcJson(await publicProjectsGet({ query })),
+        async () =>
+          rpcJson(
+            await publicProjectsGet({
+              query: { ...query, region: "all", regionType: "global" },
+            })
+          )
+      ),
     queryKey: listKey("projects", query),
   });
 
@@ -302,7 +393,17 @@ export const usePublicProjectQuery = (projectId: string) =>
 export const useArtistsQuery = (query: ArtistsQuery) =>
   useQuery({
     placeholderData: keepPreviousData,
-    queryFn: async () => rpcJson(await artistsGet({ query })),
+    queryFn: () =>
+      withGlobalRegionFallback(
+        query.region,
+        async () => rpcJson(await artistsGet({ query })),
+        async () =>
+          rpcJson(
+            await artistsGet({
+              query: { ...query, region: "all", regionType: "global" },
+            })
+          )
+      ),
     queryKey: listKey("artists", query),
   });
 
@@ -320,8 +421,23 @@ export const useArtistsInfiniteQuery = (query: ArtistsQuery) => {
       return allPages.length + 1;
     },
     initialPageParam: 1,
-    queryFn: async ({ pageParam = 1 }) =>
-      rpcJson(await artistsGet({ query: { ...query, page: pageParam } })),
+    queryFn: ({ pageParam = 1 }) =>
+      withGlobalRegionFallback(
+        pageParam === 1 ? query.region : undefined,
+        async () =>
+          rpcJson(await artistsGet({ query: { ...query, page: pageParam } })),
+        async () =>
+          rpcJson(
+            await artistsGet({
+              query: {
+                ...query,
+                page: pageParam,
+                region: "all",
+                regionType: "global",
+              },
+            })
+          )
+      ),
     queryKey: [...listKey("artists", query), "infinite"],
   });
 };
@@ -353,7 +469,17 @@ export const useArtistMediaQuery = (username: string) =>
 export const useBattlesQuery = (query: PublicRegionQuery) =>
   useQuery({
     placeholderData: keepPreviousData,
-    queryFn: async () => rpcJson(await battlesGet({ query })),
+    queryFn: () =>
+      withGlobalRegionFallback(
+        query.region,
+        async () => rpcJson(await battlesGet({ query })),
+        async () =>
+          rpcJson(
+            await battlesGet({
+              query: { ...query, region: "all", regionType: "global" },
+            })
+          )
+      ),
     queryKey: listKey("battles", query),
     refetchInterval: 15_000,
   });
@@ -384,8 +510,23 @@ export const usePublicLiveExperiencesQuery = (
 ) =>
   useQuery({
     placeholderData: keepPreviousData,
-    queryFn: async () =>
-      rpcJson(await liveExperiencesGet({ query: { kind, ...query } })),
+    queryFn: () =>
+      withGlobalRegionFallback(
+        query.region,
+        async () =>
+          rpcJson(await liveExperiencesGet({ query: { kind, ...query } })),
+        async () =>
+          rpcJson(
+            await liveExperiencesGet({
+              query: {
+                ...query,
+                kind,
+                region: "all",
+                regionType: "global",
+              },
+            })
+          )
+      ),
     queryKey: [...listKey("live-experiences", query), kind],
     refetchInterval: 10_000,
   });
@@ -393,7 +534,17 @@ export const usePublicLiveExperiencesQuery = (
 export const useListeningPartiesQuery = (query: PublicRegionQuery) =>
     useQuery({
       placeholderData: keepPreviousData,
-      queryFn: async () => rpcJson(await listeningPartiesGet({ query })),
+      queryFn: () =>
+        withGlobalRegionFallback(
+          query.region,
+          async () => rpcJson(await listeningPartiesGet({ query })),
+          async () =>
+            rpcJson(
+              await listeningPartiesGet({
+                query: { ...query, region: "all", regionType: "global" },
+              })
+            )
+        ),
       queryKey: listKey("listening-parties", query),
     }),
   /** Party detail is served through the list endpoint; select by id. */
@@ -434,131 +585,254 @@ export interface DiscoverRegionQuery {
 
 export const useDiscoverTopSongsQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: async () =>
-      rpcJson(
-        await tracksGet({
-          query: {
-            ...PUBLIC_SCOPE,
-            limit: 10,
-            region: region.region,
-            regionType: region.regionType,
-            sort: "plays-desc",
-          },
-        })
+    queryFn: () =>
+      withGlobalRegionFallback(
+        region.region,
+        async () =>
+          rpcJson(
+            await tracksGet({
+              query: {
+                ...PUBLIC_SCOPE,
+                limit: 10,
+                region: region.region,
+                regionType: region.regionType,
+                sort: "plays-desc",
+              },
+            })
+          ),
+        async () =>
+          rpcJson(
+            await tracksGet({
+              query: {
+                ...PUBLIC_SCOPE,
+                limit: 10,
+                region: "all",
+                regionType: "global",
+                sort: "plays-desc",
+              },
+            })
+          )
       ),
     queryKey: ["native", "discover", "top-songs", region],
   });
 
 export const useDiscoverNewReleasesQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: async () =>
-      rpcJson(
-        await tracksGet({
-          query: {
-            ...PUBLIC_SCOPE,
-            limit: 10,
-            region: region.region,
-            regionType: region.regionType,
-            sort: "date-desc",
-          },
-        })
+    queryFn: () =>
+      withGlobalRegionFallback(
+        region.region,
+        async () =>
+          rpcJson(
+            await tracksGet({
+              query: {
+                ...PUBLIC_SCOPE,
+                limit: 10,
+                region: region.region,
+                regionType: region.regionType,
+                sort: "date-desc",
+              },
+            })
+          ),
+        async () =>
+          rpcJson(
+            await tracksGet({
+              query: {
+                ...PUBLIC_SCOPE,
+                limit: 10,
+                region: "all",
+                regionType: "global",
+                sort: "date-desc",
+              },
+            })
+          )
       ),
     queryKey: ["native", "discover", "new-releases", region],
   });
 
 export const useDiscoverTopArtistsQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: async () =>
-      rpcJson(
-        await artistsGet({
-          query: {
-            category: "top",
-            limit: 10,
-            region: region.region,
-            regionType: region.regionType,
-            sort: "rank-asc",
-          },
-        })
+    queryFn: () =>
+      withGlobalRegionFallback(
+        region.region,
+        async () =>
+          rpcJson(
+            await artistsGet({
+              query: {
+                category: "top",
+                limit: 10,
+                region: region.region,
+                regionType: region.regionType,
+                sort: "rank-asc",
+              },
+            })
+          ),
+        async () =>
+          rpcJson(
+            await artistsGet({
+              query: {
+                category: "top",
+                limit: 10,
+                region: "all",
+                regionType: "global",
+                sort: "rank-asc",
+              },
+            })
+          )
       ),
     queryKey: ["native", "discover", "top-artists", region],
   });
 
 export const useDiscoverVideosQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: async () =>
-      rpcJson(
-        await videosGet({
-          query: {
-            ...PUBLIC_SCOPE,
-            limit: 10,
-            region: region.region,
-            regionType: region.regionType,
-          },
-        })
+    queryFn: () =>
+      withGlobalRegionFallback(
+        region.region,
+        async () =>
+          rpcJson(
+            await videosGet({
+              query: {
+                ...PUBLIC_SCOPE,
+                limit: 10,
+                region: region.region,
+                regionType: region.regionType,
+              },
+            })
+          ),
+        async () =>
+          rpcJson(
+            await videosGet({
+              query: {
+                ...PUBLIC_SCOPE,
+                limit: 10,
+                region: "all",
+                regionType: "global",
+              },
+            })
+          )
       ),
     queryKey: ["native", "discover", "videos", region],
   });
 
 export const useDiscoverProjectsQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: async () =>
-      rpcJson(
-        await publicProjectsGet({
-          query: {
-            limit: 10,
-            region: region.region,
-            regionType: region.regionType,
-            sort: "date-desc",
-          },
-        })
+    queryFn: () =>
+      withGlobalRegionFallback(
+        region.region,
+        async () =>
+          rpcJson(
+            await publicProjectsGet({
+              query: {
+                limit: 10,
+                region: region.region,
+                regionType: region.regionType,
+                sort: "date-desc",
+              },
+            })
+          ),
+        async () =>
+          rpcJson(
+            await publicProjectsGet({
+              query: {
+                limit: 10,
+                region: "all",
+                regionType: "global",
+                sort: "date-desc",
+              },
+            })
+          )
       ),
     queryKey: ["native", "discover", "projects", region],
   });
 
 export const useDiscoverBattlesQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: async () =>
-      rpcJson(
-        await battlesGet({
-          query: {
-            ...PUBLIC_SCOPE,
-            limit: 10,
-            region: region.region,
-            regionType: region.regionType,
-          },
-        })
+    queryFn: () =>
+      withGlobalRegionFallback(
+        region.region,
+        async () =>
+          rpcJson(
+            await battlesGet({
+              query: {
+                ...PUBLIC_SCOPE,
+                limit: 10,
+                region: region.region,
+                regionType: region.regionType,
+              },
+            })
+          ),
+        async () =>
+          rpcJson(
+            await battlesGet({
+              query: {
+                ...PUBLIC_SCOPE,
+                limit: 10,
+                region: "all",
+                regionType: "global",
+              },
+            })
+          )
       ),
     queryKey: ["native", "discover", "battles", region],
   });
 
 export const useDiscoverStreamsQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: async () =>
-      rpcJson(
-        await liveExperiencesGet({
-          query: {
-            ...PUBLIC_SCOPE,
-            kind: "stream",
-            region: region.region,
-            regionType: region.regionType,
-          },
-        })
+    queryFn: () =>
+      withGlobalRegionFallback(
+        region.region,
+        async () =>
+          rpcJson(
+            await liveExperiencesGet({
+              query: {
+                ...PUBLIC_SCOPE,
+                kind: "stream",
+                region: region.region,
+                regionType: region.regionType,
+              },
+            })
+          ),
+        async () =>
+          rpcJson(
+            await liveExperiencesGet({
+              query: {
+                ...PUBLIC_SCOPE,
+                kind: "stream",
+                region: "all",
+                regionType: "global",
+              },
+            })
+          )
       ),
     queryKey: ["native", "discover", "streams", region],
   });
 
 export const useDiscoverPartiesQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: async () =>
-      rpcJson(
-        await listeningPartiesGet({
-          query: {
-            ...PUBLIC_SCOPE,
-            limit: 10,
-            region: region.region,
-            regionType: region.regionType,
-          },
-        })
+    queryFn: () =>
+      withGlobalRegionFallback(
+        region.region,
+        async () =>
+          rpcJson(
+            await listeningPartiesGet({
+              query: {
+                ...PUBLIC_SCOPE,
+                limit: 10,
+                region: region.region,
+                regionType: region.regionType,
+              },
+            })
+          ),
+        async () =>
+          rpcJson(
+            await listeningPartiesGet({
+              query: {
+                ...PUBLIC_SCOPE,
+                limit: 10,
+                region: "all",
+                regionType: "global",
+              },
+            })
+          )
       ),
     queryKey: ["native", "discover", "parties", region],
   });
@@ -594,6 +868,75 @@ export const useMeEntitlementsQuery = (enabled: boolean) =>
       rpcJson(await meEntitlementsGet()) as Promise<EntitlementSummary>,
     queryKey: ["me", "entitlements"],
     staleTime: 60 * 1000,
+  });
+
+export const useMeNotificationSettingsQuery = (enabled: boolean) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      rpcJson(
+        await meNotificationSettingsGet()
+      ) as Promise<NotificationSettings>,
+    queryKey: ["me", "notification-settings"],
+    staleTime: 60 * 1000,
+  });
+
+export const useUpdateMeProfileMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: UpdateMeProfileBody) =>
+      rpcJson(await meProfilePatch({ json: body })),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["me"] }),
+        queryClient.invalidateQueries({ queryKey: ["artists"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard", "network"] }),
+      ]);
+    },
+  });
+};
+
+export const useUpdateMeNotificationSettingsMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: UpdateNotificationSettingsBody) =>
+      rpcJson(
+        await meNotificationSettingsPatch({ json: body })
+      ) as Promise<NotificationSettings>,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["me", "notification-settings"],
+      });
+    },
+  });
+};
+
+export const useBillingCheckoutMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (
+      body: BillingCheckoutBody
+    ): Promise<BillingCheckoutResponse> =>
+      rpcJson(
+        await billingCheckoutPost({ json: body })
+      ) as Promise<BillingCheckoutResponse>,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["me", "entitlements"] });
+    },
+  });
+};
+
+export const useBillingPortalMutation = () =>
+  useMutation({
+    mutationFn: async (
+      body: BillingPortalBody
+    ): Promise<BillingPortalResponse> =>
+      rpcJson(
+        await billingPortalPost({ json: body })
+      ) as Promise<BillingPortalResponse>,
   });
 
 export const useDashboardTracksQuery = (enabled: boolean) =>
@@ -647,7 +990,7 @@ export const useOpenVersesInfiniteQuery = (
   });
 
 // ---------------------------------------------------------------------------
-// Library & Community queries
+// Library & Community queries & mutations
 // ---------------------------------------------------------------------------
 
 export const useLibraryOverviewQuery = () =>
@@ -701,6 +1044,198 @@ export const useLibraryPurchasesQuery = () =>
       rpcJson(await libraryPurchasesGet()) as Promise<PurchasedCatalogItem[]>,
     queryKey: ["library", "purchases"],
   });
+
+export const useLibraryPurchaseDetailQuery = (purchaseId: string) =>
+  useQuery({
+    enabled: purchaseId.length > 0,
+    queryFn: async () =>
+      rpcJson(
+        await libraryPurchaseGet({ param: { purchaseId } })
+      ) as Promise<PurchasedCatalogDetail>,
+    queryKey: ["library", "purchase", purchaseId],
+  });
+
+export const useToggleSaveTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (trackId: string) =>
+      rpcJson(await librarySaveTrackPost({ param: { trackId } })) as Promise<{
+        saved: boolean;
+        trackId: string;
+      }>,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["library", "saved"] }),
+        queryClient.invalidateQueries({ queryKey: ["library", "overview"] }),
+      ]);
+    },
+  });
+};
+
+export const useRemoveSavedTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (trackId: string) =>
+      rpcJson(await librarySaveTrackDelete({ param: { trackId } })) as Promise<{
+        saved: boolean;
+        trackId: string;
+      }>,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["library", "saved"] }),
+        queryClient.invalidateQueries({ queryKey: ["library", "overview"] }),
+      ]);
+    },
+  });
+};
+
+export const useCreatePlaylistMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      description,
+      isPublic = false,
+      projectIds = [],
+      title,
+      trackIds = [],
+    }: {
+      description?: string;
+      isPublic?: boolean;
+      projectIds?: string[];
+      title: string;
+      trackIds?: string[];
+    }) => {
+      const created = (await rpcJson(
+        await libraryPlaylistsPost({
+          json: {
+            description: description?.trim() || undefined,
+            isPublic,
+            title: title.trim(),
+          },
+        })
+      )) as PlaylistSummary;
+
+      const resolvedTrackIds = new Set<string>(trackIds);
+      for (const projectId of projectIds) {
+        const project = (await rpcJson(
+          await publicProjectGet({ param: { projectId } })
+        )) as PublicProjectDetail;
+        for (const projectTrack of project.tracks ?? []) {
+          resolvedTrackIds.add(projectTrack.id);
+        }
+      }
+
+      for (const trackId of resolvedTrackIds) {
+        await rpcJson(
+          await libraryPlaylistTracksPost({
+            json: { trackId },
+            param: { id: created.id },
+          })
+        );
+      }
+
+      return created;
+    },
+    onSuccess: async (created) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["library", "playlists"] }),
+        queryClient.invalidateQueries({ queryKey: ["library", "overview"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["library", "playlist", created.id],
+        }),
+      ]);
+    },
+  });
+};
+
+export const useDeletePlaylistMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) =>
+      rpcJson(await libraryPlaylistDelete({ param: { id } })) as Promise<{
+        deleted: boolean;
+      }>,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["library", "playlists"] }),
+        queryClient.invalidateQueries({ queryKey: ["library", "overview"] }),
+      ]);
+    },
+  });
+};
+
+export const useAddPlaylistItemsMutation = (playlistId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      projectIds = [],
+      trackIds = [],
+    }: {
+      projectIds?: string[];
+      trackIds?: string[];
+    }) => {
+      const resolvedTrackIds = new Set<string>(trackIds);
+
+      for (const projectId of projectIds) {
+        const project = (await rpcJson(
+          await publicProjectGet({ param: { projectId } })
+        )) as PublicProjectDetail;
+        for (const projectTrack of project.tracks ?? []) {
+          resolvedTrackIds.add(projectTrack.id);
+        }
+      }
+
+      let addedCount = 0;
+      for (const trackId of resolvedTrackIds) {
+        await rpcJson(
+          await libraryPlaylistTracksPost({
+            json: { trackId },
+            param: { id: playlistId },
+          })
+        );
+        addedCount += 1;
+      }
+
+      return { addedCount, trackIds: [...resolvedTrackIds] };
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["library", "playlist", playlistId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["library", "playlists"] }),
+        queryClient.invalidateQueries({ queryKey: ["library", "overview"] }),
+      ]);
+    },
+  });
+};
+
+export const useRemovePlaylistTrackMutation = (playlistId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (trackId: string) =>
+      rpcJson(
+        await libraryPlaylistTrackDelete({
+          param: { id: playlistId, trackId },
+        })
+      ) as Promise<{ removed: boolean }>,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["library", "playlist", playlistId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["library", "playlists"] }),
+        queryClient.invalidateQueries({ queryKey: ["library", "overview"] }),
+      ]);
+    },
+  });
+};
 
 export const useCommunitiesQuery = (
   query: {

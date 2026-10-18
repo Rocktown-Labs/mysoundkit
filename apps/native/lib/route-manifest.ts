@@ -192,7 +192,7 @@ export const CANONICAL_ROUTES = [
     id: "saved",
     nativeHref: "/library/saved",
     owner: "library-stack",
-    status: "planned",
+    status: "native",
     webPath: "/library/saved",
   },
   {
@@ -220,7 +220,7 @@ export const CANONICAL_ROUTES = [
     id: "playlist-detail",
     nativeHref: "/library/playlists/:id",
     owner: "library-stack",
-    status: "planned",
+    status: "native",
     webPath: "/library/playlists/$id",
   },
   {

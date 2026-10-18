@@ -9,9 +9,10 @@ import type {
   BottomSheetBackdropProps,
   BottomSheetBackgroundProps,
 } from "@gorhom/bottom-sheet";
+import { useRouter } from "expo-router";
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import type { ForwardedRef } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { LibraryGrid } from "@/components/library-grid";
 import { LiquidGlassView } from "@/components/liquid-glass";
@@ -23,7 +24,7 @@ export interface LibraryBottomSheetHandle {
   present: () => void;
 }
 
-const SNAP_POINTS = ["75%"];
+const SNAP_POINTS = ["78%"];
 
 function renderSheetBackdrop(props: BottomSheetBackdropProps) {
   return (
@@ -62,6 +63,7 @@ function LibraryBottomSheetBase(
   ref: ForwardedRef<LibraryBottomSheetHandle>
 ) {
   const { colorScheme } = useColorScheme(),
+    router = useRouter(),
     sheetRef = useRef<BottomSheetModal>(null),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
@@ -88,11 +90,28 @@ function LibraryBottomSheetBase(
     >
       <BottomSheetScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <View style={styles.titleRow}>
-            <Ionicons color="#B8A3FF" name="musical-notes" size={24} />
-            <Text style={[styles.title, { color: theme.text }]}>
-              My SoundKit
-            </Text>
+          <View style={styles.topRow}>
+            <View style={styles.titleRow}>
+              <Ionicons color="#B8A3FF" name="musical-notes" size={24} />
+              <Text style={[styles.title, { color: theme.text }]}>
+                My SoundKit
+              </Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Open full library page"
+              accessibilityRole="button"
+              onPress={() => {
+                sheetRef.current?.dismiss();
+                router.push("/library");
+              }}
+              style={({ pressed }) => [
+                styles.openFullBtn,
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <Text style={styles.openFullBtnText}>Open Library</Text>
+              <Ionicons color="#B8A3FF" name="arrow-forward" size={13} />
+            </Pressable>
           </View>
           <Text style={[styles.description, { color: theme.mutedText }]}>
             Access your music collection, playlists, and listening history
@@ -126,6 +145,22 @@ const styles = StyleSheet.create({
     gap: 4,
     marginBottom: 6,
   },
+  openFullBtn: {
+    alignItems: "center",
+    backgroundColor: "rgba(184, 163, 255, 0.14)",
+    borderColor: "rgba(184, 163, 255, 0.3)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+  },
+  openFullBtnText: {
+    color: "#B8A3FF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
   title: {
     fontSize: 22,
     fontWeight: "800",
@@ -135,5 +170,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: 8,
+  },
+  topRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
 });
