@@ -351,9 +351,6 @@ export default function SearchScreen() {
             <Text style={[styles.browseTitle, { color: theme.text }]}>
               Browse Genres
             </Text>
-            <Text style={[styles.browseSubtitle, { color: theme.mutedText }]}>
-              Explore music by genre
-            </Text>
           </View>
 
           <GenreGlassGrid>

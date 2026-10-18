@@ -72,10 +72,9 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
     card: {
       borderRadius: 16,
       borderWidth: 1,
-      flexBasis: "47%",
-      flexGrow: 1,
+      flexBasis: "48%",
       justifyContent: "space-between",
-      minHeight: 158,
+      minHeight: 162,
       padding: 14,
     },
     cardFooter: {
@@ -83,27 +82,30 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
       borderTopColor: "#18181b",
       borderTopWidth: 1,
       flexDirection: "row",
-      justifyContent: "space-between",
+      gap: 6,
+      justifyContent: "center",
       marginTop: 10,
       paddingTop: 10,
     },
     cardHeader: {
-      alignItems: "flex-start",
+      alignItems: "center",
       gap: 8,
+      width: "100%",
     },
     cardTitle: {
       color: "#ffffff",
       fontSize: 15,
       fontWeight: "700",
+      textAlign: "center",
     },
     descriptionText: {
       color: "#8F8F8F",
       fontSize: 12,
       lineHeight: 16,
+      textAlign: "center",
     },
     footerLinkText: {
       color: "#B8A3FF",
-      flex: 1,
       fontSize: 11,
       fontWeight: "700",
     },
@@ -115,10 +117,11 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
     },
     iconWrap: {
       alignItems: "center",
-      borderRadius: 10,
-      height: 40,
+      borderRadius: 12,
+      height: 44,
       justifyContent: "center",
-      width: 40,
+      marginBottom: 2,
+      width: 44,
     },
   });
 
@@ -151,9 +154,10 @@ export function LibraryGrid({ onItemPress }: { onItemPress?: () => void }) {
             style={({ pressed }) => [
               styles.card,
               {
-                backgroundColor: pressed ? "#111114" : "#060606",
+                backgroundColor: pressed ? "#141418" : "#0A0A0C",
                 borderColor: pressed ? "#B8A3FF" : "#212121",
                 opacity: pressed ? 0.92 : 1,
+                transform: [{ scale: pressed ? 0.97 : 1 }],
               },
             ]}
           >

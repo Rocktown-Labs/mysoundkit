@@ -16,7 +16,9 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { LibraryGrid } from "@/components/library-grid";
 import { LiquidGlassView } from "@/components/liquid-glass";
+import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
+import { useMeQuery } from "@/lib/soundkit-api";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 export interface LibraryBottomSheetHandle {
@@ -62,10 +64,25 @@ function LibraryBottomSheetBase(
   _props: LibraryBottomSheetProps,
   ref: ForwardedRef<LibraryBottomSheetHandle>
 ) {
-  const { colorScheme } = useColorScheme(),
-    router = useRouter(),
-    sheetRef = useRef<BottomSheetModal>(null),
-    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+  const { colorScheme } = useColorScheme();
+  const router = useRouter();
+  const sheetRef = useRef<BottomSheetModal>(null);
+  const theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+  const { data: session } = authClient.useSession();
+  const signedIn = Boolean(session?.user);
+  const meQuery = useMeQuery(signedIn);
+  const meUser = meQuery.data?.user;
+  const isArtist =
+    meUser?.accountType === "artist" ||
+    (session?.user as { role?: string } | undefined)?.role === "artist";
+  const ctaLabel = isArtist ? "Dashboard" : "Open Library";
+  const ctaHref = isArtist ? "/dashboard" : "/library";
+  const ctaIcon = isArtist
+    ? ("speedometer-outline" as const)
+    : ("arrow-forward" as const);
+  const ctaAccessibilityLabel = isArtist
+    ? "Open artist dashboard"
+    : "Open full library page";
 
   useImperativeHandle(
     ref,
@@ -98,19 +115,19 @@ function LibraryBottomSheetBase(
               </Text>
             </View>
             <Pressable
-              accessibilityLabel="Open full library page"
+              accessibilityLabel={ctaAccessibilityLabel}
               accessibilityRole="button"
               onPress={() => {
                 sheetRef.current?.dismiss();
-                router.push("/library");
+                router.push(ctaHref as never);
               }}
               style={({ pressed }) => [
                 styles.openFullBtn,
                 pressed && { opacity: 0.8 },
               ]}
             >
-              <Text style={styles.openFullBtnText}>Open Library</Text>
-              <Ionicons color="#B8A3FF" name="arrow-forward" size={13} />
+              <Text style={styles.openFullBtnText}>{ctaLabel}</Text>
+              <Ionicons color="#B8A3FF" name={ctaIcon} size={13} />
             </Pressable>
           </View>
           <Text style={[styles.description, { color: theme.mutedText }]}>
