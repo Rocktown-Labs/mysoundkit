@@ -8,7 +8,6 @@ import { CartHeaderButton } from "@/components/cart/cart-header-button";
 import { Container } from "@/components/container";
 import { DiscoverSection } from "@/components/discover-section";
 import type { DiscoverCardData } from "@/components/discover-section";
-import { MapPreviewCard } from "@/components/map-preview-card";
 import { RegionPickerCard } from "@/components/region-picker-card";
 import { RegionPickerSheet } from "@/components/region-picker-sheet";
 import type { RegionPickerSheetHandle } from "@/components/region-picker-sheet";
@@ -208,13 +207,6 @@ export default function DiscoverScreen() {
           your region.
         </Text>
         <RegionPickerCard
-          onPress={() => {
-            regionSheetRef.current?.present();
-          }}
-          regionName={selectedRegion}
-          scope={activeScope}
-        />
-        <MapPreviewCard
           onPress={() => {
             regionSheetRef.current?.present();
           }}

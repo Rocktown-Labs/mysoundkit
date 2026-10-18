@@ -11,7 +11,7 @@
 ### Added
 
 - Added web-parity region scopes to the native Discover map (`#445`): the in-map dropdown now lists the same nine scopes as the web app (Global, USA, Canada, Mexico, Africa, Europe, Asia, Latin America, Oceania) instead of nine hardcoded countries, with drill-down via map taps (Europe → France; USA → state).
-- Added a compact non-interactive map preview card on the Discover page (`apps/native/components/map-preview-card.tsx`) that opens the region picker sheet on tap, so the map is visible without opening the sheet (`#446`), and the region picker sheet now closes automatically when a country/state is tapped while staying open on scope changes for chained drill-down (`#446`).
+- Added automatic dismissal to the native region picker sheet: it closes when a country/state is tapped while staying open on scope changes for chained drill-down (Europe → France in one open) (`#446`).
 
 ### Changed
 
