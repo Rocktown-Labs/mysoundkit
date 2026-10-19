@@ -1,6 +1,6 @@
 /* eslint-disable sort-vars */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus, Radio } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import {
   ExploreCollectionGrid,
@@ -96,10 +96,7 @@ function LiveStreamsPage() {
     <div className="space-y-8 pb-8">
       <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 font-bold text-2xl md:text-3xl">
-            <Radio className="size-6 text-primary" />
-            Creator Streams
-          </h1>
+          <h1 className="font-bold text-2xl md:text-3xl">Creator Streams</h1>
           <p className="mt-2 max-w-3xl text-muted-foreground">
             Browse featured broadcasts, live OBS rooms, scheduled streams, and
             genre channels.

@@ -48,14 +48,14 @@ export const Route = createFileRoute("/dashboard/career/merch")({
   component: MerchStudioPage,
 });
 
-const MEDIA_FORMAT_LABELS: Record<PhysicalReleaseCard["mediaFormat"], string> = {
-  cd: "Audio CD",
-  dvd: "Video DVD",
-  vinyl_12: '12" Vinyl',
-  vinyl_7: '7" Vinyl',
-};
-
-const formatPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+const MEDIA_FORMAT_LABELS: Record<PhysicalReleaseCard["mediaFormat"], string> =
+    {
+      cd: "Audio CD",
+      dvd: "Video DVD",
+      vinyl_12: '12" Vinyl',
+      vinyl_7: '7" Vinyl',
+    },
+  formatPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 function MerchStudioPage() {
   const [isCreatingApparel, setIsCreatingApparel] = useState(false),
@@ -82,7 +82,6 @@ function MerchStudioPage() {
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Disc3 className="text-primary size-5" />
             <h2 className="font-black text-lg uppercase tracking-tight">
               Physical Media
             </h2>
@@ -102,13 +101,10 @@ function MerchStudioPage() {
             <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-8 text-center">
               <Disc3 className="size-8" />
               <div>
-                <p className="text-sm font-semibold">
-                  No physical media yet
-                </p>
+                <p className="text-sm font-semibold">No physical media yet</p>
                 <p className="text-xs">
-                  CDs, vinyl, and DVDs are created from your project's
-                  monetize settings. Open a project and enable physical
-                  editions.
+                  CDs, vinyl, and DVDs are created from your project's monetize
+                  settings. Open a project and enable physical editions.
                 </p>
               </div>
             </CardContent>
@@ -130,9 +126,7 @@ function MerchStudioPage() {
                     </p>
                     <p className="text-muted-foreground text-xs">
                       {MEDIA_FORMAT_LABELS[release.mediaFormat]}
-                      {release.projectTitle
-                        ? ` · ${release.projectTitle}`
-                        : ""}
+                      {release.projectTitle ? ` · ${release.projectTitle}` : ""}
                     </p>
                     <div className="flex items-center justify-between">
                       <span className="font-semibold tabular-nums">
@@ -141,19 +135,17 @@ function MerchStudioPage() {
                       <Badge
                         className="text-[9px]"
                         variant={
-                          release.status === "published"
-                            ? "default"
-                            : "outline"
+                          release.status === "published" ? "default" : "outline"
                         }
                       >
                         {release.status}
                       </Badge>
                     </div>
-                    {!release.kunakiProductId ? (
+                    {release.kunakiProductId ? null : (
                       <p className="text-destructive text-[10px]">
                         Needs Kunaki product ID
                       </p>
-                    ) : null}
+                    )}
                   </div>
                 </div>
               ))}
@@ -166,7 +158,6 @@ function MerchStudioPage() {
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Shirt className="text-primary size-5" />
             <h2 className="font-black text-lg uppercase tracking-tight">
               Apparel & Merch
             </h2>
@@ -238,7 +229,7 @@ function MerchDesigner({
   variants,
 }: {
   products: MerchCatalogProduct[];
-  variants: Array<{
+  variants: {
     basePriceCents: number;
     catalogProductId: string;
     color: string | null;
@@ -248,87 +239,81 @@ function MerchDesigner({
     inStock: boolean;
     name: string;
     size: string | null;
-  }>;
+  }[];
 }) {
-  const { toast } = useToast();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [selectedProductId, setSelectedProductId] = useState("");
-  const [placement, setPlacement] = useState("front");
-  const [retailPrice, setRetailPrice] = useState("");
-  const [designFileUrl, setDesignFileUrl] = useState("");
-  const [projectId, setProjectId] = useState("");
-  const [trackId, setTrackId] = useState("");
-
-  const createDesign = useCreateMerchDesignMutation();
-  const selectedProduct = products.find((p) => p.id === selectedProductId);
-  const selectedVariants = variants.filter(
-    (v) => v.catalogProductId === selectedProductId
-  );
-  const baseCost =
-    selectedVariants.length > 0
-      ? Math.min(...selectedVariants.map((v) => v.basePriceCents))
-      : 0;
-  const retailPriceCents = Math.round(Number(retailPrice) * 100) || 0;
-  const platformCut = Math.round(retailPriceCents * 0.12);
-  const artistPayout = retailPriceCents - platformCut - baseCost;
-  const placements = (selectedProduct?.placements ?? [])
-    .map((p) => p.placement as string)
-    .filter(Boolean);
-
-  const handleCreate = () => {
-    if (
-      !title.trim() ||
-      !selectedProductId ||
-      !designFileUrl.trim() ||
-      retailPriceCents < (selectedProduct?.retailMinCents ?? 1200)
-    ) {
-      toast({
-        description:
-          "Fill in the title, pick a blank, and set a valid price.",
-        title: "Missing details",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    createDesign.mutate(
-      {
-        designFileObjectKey: designFileUrl.trim(),
-        placement,
-        printfulCatalogProductId: selectedProductId,
-        retailPriceCents,
-        title: title.trim(),
-        ...(description.trim()
-          ? { description: description.trim() }
-          : {}),
-        ...(projectId.trim() ? { projectId: projectId.trim() } : {}),
-        ...(trackId.trim() ? { trackId: trackId.trim() } : {}),
-      },
-      {
-        onError: (error) => {
-          toast({
-            description:
-              error instanceof Error
-                ? error.message
-                : "Failed to create.",
-            title: "Creation failed",
-            variant: "destructive",
-          });
-        },
-        onSuccess: () => {
-          toast({
-            description: `"${title}" created — mockups are generating.`,
-            title: "Design created",
-          });
-          setTitle("");
-          setDescription("");
-          setDesignFileUrl("");
-          setRetailPrice("");
-        },
+  const { toast } = useToast(),
+    [title, setTitle] = useState(""),
+    [description, setDescription] = useState(""),
+    [selectedProductId, setSelectedProductId] = useState(""),
+    [placement, setPlacement] = useState("front"),
+    [retailPrice, setRetailPrice] = useState(""),
+    [designFileUrl, setDesignFileUrl] = useState(""),
+    [projectId, setProjectId] = useState(""),
+    [trackId, setTrackId] = useState(""),
+    createDesign = useCreateMerchDesignMutation(),
+    selectedProduct = products.find((p) => p.id === selectedProductId),
+    selectedVariants = variants.filter(
+      (v) => v.catalogProductId === selectedProductId
+    ),
+    baseCost =
+      selectedVariants.length > 0
+        ? Math.min(...selectedVariants.map((v) => v.basePriceCents))
+        : 0,
+    retailPriceCents = Math.round(Number(retailPrice) * 100) || 0,
+    platformCut = Math.round(retailPriceCents * 0.12),
+    artistPayout = retailPriceCents - platformCut - baseCost,
+    placements = (selectedProduct?.placements ?? [])
+      .map((p) => p.placement as string)
+      .filter(Boolean),
+    handleCreate = () => {
+      if (
+        !title.trim() ||
+        !selectedProductId ||
+        !designFileUrl.trim() ||
+        retailPriceCents < (selectedProduct?.retailMinCents ?? 1200)
+      ) {
+        toast({
+          description:
+            "Fill in the title, pick a blank, and set a valid price.",
+          title: "Missing details",
+          variant: "destructive",
+        });
+        return;
       }
-    );
-  };
+
+      createDesign.mutate(
+        {
+          designFileObjectKey: designFileUrl.trim(),
+          placement,
+          printfulCatalogProductId: selectedProductId,
+          retailPriceCents,
+          title: title.trim(),
+          ...(description.trim() ? { description: description.trim() } : {}),
+          ...(projectId.trim() ? { projectId: projectId.trim() } : {}),
+          ...(trackId.trim() ? { trackId: trackId.trim() } : {}),
+        },
+        {
+          onError: (error) => {
+            toast({
+              description:
+                error instanceof Error ? error.message : "Failed to create.",
+              title: "Creation failed",
+              variant: "destructive",
+            });
+          },
+          onSuccess: () => {
+            toast({
+              description: `"${title}" created — mockups are generating.`,
+              title: "Design created",
+            });
+            setTitle("");
+            setDescription("");
+            setDesignFileUrl("");
+            setRetailPrice("");
+          },
+        }
+      );
+    };
 
   return (
     <Card>
@@ -377,10 +362,7 @@ function MerchDesigner({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(placements.length > 0
-                  ? placements
-                  : ["front"]
-                ).map((p) => (
+                {(placements.length > 0 ? placements : ["front"]).map((p) => (
                   <SelectItem key={p} value={p}>
                     {p}
                   </SelectItem>
@@ -449,10 +431,9 @@ function MerchDesigner({
                 ${(artistPayout / 100).toFixed(2)}
               </p>
               <p className="text-muted-foreground text-xs">
-                ${((retailPriceCents - baseCost) / 100).toFixed(2)} after
-                blank cost (${(baseCost / 100).toFixed(2)}) minus 12%
-                platform fee (${(platformCut / 100).toFixed(2)}). Shipping
-                is pass-through.
+                ${((retailPriceCents - baseCost) / 100).toFixed(2)} after blank
+                cost (${(baseCost / 100).toFixed(2)}) minus 12% platform fee ($
+                {(platformCut / 100).toFixed(2)}). Shipping is pass-through.
               </p>
             </div>
           ) : null}
@@ -478,13 +459,13 @@ function DesignCard({
   isSelected: boolean;
   onSelect: () => void;
 }) {
-  const { toast } = useToast();
-  const updateDesign = useUpdateMerchDesignMutation();
-  const deleteDesign = useDeleteMerchDesignMutation();
-  const { data: mockups = [] } = useMerchDesignMockupsQuery(
-    isSelected ? design.id : null
-  );
-  const completedMockups = mockups.filter((m) => m.status === "completed");
+  const { toast } = useToast(),
+    updateDesign = useUpdateMerchDesignMutation(),
+    deleteDesign = useDeleteMerchDesignMutation(),
+    { data: mockups = [] } = useMerchDesignMockupsQuery(
+      isSelected ? design.id : null
+    ),
+    completedMockups = mockups.filter((m) => m.status === "completed");
 
   return (
     <div
@@ -525,14 +506,24 @@ function DesignCard({
         <div className="flex items-center justify-between">
           <Badge
             className="text-[9px]"
-            variant={
-              design.status === "published" ? "default" : "outline"
-            }
+            variant={design.status === "published" ? "default" : "outline"}
           >
             {design.status}
           </Badge>
           <div className="flex gap-1">
-            {design.status !== "published" ? (
+            {design.status === "published" ? (
+              <Button
+                className="h-6 px-2 text-[10px]"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateDesign.mutate({ id: design.id, status: "draft" });
+                }}
+                size="sm"
+                variant="outline"
+              >
+                Unpublish
+              </Button>
+            ) : (
               <Button
                 className="h-6 px-2 text-[10px]"
                 disabled={
@@ -563,18 +554,6 @@ function DesignCard({
                 size="sm"
               >
                 Publish
-              </Button>
-            ) : (
-              <Button
-                className="h-6 px-2 text-[10px]"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  updateDesign.mutate({ id: design.id, status: "draft" });
-                }}
-                size="sm"
-                variant="outline"
-              >
-                Unpublish
               </Button>
             )}
             <Button

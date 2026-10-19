@@ -109,7 +109,6 @@ function LibraryBottomSheetBase(
         <View style={styles.header}>
           <View style={styles.topRow}>
             <View style={styles.titleRow}>
-              <Ionicons color="#B8A3FF" name="musical-notes" size={24} />
               <Text style={[styles.title, { color: theme.text }]}>
                 My SoundKit
               </Text>

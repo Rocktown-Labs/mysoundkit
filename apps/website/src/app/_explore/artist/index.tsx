@@ -1,6 +1,5 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Sparkles, TrendingUp, Trophy } from "lucide-react";
 
 import { ArtistCard } from "@/components/explore/artist-card";
 import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-card";
@@ -21,21 +20,18 @@ const sortOptions = [
       category: "rising",
       description: "Artists on the rise with growing momentum",
       href: "/artist/rising-stars",
-      icon: TrendingUp,
       title: "Rising Stars",
     },
     {
       category: "new",
       description: "Fresh talent joining the scene",
       href: "/artist/new",
-      icon: Sparkles,
       title: "New Artists",
     },
     {
       category: "top",
       description: "The most popular artists right now",
       href: "/artist/top",
-      icon: Trophy,
       title: "Top Artists This Month",
     },
   ] as const;
@@ -94,14 +90,12 @@ function LeaderboardSection({
   artists,
   description,
   href,
-  icon: Icon,
   title,
   type,
 }: {
   artists: ArtistSummary[];
   description: string;
   href: "/artist/new" | "/artist/rising-stars" | "/artist/top";
-  icon: typeof TrendingUp;
   title: string;
   type: "new" | "rising" | "top";
 }) {
@@ -113,10 +107,7 @@ function LeaderboardSection({
     <section>
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="flex items-center gap-2 font-bold text-xl md:text-2xl">
-            <Icon className="size-6 text-primary" />
-            {title}
-          </h2>
+          <h2 className="font-bold text-xl md:text-2xl">{title}</h2>
           <p className="mt-1 text-muted-foreground text-sm">{description}</p>
         </div>
         <Button asChild variant="ghost">
@@ -294,7 +285,6 @@ function ArtistPage() {
           artists={rising.data ?? []}
           description={leaderboardSections[0].description}
           href={leaderboardSections[0].href}
-          icon={leaderboardSections[0].icon}
           title={leaderboardSections[0].title}
           type="rising"
         />
@@ -302,7 +292,6 @@ function ArtistPage() {
           artists={newest.data ?? []}
           description={leaderboardSections[1].description}
           href={leaderboardSections[1].href}
-          icon={leaderboardSections[1].icon}
           title={leaderboardSections[1].title}
           type="new"
         />
@@ -310,7 +299,6 @@ function ArtistPage() {
           artists={top.data ?? []}
           description={leaderboardSections[2].description}
           href={leaderboardSections[2].href}
-          icon={leaderboardSections[2].icon}
           title={leaderboardSections[2].title}
           type="top"
         />

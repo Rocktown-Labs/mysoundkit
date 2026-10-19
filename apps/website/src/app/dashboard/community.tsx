@@ -1,6 +1,6 @@
 /* eslint-disable one-var, sort-vars */
 import { createFileRoute } from "@tanstack/react-router";
-import { BadgeDollarSign, MessageCircleHeart, Settings2 } from "lucide-react";
+import { BadgeDollarSign, Settings2 } from "lucide-react";
 import { useState } from "react";
 
 import { CommunityExperience } from "@/components/community/community-experience";
@@ -56,10 +56,7 @@ function CommunityDashboard() {
       <div className="h-full w-full overflow-y-auto p-4 md:p-6">
         <div className="mx-auto max-w-3xl space-y-6">
           <div>
-            <h1 className="flex items-center gap-2 font-bold text-3xl">
-              <MessageCircleHeart className="size-7 text-primary" />
-              Create your community
-            </h1>
+            <h1 className="font-bold text-3xl">Create your community</h1>
             <p className="mt-2 text-muted-foreground">
               Every SoundKit artist can start free. Enable paid membership when
               Premium and payouts are ready.

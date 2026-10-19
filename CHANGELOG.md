@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Removed decorative icons preceding section headers and page titles across web and mobile explore, library, and dashboard screens (`#456`):
+  - Web: Removed icons from `SectionHeader` (`apps/website/src/components/explore/section-header.tsx`), explore home rails (`apps/website/src/app/_explore/index.tsx`), category explore headers (Top Songs, Projects, Music Videos, Merch/Shop, Live, Streams, Parties, Artists), project detail sections (Tracklist, Physical Editions), library pages (My SoundKit, Playlists, Purchased Tracks, Recently Played, Saved Tracks, Settings, Recently Watched), and dashboard pages (`community.tsx`, `career/merch.tsx`).
+  - Mobile: Removed decorative header icons from the library bottom sheet (`apps/native/components/library-bottom-sheet.tsx`), artist leaderboards (`apps/native/app/(drawer)/(tabs)/artists/index.tsx`), shop title header (`apps/native/app/(drawer)/(tabs)/(discover)/shop.tsx`), and all native library screens (My SoundKit, Playlists, Purchased Music, Recently Played, Saved Music, Settings, Recently Watched).
+  - Preserved all functional icons on navigation sidebars, drawer tabs, interactive CTA buttons, search inputs, play/heart action buttons, and list row actions.
 - Fixed native `/shop` crash from `<Link asChild>` style passing and polished search/genre, library, and live screens (`#455`):
   - Replaced `<Link asChild>` with direct `Pressable` + `useRouter().push()` navigation across `apps/native/app/(drawer)/(tabs)/(discover)/shop.tsx` and `apps/native/components/genre-glass-card.tsx`, eliminating the Expo Router `You are passing an array of styles to a child of <Slot>` render error.
   - Restyled `GenreGlassCard` on `/search` and `/genres` into tactile 2-column pressable button cards matching the web explore design with continuous 16px borders, bold emojis, 15pt titles, and `scale: 0.97` press feedback.

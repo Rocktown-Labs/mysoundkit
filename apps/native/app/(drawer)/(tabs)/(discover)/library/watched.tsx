@@ -137,9 +137,6 @@ export default function RecentlyWatchedScreen() {
               <Text style={styles.backText}>Back to Library</Text>
             </Pressable>
             <View style={styles.titleRow}>
-              <View style={styles.iconBadge}>
-                <Ionicons color="#06B6D4" name="videocam-outline" size={24} />
-              </View>
               <View style={styles.titleTextCol}>
                 <Text style={styles.title}>Recently Watched</Text>
                 <Text style={styles.subtitle}>

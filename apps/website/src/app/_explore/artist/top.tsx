@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Trophy } from "lucide-react";
 
 import { ArtistListPage } from "@/components/explore/artist-list-page";
 
@@ -12,7 +11,6 @@ function TopArtistsPage() {
     <ArtistListPage
       category="top"
       description="Most popular artists right now"
-      icon={Trophy}
       title="Top Artists This Month"
     />
   );

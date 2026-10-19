@@ -18,10 +18,7 @@ export function SectionHeader({
   const content = (
     <div className="flex items-center justify-between group cursor-pointer">
       <div>
-        <h2 className="text-lg md:text-xl lg:text-2xl font-bold flex items-center gap-2">
-          {icon}
-          {title}
-        </h2>
+        <h2 className="text-lg md:text-xl lg:text-2xl font-bold">{title}</h2>
         {description && (
           <p className="text-muted-foreground text-xs md:text-sm mt-1">
             {description}

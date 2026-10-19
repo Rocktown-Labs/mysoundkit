@@ -72,7 +72,7 @@ const NORTH_AMERICA_LOCATIONS = [
 interface LeaderboardSectionProps {
   artists: ArtistSummary[];
   description: string;
-  iconName: keyof typeof Ionicons.glyphMap;
+  iconName?: keyof typeof Ionicons.glyphMap;
   title: string;
   type: "new" | "rising" | "top";
   viewAllHref: string;
@@ -192,7 +192,6 @@ function LeaderboardSection({
       <View style={styles.sectionHeaderRow}>
         <View style={{ flex: 1 }}>
           <View style={styles.sectionTitleRow}>
-            <Ionicons color="#B8A3FF" name={iconName} size={20} />
             <Text style={styles.sectionTitle}>{title}</Text>
           </View>
           <Text style={styles.sectionSubtitle}>{description}</Text>

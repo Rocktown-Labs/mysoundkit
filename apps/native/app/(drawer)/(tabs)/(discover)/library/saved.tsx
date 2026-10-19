@@ -134,9 +134,6 @@ export default function SavedTracksScreen() {
               <Text style={styles.backText}>Back to Library</Text>
             </Pressable>
             <View style={styles.titleRow}>
-              <View style={styles.iconBadge}>
-                <Ionicons color="#EF4444" name="heart" size={24} />
-              </View>
               <View style={styles.titleTextCol}>
                 <Text style={styles.title}>Saved Music</Text>
                 <Text style={styles.subtitle}>

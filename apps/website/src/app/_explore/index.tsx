@@ -1,19 +1,6 @@
 /* eslint-disable one-var, sort-vars, complexity, require-unicode-regexp, no-empty, no-nested-ternary, unicorn/no-nested-ternary, react-hooks/exhaustive-deps, react/exhaustive-effect-dependencies, react/todo */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  Compass,
-  Disc,
-  Flame,
-  Headphones,
-  LocateFixed,
-  MapPin,
-  Music,
-  Radio,
-  RotateCcw,
-  Swords,
-  Users,
-  Video,
-} from "lucide-react";
+import { LocateFixed, MapPin, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
@@ -373,8 +360,7 @@ function LocalExplorePage() {
           <section className="mb-6 md:mb-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4 md:mb-6">
               <div>
-                <h1 className="text-xl md:text-2xl lg:text-3xl xl:text-4xl font-bold mb-1 md:mb-2 flex items-center gap-3">
-                  <Compass className="size-8 text-primary" />
+                <h1 className="text-xl md:text-2xl lg:text-3xl xl:text-4xl font-bold mb-1 md:mb-2">
                   Discover Music
                 </h1>
                 <p className="text-muted-foreground text-xs md:text-sm lg:text-base">
@@ -481,7 +467,6 @@ function LocalExplorePage() {
                     ? "Most played tracks across the app this week"
                     : `Most played tracks in ${activeRegion} this week`
                 }
-                icon={<Music className="size-5 md:size-6 text-primary" />}
                 title={`Top Songs ${locationPhrase}`}
                 viewAllHref={tracksHref}
               />
@@ -515,7 +500,6 @@ function LocalExplorePage() {
                     ? "Fresh drops from every active scene"
                     : `Fresh tracks from artists in ${activeRegion}`
                 }
-                icon={<Flame className="size-5 md:size-6 text-primary" />}
                 title={`New Releases ${locationPhrase}`}
                 viewAllHref={releasesHref}
               />
@@ -549,7 +533,6 @@ function LocalExplorePage() {
                     ? "Top beat battles happening across the app right now"
                     : `Vote in head-to-head producer matchups in ${activeRegion}`
                 }
-                icon={<Swords className="size-5 md:size-6 text-primary" />}
                 title={`Live Battles ${locationPhrase}`}
                 viewAllHref={battlesHref}
               />
@@ -572,7 +555,6 @@ function LocalExplorePage() {
                     ? "Rising stars and established artists across the app"
                     : `Rising stars and top performers in ${activeRegion}`
                 }
-                icon={<Users className="size-5 md:size-6 text-primary" />}
                 title={`Top Artists ${locationPhrase}`}
                 viewAllHref={artistsHref}
               />
@@ -606,7 +588,6 @@ function LocalExplorePage() {
                     ? "Official music videos, studio sessions, and live drops from SoundKit artists"
                     : `Watch official drops and visual releases from ${activeRegion}`
                 }
-                icon={<Video className="size-5 md:size-6 text-primary" />}
                 title={`Featured Videos ${locationPhrase}`}
                 viewAllHref={videosHref}
               />
@@ -634,7 +615,6 @@ function LocalExplorePage() {
                     ? "Real-time broadcasts, studio sessions, and DJ sets live right now"
                     : `Active live streams broadcasting in ${activeRegion}`
                 }
-                icon={<Radio className="size-5 md:size-6 text-primary" />}
                 title={`Live Streams ${locationPhrase}`}
                 viewAllHref={streamsHref}
               />
@@ -657,7 +637,6 @@ function LocalExplorePage() {
                     ? "Albums, EPs, beat kits, and mixtapes from across SoundKit"
                     : `Albums, EPs, and mixtapes in ${activeRegion}`
                 }
-                icon={<Disc className="size-5 md:size-6 text-primary" />}
                 title={`Featured Projects ${locationPhrase}`}
                 viewAllHref={projectsHref}
               />
@@ -680,7 +659,6 @@ function LocalExplorePage() {
                     ? "Join community listening parties and track premieres with the creator"
                     : `Upcoming album listening parties in ${activeRegion}`
                 }
-                icon={<Headphones className="size-5 md:size-6 text-primary" />}
                 title={`Listening Parties ${locationPhrase}`}
                 viewAllHref={partiesHref}
               />

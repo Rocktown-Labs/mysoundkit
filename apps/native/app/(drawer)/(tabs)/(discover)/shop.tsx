@@ -43,7 +43,6 @@ export default function ShopScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <View style={styles.titleRow}>
-            <Ionicons color={theme.primary} name="bag-handle" size={26} />
             <Text style={[styles.title, { color: theme.text }]}>
               SoundKit Store
             </Text>
