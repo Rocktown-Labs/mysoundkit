@@ -79,10 +79,7 @@ function ShopPage() {
       <section className="mb-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="flex items-center gap-2 font-bold text-3xl md:text-4xl">
-              <ShoppingBag className="size-8 text-primary" />
-              SoundKit Store
-            </h1>
+            <h1 className="font-bold text-3xl md:text-4xl">SoundKit Store</h1>
             <p className="mt-1 max-w-2xl text-muted-foreground text-sm md:text-base">
               Buy beats, stems, and commercial licenses directly from verified
               SoundKit creators.

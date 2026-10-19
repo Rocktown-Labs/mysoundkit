@@ -165,9 +165,6 @@ export default function PurchasedScreen() {
               <Text style={styles.backText}>Back to Library</Text>
             </Pressable>
             <View style={styles.titleRow}>
-              <View style={styles.iconBadge}>
-                <Ionicons color="#22C55E" name="bag-handle-outline" size={24} />
-              </View>
               <View style={styles.titleTextCol}>
                 <Text style={styles.title}>Purchased Music</Text>
                 <Text style={styles.subtitle}>

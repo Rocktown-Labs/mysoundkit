@@ -1,6 +1,6 @@
 /* eslint-disable one-var, sort-vars, require-unicode-regexp, no-nested-ternary, unicorn/no-nested-ternary */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarClock, Trophy, Zap } from "lucide-react";
+import { CalendarClock, Trophy } from "lucide-react";
 
 import { BattleBoostCard } from "@/components/ads/battle-boost-card";
 import { BattleCard } from "@/components/explore/battle-card";
@@ -285,10 +285,7 @@ function LiveHubPage() {
   return (
     <div className="space-y-8 pb-8">
       <section>
-        <h1 className="flex items-center gap-2 font-bold text-3xl">
-          <Zap className="size-7 text-primary" />
-          Live on SoundKit
-        </h1>
+        <h1 className="font-bold text-3xl">Live on SoundKit</h1>
         <p className="mt-2 max-w-3xl text-muted-foreground">
           Real battles, listening parties, and creator streams from the SoundKit
           community.

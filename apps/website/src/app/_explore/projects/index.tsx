@@ -2,7 +2,7 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, no-unused-vars */
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Disc, Search, ShoppingBag } from "lucide-react";
+import { Search, ShoppingBag } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
@@ -139,8 +139,7 @@ function ExploreProjectsPage() {
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
       <div className="mb-8">
-        <h1 className="mb-2 flex items-center gap-2 font-bold text-2xl md:text-3xl lg:text-4xl">
-          <Disc className="size-6 text-primary md:size-8" />
+        <h1 className="mb-2 font-bold text-2xl md:text-3xl lg:text-4xl">
           Projects
         </h1>
         <p className="text-muted-foreground">

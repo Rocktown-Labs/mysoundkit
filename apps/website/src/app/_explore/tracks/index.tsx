@@ -1,6 +1,5 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Music } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
@@ -123,8 +122,7 @@ function TracksPage() {
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
       <div className="mb-8">
-        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2 flex items-center gap-2">
-          <Music className="size-6 md:size-8 text-primary" />
+        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2">
           Top Songs
         </h1>
       </div>

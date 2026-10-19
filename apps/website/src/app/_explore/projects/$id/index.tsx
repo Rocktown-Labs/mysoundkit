@@ -13,7 +13,6 @@ import {
   Heart,
   Image,
   Layers,
-  Music,
   Package,
   Play,
   Plus,
@@ -493,8 +492,7 @@ function ProjectTracklist({
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between gap-3 px-2">
-        <h2 className="flex items-center gap-2 font-black text-xl uppercase tracking-tight">
-          <Music className="size-5 text-primary" />
+        <h2 className="font-black text-xl uppercase tracking-tight">
           Tracklist ({tracks.length} Songs)
         </h2>
         <span className="hidden text-muted-foreground text-xs sm:block">
@@ -700,8 +698,7 @@ function ProjectPhysicalReleasesSection({
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between gap-3 px-2">
-        <h2 className="flex items-center gap-2 font-black text-xl uppercase tracking-tight">
-          <Package className="size-5 text-primary" />
+        <h2 className="font-black text-xl uppercase tracking-tight">
           Physical Editions ({releases.length})
         </h2>
         <span className="hidden text-muted-foreground text-xs sm:block">

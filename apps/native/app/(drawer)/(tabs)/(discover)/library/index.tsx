@@ -29,7 +29,6 @@ export default function LibraryScreen() {
           {/* Header matching Image 4 */}
           <View style={styles.header}>
             <View style={styles.titleRow}>
-              <Ionicons color="#B8A3FF" name="musical-notes" size={28} />
               <Text style={[styles.title, { color: theme.text }]}>
                 My SoundKit
               </Text>

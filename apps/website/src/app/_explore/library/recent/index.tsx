@@ -27,8 +27,7 @@ function RecentlyPlayedPage() {
       </Link>
 
       <div className="mb-8">
-        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2 flex items-center gap-3">
-          <Clock className="size-8 text-primary" />
+        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2">
           Recently Played
         </h1>
         <p className="text-muted-foreground text-sm md:text-base">

@@ -24,12 +24,12 @@ const sortOptions = [
 export function ArtistListPage({
   category,
   description,
-  icon: Icon,
+  icon: _Icon,
   title,
 }: {
   category: "new" | "rising" | "top";
   description: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   title: string;
 }) {
   const [regionType, setRegionType] = useState<"north-america" | "global">(
@@ -52,8 +52,7 @@ export function ArtistListPage({
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
       <div className="mb-8">
-        <h1 className="mb-2 flex items-center gap-2 font-bold text-2xl md:text-3xl lg:text-4xl">
-          <Icon className="size-6 text-primary md:size-8" />
+        <h1 className="mb-2 font-bold text-2xl md:text-3xl lg:text-4xl">
           {title}
         </h1>
         <p className="text-muted-foreground text-sm md:text-base">

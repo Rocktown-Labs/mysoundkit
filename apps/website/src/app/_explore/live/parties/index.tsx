@@ -1,6 +1,6 @@
 /* eslint-disable one-var, sort-vars */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarClock, Headphones } from "lucide-react";
+import { CalendarClock } from "lucide-react";
 
 import { CreateFanPartyDialog } from "@/components/explore/create-fan-party-dialog";
 import {
@@ -153,10 +153,7 @@ function LivePartiesPage() {
     <div className="space-y-8 pb-8">
       <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 font-bold text-2xl md:text-3xl">
-            <Headphones className="size-6 text-primary" />
-            Listening Parties
-          </h1>
+          <h1 className="font-bold text-2xl md:text-3xl">Listening Parties</h1>
           <p className="mt-2 max-w-3xl text-muted-foreground">
             Join scheduled release rooms and fan-hosted playlist sessions with
             synchronized playback and chat.

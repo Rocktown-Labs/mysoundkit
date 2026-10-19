@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TrendingUp } from "lucide-react";
 
 import { ArtistListPage } from "@/components/explore/artist-list-page";
 
@@ -12,7 +11,6 @@ function RisingStarsPage() {
     <ArtistListPage
       category="rising"
       description="Artists on the rise with growing momentum"
-      icon={TrendingUp}
       title="Rising Stars"
     />
   );

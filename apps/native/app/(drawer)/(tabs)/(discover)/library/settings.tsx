@@ -223,9 +223,6 @@ export default function LibrarySettingsScreen() {
               <Text style={styles.backText}>Back to Library</Text>
             </Pressable>
             <View style={styles.titleRow}>
-              <View style={styles.iconBadge}>
-                <Ionicons color="#B8A3FF" name="settings-outline" size={24} />
-              </View>
               <View style={styles.titleTextCol}>
                 <Text style={styles.title}>Account Settings</Text>
                 <Text style={styles.subtitle}>

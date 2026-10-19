@@ -85,7 +85,6 @@ export default function PlaylistsScreen() {
           <View style={styles.headerTopRow}>
             <View style={styles.headerTitleCol}>
               <View style={styles.titleRow}>
-                <Ionicons color="#B8A3FF" name="musical-notes" size={26} />
                 <Text style={[styles.title, { color: theme.text }]}>
                   My Playlists
                 </Text>

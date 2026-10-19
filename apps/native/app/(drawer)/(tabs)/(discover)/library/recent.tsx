@@ -146,9 +146,6 @@ export default function RecentlyPlayedScreen() {
               <Text style={styles.backText}>Back to Library</Text>
             </Pressable>
             <View style={styles.titleRow}>
-              <View style={styles.iconBadge}>
-                <Ionicons color="#3B82F6" name="time-outline" size={24} />
-              </View>
               <View style={styles.titleTextCol}>
                 <Text style={styles.title}>Recently Played</Text>
                 <Text style={styles.subtitle}>
