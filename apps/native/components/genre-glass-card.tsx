@@ -1,13 +1,12 @@
-/* oxlint-disable one-var, sort-vars */
-import { Link } from "expo-router";
+import { useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { genreActivityLabel, genreEmoji } from "@/lib/genre-meta";
 
 /**
- * Apple-glass genre tile for the 2-column browse grids: a translucent
- * material with a light-catching top edge, emoji-forward, with quick
- * press-in feedback matching the mobile web genre grid.
+ * Genre button card for browse grids: mirrors the web explore genre cards
+ * with a solid dark card surface, emoji-forward display, and responsive
+ * tactile press-in feedback.
  */
 export function GenreGlassCard({
   count,
@@ -18,26 +17,31 @@ export function GenreGlassCard({
   slug: string;
   title: string;
 }) {
+  const router = useRouter();
+
   return (
-    <Link asChild href={`/genres/${encodeURIComponent(slug)}`}>
-      <Pressable
-        accessibilityHint={`Browse ${title}`}
-        accessibilityLabel={`${title}, ${genreActivityLabel(count)}`}
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-      >
-        <View style={styles.topEdge} />
-        <Text style={styles.emoji}>{genreEmoji(slug)}</Text>
+    <Pressable
+      accessibilityHint={`Browse ${title}`}
+      accessibilityLabel={`${title}, ${genreActivityLabel(count)}`}
+      accessibilityRole="button"
+      onPress={() => {
+        router.push(`/genres/${encodeURIComponent(slug)}` as never);
+      }}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+    >
+      <View style={styles.topEdge} />
+      <Text style={styles.emoji}>{genreEmoji(slug)}</Text>
+      <View style={styles.copy}>
         <Text numberOfLines={1} style={styles.name}>
           {title}
         </Text>
         <Text style={styles.count}>{genreActivityLabel(count)}</Text>
-      </Pressable>
-    </Link>
+      </View>
+    </Pressable>
   );
 }
 
-/** 2-column grid layout with a consistent 12pt gutter matching web. */
+/** 2-column button grid layout with consistent 12pt gutters matching web. */
 export function GenreGlassGrid({ children }: { children: React.ReactNode }) {
   return <View style={styles.grid}>{children}</View>;
 }
@@ -45,32 +49,37 @@ export function GenreGlassGrid({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   card: {
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
-    borderColor: "rgba(255, 255, 255, 0.12)",
+    backgroundColor: "#111114",
+    borderColor: "#212121",
     borderCurve: "continuous",
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
-    elevation: 3,
-    flexBasis: "47%",
-    flexGrow: 1,
-    gap: 4,
+    elevation: 2,
+    flexBasis: "48%",
+    gap: 8,
     justifyContent: "center",
     maxWidth: "48.5%",
-    minHeight: 156,
+    minHeight: 136,
     overflow: "hidden",
     paddingHorizontal: 12,
-    paddingVertical: 22,
+    paddingVertical: 18,
     position: "relative",
     shadowColor: "#000000",
-    shadowOffset: { height: 6, width: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
+    shadowOffset: { height: 4, width: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
     width: "48%",
   },
   cardPressed: {
-    backgroundColor: "rgba(255, 255, 255, 0.09)",
-    borderColor: "rgba(184, 163, 255, 0.35)",
-    transform: [{ scale: 0.98 }],
+    backgroundColor: "#18181D",
+    borderColor: "rgba(184, 163, 255, 0.45)",
+    opacity: 0.92,
+    transform: [{ scale: 0.97 }],
+  },
+  copy: {
+    alignItems: "center",
+    gap: 2,
+    width: "100%",
   },
   count: {
     color: "#8F8F8F",
@@ -79,29 +88,29 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   emoji: {
-    fontSize: 38,
-    lineHeight: 46,
-    marginBottom: 6,
+    fontSize: 34,
+    lineHeight: 42,
   },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
     justifyContent: "space-between",
+    width: "100%",
   },
   name: {
-    color: "#F8F8F8",
+    color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: "700",
     textAlign: "center",
   },
   topEdge: {
-    backgroundColor: "rgba(255, 255, 255, 0.16)",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
     borderRadius: 999,
     height: 1,
-    left: 16,
+    left: 12,
     position: "absolute",
-    right: 16,
+    right: 12,
     top: 0,
   },
 });

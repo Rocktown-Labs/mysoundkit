@@ -21,9 +21,6 @@ export default function GenresScreen() {
         style={{ backgroundColor: theme.background }}
       >
         <Text style={[styles.title, { color: theme.text }]}>Browse Genres</Text>
-        <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-          Explore music by genre
-        </Text>
 
         {genresQuery.isLoading ? (
           <ActivityIndicator color={theme.primary} style={styles.loader} />

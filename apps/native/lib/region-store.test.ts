@@ -2,10 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { loadRegionSelection, saveRegionSelection } from "./region-store";
 
-const { storage } = vi.hoisted(() => {
-  const backingStore = new Map<string, string>();
-  return { storage: backingStore };
-});
+const storage = new Map<string, string>();
 
 vi.mock("@react-native-async-storage/async-storage", () => ({
   default: {

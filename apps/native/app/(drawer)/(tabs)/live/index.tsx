@@ -7,14 +7,16 @@ import {
   View,
 } from "react-native";
 
+import { AvatarHeaderButton } from "@/components/avatar-header-button";
 import { BattleCard } from "@/components/cards/battle-card";
 import { PartyCard } from "@/components/cards/party-card";
 import { StreamCard } from "@/components/cards/stream-card";
+import { CartHeaderButton } from "@/components/cart/cart-header-button";
 import { Container } from "@/components/container";
 import { NativeEmptyState } from "@/components/native-collection-grid";
 import { NativeRail } from "@/components/native-rail";
 import { NativeSection } from "@/components/native-section";
-import { SoundKitBrand } from "@/components/soundkit-brand";
+import { useTabMenu } from "@/components/tab-menu-sheets";
 import { NAV_THEME } from "@/lib/constants";
 import {
   useBattlesQuery,
@@ -24,30 +26,34 @@ import {
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 const styles = StyleSheet.create({
-    brandRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginBottom: 12,
-    },
     content: {
-      gap: 26,
+      gap: 24,
       paddingBottom: 24,
       paddingHorizontal: 20,
       paddingTop: 16,
     },
-    locationText: { fontSize: 12, marginBottom: 10 },
+    headerActions: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: 10,
+    },
+    headerRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 4,
+    },
     title: {
       fontSize: 34,
       fontWeight: "800",
       letterSpacing: -0.8,
-      marginBottom: 4,
     },
   }),
   GLOBAL_REGION = { region: "all", regionType: "global" } as const;
 
 export default function LiveScreen() {
   const { colorScheme } = useColorScheme(),
+    { openLibraryMenu } = useTabMenu(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     battles = useBattlesQuery(GLOBAL_REGION),
     streams = usePublicLiveExperiencesQuery("stream", GLOBAL_REGION),
@@ -60,22 +66,15 @@ export default function LiveScreen() {
         showsVerticalScrollIndicator={false}
         style={{ backgroundColor: theme.background }}
       >
-        <View style={styles.brandRow}>
-          <SoundKitBrand />
-          <Text style={[styles.locationText, { color: theme.mutedText }]}>
-            LIVE
-          </Text>
+        <View style={styles.headerRow}>
+          <Text style={[styles.title, { color: theme.text }]}>Live</Text>
+          <View style={styles.headerActions}>
+            <CartHeaderButton />
+            <AvatarHeaderButton onSinglePress={openLibraryMenu} />
+          </View>
         </View>
-        <Text style={[styles.title, { color: theme.text }]}>SoundKit Live</Text>
-        <Text style={[styles.locationText, { color: theme.mutedText }]}>
-          Battles, listening parties, and creator streams happening on SoundKit.
-        </Text>
 
-        <NativeSection
-          description="Vote in head-to-head producer matchups"
-          title="Live Battles"
-          viewAllHref="/live/battles"
-        >
+        <NativeSection title="Live Battles" viewAllHref="/live/battles">
           <NativeRail>
             {battles.isLoading ? (
               <ActivityIndicator
@@ -94,11 +93,7 @@ export default function LiveScreen() {
           </NativeRail>
         </NativeSection>
 
-        <NativeSection
-          description="Real-time broadcasts and DJ sets"
-          title="Streams"
-          viewAllHref="/live/streams"
-        >
+        <NativeSection title="Streams" viewAllHref="/live/streams">
           <NativeRail>
             {streams.isLoading ? (
               <ActivityIndicator
@@ -117,11 +112,7 @@ export default function LiveScreen() {
           </NativeRail>
         </NativeSection>
 
-        <NativeSection
-          description="Community listening parties and premieres"
-          title="Listening Parties"
-          viewAllHref="/live/parties"
-        >
+        <NativeSection title="Listening Parties" viewAllHref="/live/parties">
           <NativeRail>
             {parties.isLoading ? (
               <ActivityIndicator

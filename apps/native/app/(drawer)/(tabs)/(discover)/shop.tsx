@@ -1,6 +1,6 @@
 /* eslint-disable sort-vars */
 import { Ionicons } from "@expo/vector-icons";
-import { Link, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -142,71 +142,99 @@ function ShopFilter({
   label: string;
   slug: string;
 }) {
+  const router = useRouter();
+
   return (
-    <Link href={`/shop?genre=${encodeURIComponent(slug)}`} asChild>
-      <Pressable style={[styles.filter, active && styles.filterActive]}>
-        <Text style={[styles.filterText, active && styles.filterTextActive]}>
-          {label}
-        </Text>
-      </Pressable>
-    </Link>
+    <Pressable
+      accessibilityLabel={`Filter by ${label}`}
+      accessibilityRole="button"
+      onPress={() => {
+        router.setParams({ genre: slug });
+      }}
+      style={({ pressed }) => [
+        styles.filter,
+        active && styles.filterActive,
+        pressed && { opacity: 0.8 },
+      ]}
+    >
+      <Text style={[styles.filterText, active && styles.filterTextActive]}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
 function ShopTrackCard({ track }: { track: TrackSummary }) {
+  const router = useRouter();
+
   return (
-    <Link asChild href={`/tracks/${track.id}`}>
-      <Pressable style={styles.shopCard}>
-        <View style={styles.shopArt}>
-          <NativeImage
-            contentFit="cover"
-            source={track.coverArtUrl ?? undefined}
-            style={styles.shopImage}
-          />
-          <View style={styles.heart}>
-            <Ionicons color="#FFFFFF" name="heart-outline" size={12} />
-          </View>
+    <Pressable
+      accessibilityLabel={`View track ${track.title} by ${track.artistName}`}
+      accessibilityRole="button"
+      onPress={() => {
+        router.push(`/tracks/${track.id}` as never);
+      }}
+      style={({ pressed }) => [
+        styles.shopCard,
+        pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] },
+      ]}
+    >
+      <View style={styles.shopArt}>
+        <NativeImage
+          contentFit="cover"
+          source={track.coverArtUrl ?? undefined}
+          style={styles.shopImage}
+        />
+        <View style={styles.heart}>
+          <Ionicons color="#FFFFFF" name="heart-outline" size={12} />
         </View>
-        <Text numberOfLines={1} style={styles.cardTitle}>
-          {track.title}
+      </View>
+      <Text numberOfLines={1} style={styles.cardTitle}>
+        {track.title}
+      </Text>
+      <Text numberOfLines={1} style={styles.cardArtist}>
+        {track.artistName}
+      </Text>
+      <View style={styles.cardBottom}>
+        <Text style={styles.price}>
+          {(track.priceCents ?? 199) / 100 >= 10
+            ? `$${((track.priceCents ?? 199) / 100).toFixed(0)}`
+            : `$${((track.priceCents ?? 199) / 100).toFixed(2)}`}
         </Text>
-        <Text numberOfLines={1} style={styles.cardArtist}>
-          {track.artistName}
-        </Text>
-        <View style={styles.cardBottom}>
-          <Text style={styles.price}>
-            {(track.priceCents ?? 199) / 100 >= 10
-              ? `$${((track.priceCents ?? 199) / 100).toFixed(0)}`
-              : `$${((track.priceCents ?? 199) / 100).toFixed(2)}`}
-          </Text>
-          <Text style={styles.buy}>Buy license</Text>
-        </View>
-      </Pressable>
-    </Link>
+        <Text style={styles.buy}>Buy license</Text>
+      </View>
+    </Pressable>
   );
 }
 
 function ShopListRow({ track }: { track: TrackSummary }) {
+  const router = useRouter();
+
   return (
-    <Link asChild href={`/tracks/${track.id}`}>
-      <Pressable style={styles.listRow}>
-        <NativeImage
-          contentFit="cover"
-          source={track.coverArtUrl ?? undefined}
-          style={styles.listImage}
-        />
-        <View style={styles.listCopy}>
-          <Text numberOfLines={1} style={styles.cardTitle}>
-            {track.title}
-          </Text>
-          <Text style={styles.cardArtist}>{track.artistName}</Text>
-          <Text style={styles.price}>
-            ${((track.priceCents ?? 199) / 100).toFixed(2)}
-          </Text>
-        </View>
-        <Ionicons color="#8F8F8F" name="chevron-forward" size={16} />
-      </Pressable>
-    </Link>
+    <Pressable
+      accessibilityLabel={`View track ${track.title} by ${track.artistName}`}
+      accessibilityRole="button"
+      onPress={() => {
+        router.push(`/tracks/${track.id}` as never);
+      }}
+      style={({ pressed }) => [styles.listRow, pressed && { opacity: 0.85 }]}
+    >
+      <NativeImage
+        contentFit="cover"
+        source={track.coverArtUrl ?? undefined}
+        style={styles.listImage}
+      />
+      <View style={styles.listCopy}>
+        <Text numberOfLines={1} style={styles.cardTitle}>
+          {track.title}
+        </Text>
+        <Text style={styles.cardArtist}>{track.artistName}</Text>
+        <Text style={styles.price}>
+          ${((track.priceCents ?? 199) / 100).toFixed(2)}
+        </Text>
+      </View>
+      <Ionicons color="#8F8F8F" name="chevron-forward" size={16} />
+    </Pressable>
   );
 }
 

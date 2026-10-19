@@ -77,7 +77,8 @@ export const exploreRegionQuery = ({
   mapScope,
   region,
 }: Pick<ExploreRegionSelection, "mapScope" | "region">) => ({
-  region: region == null ? regionForScope(mapScope) : exploreRegionSlug(region),
+  region:
+    region === null ? regionForScope(mapScope) : exploreRegionSlug(region),
   regionType: regionTypeForMapScope(mapScope),
 });
 
@@ -96,3 +97,20 @@ export const exploreLocationPhrase = (
   selection.mapScope === "global" && !selection.region
     ? "On SoundKit"
     : `in ${exploreRegionLabel(selection)}`;
+
+/**
+ * If a regional catalog query returns no items, fall back to the global
+ * catalog (`region: "all", regionType: "global"`) so screens never render empty
+ * when a region has no releases yet.
+ */
+export async function withGlobalRegionFallback<T>(
+  region: string | undefined,
+  fetchRegional: () => Promise<T[]>,
+  fetchGlobal: () => Promise<T[]>
+): Promise<T[]> {
+  const items = await fetchRegional();
+  if (items.length === 0 && region !== undefined && region !== "all") {
+    return fetchGlobal();
+  }
+  return items;
+}
