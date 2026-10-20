@@ -24,6 +24,12 @@
 
 ### Added
 
+- Streamlined and decluttered the mobile artist dashboard screens (`/dashboard`) with strict 3-card stats rows and interactive segmented bar charts (`#458`):
+  - Created `StatChartCard` (`apps/native/components/dashboard/stat-chart-card.tsx`) featuring animated, selectable touch bars with dynamic value/sublabel previews and bottom segmented pill tabs (e.g. Finances: Revenue, Direct Tips, Payouts; Live: Battle Rounds, Crowd Votes, Stage Support) with a direct "View All" link.
+  - Upgraded `StatsGrid` (`apps/native/components/dashboard/stats-grid.tsx`) to enforce a compact single-row 3-card layout (`[stat1] [stat2] [stat3]`) with optimized typography and density for mobile viewports across Dashboard (`[Tracks] [Projects] [Upcoming]`), Music (`[Tracks] [Projects] [Videos]`), Career (`[Plays] [Followers] [Earnings]`), and Live (`[Record] [Win Rate] [Rooms]`).
+  - Added a dismissible Official SoundKit Bio Link card with close `(X)` button on the dashboard home screen (`apps/native/app/(drawer)/dashboard/index.tsx`) persisted via `@soundkit_bio_link_dismissed_v1` in `AsyncStorage`.
+  - Decluttered header navigation: removed the intrusive "Exit to SoundKit" top bar button (preserved in the drawer and jump sheet), removed decorative icons before section titles, and removed the redundant quickstart banner.
+  - Relocated Upcoming/Calendar events to the dashboard home view under an `Upcoming` rail, and added a direct `Network` team button in the Career artist profile header.
 - Overhauled the mobile artist dashboard (`/dashboard`) with quick jump menus, rich overview screens, and direct fan view exit navigation (`#458`):
   - Added `DashboardTopBar` (`apps/native/components/dashboard/top-bar.tsx`) with an "Exit to SoundKit" back pill and "Jump to Section" menu button across dashboard screens, ensuring artists can return to the main fan app (`/(drawer)/(tabs)/(discover)`) without getting trapped in dashboard routes.
   - Added `DashboardJumpModal` (`apps/native/components/dashboard/jump-modal.tsx`) built on `LiquidGlassView` sheets with tactile haptics, section descriptions, and an "Exit to SoundKit (Fan View)" bottom shortcut.

@@ -1,5 +1,5 @@
-/* oxlint-disable one-var, sort-vars */
-/* eslint-disable one-var, sort-vars */
+/* oxlint-disable one-var, sort-vars, sort-keys */
+/* eslint-disable one-var, sort-vars, sort-keys */
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
@@ -9,6 +9,8 @@ import { Container } from "@/components/container";
 import { FramelessCard } from "@/components/dashboard/frameless-card";
 import { DashboardJumpModal } from "@/components/dashboard/jump-modal";
 import type { DashboardJumpItem } from "@/components/dashboard/jump-modal";
+import { StatsGrid } from "@/components/dashboard/stats-grid";
+import type { DashboardStat } from "@/components/dashboard/stats-grid";
 import { DashboardTopBar } from "@/components/dashboard/top-bar";
 import { NativeRail } from "@/components/native-rail";
 import { NativeSection } from "@/components/native-section";
@@ -80,7 +82,27 @@ export default function MusicOverviewScreen() {
     trackItems = tracks.data ?? [],
     projectItems = projects.data ?? [],
     videoItems = videos.data ?? [],
-    openVerseItems = openVerses.data?.pages[0]?.items ?? [];
+    openVerseItems = openVerses.data?.pages[0]?.items ?? [],
+    stats: DashboardStat[] = [
+      {
+        description: "Masters & stems",
+        icon: "musical-notes",
+        title: "Tracks",
+        value: trackItems.length.toString(),
+      },
+      {
+        description: "Albums & EPs",
+        icon: "albums",
+        title: "Projects",
+        value: projectItems.length.toString(),
+      },
+      {
+        description: "Music visuals",
+        icon: "videocam",
+        title: "Videos",
+        value: videoItems.length.toString(),
+      },
+    ];
 
   return (
     <Container>
@@ -90,14 +112,93 @@ export default function MusicOverviewScreen() {
         style={{ backgroundColor: theme.background }}
       >
         <DashboardTopBar
-          ctaHref="/dashboard/music/tracks/new"
-          ctaIcon="add"
-          ctaLabel="New Track"
           onOpenJumpMenu={() => setJumpModalVisible(true)}
-          showExit={true}
-          subtitle="Your catalog: tracks, projects, videos, and collaborations."
+          showExit={false}
+          subtitle="Catalog releases, audio masters, and official visuals."
           title="Music"
         />
+
+        {/* 3 Condensed Stat Cards */}
+        <StatsGrid stats={stats} />
+
+        {/* Quick Action Pills */}
+        <View style={styles.quickActionsRow}>
+          <Pressable
+            onPress={() => {
+              router.push("/dashboard/music/tracks/new" as never);
+            }}
+            style={({ pressed }) => [
+              styles.quickActionPill,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <Ionicons color={theme.primary} name="musical-notes" size={13} />
+            <Text style={[styles.quickActionText, { color: theme.text }]}>
+              + Track
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              router.push("/dashboard/music/projects/new" as never);
+            }}
+            style={({ pressed }) => [
+              styles.quickActionPill,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <Ionicons color={theme.primary} name="albums" size={13} />
+            <Text style={[styles.quickActionText, { color: theme.text }]}>
+              + Project
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              router.push("/dashboard/music/videos/new" as never);
+            }}
+            style={({ pressed }) => [
+              styles.quickActionPill,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <Ionicons color={theme.primary} name="videocam" size={13} />
+            <Text style={[styles.quickActionText, { color: theme.text }]}>
+              + Video
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              router.push("/dashboard/music/open-verses" as never);
+            }}
+            style={({ pressed }) => [
+              styles.quickActionPill,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <Ionicons color={theme.primary} name="mic" size={13} />
+            <Text style={[styles.quickActionText, { color: theme.text }]}>
+              + Verse
+            </Text>
+          </Pressable>
+        </View>
 
         <View style={styles.sections}>
           {/* Tracks Section */}
@@ -327,5 +428,25 @@ const styles = StyleSheet.create({
   },
   sections: {
     gap: 28,
+  },
+  quickActionPill: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: "row",
+    gap: 4,
+    justifyContent: "center",
+    paddingVertical: 9,
+  },
+  quickActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  quickActionsRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 20,
+    marginTop: 16,
   },
 });

@@ -13,7 +13,7 @@ export function DashboardTopBar({
   ctaIcon = "add",
   ctaLabel,
   onOpenJumpMenu,
-  showExit = true,
+  showExit = false,
   subtitle,
   title,
 }: {
@@ -32,55 +32,60 @@ export function DashboardTopBar({
   return (
     <View style={styles.container}>
       {/* Top action row */}
-      <View style={styles.actionRow}>
-        {showExit ? (
-          <Pressable
-            accessibilityLabel="Exit to SoundKit"
-            accessibilityRole="button"
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.replace("/(drawer)/(tabs)/(discover)" as never);
-            }}
-            style={({ pressed }) => [
-              styles.exitBtn,
-              {
-                backgroundColor: pressed ? "#1E1E1E" : "#121212",
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            <Ionicons color={theme.primary} name="arrow-back" size={14} />
-            <Text style={[styles.exitBtnText, { color: theme.text }]}>
-              Exit to SoundKit
-            </Text>
-          </Pressable>
-        ) : (
-          <View />
-        )}
+      {showExit || onOpenJumpMenu ? (
+        <View
+          style={[
+            styles.actionRow,
+            showExit ? null : { justifyContent: "flex-end" },
+          ]}
+        >
+          {showExit ? (
+            <Pressable
+              accessibilityLabel="Exit to SoundKit"
+              accessibilityRole="button"
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.replace("/(drawer)/(tabs)/(discover)" as never);
+              }}
+              style={({ pressed }) => [
+                styles.exitBtn,
+                {
+                  backgroundColor: pressed ? "#1E1E1E" : "#121212",
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <Ionicons color={theme.primary} name="arrow-back" size={14} />
+              <Text style={[styles.exitBtnText, { color: theme.text }]}>
+                Exit to SoundKit
+              </Text>
+            </Pressable>
+          ) : null}
 
-        {onOpenJumpMenu ? (
-          <Pressable
-            accessibilityLabel="Jump to section"
-            accessibilityRole="button"
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              onOpenJumpMenu();
-            }}
-            style={({ pressed }) => [
-              styles.jumpBtn,
-              {
-                backgroundColor: pressed ? "#222222" : "#141414",
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            <Ionicons color={theme.primary} name="apps-outline" size={15} />
-            <Text style={[styles.jumpBtnText, { color: theme.primary }]}>
-              Jump to Section
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
+          {onOpenJumpMenu ? (
+            <Pressable
+              accessibilityLabel="Jump to section"
+              accessibilityRole="button"
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                onOpenJumpMenu();
+              }}
+              style={({ pressed }) => [
+                styles.jumpBtn,
+                {
+                  backgroundColor: pressed ? "#222222" : "#141414",
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <Ionicons color={theme.primary} name="apps-outline" size={15} />
+              <Text style={[styles.jumpBtnText, { color: theme.primary }]}>
+                Jump to Section
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       {/* Main Title & Subtitle */}
       <View style={styles.titleArea}>

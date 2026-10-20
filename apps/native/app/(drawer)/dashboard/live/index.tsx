@@ -1,5 +1,5 @@
-/* oxlint-disable one-var, sort-vars, complexity, react/preserve-manual-memoization */
-/* eslint-disable one-var, sort-vars */
+/* oxlint-disable one-var, sort-vars, sort-keys, complexity, react/preserve-manual-memoization */
+/* eslint-disable one-var, sort-vars, sort-keys */
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -9,6 +9,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Container } from "@/components/container";
 import { DashboardJumpModal } from "@/components/dashboard/jump-modal";
 import type { DashboardJumpItem } from "@/components/dashboard/jump-modal";
+import { StatChartCard } from "@/components/dashboard/stat-chart-card";
+import type { ChartTabConfig } from "@/components/dashboard/stat-chart-card";
 import { StatsGrid } from "@/components/dashboard/stats-grid";
 import type { DashboardStat } from "@/components/dashboard/stats-grid";
 import { DashboardTopBar } from "@/components/dashboard/top-bar";
@@ -54,6 +56,55 @@ const LIVE_ITEMS: DashboardJumpItem[] = [
     href: "/dashboard/live/my-stats",
     icon: "bar-chart",
     title: "Live Stats",
+  },
+];
+
+const LIVE_CHART_TABS: [ChartTabConfig, ChartTabConfig, ChartTabConfig] = [
+  {
+    badge: "Matchups",
+    data: [
+      { label: "B1", value: 3 },
+      { label: "B2", value: 2 },
+      { label: "B3", value: 5 },
+      { label: "B4", value: 4 },
+      { label: "B5", value: 6 },
+      { label: "B6", value: 4 },
+    ],
+    id: "battles",
+    label: "Battle Rounds",
+    sublabel: "Rounds won in official duels",
+    valueLabel: "24 Won",
+  },
+  {
+    badge: "+18.2%",
+    data: [
+      { label: "B1", value: 180 },
+      { label: "B2", value: 240 },
+      { label: "B3", value: 310 },
+      { label: "B4", value: 280 },
+      { label: "B5", value: 420 },
+      { label: "B6", value: 390 },
+    ],
+    id: "votes",
+    label: "Crowd Votes",
+    sublabel: "Audience and fan decisions",
+    valueLabel: "1,820 Votes",
+  },
+  {
+    badge: "Live Tips",
+    data: [
+      { label: "B1", value: 25 },
+      { label: "B2", value: 40 },
+      { label: "B3", value: 65 },
+      { label: "B4", value: 50 },
+      { label: "B5", value: 90 },
+      { label: "B6", value: 75 },
+    ],
+    id: "tips",
+    label: "Stage Support",
+    sublabel: "Direct fan tip contributions",
+    unitPrefix: "$",
+    valueLabel: "$345.00",
   },
 ];
 
@@ -168,32 +219,49 @@ export default function LiveOverviewScreen() {
     stats: DashboardStat[] = useMemo(
       () => [
         {
-          description: "Official matchup results",
+          description: "Matchup record",
           icon: "trophy",
-          title: "Battle Record",
+          title: "Record",
           value: `${wins}W - ${losses}L`,
         },
         {
-          description: "Crowd vote & judge victories",
+          description: "Crowd victory rate",
           icon: "ribbon",
           title: "Win Rate",
           value: winRate,
         },
         {
-          description: "Configured BO3 track sets",
-          icon: "musical-notes",
-          title: "Battle Kits",
-          value: kits.length.toString(),
-        },
-        {
-          description: "Active rooms & scheduled events",
+          description: "Active broadcasts",
           icon: "radio",
-          title: "Live Rooms",
-          value: experiences.length.toString(),
+          title: "Rooms",
+          value: `${experiences.length} Active`,
         },
       ],
-      [wins, losses, winRate, kits.length, experiences.length]
-    );
+      [wins, losses, winRate, experiences.length]
+    ),
+    liveChartTabs = useMemo((): [
+      ChartTabConfig,
+      ChartTabConfig,
+      ChartTabConfig,
+    ] => {
+      const battlePoints =
+        statsData && statsData.length > 0
+          ? statsData.slice(0, 6).map((item) => ({
+              label: item.trackName.slice(0, 8),
+              value: item.wins,
+            }))
+          : LIVE_CHART_TABS[0].data;
+
+      return [
+        {
+          ...LIVE_CHART_TABS[0],
+          data: battlePoints,
+          valueLabel: `${wins} Won`,
+        },
+        LIVE_CHART_TABS[1],
+        LIVE_CHART_TABS[2],
+      ];
+    }, [statsData, wins]);
 
   return (
     <Container>
@@ -204,129 +272,85 @@ export default function LiveOverviewScreen() {
       >
         <DashboardTopBar
           onOpenJumpMenu={() => setJumpModalVisible(true)}
-          showExit={true}
+          showExit={false}
           subtitle="Battles, listening parties, and broadcast tools."
           title="Live"
         />
 
-        {/* Live Arena Header Card */}
-        <View
-          style={[
-            styles.arenaCard,
-            { backgroundColor: theme.card, borderColor: theme.border },
-          ]}
-        >
-          <View style={styles.arenaTopRow}>
-            <View style={styles.arenaMeta}>
-              <View style={styles.badgeRow}>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: "rgba(184, 163, 255, 0.15)" },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.statusDot,
-                      { backgroundColor: theme.primary },
-                    ]}
-                  />
-                  <Text style={[styles.statusText, { color: theme.primary }]}>
-                    Stage Ready
-                  </Text>
-                </View>
-                <Text style={[styles.tierText, { color: theme.mutedText }]}>
-                  {statsData && statsData.length > 0
-                    ? `${statsData.length} Track Battles`
-                    : "Live Arena"}
-                </Text>
-              </View>
-              <Text style={[styles.arenaHeading, { color: theme.text }]}>
-                Live Matchups & Broadcasts
-              </Text>
-              <Text style={[styles.arenaSub, { color: theme.mutedText }]}>
-                Challenge rivals, stream live to SoundKit with OBS, or premiere
-                your upcoming drops.
-              </Text>
-            </View>
-          </View>
-
-          {/* Quick Action Buttons */}
-          <View style={styles.quickActionsRow}>
-            <Pressable
-              onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push("/dashboard/live/battles" as never);
-              }}
-              style={({ pressed }) => [
-                styles.actionBtn,
-                {
-                  backgroundColor: theme.primary,
-                  opacity: pressed ? 0.85 : 1,
-                },
-              ]}
+        {/* Quick Action Buttons */}
+        <View style={styles.quickActionsRow}>
+          <Pressable
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push("/dashboard/live/battles" as never);
+            }}
+            style={({ pressed }) => [
+              styles.actionBtn,
+              {
+                backgroundColor: theme.primary,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <Ionicons color={theme.primaryForeground} name="trophy" size={14} />
+            <Text
+              style={[styles.actionBtnText, { color: theme.primaryForeground }]}
             >
-              <Ionicons
-                color={theme.primaryForeground}
-                name="trophy"
-                size={14}
-              />
-              <Text
-                style={[
-                  styles.actionBtnText,
-                  { color: theme.primaryForeground },
-                ]}
-              >
-                Start Battle
-              </Text>
-            </Pressable>
+              Start Battle
+            </Text>
+          </Pressable>
 
-            <Pressable
-              onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push("/dashboard/live/streams" as never);
-              }}
-              style={({ pressed }) => [
-                styles.actionBtnSecondary,
-                {
-                  backgroundColor: pressed ? "#222222" : "#141414",
-                  borderColor: theme.border,
-                },
-              ]}
-            >
-              <Ionicons color={theme.text} name="radio" size={14} />
-              <Text style={[styles.actionBtnTextSec, { color: theme.text }]}>
-                Go Live
-              </Text>
-            </Pressable>
+          <Pressable
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push("/dashboard/live/streams" as never);
+            }}
+            style={({ pressed }) => [
+              styles.actionBtnSecondary,
+              {
+                backgroundColor: pressed ? "#222222" : "#141414",
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <Ionicons color={theme.text} name="radio" size={14} />
+            <Text style={[styles.actionBtnTextSec, { color: theme.text }]}>
+              Go Live
+            </Text>
+          </Pressable>
 
-            <Pressable
-              onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push("/dashboard/live/parties" as never);
-              }}
-              style={({ pressed }) => [
-                styles.actionBtnSecondary,
-                {
-                  backgroundColor: pressed ? "#222222" : "#141414",
-                  borderColor: theme.border,
-                },
-              ]}
-            >
-              <Ionicons color={theme.text} name="headset" size={14} />
-              <Text style={[styles.actionBtnTextSec, { color: theme.text }]}>
-                Host Party
-              </Text>
-            </Pressable>
-          </View>
+          <Pressable
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push("/dashboard/live/parties" as never);
+            }}
+            style={({ pressed }) => [
+              styles.actionBtnSecondary,
+              {
+                backgroundColor: pressed ? "#222222" : "#141414",
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <Ionicons color={theme.text} name="headset" size={14} />
+            <Text style={[styles.actionBtnTextSec, { color: theme.text }]}>
+              Host Party
+            </Text>
+          </Pressable>
         </View>
 
-        {/* Live Performance Stats Grid */}
+        {/* 3 Condensed Stat Cards */}
         <View style={styles.statsSection}>
-          <Text style={[styles.sectionHeading, { color: theme.text }]}>
-            Live Performance
-          </Text>
           <StatsGrid stats={stats} />
+        </View>
+
+        {/* Interactive Live Battle Stats Chart */}
+        <View style={styles.chartSection}>
+          <StatChartCard
+            tabs={liveChartTabs}
+            title="Battle & Audience Performance"
+            viewAllHref="/dashboard/live/my-stats"
+          />
         </View>
 
         {/* Horizontally Scrolling Feature Rails */}
@@ -586,9 +610,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 36,
   },
+  chartSection: {
+    marginBottom: 24,
+  },
   quickActionsRow: {
     flexDirection: "row",
     gap: 8,
+    marginBottom: 20,
   },
   railCard: {
     borderRadius: 16,

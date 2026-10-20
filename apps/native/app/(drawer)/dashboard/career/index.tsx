@@ -1,5 +1,5 @@
-/* oxlint-disable one-var, sort-vars, complexity, react/preserve-manual-memoization */
-/* eslint-disable one-var, sort-vars */
+/* oxlint-disable one-var, sort-vars, sort-keys, complexity, react/preserve-manual-memoization */
+/* eslint-disable one-var, sort-vars, sort-keys */
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -9,6 +9,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Container } from "@/components/container";
 import { DashboardJumpModal } from "@/components/dashboard/jump-modal";
 import type { DashboardJumpItem } from "@/components/dashboard/jump-modal";
+import { StatChartCard } from "@/components/dashboard/stat-chart-card";
+import type { ChartTabConfig } from "@/components/dashboard/stat-chart-card";
 import { StatsGrid } from "@/components/dashboard/stats-grid";
 import type { DashboardStat } from "@/components/dashboard/stats-grid";
 import { DashboardTopBar } from "@/components/dashboard/top-bar";
@@ -73,6 +75,57 @@ const CAREER_ITEMS: DashboardJumpItem[] = [
     href: "/dashboard/career/settings",
     icon: "settings",
     title: "Settings",
+  },
+];
+
+const FINANCE_CHART_TABS: [ChartTabConfig, ChartTabConfig, ChartTabConfig] = [
+  {
+    badge: "+24.5%",
+    data: [
+      { label: "May", value: 310 },
+      { label: "Jun", value: 420 },
+      { label: "Jul", value: 380 },
+      { label: "Aug", value: 540 },
+      { label: "Sep", value: 490 },
+      { label: "Oct", value: 700 },
+    ],
+    id: "revenue",
+    label: "Revenue",
+    sublabel: "Past 6 months earnings",
+    unitPrefix: "$",
+    valueLabel: "$2,840.00",
+  },
+  {
+    badge: "+14.2%",
+    data: [
+      { label: "May", value: 40 },
+      { label: "Jun", value: 75 },
+      { label: "Jul", value: 60 },
+      { label: "Aug", value: 110 },
+      { label: "Sep", value: 85 },
+      { label: "Oct", value: 90 },
+    ],
+    id: "tips",
+    label: "Direct Tips",
+    sublabel: "Fan contributions during live drops",
+    unitPrefix: "$",
+    valueLabel: "$460.00",
+  },
+  {
+    badge: "Deposited",
+    data: [
+      { label: "May", value: 290 },
+      { label: "Jun", value: 400 },
+      { label: "Jul", value: 360 },
+      { label: "Aug", value: 500 },
+      { label: "Sep", value: 430 },
+      { label: "Oct", value: 400 },
+    ],
+    id: "payouts",
+    label: "Payouts",
+    sublabel: "Transferred to verified Stripe bank",
+    unitPrefix: "$",
+    valueLabel: "$2,380.00",
   },
 ];
 
@@ -189,35 +242,25 @@ export default function CareerOverviewScreen() {
     stats: DashboardStat[] = useMemo(
       () => [
         {
-          description: "Streams across your catalog",
+          description: "Across catalog",
           icon: "play",
-          title: "Total Plays",
+          title: "Plays",
           value: totalPlays > 0 ? totalPlays.toLocaleString() : "0",
         },
         {
-          description: "Songs & singles released",
-          icon: "musical-notes",
-          title: "Catalog Size",
-          value: (tracks.data ?? []).length.toString(),
-        },
-        {
-          description: "Active artists & producers",
+          description: "Active fans",
           icon: "people",
-          title: "Collaborators",
-          value: (
-            network.data?.counts?.friends ??
-            network.data?.friends?.length ??
-            0
-          ).toString(),
+          title: "Followers",
+          value: (network.data?.counts?.followers ?? 0).toString(),
         },
         {
-          description: isPremium ? "Artist Pro Active" : "Standard Plan",
-          icon: "sparkles",
-          title: "Plan Tier",
-          value: isPremium ? "Pro" : "Free",
+          description: "Stripe payouts",
+          icon: "card",
+          title: "Earnings",
+          value: isPremium ? "$2.8K" : "$0",
         },
       ],
-      [totalPlays, tracks.data, network.data, isPremium]
+      [totalPlays, network.data, isPremium]
     );
 
   return (
@@ -229,7 +272,7 @@ export default function CareerOverviewScreen() {
       >
         <DashboardTopBar
           onOpenJumpMenu={() => setJumpModalVisible(true)}
-          showExit={true}
+          showExit={false}
           subtitle="Profile, analytics, workspace, and artist business."
           title="Career"
         />
@@ -265,6 +308,13 @@ export default function CareerOverviewScreen() {
               >
                 {email}
               </Text>
+              <Text
+                numberOfLines={1}
+                style={[styles.profileNetworkSub, { color: theme.mutedText }]}
+              >
+                {network.data?.counts?.friends ?? 0} Collaborators ·{" "}
+                {network.data?.counts?.followers ?? 0} Followers
+              </Text>
             </View>
           </View>
 
@@ -283,9 +333,9 @@ export default function CareerOverviewScreen() {
                 },
               ]}
             >
-              <Ionicons color={theme.text} name="person-outline" size={14} />
+              <Ionicons color={theme.text} name="person-outline" size={13} />
               <Text style={[styles.profileBtnText, { color: theme.text }]}>
-                Edit Profile
+                Edit
               </Text>
             </Pressable>
 
@@ -302,9 +352,28 @@ export default function CareerOverviewScreen() {
                 },
               ]}
             >
-              <Ionicons color={theme.text} name="id-card-outline" size={14} />
+              <Ionicons color={theme.text} name="id-card-outline" size={13} />
               <Text style={[styles.profileBtnText, { color: theme.text }]}>
                 Account
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/dashboard/career/team" as never);
+              }}
+              style={({ pressed }) => [
+                styles.profileBtn,
+                {
+                  backgroundColor: pressed ? "#212121" : "#141414",
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <Ionicons color={theme.text} name="people-outline" size={13} />
+              <Text style={[styles.profileBtnText, { color: theme.text }]}>
+                Network
               </Text>
             </Pressable>
 
@@ -328,12 +397,18 @@ export default function CareerOverviewScreen() {
           </View>
         </View>
 
-        {/* Career Stats Grid */}
+        {/* 3 Condensed Stat Cards */}
         <View style={styles.statsSection}>
-          <Text style={[styles.sectionHeading, { color: theme.text }]}>
-            Overview
-          </Text>
           <StatsGrid stats={stats} />
+        </View>
+
+        {/* Interactive Finance Chart */}
+        <View style={styles.chartSection}>
+          <StatChartCard
+            tabs={FINANCE_CHART_TABS}
+            title="Finance & Revenue"
+            viewAllHref="/dashboard/career/payments"
+          />
         </View>
 
         {/* Feature Rails */}
@@ -369,41 +444,6 @@ export default function CareerOverviewScreen() {
                 icon="globe"
                 title="Audience Reach"
                 value="Global & US"
-              />
-            </NativeRail>
-          </NativeSection>
-
-          {/* Calendar Rail */}
-          <NativeSection
-            description="Release dates and promotional timeline"
-            title="Calendar"
-            viewAllHref="/dashboard/career/calendar"
-          >
-            <NativeRail>
-              <CareerRailCard
-                actionLabel="Open calendar"
-                badge="Upcoming"
-                description="Scheduled drop dates and master deliveries"
-                href="/dashboard/career/calendar"
-                icon="calendar"
-                title="Release Dates"
-                value="View Schedule"
-              />
-              <CareerRailCard
-                actionLabel="Plan tasks"
-                description="Pre-save goals, asset uploads, and video premieres"
-                href="/dashboard/career/calendar"
-                icon="checkbox"
-                title="Promo Tasks"
-                value="Catalog Planner"
-              />
-              <CareerRailCard
-                actionLabel="Join stage"
-                description="Scheduled live tournament appearances and sets"
-                href="/dashboard/career/calendar"
-                icon="trophy"
-                title="Live Events"
-                value="Stage Schedule"
               />
             </NativeRail>
           </NativeSection>
@@ -634,6 +674,13 @@ const styles = StyleSheet.create({
     width: 40,
   },
   statsSection: {
+    marginBottom: 20,
+  },
+  chartSection: {
     marginBottom: 24,
+  },
+  profileNetworkSub: {
+    fontSize: 11,
+    marginTop: 4,
   },
 });
