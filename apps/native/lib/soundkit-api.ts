@@ -103,7 +103,11 @@ const artistGet = apiClient.v1.artists[":username"].$get,
   librarySaveTrackDelete = apiClient.v1.library.saved[":trackId"].$delete,
   librarySaveTrackPost = apiClient.v1.library.saved[":trackId"].$post,
   libraryWatchedGet = apiClient.v1.library.watched.$get,
-  communitiesGet = apiClient.v1.communities.index.$get;
+  communitiesGet = apiClient.v1.communities.index.$get,
+  battleKitsGet = apiClient.v1.battles.kits.$get,
+  battleRecordGet = apiClient.v1.battles.record.$get,
+  battleStatsGet = apiClient.v1.battles.stats.$get,
+  liveMyExperiencesGet = apiClient.v1.live.experiences.me.$get;
 
 // ---------------------------------------------------------------------------
 // Types (inferred from the canonical Hono RPC contract)
@@ -148,6 +152,13 @@ export type EntitlementSummary = InferResponseType<
   200
 >;
 export type NetworkResponse = InferResponseType<typeof networkGet, 200>;
+export type BattleKit = InferResponseType<typeof battleKitsGet, 200>[number];
+export type BattleRecord = InferResponseType<typeof battleRecordGet, 200>;
+export type BattleStat = InferResponseType<typeof battleStatsGet, 200>[number];
+export type MyLiveExperience = InferResponseType<
+  typeof liveMyExperiencesGet,
+  200
+>[number];
 export type OpenVersesPage = InferResponseType<typeof openVersesGet, 200>;
 export type OpenVerseListing = OpenVersesPage["items"][number];
 
@@ -987,6 +998,41 @@ export const useOpenVersesInfiniteQuery = (
         await openVersesGet({ query: { ...query, cursor: pageParam } })
       ) as Promise<OpenVersesPage>,
     queryKey: ["dashboard", "open-verses", query],
+  });
+
+export const useBattleRecordQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      rpcJson(await battleRecordGet()) as Promise<BattleRecord>,
+    queryKey: ["battles", "record"],
+  });
+
+export const useBattleStatsQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      rpcJson(await battleStatsGet()) as Promise<BattleStat[]>,
+    queryKey: ["battles", "stats"],
+  });
+
+export const useBattleKitsQuery = ({
+  enabled = true,
+}: { enabled?: boolean } = {}) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      rpcJson(await battleKitsGet({ query: {} })) as Promise<BattleKit[]>,
+    queryKey: ["battles", "kits"],
+  });
+
+export const useMyLiveExperiencesQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      rpcJson(await liveMyExperiencesGet()) as Promise<MyLiveExperience[]>,
+    queryKey: ["live", "experiences", "me"],
+    refetchInterval: 5000,
   });
 
 // ---------------------------------------------------------------------------

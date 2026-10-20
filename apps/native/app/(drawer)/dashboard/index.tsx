@@ -77,6 +77,19 @@ const styles = StyleSheet.create({
       paddingLeft: 14,
       paddingRight: 14,
     },
+    exitBtn: {
+      alignItems: "center",
+      borderRadius: 999,
+      borderWidth: 1,
+      flexDirection: "row",
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    exitBtnText: {
+      fontSize: 12,
+      fontWeight: "700",
+    },
     eyebrow: {
       fontSize: 11,
       fontWeight: "800",
@@ -117,6 +130,12 @@ const styles = StyleSheet.create({
     signInText: { fontSize: 14, lineHeight: 20 },
     subtitle: { fontSize: 14, lineHeight: 20 },
     title: { fontSize: 18, fontWeight: "800" },
+    topActionRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 8,
+    },
   }),
   relativeDate = (value: string) => {
     const diffDays = Math.max(
@@ -201,26 +220,28 @@ export default function DashboardHomeScreen() {
         title: track.title,
         updatedAt: track.updatedAt ?? new Date().toISOString(),
       }));
-      return [
-        ...fromTracks,
-        ...projects.map((project: ProjectSummary) => ({
-          id: `project-${project.id}`,
-          itemId: project.id,
-          kind: "project" as const,
-          label: "updated project",
-          title: project.title,
-          updatedAt: project.updatedAt ?? new Date().toISOString(),
-        })),
-      ]
-        // Hermes (RN's JS engine) lacks ES2023 Array#toSorted; sorting a
-        // freshly-created literal, so in-place sort is safe.
-        // eslint-disable-next-line unicorn/no-array-sort
-        .sort(
-          (left, right) =>
-            new Date(right.updatedAt).getTime() -
-            new Date(left.updatedAt).getTime()
-        )
-        .slice(0, 5);
+      return (
+        [
+          ...fromTracks,
+          ...projects.map((project: ProjectSummary) => ({
+            id: `project-${project.id}`,
+            itemId: project.id,
+            kind: "project" as const,
+            label: "updated project",
+            title: project.title,
+            updatedAt: project.updatedAt ?? new Date().toISOString(),
+          })),
+        ]
+          // Hermes (RN's JS engine) lacks ES2023 Array#toSorted; sorting a
+          // freshly-created literal, so in-place sort is safe.
+          // eslint-disable-next-line unicorn/no-array-sort
+          .sort(
+            (left, right) =>
+              new Date(right.updatedAt).getTime() -
+              new Date(left.updatedAt).getTime()
+          )
+          .slice(0, 5)
+      );
     })();
 
   if (sessionPending) {
@@ -257,6 +278,24 @@ export default function DashboardHomeScreen() {
               Sign In
             </Text>
           </Pressable>
+          <Pressable
+            onPress={() => {
+              router.replace("/(drawer)/(tabs)/(discover)" as never);
+            }}
+            style={[
+              styles.exitBtn,
+              {
+                backgroundColor: theme.background,
+                borderColor: theme.border,
+                marginTop: 8,
+              },
+            ]}
+          >
+            <Ionicons color={theme.primary} name="arrow-back" size={14} />
+            <Text style={[styles.exitBtnText, { color: theme.text }]}>
+              Back to SoundKit
+            </Text>
+          </Pressable>
         </View>
       </View>
     );
@@ -272,23 +311,44 @@ export default function DashboardHomeScreen() {
       >
         <View style={styles.content}>
           <View>
-            <View style={styles.browRow}>
-              <Ionicons color={theme.primary} name="sparkles" size={14} />
-              <Text style={[styles.browText, { color: theme.primary }]}>
-                Artist Dashboard
-              </Text>
-              {isPremium ? (
-                <View
-                  style={[
-                    styles.badge,
-                    { backgroundColor: theme.primary, opacity: 0.15 },
-                  ]}
-                >
-                  <Text style={[styles.badgeText, { color: theme.primary }]}>
-                    Premium
-                  </Text>
-                </View>
-              ) : null}
+            <View style={styles.topActionRow}>
+              <View style={styles.browRow}>
+                <Ionicons color={theme.primary} name="sparkles" size={14} />
+                <Text style={[styles.browText, { color: theme.primary }]}>
+                  Artist Dashboard
+                </Text>
+                {isPremium ? (
+                  <View
+                    style={[
+                      styles.badge,
+                      { backgroundColor: theme.primary, opacity: 0.15 },
+                    ]}
+                  >
+                    <Text style={[styles.badgeText, { color: theme.primary }]}>
+                      Premium
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              <Pressable
+                accessibilityLabel="Exit to SoundKit"
+                accessibilityRole="button"
+                onPress={() => {
+                  router.replace("/(drawer)/(tabs)/(discover)" as never);
+                }}
+                style={({ pressed }) => [
+                  styles.exitBtn,
+                  {
+                    backgroundColor: pressed ? "#1E1E1E" : "#121212",
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <Ionicons color={theme.primary} name="arrow-back" size={13} />
+                <Text style={[styles.exitBtnText, { color: theme.text }]}>
+                  Exit to SoundKit
+                </Text>
+              </Pressable>
             </View>
             <Text style={[styles.hello, { color: theme.text }]}>
               Welcome back, {firstName}
