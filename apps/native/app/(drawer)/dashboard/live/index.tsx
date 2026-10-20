@@ -344,17 +344,42 @@ export default function LiveOverviewScreen() {
           <StatsGrid stats={stats} />
         </View>
 
-        {/* Interactive Live Battle Stats Chart */}
-        <View style={styles.chartSection}>
-          <StatChartCard
-            tabs={liveChartTabs}
-            title="Battle & Audience Performance"
-            viewAllHref="/dashboard/live/my-stats"
-          />
-        </View>
-
         {/* Horizontally Scrolling Feature Rails */}
         <View style={styles.railsContainer}>
+          {/* Performance Rail with Chart Header */}
+          <NativeSection
+            description="Matchup rounds, crowd votes, and stage support"
+            title="Performance"
+            viewAllHref="/dashboard/live/my-stats"
+          >
+            <View style={styles.chartContainer}>
+              <StatChartCard
+                tabs={liveChartTabs}
+                title="Battle & Audience Performance"
+                viewAllHref="/dashboard/live/my-stats"
+              />
+            </View>
+            <NativeRail>
+              <LiveRailCard
+                actionLabel="View ratings"
+                badge="Analytics"
+                description="Track win-loss distribution and crowd favorites"
+                href="/dashboard/live/my-stats"
+                icon="trending-up"
+                title="Track Performance"
+                value={`${winRate} Win Rate`}
+              />
+              <LiveRailCard
+                actionLabel="View tips"
+                description="Fan donations and tip volume during live sessions"
+                href="/dashboard/live/my-stats"
+                icon="heart"
+                title="Crowd Support"
+                value="Live Earnings"
+              />
+            </NativeRail>
+          </NativeSection>
+
           {/* Battles Rail */}
           <NativeSection
             description="Tournaments, challenge requests, and head-to-head duels"
@@ -478,33 +503,6 @@ export default function LiveOverviewScreen() {
               />
             </NativeRail>
           </NativeSection>
-
-          {/* Live Stats Rail */}
-          <NativeSection
-            description="Track ratings, crowd votes, and battle stats"
-            title="Live Stats"
-            viewAllHref="/dashboard/live/my-stats"
-          >
-            <NativeRail>
-              <LiveRailCard
-                actionLabel="View ratings"
-                badge="Analytics"
-                description="Track win-loss distribution and crowd favorites"
-                href="/dashboard/live/my-stats"
-                icon="trending-up"
-                title="Track Performance"
-                value={`${winRate} Win Rate`}
-              />
-              <LiveRailCard
-                actionLabel="View tips"
-                description="Fan donations and tip volume during live sessions"
-                href="/dashboard/live/my-stats"
-                icon="heart"
-                title="Crowd Support"
-                value="Live Earnings"
-              />
-            </NativeRail>
-          </NativeSection>
         </View>
       </ScrollView>
 
@@ -610,8 +608,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 36,
   },
-  chartSection: {
-    marginBottom: 24,
+  chartContainer: {
+    marginBottom: 16,
   },
   quickActionsRow: {
     flexDirection: "row",

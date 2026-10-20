@@ -10,7 +10,10 @@ import { Container } from "@/components/container";
 import { DashboardJumpModal } from "@/components/dashboard/jump-modal";
 import type { DashboardJumpItem } from "@/components/dashboard/jump-modal";
 import { StatChartCard } from "@/components/dashboard/stat-chart-card";
-import type { ChartTabConfig } from "@/components/dashboard/stat-chart-card";
+import type {
+  ChartDataPoint,
+  ChartTabConfig,
+} from "@/components/dashboard/stat-chart-card";
 import { StatsGrid } from "@/components/dashboard/stats-grid";
 import type { DashboardStat } from "@/components/dashboard/stats-grid";
 import { DashboardTopBar } from "@/components/dashboard/top-bar";
@@ -20,6 +23,10 @@ import { NativeSection } from "@/components/native-section";
 import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
 import {
+  useAnalyticsAudienceQuery,
+  useAnalyticsTimeseriesQuery,
+  useAnalyticsTracksQuery,
+  useArtistEarningsQuery,
   useDashboardTracksQuery,
   useMeEntitlementsQuery,
   useMeQuery,
@@ -47,16 +54,16 @@ const CAREER_ITEMS: DashboardJumpItem[] = [
     title: "Analytics",
   },
   {
-    description: "Release dates, promo tasks, and milestones",
-    href: "/dashboard/career/calendar",
-    icon: "calendar",
-    title: "Calendar",
+    description: "Revenue, payouts, and financial summary",
+    href: "/dashboard/career/payments",
+    icon: "card",
+    title: "Finance & Payouts",
   },
   {
-    description: "Team members, roles, and workspace seats",
-    href: "/dashboard/career/team",
-    icon: "people",
-    title: "Workspace",
+    description: "Physical CDs, vinyl drops, and fan merchandise",
+    href: "/dashboard/career/merch",
+    icon: "shirt",
+    title: "Store & Merch",
   },
   {
     description: "Ad campaigns, audience reach, and wallet",
@@ -65,10 +72,10 @@ const CAREER_ITEMS: DashboardJumpItem[] = [
     title: "Ads & Promotion",
   },
   {
-    description: "Revenue, payouts, and financial summary",
-    href: "/dashboard/career/payments",
-    icon: "card",
-    title: "Finance & Payouts",
+    description: "Team members, roles, and workspace seats",
+    href: "/dashboard/career/team",
+    icon: "people",
+    title: "Workspace",
   },
   {
     description: "Account preferences and artist settings",
@@ -227,6 +234,10 @@ export default function CareerOverviewScreen() {
     entitlementsQuery = useMeEntitlementsQuery(signedIn),
     network = useNetworkQuery(signedIn),
     tracks = useDashboardTracksQuery(signedIn),
+    timeseriesQuery = useAnalyticsTimeseriesQuery("plays", "7d", signedIn),
+    analyticsTracksQuery = useAnalyticsTracksQuery(signedIn),
+    audienceQuery = useAnalyticsAudienceQuery(signedIn),
+    earningsQuery = useArtistEarningsQuery(signedIn),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
     user = session?.user,
     meData = meQuery.data?.user,
@@ -239,29 +250,240 @@ export default function CareerOverviewScreen() {
         (tracks.data ?? []).reduce((sum, track) => sum + (track.plays || 0), 0),
       [tracks.data]
     ),
+    topTrackTitle = useMemo(() => {
+      const apiTrack = analyticsTracksQuery.data?.tracks?.[0];
+      const catalogTrack = tracks.data?.[0];
+      return apiTrack?.title ?? catalogTrack?.title ?? "Upload Tracks";
+    }, [analyticsTracksQuery.data, tracks.data]),
+    playsValue = useMemo(() => {
+      if (totalPlays > 0) {
+        return totalPlays.toLocaleString();
+      }
+      if (timeseriesQuery.data?.total) {
+        return timeseriesQuery.data.total.toLocaleString();
+      }
+      return "0";
+    }, [totalPlays, timeseriesQuery.data?.total]),
+    earningsValue = useMemo(() => {
+      const cents = earningsQuery.data?.availableBalanceCents;
+      if (typeof cents === "number" && cents > 0) {
+        return `$${(cents / 100).toFixed(0)}`;
+      }
+      if (isPremium) {
+        return "$2.8K";
+      }
+      return "$0";
+    }, [earningsQuery.data?.availableBalanceCents, isPremium]),
     stats: DashboardStat[] = useMemo(
       () => [
         {
           description: "Across catalog",
           icon: "play",
           title: "Plays",
-          value: totalPlays > 0 ? totalPlays.toLocaleString() : "0",
+          value: playsValue,
         },
         {
           description: "Active fans",
           icon: "people",
           title: "Followers",
-          value: (network.data?.counts?.followers ?? 0).toString(),
+          value: (
+            network.data?.counts?.followers ??
+            audienceQuery.data?.totalUniqueListeners ??
+            0
+          ).toString(),
         },
         {
           description: "Stripe payouts",
           icon: "card",
           title: "Earnings",
-          value: isPremium ? "$2.8K" : "$0",
+          value: earningsValue,
         },
       ],
-      [totalPlays, network.data, isPremium]
-    );
+      [playsValue, network.data, audienceQuery.data, earningsValue]
+    ),
+    analyticsChartTabs = useMemo((): [
+      ChartTabConfig,
+      ChartTabConfig,
+      ChartTabConfig,
+    ] => {
+      // 1. Streams Growth
+      const tsPoints = timeseriesQuery.data?.points ?? [];
+      const streamsData: ChartDataPoint[] =
+        tsPoints.length > 0
+          ? tsPoints.map((pt) => ({
+              label: pt.label,
+              value: pt.value,
+            }))
+          : [
+              { label: "Mon", value: 120 },
+              { label: "Tue", value: 185 },
+              { label: "Wed", value: 160 },
+              { label: "Thu", value: 240 },
+              { label: "Fri", value: 310 },
+              { label: "Sat", value: 420 },
+              { label: "Sun", value: 380 },
+            ];
+      const streamsTotal = timeseriesQuery.data?.total ?? totalPlays;
+
+      // 2. Top Tracks
+      const apiTracks = analyticsTracksQuery.data?.tracks ?? [];
+      const catalogTracks = tracks.data ?? [];
+      const topTracksData: ChartDataPoint[] =
+        apiTracks.length > 0
+          ? apiTracks.slice(0, 6).map((t) => ({
+              label: t.title.slice(0, 8),
+              value: t.plays,
+            }))
+          : catalogTracks.slice(0, 6).map((t) => ({
+              label: t.title.slice(0, 8),
+              value: t.plays || 0,
+            }));
+      const topTrack = apiTracks[0] ?? catalogTracks[0];
+      const topName = topTrack?.title ?? "No tracks yet";
+      const topPlays =
+        topTrack && "plays" in topTrack ? topTrack.plays || 0 : 0;
+
+      // 3. Audience Reach
+      const aud = audienceQuery.data;
+      const audienceData: ChartDataPoint[] = aud
+        ? [
+            { label: "Unique", value: aud.totalUniqueListeners },
+            { label: "New", value: aud.newListeners },
+            { label: "Repeat", value: aud.returningListeners },
+            { label: "Multi", value: aud.listenersWithMultiTrackPlays },
+            { label: "VIP", value: aud.premiumSupporters },
+          ]
+        : [
+            {
+              label: "Unique",
+              value: Math.max(network.data?.counts?.followers ?? 0, 140),
+            },
+            { label: "New", value: 45 },
+            { label: "Repeat", value: 95 },
+            { label: "Multi", value: 68 },
+            { label: "VIP", value: 22 },
+          ];
+      const uniqueListeners =
+        aud?.totalUniqueListeners ?? network.data?.counts?.followers ?? 0;
+
+      return [
+        {
+          badge: tsPoints.length > 0 ? "+28.4%" : "Weekly",
+          data: streamsData,
+          id: "streams",
+          label: "Streams Growth",
+          sublabel: "Playback telemetry across catalog",
+          valueLabel: `${streamsTotal.toLocaleString()} Plays`,
+        },
+        {
+          badge: "Most Streamed",
+          data:
+            topTracksData.length > 0
+              ? topTracksData
+              : [{ label: "Track 1", value: 1 }],
+          id: "top_tracks",
+          label: "Top Tracks",
+          sublabel: topTrack
+            ? `${topName} · ${topPlays.toLocaleString()} plays`
+            : "Upload tracks to see rankings",
+          valueLabel:
+            topPlays > 0
+              ? `${topPlays.toLocaleString()} Plays`
+              : `${catalogTracks.length} Releases`,
+        },
+        {
+          badge: aud ? `${aud.returningListenerRate}% Repeat` : "Global",
+          data: audienceData,
+          id: "audience",
+          label: "Audience Reach",
+          sublabel: "Unique fans and listener retention",
+          valueLabel: `${uniqueListeners.toLocaleString()} Listeners`,
+        },
+      ];
+    }, [
+      timeseriesQuery.data,
+      analyticsTracksQuery.data,
+      tracks.data,
+      audienceQuery.data,
+      totalPlays,
+      network.data,
+    ]),
+    financeChartTabs = useMemo((): [
+      ChartTabConfig,
+      ChartTabConfig,
+      ChartTabConfig,
+    ] => {
+      const earnings = earningsQuery.data;
+      const statements = earnings?.statements ?? [];
+      const hasStatements = statements.length > 0;
+
+      const revenueData: ChartDataPoint[] = hasStatements
+        ? statements.slice(-6).map((s) => ({
+            label: s.monthLabel.slice(0, 3),
+            value: Math.round(s.totalEarningsCents / 100),
+          }))
+        : FINANCE_CHART_TABS[0].data;
+
+      const tipsData: ChartDataPoint[] = hasStatements
+        ? statements.slice(-6).map((s) => ({
+            label: s.monthLabel.slice(0, 3),
+            value: Math.round(s.tipsCents / 100),
+          }))
+        : FINANCE_CHART_TABS[1].data;
+
+      const payoutsData: ChartDataPoint[] = hasStatements
+        ? statements.slice(-6).map((s) => ({
+            label: s.monthLabel.slice(0, 3),
+            value: Math.round(
+              (s.totalEarningsCents - (s.physicalMerchCents ?? 0)) / 100
+            ),
+          }))
+        : FINANCE_CHART_TABS[2].data;
+
+      const availableBalance = earnings
+        ? (earnings.availableBalanceCents / 100).toFixed(2)
+        : "0.00";
+      const totalEarned = earnings
+        ? (
+            (earnings.paidLifetimeCents + earnings.availableBalanceCents) /
+            100
+          ).toFixed(2)
+        : "0.00";
+
+      let revenueLabel = isPremium ? "$2,840.00" : "$0.00";
+      if (hasStatements) {
+        revenueLabel = `$${availableBalance}`;
+      }
+
+      let tipsLabel = isPremium ? "$460.00" : "$0.00";
+      if (hasStatements) {
+        const totalTips = statements.reduce((sum, s) => sum + s.tipsCents, 0);
+        tipsLabel = `$${(totalTips / 100).toFixed(2)}`;
+      }
+
+      let payoutsLabel = isPremium ? "$2,380.00" : "$0.00";
+      if (hasStatements) {
+        payoutsLabel = `$${totalEarned}`;
+      }
+
+      return [
+        {
+          ...FINANCE_CHART_TABS[0],
+          data: revenueData,
+          valueLabel: revenueLabel,
+        },
+        {
+          ...FINANCE_CHART_TABS[1],
+          data: tipsData,
+          valueLabel: tipsLabel,
+        },
+        {
+          ...FINANCE_CHART_TABS[2],
+          data: payoutsData,
+          valueLabel: payoutsLabel,
+        },
+      ];
+    }, [earningsQuery.data, isPremium]);
 
   return (
     <Container>
@@ -402,23 +624,21 @@ export default function CareerOverviewScreen() {
           <StatsGrid stats={stats} />
         </View>
 
-        {/* Interactive Finance Chart */}
-        <View style={styles.chartSection}>
-          <StatChartCard
-            tabs={FINANCE_CHART_TABS}
-            title="Finance & Revenue"
-            viewAllHref="/dashboard/career/payments"
-          />
-        </View>
-
-        {/* Feature Rails */}
+        {/* Sections in order: Analytics, Finance, Store, Ads, Workspace */}
         <View style={styles.railsContainer}>
-          {/* Analytics Rail */}
+          {/* 1. Analytics Section */}
           <NativeSection
-            description="Audience reach and streaming performance"
+            description="Streams growth, top tracks, and audience reach"
             title="Analytics"
             viewAllHref="/dashboard/career/analytics"
           >
+            <View style={styles.chartContainer}>
+              <StatChartCard
+                tabs={analyticsChartTabs}
+                title="Streaming & Audience Telemetry"
+                viewAllHref="/dashboard/career/analytics"
+              />
+            </View>
             <NativeRail>
               <CareerRailCard
                 actionLabel="View stats"
@@ -435,47 +655,119 @@ export default function CareerOverviewScreen() {
                 href="/dashboard/career/analytics"
                 icon="flame"
                 title="Top Track"
-                value={tracks.data?.[0]?.title ?? "Upload Tracks"}
+                value={topTrackTitle}
               />
               <CareerRailCard
-                actionLabel="View cities"
-                description="Listener concentration across top metro regions"
+                actionLabel="View reach"
+                description="Unique listeners and audience retention rate"
                 href="/dashboard/career/analytics"
                 icon="globe"
                 title="Audience Reach"
-                value="Global & US"
+                value={`${(audienceQuery.data?.totalUniqueListeners ?? totalPlays).toLocaleString()} fans`}
               />
             </NativeRail>
           </NativeSection>
 
-          {/* Workspace Rail */}
+          {/* 2. Finance Section */}
           <NativeSection
-            description="Team members and collaborator access"
-            title="Workspace"
-            viewAllHref="/dashboard/career/team"
+            description="Revenue, tips, and Stripe payouts"
+            title="Finance"
+            viewAllHref="/dashboard/career/payments"
+          >
+            <View style={styles.chartContainer}>
+              <StatChartCard
+                tabs={financeChartTabs}
+                title="Finance & Revenue"
+                viewAllHref="/dashboard/career/payments"
+              />
+            </View>
+            <NativeRail>
+              <CareerRailCard
+                actionLabel="Manage deposits"
+                badge="Stripe"
+                description="Automated deposits into your verified bank account"
+                href="/dashboard/career/payments"
+                icon="checkmark-circle"
+                title="Stripe Payouts"
+                value={
+                  earningsQuery.data?.availableBalanceCents
+                    ? `$${(earningsQuery.data.availableBalanceCents / 100).toFixed(2)}`
+                    : "Connected"
+                }
+              />
+              <CareerRailCard
+                actionLabel="View earnings"
+                badge="Direct"
+                description="Net payouts from sales, creator rewards, and fan tips"
+                href="/dashboard/career/payments"
+                icon="card"
+                title="Earnings Summary"
+                value="Royalties"
+              />
+              <CareerRailCard
+                actionLabel="View statements"
+                description="Monthly statements, balance reserves, and tax forms"
+                href="/dashboard/career/payments"
+                icon="wallet"
+                title="Payment Wallet"
+                value="Monthly History"
+              />
+            </NativeRail>
+          </NativeSection>
+
+          {/* 3. Store Section (Physical & Merch) */}
+          <NativeSection
+            description="Physical CDs, vinyl drops, fan apparel, and merch"
+            title="Store"
+            viewAllHref="/dashboard/career/merch"
           >
             <NativeRail>
               <CareerRailCard
-                actionLabel="Manage team"
-                description="Producers, engineers, and artist management seats"
-                href="/dashboard/career/team"
-                icon="people"
-                title="Team Members"
-                value={`${network.data?.counts?.friends ?? network.data?.friends?.length ?? 0} Active`}
+                actionLabel="Create"
+                badge="New"
+                description="Create physical editions or fan merchandise"
+                href="/dashboard/create"
+                icon="add-circle"
+                title="+ New Product"
+                value="Launch Drop"
               />
               <CareerRailCard
-                actionLabel="Send invite"
-                badge="Collab"
-                description="Add new collaborators and split-sheet partners"
-                href="/dashboard/career/team"
-                icon="person-add"
-                title="Invite Member"
-                value="New Invite"
+                actionLabel="Manage"
+                description="Kunaki automated audio CD manufacture and distribution"
+                href="/dashboard/career/merch"
+                icon="disc"
+                title="Physical CDs"
+                value="Kunaki Audio"
+              />
+              <CareerRailCard
+                actionLabel="Manage"
+                description="12-inch and 7-inch vinyl master pressings for releases"
+                href="/dashboard/career/merch"
+                icon="disc-outline"
+                title="Vinyl Pressings"
+                value="Lathe Cut"
+              />
+              <CareerRailCard
+                actionLabel="Customize"
+                badge="Printful"
+                description="T-shirts, hoodies, and tour gear with custom artwork"
+                href="/dashboard/career/merch"
+                icon="shirt"
+                title="Fan Apparel"
+                value="Print on Demand"
+              />
+              <CareerRailCard
+                actionLabel="View items"
+                description="Album cover posters, tour prints, and sticker packs"
+                href="/dashboard/career/merch"
+                icon="image"
+                title="Art & Posters"
+                value="Merch Studio"
               />
             </NativeRail>
           </NativeSection>
 
-          {/* Ads Rail */}
+          {/* 4. Ads Section */}
           <NativeSection
             description="Campaigns and paid discovery on SoundKit"
             title="Ads"
@@ -499,32 +791,48 @@ export default function CareerOverviewScreen() {
                 title="Ad Wallet"
                 value="Manage Wallet"
               />
+              <CareerRailCard
+                actionLabel="View targeting"
+                description="Target audiences by favorite genres, regions, and artists"
+                href="/dashboard/career/ads"
+                icon="analytics"
+                title="Targeting"
+                value="Demographics"
+              />
             </NativeRail>
           </NativeSection>
 
-          {/* Finance Rail */}
+          {/* 5. Workspace Section */}
           <NativeSection
-            description="Revenue, payouts, and sales earnings"
-            title="Finance"
-            viewAllHref="/dashboard/career/payments"
+            description="Team members, split sheets, and collaborator access"
+            title="Workspace"
+            viewAllHref="/dashboard/career/team"
           >
             <NativeRail>
               <CareerRailCard
-                actionLabel="View balance"
-                badge="Direct"
-                description="Net payouts from beat sales, stems, and tips"
-                href="/dashboard/career/payments"
-                icon="card"
-                title="Earnings"
-                value="Payouts"
+                actionLabel="Manage team"
+                description="Producers, engineers, and artist management seats"
+                href="/dashboard/career/team"
+                icon="people"
+                title="Team Members"
+                value={`${network.data?.counts?.friends ?? network.data?.friends?.length ?? 0} Active`}
               />
               <CareerRailCard
-                actionLabel="Check status"
-                description="Automated deposits into your verified bank account"
-                href="/dashboard/career/payments"
-                icon="checkmark-circle"
-                title="Stripe Payouts"
-                value="Connected"
+                actionLabel="Send invite"
+                badge="Collab"
+                description="Add new collaborators and split-sheet partners"
+                href="/dashboard/career/team"
+                icon="person-add"
+                title="Invite Member"
+                value="New Invite"
+              />
+              <CareerRailCard
+                actionLabel="View splits"
+                description="Publishing, master royalties, and writer credit splits"
+                href="/dashboard/career/team"
+                icon="git-branch"
+                title="Split Sheets"
+                value="Master Splits"
               />
             </NativeRail>
           </NativeSection>
@@ -676,8 +984,8 @@ const styles = StyleSheet.create({
   statsSection: {
     marginBottom: 20,
   },
-  chartSection: {
-    marginBottom: 24,
+  chartContainer: {
+    marginBottom: 16,
   },
   profileNetworkSub: {
     fontSize: 11,

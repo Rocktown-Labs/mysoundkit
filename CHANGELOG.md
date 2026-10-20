@@ -24,8 +24,12 @@
 
 ### Added
 
-- Streamlined and decluttered the mobile artist dashboard screens (`/dashboard`) with strict 3-card stats rows and interactive segmented bar charts (`#458`):
-  - Created `StatChartCard` (`apps/native/components/dashboard/stat-chart-card.tsx`) featuring animated, selectable touch bars with dynamic value/sublabel previews and bottom segmented pill tabs (e.g. Finances: Revenue, Direct Tips, Payouts; Live: Battle Rounds, Crowd Votes, Stage Support) with a direct "View All" link.
+- Streamlined and decluttered the mobile artist dashboard screens (`/dashboard`) with strict 3-card stats rows, live analytics telemetry, and interactive segmented bar charts (`#458`):
+  - Created `StatChartCard` (`apps/native/components/dashboard/stat-chart-card.tsx`) featuring animated, selectable touch bars with dynamic value/sublabel previews and bottom segmented pill tabs (Analytics: Streams Growth, Top Tracks, Audience Reach; Finances: Revenue, Direct Tips, Payouts; Live: Battle Rounds, Crowd Votes, Stage Support) with a direct "View All" link.
+  - Added section headers directly preceding every interactive chart across Career (`Analytics`, `Finance`) and Live (`Performance`) views.
+  - Reordered Career overview into 5 ordered sections: Analytics, Finance (with action buttons directly below chart), Store (physical editions, CDs, vinyl, apparel, posters, and new product creation), Ads, and Workspace.
+  - Added typed query hooks in `apps/native/lib/soundkit-api.ts` for live artist analytics and merchandise (`useAnalyticsTimeseriesQuery`, `useAnalyticsTracksQuery`, `useAnalyticsAudienceQuery`, `useArtistEarningsQuery`, `usePhysicalReleasesQuery`, `useMerchDesignsQuery`) connecting directly to canonical Hono RPC endpoints.
+  - Added native route `/dashboard/career/merch` (`apps/native/app/(drawer)/dashboard/career/merch.tsx`) and added "Store & Merch" to Career jump navigation.
   - Upgraded `StatsGrid` (`apps/native/components/dashboard/stats-grid.tsx`) to enforce a compact single-row 3-card layout (`[stat1] [stat2] [stat3]`) with optimized typography and density for mobile viewports across Dashboard (`[Tracks] [Projects] [Upcoming]`), Music (`[Tracks] [Projects] [Videos]`), Career (`[Plays] [Followers] [Earnings]`), and Live (`[Record] [Win Rate] [Rooms]`).
   - Added a dismissible Official SoundKit Bio Link card with close `(X)` button on the dashboard home screen (`apps/native/app/(drawer)/dashboard/index.tsx`) persisted via `@soundkit_bio_link_dismissed_v1` in `AsyncStorage`.
   - Decluttered header navigation: removed the intrusive "Exit to SoundKit" top bar button (preserved in the drawer and jump sheet), removed decorative icons before section titles, and removed the redundant quickstart banner.

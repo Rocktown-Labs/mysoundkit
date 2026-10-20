@@ -107,7 +107,14 @@ const artistGet = apiClient.v1.artists[":username"].$get,
   battleKitsGet = apiClient.v1.battles.kits.$get,
   battleRecordGet = apiClient.v1.battles.record.$get,
   battleStatsGet = apiClient.v1.battles.stats.$get,
-  liveMyExperiencesGet = apiClient.v1.live.experiences.me.$get;
+  liveMyExperiencesGet = apiClient.v1.live.experiences.me.$get,
+  analyticsOverviewGet = apiClient.v1.analytics.overview.$get,
+  analyticsTimeseriesGet = apiClient.v1.analytics.timeseries.$get,
+  analyticsTracksGet = apiClient.v1.analytics.tracks.$get,
+  analyticsAudienceGet = apiClient.v1.analytics.audience.$get,
+  analyticsEarningsGet = apiClient.v1.analytics.earnings.$get,
+  merchPhysicalReleasesGet = apiClient.v1.merch["physical-releases"].$get,
+  merchDesignsGet = apiClient.v1.merch.designs.$get;
 
 // ---------------------------------------------------------------------------
 // Types (inferred from the canonical Hono RPC contract)
@@ -157,6 +164,31 @@ export type BattleRecord = InferResponseType<typeof battleRecordGet, 200>;
 export type BattleStat = InferResponseType<typeof battleStatsGet, 200>[number];
 export type MyLiveExperience = InferResponseType<
   typeof liveMyExperiencesGet,
+  200
+>[number];
+export type AnalyticsOverview = InferResponseType<
+  typeof analyticsOverviewGet,
+  200
+>;
+export type AnalyticsTimeseries = InferResponseType<
+  typeof analyticsTimeseriesGet,
+  200
+>;
+export type AnalyticsTracks = InferResponseType<typeof analyticsTracksGet, 200>;
+export type AnalyticsAudience = InferResponseType<
+  typeof analyticsAudienceGet,
+  200
+>;
+export type ArtistEarningsOverview = InferResponseType<
+  typeof analyticsEarningsGet,
+  200
+>;
+export type PhysicalRelease = InferResponseType<
+  typeof merchPhysicalReleasesGet,
+  200
+>[number];
+export type MerchDesign = InferResponseType<
+  typeof merchDesignsGet,
   200
 >[number];
 export type OpenVersesPage = InferResponseType<typeof openVersesGet, 200>;
@@ -1033,6 +1065,70 @@ export const useMyLiveExperiencesQuery = (enabled = true) =>
       rpcJson(await liveMyExperiencesGet()) as Promise<MyLiveExperience[]>,
     queryKey: ["live", "experiences", "me"],
     refetchInterval: 5000,
+  });
+
+export const useAnalyticsOverviewQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async (): Promise<AnalyticsOverview> =>
+      rpcJson(await analyticsOverviewGet()),
+    queryKey: ["analytics", "overview"],
+  });
+
+export const useAnalyticsTimeseriesQuery = (
+  metric: "plays" | "qualified_streams" | "unique_listeners" = "plays",
+  range: "7d" | "28d" | "90d" | "12m" = "7d",
+  enabled = true
+) =>
+  useQuery({
+    enabled,
+    queryFn: async (): Promise<AnalyticsTimeseries> =>
+      rpcJson(
+        await analyticsTimeseriesGet({
+          query: { metric, range, scope: "platform" },
+        })
+      ),
+    queryKey: ["analytics", "timeseries", metric, range],
+  });
+
+export const useAnalyticsTracksQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async (): Promise<AnalyticsTracks> =>
+      rpcJson(await analyticsTracksGet()),
+    queryKey: ["analytics", "tracks"],
+  });
+
+export const useAnalyticsAudienceQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async (): Promise<AnalyticsAudience> =>
+      rpcJson(await analyticsAudienceGet()),
+    queryKey: ["analytics", "audience"],
+  });
+
+export const useArtistEarningsQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async (): Promise<ArtistEarningsOverview> =>
+      rpcJson(await analyticsEarningsGet()),
+    queryKey: ["analytics", "earnings"],
+  });
+
+export const usePhysicalReleasesQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async (): Promise<PhysicalRelease[]> =>
+      rpcJson(await merchPhysicalReleasesGet()),
+    queryKey: ["merch", "physical-releases"],
+  });
+
+export const useMerchDesignsQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async (): Promise<MerchDesign[]> =>
+      rpcJson(await merchDesignsGet()),
+    queryKey: ["merch", "designs"],
   });
 
 // ---------------------------------------------------------------------------
