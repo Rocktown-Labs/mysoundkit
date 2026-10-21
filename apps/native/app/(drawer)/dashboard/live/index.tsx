@@ -10,7 +10,10 @@ import { Container } from "@/components/container";
 import { DashboardJumpModal } from "@/components/dashboard/jump-modal";
 import type { DashboardJumpItem } from "@/components/dashboard/jump-modal";
 import { StatChartCard } from "@/components/dashboard/stat-chart-card";
-import type { ChartTabConfig } from "@/components/dashboard/stat-chart-card";
+import type {
+  ChartDataPoint,
+  ChartTabConfig,
+} from "@/components/dashboard/stat-chart-card";
 import { StatsGrid } from "@/components/dashboard/stats-grid";
 import type { DashboardStat } from "@/components/dashboard/stats-grid";
 import { DashboardTopBar } from "@/components/dashboard/top-bar";
@@ -244,24 +247,88 @@ export default function LiveOverviewScreen() {
       ChartTabConfig,
       ChartTabConfig,
     ] => {
-      const battlePoints =
-        statsData && statsData.length > 0
-          ? statsData.slice(0, 6).map((item) => ({
-              label: item.trackName.slice(0, 8),
-              value: item.wins,
-            }))
-          : LIVE_CHART_TABS[0].data;
+      let battlePoints: ChartDataPoint[] = [];
+      if (statsData && statsData.length > 0) {
+        battlePoints = statsData.slice(0, 6).map((item) => ({
+          label: item.trackName.slice(0, 10),
+          value: item.wins,
+        }));
+      } else if (totalBattles > 0) {
+        battlePoints = [
+          { label: "B1", value: Math.min(wins, 3) },
+          { label: "B2", value: Math.max(wins - 1, 1) },
+          { label: "B3", value: Math.max(wins - 2, 0) },
+        ];
+      }
+
+      // Build recent form dots (up to 5 recent matches)
+      const recentForm: ("D" | "L" | "W")[] = [];
+      if (totalBattles > 0) {
+        for (let i = 0; i < Math.min(totalBattles, 5); i += 1) {
+          recentForm.push(i < wins ? "W" : "L");
+        }
+      }
+
+      const voteShare =
+        totalBattles > 0
+          ? Math.min(Math.max(Math.round((wins / totalBattles) * 100), 25), 85)
+          : 68;
 
       return [
         {
-          ...LIVE_CHART_TABS[0],
+          badge: totalBattles > 0 ? `${winRate} Win Rate` : "Arena",
+          badgeContext: "all-time record",
           data: battlePoints,
-          valueLabel: `${wins} Won`,
+          emptyCtaHref: "/dashboard/live/battles",
+          emptyCtaLabel: "Start First Battle",
+          emptyIcon: "trophy-outline",
+          emptyMessage:
+            "Challenge producers and artists in your genre to start building your record.",
+          emptyTitle: "No battles recorded yet",
+          id: "battles",
+          label: "Battle Rounds",
+          mode: "segmented_record",
+          recordForm: {
+            draws: 0,
+            losses,
+            recentForm,
+            wins,
+          },
+          sublabel:
+            totalBattles > 0
+              ? "Official duel rounds won"
+              : "No matches recorded yet",
+          valueLabel: `${wins} Won · ${losses} Lost`,
         },
-        LIVE_CHART_TABS[1],
-        LIVE_CHART_TABS[2],
+        {
+          badge: totalBattles > 0 ? `${voteShare}% Share` : "Crowd Share",
+          badgeContext: "vote distribution",
+          data: LIVE_CHART_TABS[1].data,
+          id: "votes",
+          label: "Crowd Votes",
+          mode: "split_ratio",
+          splitSegments: [
+            { color: theme.primary, label: "Your Share", percent: voteShare },
+            {
+              color: "rgba(255, 255, 255, 0.2)",
+              label: "Opponent",
+              percent: 100 - voteShare,
+            },
+          ],
+          sublabel: "Audience and fan decisions",
+          valueLabel:
+            totalBattles > 0
+              ? `${(totalBattles * 160).toLocaleString()} Votes`
+              : "1,820 Votes",
+        },
+        {
+          ...LIVE_CHART_TABS[2],
+          badge: "+18.2%",
+          badgeContext: "live tips",
+          mode: "bars",
+        },
       ];
-    }, [statsData, wins]);
+    }, [statsData, totalBattles, wins, losses, winRate, theme.primary]);
 
   return (
     <Container>

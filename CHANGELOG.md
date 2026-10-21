@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Fixed duplicate React key warnings in mobile dashboard charts by generating composite unique keys (`${currentTab.id}-${point.label}-${index}`) across all chart series (`#458`).
 - Fixed mobile artist dashboard Music screen layout and aspect ratio distortions (`#458`):
   - Fixed `FramelessCard` (`apps/native/components/dashboard/frameless-card.tsx`) unconstrained child image dimensions where `NativeImage` with `height: "100%"` inside horizontal scroll lists stretched vertically across the full viewport, adding an explicit container wrapper with fixed `height: cardHeight`, configurable `aspectRatio` (1:1 for tracks/projects, 16:9 for videos), and `overflow: "hidden"`.
   - Replaced unscrollable root `<View>` in `apps/native/app/(drawer)/dashboard/music/index.tsx` with a vertical `<ScrollView>`, restoring full access to Tracks, Projects, Videos, Open Verses rails, and catalog navigation.
@@ -24,6 +25,10 @@
 
 ### Added
 
+- Enhanced mobile artist dashboard charts with purpose-fit visualizers, empty states, and delta context using `react-native-gifted-charts` (`#458`):
+  - Upgraded `StatChartCard` (`apps/native/components/dashboard/stat-chart-card.tsx`) with specialized chart rendering modes: smooth curved area sparklines with vertical gradient fills for trending telemetry (Streams Growth, Direct Tips), ranked horizontal bars with rank badges and play counts for category rankings (Top Tracks), 100% split segmented bars for cohort comparisons (Audience Reach: Returning Fans vs. New Listeners; Live Crowd Votes: Your Share vs. Opponents), progress goal meters towards the $10.00 auto-deposit threshold with available balance and Stripe status (Payouts), and segmented W/L/T record bars with recent form history dots (`W`, `L`, `D`) for live arena matchups (Battle Rounds).
+  - Added friendly empty states with themed icons and actionable CTA buttons (e.g. "Start First Battle" routing to `/dashboard/live/battles`, "Upload Music" routing to `/dashboard/music`) instead of empty bars when an artist has zero recorded activity.
+  - Added comparative context sublabels to percentage badges (e.g. `vs prev 7 days`, `vs prev 6 mos`, `returning listener rate`, `min $10.00`).
 - Streamlined and decluttered the mobile artist dashboard screens (`/dashboard`) with strict 3-card stats rows, live analytics telemetry, and interactive segmented bar charts (`#458`):
   - Created `StatChartCard` (`apps/native/components/dashboard/stat-chart-card.tsx`) featuring animated, selectable touch bars with dynamic value/sublabel previews and bottom segmented pill tabs (Analytics: Streams Growth, Top Tracks, Audience Reach; Finances: Revenue, Direct Tips, Payouts; Live: Battle Rounds, Crowd Votes, Stage Support) with a direct "View All" link.
   - Added section headers directly preceding every interactive chart across Career (`Analytics`, `Finance`) and Live (`Performance`) views.

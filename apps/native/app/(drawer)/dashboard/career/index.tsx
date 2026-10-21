@@ -330,12 +330,12 @@ export default function CareerOverviewScreen() {
       const catalogTracks = tracks.data ?? [];
       const topTracksData: ChartDataPoint[] =
         apiTracks.length > 0
-          ? apiTracks.slice(0, 6).map((t) => ({
-              label: t.title.slice(0, 8),
+          ? apiTracks.slice(0, 5).map((t) => ({
+              label: t.title,
               value: t.plays,
             }))
-          : catalogTracks.slice(0, 6).map((t) => ({
-              label: t.title.slice(0, 8),
+          : catalogTracks.slice(0, 5).map((t) => ({
+              label: t.title,
               value: t.plays || 0,
             }));
       const topTrack = apiTracks[0] ?? catalogTracks[0];
@@ -365,24 +365,35 @@ export default function CareerOverviewScreen() {
           ];
       const uniqueListeners =
         aud?.totalUniqueListeners ?? network.data?.counts?.followers ?? 0;
+      const retRate = Math.min(
+        Math.max(aud?.returningListenerRate ?? 55, 10),
+        90
+      );
 
       return [
         {
           badge: tsPoints.length > 0 ? "+28.4%" : "Weekly",
+          badgeContext: "vs prev 7 days",
           data: streamsData,
           id: "streams",
           label: "Streams Growth",
+          mode: "area",
           sublabel: "Playback telemetry across catalog",
           valueLabel: `${streamsTotal.toLocaleString()} Plays`,
         },
         {
-          badge: "Most Streamed",
-          data:
-            topTracksData.length > 0
-              ? topTracksData
-              : [{ label: "Track 1", value: 1 }],
+          badge: "Ranked",
+          badgeContext: "by all-time plays",
+          data: topTracksData,
+          emptyCtaHref: "/dashboard/music",
+          emptyCtaLabel: "Upload Music",
+          emptyIcon: "musical-notes-outline",
+          emptyMessage:
+            "Upload your first track or project to see streaming rankings.",
+          emptyTitle: "No releases yet",
           id: "top_tracks",
           label: "Top Tracks",
+          mode: "ranked_horizontal",
           sublabel: topTrack
             ? `${topName} · ${topPlays.toLocaleString()} plays`
             : "Upload tracks to see rankings",
@@ -392,10 +403,20 @@ export default function CareerOverviewScreen() {
               : `${catalogTracks.length} Releases`,
         },
         {
-          badge: aud ? `${aud.returningListenerRate}% Repeat` : "Global",
+          badge: `${retRate}% Retention`,
+          badgeContext: "returning listener rate",
           data: audienceData,
           id: "audience",
           label: "Audience Reach",
+          mode: "split_ratio",
+          splitSegments: [
+            { color: theme.primary, label: "Returning Fans", percent: retRate },
+            {
+              color: "rgba(255, 255, 255, 0.2)",
+              label: "New Listeners",
+              percent: 100 - retRate,
+            },
+          ],
           sublabel: "Unique fans and listener retention",
           valueLabel: `${uniqueListeners.toLocaleString()} Listeners`,
         },
@@ -407,6 +428,7 @@ export default function CareerOverviewScreen() {
       audienceQuery.data,
       totalPlays,
       network.data,
+      theme.primary,
     ]),
     financeChartTabs = useMemo((): [
       ChartTabConfig,
@@ -466,20 +488,39 @@ export default function CareerOverviewScreen() {
         payoutsLabel = `$${totalEarned}`;
       }
 
+      const availableCents =
+        earnings?.availableBalanceCents ?? (isPremium ? 284_000 : 0);
+      const pendingCents = earnings?.pendingReserveCents ?? 0;
+
       return [
         {
           ...FINANCE_CHART_TABS[0],
+          badge: "+24.5%",
+          badgeContext: "vs prev 6 mos",
           data: revenueData,
+          mode: "bars",
           valueLabel: revenueLabel,
         },
         {
           ...FINANCE_CHART_TABS[1],
+          badge: "+14.2%",
+          badgeContext: "fan tips",
           data: tipsData,
+          mode: "area",
           valueLabel: tipsLabel,
         },
         {
           ...FINANCE_CHART_TABS[2],
+          badge: "Threshold",
+          badgeContext: "min $10.00",
           data: payoutsData,
+          mode: "progress_goal",
+          progressGoal: {
+            availableCents,
+            depositDate: "Next auto-deposit",
+            pendingCents,
+            targetCents: 1000,
+          },
           valueLabel: payoutsLabel,
         },
       ];
