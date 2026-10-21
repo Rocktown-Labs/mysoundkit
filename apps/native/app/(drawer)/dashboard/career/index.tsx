@@ -1,5 +1,5 @@
-/* oxlint-disable one-var, sort-vars, sort-keys, complexity, react/preserve-manual-memoization */
-/* eslint-disable one-var, sort-vars, sort-keys */
+/* oxlint-disable one-var, sort-vars, sort-keys, complexity, react/preserve-manual-memoization, unicorn/no-array-sort */
+/* eslint-disable one-var, sort-vars, sort-keys, unicorn/no-array-sort */
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -225,6 +225,10 @@ function CareerRailCard({
   );
 }
 
+function sortByPlays<T extends { plays?: number | null }>(list: T[]): T[] {
+  return [...list].sort((a, b) => (b.plays || 0) - (a.plays || 0));
+}
+
 export default function CareerOverviewScreen() {
   const { colorScheme } = useColorScheme(),
     { data: session } = authClient.useSession(),
@@ -251,12 +255,8 @@ export default function CareerOverviewScreen() {
       [tracks.data]
     ),
     topTrackTitle = useMemo(() => {
-      const [apiTrack] = (analyticsTracksQuery.data?.tracks ?? []).toSorted(
-        (a, b) => b.plays - a.plays
-      );
-      const [catalogTrack] = (tracks.data ?? []).toSorted(
-        (a, b) => (b.plays || 0) - (a.plays || 0)
-      );
+      const [apiTrack] = sortByPlays(analyticsTracksQuery.data?.tracks ?? []);
+      const [catalogTrack] = sortByPlays(tracks.data ?? []);
       return apiTrack?.title ?? catalogTrack?.title ?? "Upload Tracks";
     }, [analyticsTracksQuery.data, tracks.data]),
     playsValue = useMemo(() => {
@@ -330,12 +330,10 @@ export default function CareerOverviewScreen() {
       const streamsTotal = timeseriesQuery.data?.total ?? totalPlays;
 
       // 2. Top Tracks (ranked by plays descending)
-      const sortedApiTracks = (
+      const sortedApiTracks = sortByPlays(
         analyticsTracksQuery.data?.tracks ?? []
-      ).toSorted((a, b) => b.plays - a.plays);
-      const sortedCatalogTracks = (tracks.data ?? []).toSorted(
-        (a, b) => (b.plays || 0) - (a.plays || 0)
       );
+      const sortedCatalogTracks = sortByPlays(tracks.data ?? []);
       const sourceTracks =
         sortedApiTracks.length > 0 ? sortedApiTracks : sortedCatalogTracks;
       const topTracksData: ChartDataPoint[] = sourceTracks

@@ -1,4 +1,5 @@
-/* eslint-disable one-var, sort-vars, no-nested-ternary */
+/* oxlint-disable one-var, sort-vars, no-nested-ternary, unicorn/no-array-sort */
+/* eslint-disable one-var, sort-vars, no-nested-ternary, unicorn/no-array-sort */
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import type { ReactNode } from "react";
@@ -89,7 +90,7 @@ function sortTableRows<T>(
     return [...rows];
   }
   const mult = sortState.direction === "asc" ? 1 : -1;
-  return [...rows].toSorted((a, b) => {
+  return [...rows].sort((a, b) => {
     const valA = col.getValue(a),
       valB = col.getValue(b);
     if (typeof valA === "number" && typeof valB === "number") {

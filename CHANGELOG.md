@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Fixed Hermes engine runtime crash (`TypeError: undefined is not a function`) on native Career screen caused by calling ES2023 `Array#toSorted` which Hermes does not natively implement (`#458`):
+  - Added synchronous runtime polyfills for `Array.prototype.toSorted` and `Array.prototype.toReversed` in `apps/native/polyfills.js`.
+  - Replaced direct `toSorted` calls with safe spread-sort helper `sortByPlays` in `apps/native/app/(drawer)/dashboard/career/index.tsx` and `apps/native/components/library-data-table.tsx`.
 - Fixed Top Tracks rankings in artist analytics to strictly sort tracks by plays descending (`#458`):
   - Fixed `/v1/analytics/tracks` endpoint and mobile career analytics to sort tracks by play count descending (`toSorted((a, b) => b.plays - a.plays)`), ensuring #1 accurately reflects the most streamed track with proportional horizontal bar widths.
 - Fixed duplicate React key warnings in mobile dashboard charts by generating composite unique keys (`${currentTab.id}-${point.label}-${index}`) across all chart series (`#458`).
