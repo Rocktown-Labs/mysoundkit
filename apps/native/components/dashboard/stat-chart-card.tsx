@@ -93,7 +93,10 @@ export function StatChartCard({
     isAllZero =
       currentTab.mode === "segmented_record" && currentTab.recordForm
         ? currentTab.recordForm.wins === 0 && currentTab.recordForm.losses === 0
-        : data.every((p) => p.value === 0);
+        : currentTab.mode === "progress_goal" && currentTab.progressGoal
+          ? currentTab.progressGoal.availableCents === 0 &&
+            (currentTab.progressGoal.pendingCents ?? 0) === 0
+          : data.every((p) => p.value === 0);
 
   const renderVisualizer = () => {
     // 1. Empty state check
@@ -121,11 +124,18 @@ export function StatChartCard({
           </Text>
           {currentTab.emptyCtaLabel && currentTab.emptyCtaHref ? (
             <Pressable
+              hitSlop={{ bottom: 6, left: 6, right: 6, top: 6 }}
               onPress={() => {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 router.push(currentTab.emptyCtaHref as never);
               }}
-              style={[styles.emptyCtaBtn, { backgroundColor: theme.primary }]}
+              style={({ pressed }) => [
+                styles.emptyCtaBtn,
+                {
+                  backgroundColor: theme.primary,
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
+                },
+              ]}
             >
               <Text
                 style={[
@@ -572,13 +582,14 @@ export function StatChartCard({
 
           return (
             <Pressable
+              hitSlop={{ bottom: 4, left: 4, right: 4, top: 4 }}
               key={tab.id}
               onPress={() => {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setActiveTabId(tab.id);
                 setSelectedPointIndex(null);
               }}
-              style={[
+              style={({ pressed }) => [
                 styles.tabBtn,
                 isActive
                   ? [
@@ -589,6 +600,7 @@ export function StatChartCard({
                       },
                     ]
                   : null,
+                { transform: [{ scale: pressed ? 0.96 : 1 }] },
               ]}
             >
               <Text

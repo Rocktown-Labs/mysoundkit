@@ -22,7 +22,9 @@ import { NativeImage } from "@/components/native-image";
 import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
 import {
+  resolveApiUrl,
   useConversationMessagesQuery,
+  useConversationsQuery,
   useMarkConversationReadMutation,
   useMeQuery,
   useSendMessageMutation,
@@ -169,6 +171,7 @@ export default function MessageThreadScreen() {
     signedIn = Boolean(session?.user),
     meQuery = useMeQuery(signedIn),
     user = meQuery.data?.user,
+    conversationsQuery = useConversationsQuery(signedIn),
     messagesQuery = useConversationMessagesQuery(conversationId, signedIn),
     sendMessageMutation = useSendMessageMutation(conversationId),
     markReadMutation = useMarkConversationReadMutation(conversationId),
@@ -181,10 +184,20 @@ export default function MessageThreadScreen() {
     [showSlashMenu, setShowSlashMenu] = useState(false),
     [collabModalVisible, setCollabModalVisible] = useState(false),
     [collabTitle, setCollabTitle] = useState("New Collaboration Draft"),
+    currentConversation = conversationsQuery.data?.find(
+      (c) => c.id === conversationId
+    ),
     contactUsername =
       conversationId === "conv_kool_calm"
         ? "kool_calm_influential"
         : conversationId.replace("conv_", ""),
+    contactAvatarUrl =
+      resolveApiUrl(currentConversation?.participantAvatarUrl) ||
+      "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
+    contactDisplayName =
+      currentConversation?.participantName ||
+      currentConversation?.participantUsername ||
+      contactUsername,
     serverMessages = messagesQuery.data ?? [];
 
   // Mark conversation read on mount
@@ -340,7 +353,10 @@ export default function MessageThreadScreen() {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.back();
               }}
-              style={styles.backBtn}
+              style={({ pressed }) => [
+                styles.backBtn,
+                { transform: [{ scale: pressed ? 0.94 : 1 }] },
+              ]}
             >
               <Ionicons color={theme.text} name="chevron-back" size={26} />
             </Pressable>
@@ -348,7 +364,7 @@ export default function MessageThreadScreen() {
             <View style={styles.contactInfoRow}>
               <View style={styles.contactAvatarArea}>
                 <NativeImage
-                  source="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"
+                  source={contactAvatarUrl}
                   style={styles.contactAvatar}
                 />
               </View>
@@ -358,7 +374,7 @@ export default function MessageThreadScreen() {
                   numberOfLines={1}
                   style={[styles.headerName, { color: theme.text }]}
                 >
-                  {contactUsername}
+                  {contactDisplayName}
                 </Text>
                 <Text
                   numberOfLines={1}

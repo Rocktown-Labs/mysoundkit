@@ -4,6 +4,15 @@
 
 ### Fixed
 
+- Fixed real data telemetry across artist dashboard analytics and finances (`apps/native/app/(drawer)/dashboard/career/index.tsx`):
+  - Replaced hardcoded fallback numbers with real telemetry: streams growth now tracks actual telemetry points or clean empty states instead of fake weekdays; audience reach displays real follower and listener retention rates; and finances reflect actual Stripe earnings balance and payout thresholds with friendly empty states instead of hardcoded $2,840.00 mock months (`#458`).
+  - Fixed track ranking metrics by merging catalog tracks and analytics tracks with the highest verified play counts, strictly sorted in descending order (`#458`).
+- Fixed header user buttons and avatar displays to render the authenticated user's real profile avatar (`#458`):
+  - Updated `AvatarHeaderButton` (`apps/native/components/avatar-header-button.tsx`) to resolve `meQuery.data?.user.avatarUrl` via `resolveApiUrl` in addition to Better Auth session image fallback.
+  - Added artist avatar button to `DashboardTopBar` (`apps/native/components/dashboard/top-bar.tsx`) beside the Menu button and to `DashboardHomeScreen` (`apps/native/app/(drawer)/dashboard/index.tsx`) in the greeting header.
+  - Updated Messenger "Your note" avatar (`apps/native/app/(drawer)/dashboard/messages/index.tsx`) to display the user's real profile photo.
+- Applied Apple Design and Expo fluid interface standards across native dashboard controls (`#458`):
+  - Added tactile sub-150ms press feedback (`scale: 0.94–0.96`), minimum 44pt touch targets (`hitSlop`), and instant haptic responses across quick action buttons, header avatars, segmented chart tabs, and profile action buttons.
 - Fixed mobile dashboard tab bar overflow by eliminating the `... More` button in iOS UIKit `UITabBarController`: pinned the 5 primary tabs to `Home`, `Music`, `Career`, `Live`, and `Messages` (`apps/native/app/(drawer)/dashboard/_layout.tsx`), ensuring both `Live` and `Messages` remain directly accessible first-class tabs on the dashboard without an iOS `... More` button (`#458`).
 - Aligned dashboard screen titles and "Menu" jump button on the same horizontal line (`apps/native/components/dashboard/top-bar.tsx`) and renamed the "Jump to Section" pill to "Menu" (`#458`).
 - Removed redundant "Catalog Shortcuts" section from the bottom of the mobile Music overview screen (`apps/native/app/(drawer)/dashboard/music/index.tsx`), streamlining catalog navigation into the top bar Menu modal (`#458`).

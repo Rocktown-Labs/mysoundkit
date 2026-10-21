@@ -21,6 +21,7 @@ import { NativeImage } from "@/components/native-image";
 import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
 import {
+  resolveApiUrl,
   useConversationsQuery,
   useFriendsQuery,
   useMeQuery,
@@ -216,6 +217,9 @@ export default function MessagesInboxScreen() {
     signedIn = Boolean(session?.user),
     meQuery = useMeQuery(signedIn),
     user = meQuery.data?.user,
+    userAvatarUrl =
+      resolveApiUrl(user?.avatarUrl) ||
+      (session?.user?.image ? resolveApiUrl(session.user.image) : null),
     conversationsQuery = useConversationsQuery(signedIn),
     friendsQuery = useFriendsQuery(signedIn),
     [searchQuery, setSearchQuery] = useState(""),
@@ -341,11 +345,16 @@ export default function MessagesInboxScreen() {
             >
               {/* Your note */}
               <Pressable
+                hitSlop={{ bottom: 6, left: 6, right: 6, top: 6 }}
                 onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setNoteInput(myNote);
                   setNoteModalVisible(true);
                 }}
-                style={styles.noteItem}
+                style={({ pressed }) => [
+                  styles.noteItem,
+                  { transform: [{ scale: pressed ? 0.96 : 1 }] },
+                ]}
               >
                 <View style={styles.speechBubbleWrapper}>
                   <View
@@ -374,7 +383,7 @@ export default function MessagesInboxScreen() {
 
                 <View style={styles.avatarWrapper}>
                   <NativeImage
-                    source={user?.avatarUrl}
+                    source={userAvatarUrl}
                     style={styles.noteAvatarImage}
                   />
                   <View

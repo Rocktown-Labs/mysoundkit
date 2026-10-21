@@ -23,12 +23,12 @@ import { NativeSection } from "@/components/native-section";
 import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
 import {
+  resolveApiUrl,
   useAnalyticsAudienceQuery,
   useAnalyticsTimeseriesQuery,
   useAnalyticsTracksQuery,
   useArtistEarningsQuery,
   useDashboardTracksQuery,
-  useMeEntitlementsQuery,
   useMeQuery,
   useNetworkQuery,
 } from "@/lib/soundkit-api";
@@ -82,57 +82,6 @@ const CAREER_ITEMS: DashboardJumpItem[] = [
     href: "/dashboard/career/settings",
     icon: "settings",
     title: "Settings",
-  },
-];
-
-const FINANCE_CHART_TABS: [ChartTabConfig, ChartTabConfig, ChartTabConfig] = [
-  {
-    badge: "+24.5%",
-    data: [
-      { label: "May", value: 310 },
-      { label: "Jun", value: 420 },
-      { label: "Jul", value: 380 },
-      { label: "Aug", value: 540 },
-      { label: "Sep", value: 490 },
-      { label: "Oct", value: 700 },
-    ],
-    id: "revenue",
-    label: "Revenue",
-    sublabel: "Past 6 months earnings",
-    unitPrefix: "$",
-    valueLabel: "$2,840.00",
-  },
-  {
-    badge: "+14.2%",
-    data: [
-      { label: "May", value: 40 },
-      { label: "Jun", value: 75 },
-      { label: "Jul", value: 60 },
-      { label: "Aug", value: 110 },
-      { label: "Sep", value: 85 },
-      { label: "Oct", value: 90 },
-    ],
-    id: "tips",
-    label: "Direct Tips",
-    sublabel: "Fan contributions during live drops",
-    unitPrefix: "$",
-    valueLabel: "$460.00",
-  },
-  {
-    badge: "Deposited",
-    data: [
-      { label: "May", value: 290 },
-      { label: "Jun", value: 400 },
-      { label: "Jul", value: 360 },
-      { label: "Aug", value: 500 },
-      { label: "Sep", value: 430 },
-      { label: "Oct", value: 400 },
-    ],
-    id: "payouts",
-    label: "Payouts",
-    sublabel: "Transferred to verified Stripe bank",
-    unitPrefix: "$",
-    valueLabel: "$2,380.00",
   },
 ];
 
@@ -225,17 +174,12 @@ function CareerRailCard({
   );
 }
 
-function sortByPlays<T extends { plays?: number | null }>(list: T[]): T[] {
-  return [...list].sort((a, b) => (b.plays || 0) - (a.plays || 0));
-}
-
 export default function CareerOverviewScreen() {
   const { colorScheme } = useColorScheme(),
     { data: session } = authClient.useSession(),
     signedIn = Boolean(session?.user),
     [jumpModalVisible, setJumpModalVisible] = useState(false),
     meQuery = useMeQuery(signedIn),
-    entitlementsQuery = useMeEntitlementsQuery(signedIn),
     network = useNetworkQuery(signedIn),
     tracks = useDashboardTracksQuery(signedIn),
     timeseriesQuery = useAnalyticsTimeseriesQuery("plays", "7d", signedIn),
@@ -247,18 +191,47 @@ export default function CareerOverviewScreen() {
     meData = meQuery.data?.user,
     displayName = meData?.displayName || user?.name || "SoundKit Artist",
     email = user?.email || "",
-    avatarUrl = meData?.avatarUrl || user?.image || null,
-    isPremium = entitlementsQuery.data?.isPremium ?? false,
+    avatarUrl =
+      resolveApiUrl(meData?.avatarUrl) ||
+      (user?.image ? resolveApiUrl(user.image) : null),
     totalPlays = useMemo(
       () =>
         (tracks.data ?? []).reduce((sum, track) => sum + (track.plays || 0), 0),
       [tracks.data]
     ),
-    topTrackTitle = useMemo(() => {
-      const [apiTrack] = sortByPlays(analyticsTracksQuery.data?.tracks ?? []);
-      const [catalogTrack] = sortByPlays(tracks.data ?? []);
-      return apiTrack?.title ?? catalogTrack?.title ?? "Upload Tracks";
+    sortedSourceTracks = useMemo(() => {
+      const allTrackMap = new Map<
+        string,
+        { id: string; plays: number; title: string }
+      >();
+
+      for (const t of tracks.data ?? []) {
+        allTrackMap.set(t.id, {
+          id: t.id,
+          plays: t.plays || 0,
+          title: t.title,
+        });
+      }
+
+      for (const t of analyticsTracksQuery.data?.tracks ?? []) {
+        const existing = allTrackMap.get(t.trackId);
+        if (existing) {
+          existing.plays = Math.max(existing.plays, t.plays || 0);
+        } else {
+          allTrackMap.set(t.trackId, {
+            id: t.trackId,
+            plays: t.plays || 0,
+            title: t.title,
+          });
+        }
+      }
+
+      return [...allTrackMap.values()].sort((a, b) => b.plays - a.plays);
     }, [analyticsTracksQuery.data, tracks.data]),
+    topTrackTitle = useMemo(() => {
+      const [top] = sortedSourceTracks;
+      return top?.title ?? "Upload Tracks";
+    }, [sortedSourceTracks]),
     playsValue = useMemo(() => {
       if (totalPlays > 0) {
         return totalPlays.toLocaleString();
@@ -271,13 +244,10 @@ export default function CareerOverviewScreen() {
     earningsValue = useMemo(() => {
       const cents = earningsQuery.data?.availableBalanceCents;
       if (typeof cents === "number" && cents > 0) {
-        return `$${(cents / 100).toFixed(0)}`;
+        return `$${(cents / 100).toFixed(2)}`;
       }
-      if (isPremium) {
-        return "$2.8K";
-      }
-      return "$0";
-    }, [earningsQuery.data?.availableBalanceCents, isPremium]),
+      return "$0.00";
+    }, [earningsQuery.data?.availableBalanceCents]),
     stats: DashboardStat[] = useMemo(
       () => [
         {
@@ -312,6 +282,7 @@ export default function CareerOverviewScreen() {
     ] => {
       // 1. Streams Growth
       const tsPoints = timeseriesQuery.data?.points ?? [];
+      const streamsTotal = timeseriesQuery.data?.total ?? totalPlays;
       const streamsData: ChartDataPoint[] =
         tsPoints.length > 0
           ? tsPoints.map((pt) => ({
@@ -319,66 +290,53 @@ export default function CareerOverviewScreen() {
               value: pt.value,
             }))
           : [
-              { label: "Mon", value: 120 },
-              { label: "Tue", value: 185 },
-              { label: "Wed", value: 160 },
-              { label: "Thu", value: 240 },
-              { label: "Fri", value: 310 },
-              { label: "Sat", value: 420 },
-              { label: "Sun", value: 380 },
+              { label: "Mon", value: 0 },
+              { label: "Tue", value: 0 },
+              { label: "Wed", value: 0 },
+              { label: "Thu", value: 0 },
+              { label: "Fri", value: 0 },
+              { label: "Sat", value: 0 },
+              { label: "Sun", value: 0 },
             ];
-      const streamsTotal = timeseriesQuery.data?.total ?? totalPlays;
 
-      // 2. Top Tracks (ranked by plays descending)
-      const sortedApiTracks = sortByPlays(
-        analyticsTracksQuery.data?.tracks ?? []
-      );
-      const sortedCatalogTracks = sortByPlays(tracks.data ?? []);
-      const sourceTracks =
-        sortedApiTracks.length > 0 ? sortedApiTracks : sortedCatalogTracks;
-      const topTracksData: ChartDataPoint[] = sourceTracks
+      // 2. Top Tracks (ranked by plays descending with real play counts)
+      const topTracksData: ChartDataPoint[] = sortedSourceTracks
         .slice(0, 5)
         .map((t) => ({
           label: t.title,
           value: t.plays || 0,
         }));
-      const [topTrack] = sourceTracks;
+      const [topTrack] = sortedSourceTracks;
       const topName = topTrack?.title ?? "No tracks yet";
-      const topPlays =
-        topTrack && "plays" in topTrack ? topTrack.plays || 0 : 0;
+      const topPlays = topTrack ? topTrack.plays || 0 : 0;
 
       // 3. Audience Reach
       const aud = audienceQuery.data;
-      const audienceData: ChartDataPoint[] = aud
-        ? [
-            { label: "Unique", value: aud.totalUniqueListeners },
-            { label: "New", value: aud.newListeners },
-            { label: "Repeat", value: aud.returningListeners },
-            { label: "Multi", value: aud.listenersWithMultiTrackPlays },
-            { label: "VIP", value: aud.premiumSupporters },
-          ]
-        : [
-            {
-              label: "Unique",
-              value: Math.max(network.data?.counts?.followers ?? 0, 140),
-            },
-            { label: "New", value: 45 },
-            { label: "Repeat", value: 95 },
-            { label: "Multi", value: 68 },
-            { label: "VIP", value: 22 },
-          ];
-      const uniqueListeners =
-        aud?.totalUniqueListeners ?? network.data?.counts?.followers ?? 0;
+      const followersCount = network.data?.counts?.followers ?? 0;
+      const uniqueListeners = aud?.totalUniqueListeners ?? followersCount;
+      const audienceData: ChartDataPoint[] = [
+        { label: "Unique", value: uniqueListeners },
+        { label: "New", value: aud?.newListeners ?? 0 },
+        { label: "Repeat", value: aud?.returningListeners ?? 0 },
+        { label: "Multi", value: aud?.listenersWithMultiTrackPlays ?? 0 },
+        { label: "VIP", value: aud?.premiumSupporters ?? 0 },
+      ];
       const retRate = Math.min(
-        Math.max(aud?.returningListenerRate ?? 55, 10),
-        90
+        Math.max(aud?.returningListenerRate ?? 0, 0),
+        100
       );
 
       return [
         {
-          badge: tsPoints.length > 0 ? "+28.4%" : "Weekly",
+          badge: tsPoints.length > 0 ? "+28.4%" : "Telemetry",
           badgeContext: "vs prev 7 days",
           data: streamsData,
+          emptyCtaHref: "/tracks",
+          emptyCtaLabel: "Upload Tracks",
+          emptyIcon: "musical-notes-outline",
+          emptyMessage:
+            "No streams recorded yet. Share your tracks or go live to start tracking growth.",
+          emptyTitle: "No streams yet",
           id: "streams",
           label: "Streams Growth",
           mode: "area",
@@ -389,7 +347,7 @@ export default function CareerOverviewScreen() {
           badge: "Ranked",
           badgeContext: "by all-time plays",
           data: topTracksData,
-          emptyCtaHref: "/dashboard/music",
+          emptyCtaHref: "/tracks",
           emptyCtaLabel: "Upload Music",
           emptyIcon: "musical-notes-outline",
           emptyMessage:
@@ -404,21 +362,31 @@ export default function CareerOverviewScreen() {
           valueLabel:
             topPlays > 0
               ? `${topPlays.toLocaleString()} Plays`
-              : `${sortedCatalogTracks.length} Releases`,
+              : `${sortedSourceTracks.length} Releases`,
         },
         {
-          badge: `${retRate}% Retention`,
+          badge: retRate > 0 ? `${retRate}% Retention` : "Audience",
           badgeContext: "returning listener rate",
           data: audienceData,
+          emptyCtaHref: "/dashboard/career/team",
+          emptyCtaLabel: "Grow Network",
+          emptyIcon: "people-outline",
+          emptyMessage:
+            "Share your SoundKit Bio to start building a listener audience.",
+          emptyTitle: "No listeners yet",
           id: "audience",
           label: "Audience Reach",
           mode: "split_ratio",
           splitSegments: [
-            { color: theme.primary, label: "Returning Fans", percent: retRate },
+            {
+              color: theme.primary,
+              label: "Returning Fans",
+              percent: retRate > 0 ? retRate : 50,
+            },
             {
               color: "rgba(255, 255, 255, 0.2)",
               label: "New Listeners",
-              percent: 100 - retRate,
+              percent: retRate > 0 ? 100 - retRate : 50,
             },
           ],
           sublabel: "Unique fans and listener retention",
@@ -427,10 +395,9 @@ export default function CareerOverviewScreen() {
       ];
     }, [
       timeseriesQuery.data,
-      analyticsTracksQuery.data,
-      tracks.data,
-      audienceQuery.data,
       totalPlays,
+      sortedSourceTracks,
+      audienceQuery.data,
       network.data,
       theme.primary,
     ]),
@@ -448,14 +415,28 @@ export default function CareerOverviewScreen() {
             label: s.monthLabel.slice(0, 3),
             value: Math.round(s.totalEarningsCents / 100),
           }))
-        : FINANCE_CHART_TABS[0].data;
+        : [
+            { label: "May", value: 0 },
+            { label: "Jun", value: 0 },
+            { label: "Jul", value: 0 },
+            { label: "Aug", value: 0 },
+            { label: "Sep", value: 0 },
+            { label: "Oct", value: 0 },
+          ];
 
       const tipsData: ChartDataPoint[] = hasStatements
         ? statements.slice(-6).map((s) => ({
             label: s.monthLabel.slice(0, 3),
             value: Math.round(s.tipsCents / 100),
           }))
-        : FINANCE_CHART_TABS[1].data;
+        : [
+            { label: "May", value: 0 },
+            { label: "Jun", value: 0 },
+            { label: "Jul", value: 0 },
+            { label: "Aug", value: 0 },
+            { label: "Sep", value: 0 },
+            { label: "Oct", value: 0 },
+          ];
 
       const payoutsData: ChartDataPoint[] = hasStatements
         ? statements.slice(-6).map((s) => ({
@@ -464,7 +445,14 @@ export default function CareerOverviewScreen() {
               (s.totalEarningsCents - (s.physicalMerchCents ?? 0)) / 100
             ),
           }))
-        : FINANCE_CHART_TABS[2].data;
+        : [
+            { label: "May", value: 0 },
+            { label: "Jun", value: 0 },
+            { label: "Jul", value: 0 },
+            { label: "Aug", value: 0 },
+            { label: "Sep", value: 0 },
+            { label: "Oct", value: 0 },
+          ];
 
       const availableBalance = earnings
         ? (earnings.availableBalanceCents / 100).toFixed(2)
@@ -476,48 +464,61 @@ export default function CareerOverviewScreen() {
           ).toFixed(2)
         : "0.00";
 
-      let revenueLabel = isPremium ? "$2,840.00" : "$0.00";
-      if (hasStatements) {
-        revenueLabel = `$${availableBalance}`;
-      }
+      const revenueLabel = `$${availableBalance}`;
+      const totalTips = statements.reduce((sum, s) => sum + s.tipsCents, 0);
+      const tipsLabel = `$${(totalTips / 100).toFixed(2)}`;
+      const payoutsLabel = `$${totalEarned}`;
 
-      let tipsLabel = isPremium ? "$460.00" : "$0.00";
-      if (hasStatements) {
-        const totalTips = statements.reduce((sum, s) => sum + s.tipsCents, 0);
-        tipsLabel = `$${(totalTips / 100).toFixed(2)}`;
-      }
-
-      let payoutsLabel = isPremium ? "$2,380.00" : "$0.00";
-      if (hasStatements) {
-        payoutsLabel = `$${totalEarned}`;
-      }
-
-      const availableCents =
-        earnings?.availableBalanceCents ?? (isPremium ? 284_000 : 0);
+      const availableCents = earnings?.availableBalanceCents ?? 0;
       const pendingCents = earnings?.pendingReserveCents ?? 0;
 
       return [
         {
-          ...FINANCE_CHART_TABS[0],
-          badge: "+24.5%",
-          badgeContext: "vs prev 6 mos",
+          badge: hasStatements ? "+24.5%" : "Payouts",
+          badgeContext: "past 6 mos",
           data: revenueData,
+          emptyCtaHref: "/dashboard/career/account-profile",
+          emptyCtaLabel: "Setup Payouts",
+          emptyIcon: "card-outline",
+          emptyMessage:
+            "Connect your Stripe account to receive direct tips and monthly payouts.",
+          emptyTitle: "No earnings recorded yet",
+          id: "revenue",
+          label: "Revenue",
           mode: "bars",
+          sublabel: "Past 6 months earnings",
+          unitPrefix: "$",
           valueLabel: revenueLabel,
         },
         {
-          ...FINANCE_CHART_TABS[1],
-          badge: "+14.2%",
+          badge: hasStatements ? "+14.2%" : "Tips",
           badgeContext: "fan tips",
           data: tipsData,
+          emptyCtaHref: "/dashboard/live",
+          emptyCtaLabel: "Go Live",
+          emptyIcon: "radio-outline",
+          emptyMessage:
+            "Fans can send live tips when you broadcast or duel on stage.",
+          emptyTitle: "No tips yet",
+          id: "tips",
+          label: "Direct Tips",
           mode: "area",
+          sublabel: "Fan contributions during live drops",
+          unitPrefix: "$",
           valueLabel: tipsLabel,
         },
         {
-          ...FINANCE_CHART_TABS[2],
           badge: "Threshold",
           badgeContext: "min $10.00",
           data: payoutsData,
+          emptyCtaHref: "/dashboard/career/account-profile",
+          emptyCtaLabel: "Configure Stripe",
+          emptyIcon: "card-outline",
+          emptyMessage:
+            "Stripe auto-deposits trigger when balance passes $10.00.",
+          emptyTitle: "No payout history",
+          id: "payouts",
+          label: "Payouts",
           mode: "progress_goal",
           progressGoal: {
             availableCents,
@@ -525,10 +526,12 @@ export default function CareerOverviewScreen() {
             pendingCents,
             targetCents: 1000,
           },
+          sublabel: "Transferred to verified Stripe bank",
+          unitPrefix: "$",
           valueLabel: payoutsLabel,
         },
       ];
-    }, [earningsQuery.data, isPremium]);
+    }, [earningsQuery.data]);
 
   return (
     <Container>
@@ -597,6 +600,7 @@ export default function CareerOverviewScreen() {
           {/* Profile CTA buttons */}
           <View style={styles.profileActions}>
             <Pressable
+              hitSlop={{ bottom: 6, left: 6, right: 6, top: 6 }}
               onPress={() => {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push("/dashboard/career/profile" as never);
@@ -606,6 +610,7 @@ export default function CareerOverviewScreen() {
                 {
                   backgroundColor: pressed ? "#212121" : "#141414",
                   borderColor: theme.border,
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
                 },
               ]}
             >
@@ -616,6 +621,7 @@ export default function CareerOverviewScreen() {
             </Pressable>
 
             <Pressable
+              hitSlop={{ bottom: 6, left: 6, right: 6, top: 6 }}
               onPress={() => {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push("/dashboard/career/account-profile" as never);
@@ -625,6 +631,7 @@ export default function CareerOverviewScreen() {
                 {
                   backgroundColor: pressed ? "#212121" : "#141414",
                   borderColor: theme.border,
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
                 },
               ]}
             >
@@ -635,6 +642,7 @@ export default function CareerOverviewScreen() {
             </Pressable>
 
             <Pressable
+              hitSlop={{ bottom: 6, left: 6, right: 6, top: 6 }}
               onPress={() => {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push("/dashboard/career/team" as never);
@@ -644,6 +652,7 @@ export default function CareerOverviewScreen() {
                 {
                   backgroundColor: pressed ? "#212121" : "#141414",
                   borderColor: theme.border,
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
                 },
               ]}
             >
@@ -656,6 +665,7 @@ export default function CareerOverviewScreen() {
             <Pressable
               accessibilityLabel="Career settings"
               accessibilityRole="button"
+              hitSlop={{ bottom: 6, left: 6, right: 6, top: 6 }}
               onPress={() => {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push("/dashboard/career/settings" as never);
@@ -665,6 +675,7 @@ export default function CareerOverviewScreen() {
                 {
                   backgroundColor: pressed ? "#212121" : "#141414",
                   borderColor: theme.border,
+                  transform: [{ scale: pressed ? 0.94 : 1 }],
                 },
               ]}
             >

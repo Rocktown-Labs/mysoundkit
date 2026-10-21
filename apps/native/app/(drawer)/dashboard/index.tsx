@@ -22,11 +22,13 @@ import { Container } from "@/components/container";
 import { FramelessCard } from "@/components/dashboard/frameless-card";
 import { StatsGrid } from "@/components/dashboard/stats-grid";
 import type { DashboardStat } from "@/components/dashboard/stats-grid";
+import { NativeImage } from "@/components/native-image";
 import { NativeRail } from "@/components/native-rail";
 import { NativeSection } from "@/components/native-section";
 import { authClient } from "@/lib/auth-client";
 import { NAV_THEME } from "@/lib/constants";
 import {
+  resolveApiUrl,
   useDashboardProjectsQuery,
   useDashboardTracksQuery,
   useMeEntitlementsQuery,
@@ -238,6 +240,9 @@ export default function DashboardHomeScreen() {
     tracks = tracksQuery.data ?? [],
     projects = projectsQuery.data ?? [],
     user = meQuery.data?.user,
+    userAvatarUrl =
+      resolveApiUrl(user?.avatarUrl) ||
+      (session?.user?.image ? resolveApiUrl(session.user.image) : null),
     displayName = user?.displayName ?? user?.username ?? "Artist",
     firstName = displayName.split(" ")[0] ?? displayName,
     isPremium = Boolean(entitlementsQuery.data?.isPremium),
@@ -339,31 +344,63 @@ export default function DashboardHomeScreen() {
         showsVerticalScrollIndicator={false}
         style={{ backgroundColor: theme.background }}
       >
-        {/* Welcome Header */}
+        {/* Welcome Header with Artist Avatar */}
         <View style={styles.headerArea}>
-          <View style={styles.eyebrowRow}>
-            <Text style={[styles.eyebrow, { color: theme.primary }]}>
-              Artist Dashboard
-            </Text>
-            {isPremium ? (
-              <View
-                style={[
-                  styles.badge,
-                  { backgroundColor: "rgba(184, 163, 255, 0.15)" },
-                ]}
-              >
-                <Text style={[styles.badgeText, { color: theme.primary }]}>
-                  Premium
+          <View style={styles.headerTopRow}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <View style={styles.eyebrowRow}>
+                <Text style={[styles.eyebrow, { color: theme.primary }]}>
+                  Artist Dashboard
                 </Text>
+                {isPremium ? (
+                  <View
+                    style={[
+                      styles.badge,
+                      { backgroundColor: "rgba(184, 163, 255, 0.15)" },
+                    ]}
+                  >
+                    <Text style={[styles.badgeText, { color: theme.primary }]}>
+                      Premium
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-            ) : null}
+              <Text style={[styles.greeting, { color: theme.text }]}>
+                Welcome back, {firstName}
+              </Text>
+              <Text style={[styles.subtitle, { color: theme.mutedText }]}>
+                Manage your catalog, scheduled releases, and live drops.
+              </Text>
+            </View>
+
+            <Pressable
+              accessibilityHint="Navigates to your career overview and artist profile"
+              accessibilityLabel="View Career Profile"
+              accessibilityRole="button"
+              hitSlop={{ bottom: 8, left: 8, right: 8, top: 8 }}
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/dashboard/career" as never);
+              }}
+              style={({ pressed }) => [
+                styles.headerAvatarBtn,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                  transform: [{ scale: pressed ? 0.94 : 1 }],
+                },
+              ]}
+            >
+              {userAvatarUrl ? (
+                <NativeImage
+                  source={userAvatarUrl}
+                  style={styles.headerAvatarImg}
+                />
+              ) : (
+                <Ionicons color={theme.primary} name="person" size={20} />
+              )}
+            </Pressable>
           </View>
-          <Text style={[styles.greeting, { color: theme.text }]}>
-            Welcome back, {firstName}
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-            Manage your catalog, scheduled releases, and live drops.
-          </Text>
         </View>
 
         {/* 3 Condensed Stat Cards */}
@@ -383,6 +420,7 @@ export default function DashboardHomeScreen() {
         {/* Quick Actions Row */}
         <View style={styles.quickActionsRow}>
           <Pressable
+            hitSlop={{ bottom: 6, left: 6, right: 6, top: 6 }}
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push("/tracks" as never);
@@ -393,6 +431,7 @@ export default function DashboardHomeScreen() {
                 backgroundColor: theme.card,
                 borderColor: theme.border,
                 opacity: pressed ? 0.85 : 1,
+                transform: [{ scale: pressed ? 0.96 : 1 }],
               },
             ]}
           >
@@ -403,6 +442,7 @@ export default function DashboardHomeScreen() {
           </Pressable>
 
           <Pressable
+            hitSlop={{ bottom: 6, left: 6, right: 6, top: 6 }}
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push("/projects" as never);
@@ -413,6 +453,7 @@ export default function DashboardHomeScreen() {
                 backgroundColor: theme.card,
                 borderColor: theme.border,
                 opacity: pressed ? 0.85 : 1,
+                transform: [{ scale: pressed ? 0.96 : 1 }],
               },
             ]}
           >
@@ -423,6 +464,7 @@ export default function DashboardHomeScreen() {
           </Pressable>
 
           <Pressable
+            hitSlop={{ bottom: 6, left: 6, right: 6, top: 6 }}
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push("/videos" as never);
@@ -433,6 +475,7 @@ export default function DashboardHomeScreen() {
                 backgroundColor: theme.card,
                 borderColor: theme.border,
                 opacity: pressed ? 0.85 : 1,
+                transform: [{ scale: pressed ? 0.96 : 1 }],
               },
             ]}
           >
@@ -449,6 +492,7 @@ export default function DashboardHomeScreen() {
             ]}
           >
             <Pressable
+              hitSlop={{ bottom: 6, left: 6, right: 6, top: 6 }}
               onPress={() => {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setBioModalVisible(true);
@@ -459,6 +503,7 @@ export default function DashboardHomeScreen() {
                   backgroundColor: theme.card,
                   borderColor: theme.border,
                   opacity: pressed ? 0.85 : 1,
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
                 },
               ]}
             >
@@ -842,6 +887,25 @@ const styles = StyleSheet.create({
   },
   headerArea: {
     gap: 4,
+  },
+  headerAvatarBtn: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1.5,
+    height: 42,
+    justifyContent: "center",
+    overflow: "hidden",
+    width: 42,
+  },
+  headerAvatarImg: {
+    borderRadius: 999,
+    height: 42,
+    width: 42,
+  },
+  headerTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   modalBackdrop: {
     alignItems: "center",
