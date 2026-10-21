@@ -251,8 +251,12 @@ export default function CareerOverviewScreen() {
       [tracks.data]
     ),
     topTrackTitle = useMemo(() => {
-      const apiTrack = analyticsTracksQuery.data?.tracks?.[0];
-      const catalogTrack = tracks.data?.[0];
+      const [apiTrack] = (analyticsTracksQuery.data?.tracks ?? []).toSorted(
+        (a, b) => b.plays - a.plays
+      );
+      const [catalogTrack] = (tracks.data ?? []).toSorted(
+        (a, b) => (b.plays || 0) - (a.plays || 0)
+      );
       return apiTrack?.title ?? catalogTrack?.title ?? "Upload Tracks";
     }, [analyticsTracksQuery.data, tracks.data]),
     playsValue = useMemo(() => {
@@ -325,20 +329,22 @@ export default function CareerOverviewScreen() {
             ];
       const streamsTotal = timeseriesQuery.data?.total ?? totalPlays;
 
-      // 2. Top Tracks
-      const apiTracks = analyticsTracksQuery.data?.tracks ?? [];
-      const catalogTracks = tracks.data ?? [];
-      const topTracksData: ChartDataPoint[] =
-        apiTracks.length > 0
-          ? apiTracks.slice(0, 5).map((t) => ({
-              label: t.title,
-              value: t.plays,
-            }))
-          : catalogTracks.slice(0, 5).map((t) => ({
-              label: t.title,
-              value: t.plays || 0,
-            }));
-      const topTrack = apiTracks[0] ?? catalogTracks[0];
+      // 2. Top Tracks (ranked by plays descending)
+      const sortedApiTracks = (
+        analyticsTracksQuery.data?.tracks ?? []
+      ).toSorted((a, b) => b.plays - a.plays);
+      const sortedCatalogTracks = (tracks.data ?? []).toSorted(
+        (a, b) => (b.plays || 0) - (a.plays || 0)
+      );
+      const sourceTracks =
+        sortedApiTracks.length > 0 ? sortedApiTracks : sortedCatalogTracks;
+      const topTracksData: ChartDataPoint[] = sourceTracks
+        .slice(0, 5)
+        .map((t) => ({
+          label: t.title,
+          value: t.plays || 0,
+        }));
+      const [topTrack] = sourceTracks;
       const topName = topTrack?.title ?? "No tracks yet";
       const topPlays =
         topTrack && "plays" in topTrack ? topTrack.plays || 0 : 0;
@@ -400,7 +406,7 @@ export default function CareerOverviewScreen() {
           valueLabel:
             topPlays > 0
               ? `${topPlays.toLocaleString()} Plays`
-              : `${catalogTracks.length} Releases`,
+              : `${sortedCatalogTracks.length} Releases`,
         },
         {
           badge: `${retRate}% Retention`,
@@ -581,6 +587,15 @@ export default function CareerOverviewScreen() {
             </View>
           </View>
 
+          {/* 3 Condensed Stat Cards */}
+          <StatsGrid
+            cardStyle={{
+              backgroundColor: colorScheme === "dark" ? "#0F0F0F" : "#F7F6F3",
+              borderColor: theme.border,
+            }}
+            stats={stats}
+          />
+
           {/* Profile CTA buttons */}
           <View style={styles.profileActions}>
             <Pressable
@@ -658,11 +673,6 @@ export default function CareerOverviewScreen() {
               <Ionicons color={theme.text} name="settings-outline" size={16} />
             </Pressable>
           </View>
-        </View>
-
-        {/* 3 Condensed Stat Cards */}
-        <View style={styles.statsSection}>
-          <StatsGrid stats={stats} />
         </View>
 
         {/* Sections in order: Analytics, Finance, Store, Ads, Workspace */}
@@ -1021,9 +1031,6 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: "center",
     width: 40,
-  },
-  statsSection: {
-    marginBottom: 20,
   },
   chartContainer: {
     marginBottom: 16,

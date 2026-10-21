@@ -194,10 +194,10 @@ export function StatChartCard({
       return (
         <View style={styles.rankedListContainer}>
           {data.slice(0, 5).map((point, index) => {
-            const pct = Math.max(
-              Math.round((point.value / maxValue) * 100),
-              index === 0 ? 80 : 15
-            );
+            const pct =
+              maxValue > 0
+                ? Math.max(Math.round((point.value / maxValue) * 100), 6)
+                : 6;
             return (
               <View
                 key={`${currentTab.id}-rank-${point.label}-${index}`}

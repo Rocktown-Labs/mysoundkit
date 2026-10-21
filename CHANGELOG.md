@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Fixed Top Tracks rankings in artist analytics to strictly sort tracks by plays descending (`#458`):
+  - Fixed `/v1/analytics/tracks` endpoint and mobile career analytics to sort tracks by play count descending (`toSorted((a, b) => b.plays - a.plays)`), ensuring #1 accurately reflects the most streamed track with proportional horizontal bar widths.
 - Fixed duplicate React key warnings in mobile dashboard charts by generating composite unique keys (`${currentTab.id}-${point.label}-${index}`) across all chart series (`#458`).
 - Fixed mobile artist dashboard Music screen layout and aspect ratio distortions (`#458`):
   - Fixed `FramelessCard` (`apps/native/components/dashboard/frameless-card.tsx`) unconstrained child image dimensions where `NativeImage` with `height: "100%"` inside horizontal scroll lists stretched vertically across the full viewport, adding an explicit container wrapper with fixed `height: cardHeight`, configurable `aspectRatio` (1:1 for tracks/projects, 16:9 for videos), and `overflow: "hidden"`.

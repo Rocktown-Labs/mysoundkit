@@ -3,6 +3,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import type { StyleProp, ViewStyle } from "react-native";
 
 import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -15,9 +16,11 @@ export interface DashboardStat {
 }
 
 function StatCard({
+  cardStyle,
   compact = false,
   stat,
 }: {
+  cardStyle?: StyleProp<ViewStyle>;
   compact?: boolean;
   stat: DashboardStat;
 }): ReactNode {
@@ -30,6 +33,7 @@ function StatCard({
         styles.card,
         compact ? styles.compactCard : null,
         { backgroundColor: theme.card, borderColor: theme.border },
+        cardStyle,
       ]}
     >
       <View style={styles.header}>
@@ -76,12 +80,23 @@ function StatCard({
 }
 
 /** 3-in-a-row or 2x2 stat cards, flexible for mobile dashboard screens. */
-export function StatsGrid({ stats }: { stats: DashboardStat[] }) {
+export function StatsGrid({
+  cardStyle,
+  stats,
+}: {
+  cardStyle?: StyleProp<ViewStyle>;
+  stats: DashboardStat[];
+}) {
   if (stats.length <= 3) {
     return (
       <View style={styles.threeRow}>
         {stats.map((stat) => (
-          <StatCard compact={stats.length === 3} key={stat.title} stat={stat} />
+          <StatCard
+            cardStyle={cardStyle}
+            compact={stats.length === 3}
+            key={stat.title}
+            stat={stat}
+          />
         ))}
       </View>
     );
@@ -97,7 +112,7 @@ export function StatsGrid({ stats }: { stats: DashboardStat[] }) {
       {rows.map((row) => (
         <View key={row.map((stat) => stat.title).join("-")} style={styles.row}>
           {row.map((stat) => (
-            <StatCard key={stat.title} stat={stat} />
+            <StatCard cardStyle={cardStyle} key={stat.title} stat={stat} />
           ))}
         </View>
       ))}

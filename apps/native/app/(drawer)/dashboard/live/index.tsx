@@ -344,6 +344,11 @@ export default function LiveOverviewScreen() {
           title="Live"
         />
 
+        {/* 3 Condensed Stat Cards */}
+        <View style={styles.statsSection}>
+          <StatsGrid stats={stats} />
+        </View>
+
         {/* Quick Action Buttons */}
         <View style={styles.quickActionsRow}>
           <Pressable
@@ -404,11 +409,6 @@ export default function LiveOverviewScreen() {
               Host Party
             </Text>
           </Pressable>
-        </View>
-
-        {/* 3 Condensed Stat Cards */}
-        <View style={styles.statsSection}>
-          <StatsGrid stats={stats} />
         </View>
 
         {/* Horizontally Scrolling Feature Rails */}
@@ -681,7 +681,7 @@ const styles = StyleSheet.create({
   quickActionsRow: {
     flexDirection: "row",
     gap: 8,
-    marginBottom: 20,
+    marginBottom: 24,
   },
   railCard: {
     borderRadius: 16,
@@ -719,7 +719,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   statsSection: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   statusBadge: {
     alignItems: "center",
