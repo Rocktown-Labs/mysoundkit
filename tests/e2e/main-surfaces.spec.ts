@@ -189,42 +189,25 @@ test.describe("main application surfaces", () => {
     await gotoWithViteRetry(page, "/pricing");
     await expect(page.getByText(/Premium|artist|fan/i).first()).toBeVisible();
 
+    // Signup is credentials-first: the role chooser only appears after a
+    // visitor creates credentials, so an anonymous /signup shows the form.
     await gotoWithViteRetry(page, "/signup");
     await expect(
       page.getByRole("heading", { name: /join soundkit/i })
     ).toBeVisible();
-    await expect(page.getByText("I'm a Fan")).toBeVisible();
-
-    const artistLink = page.getByRole("link", {
-      name: /continue as artist|i'm an artist/i,
-    });
-    await artistLink.scrollIntoViewIfNeeded();
-    await artistLink.click();
-    await expect(page).toHaveURL(/\/signup\/artist\/credentials$/);
-    await expect(
-      page.getByRole("heading", { name: /create artist account/i })
-    ).toBeVisible();
-
-    await gotoWithViteRetry(page, "/signup");
-    await expect(
-      page.getByRole("heading", { name: /join soundkit/i })
-    ).toBeVisible();
-    await expect(page.getByText("I'm a Fan")).toBeVisible();
-    const fanLink = page.getByRole("link", {
-      name: /continue as fan|i'm a fan/i,
-    });
-    await fanLink.scrollIntoViewIfNeeded();
-    await fanLink.click();
-    await expect(page).toHaveURL(/\/signup\/fan\/credentials$/);
-    await expect(
-      page.getByRole("heading", { name: /create fan account/i })
-    ).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Email" })).toBeVisible();
+    await expect(page.getByText("I'm a Fan")).toBeHidden();
 
     await gotoWithViteRetry(page, "/signup/artist/credentials");
     await expect(
       page.getByRole("heading", { name: /create artist account/i })
     ).toBeVisible();
     await expect(page.getByText("I'm an Artist")).toBeHidden();
+
+    await gotoWithViteRetry(page, "/signup/fan/credentials");
+    await expect(
+      page.getByRole("heading", { name: /create fan account/i })
+    ).toBeVisible();
   });
 
   test("Explore keeps rails contained and applies real map scopes", async ({
@@ -1620,7 +1603,9 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: /join soundkit/i })
     ).toBeVisible();
 
-    await page.getByRole("link", { name: /continue as artist/i }).click();
+    await expect(page.getByRole("textbox", { name: "Email" })).toBeVisible();
+
+    await page.goto("/signup/artist/credentials");
     await expect(
       page.getByRole("heading", { name: /create artist account/i })
     ).toBeVisible();
