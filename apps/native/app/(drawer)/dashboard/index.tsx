@@ -1,13 +1,15 @@
-/* oxlint-disable one-var, sort-vars, complexity, react/purity */
-/* eslint-disable one-var, sort-vars, complexity, react/purity */
+/* oxlint-disable one-var, sort-vars, complexity, react/purity, react-hooks/refs */
+/* eslint-disable one-var, sort-vars, complexity, react/purity, react-hooks/refs */
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { router, Stack } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Modal,
   Pressable,
   ScrollView,
   Share,
@@ -212,6 +214,27 @@ export default function DashboardHomeScreen() {
     tracksQuery = useDashboardTracksQuery(signedIn),
     projectsQuery = useDashboardProjectsQuery(signedIn),
     [bioDismissed, setBioDismissed] = useState(true),
+    [bioModalVisible, setBioModalVisible] = useState(false),
+    shareButtonScale = useRef(new Animated.Value(1)).current,
+    animateShareButtonPop = () => {
+      Animated.sequence([
+        Animated.timing(shareButtonScale, {
+          duration: 160,
+          toValue: 1.25,
+          useNativeDriver: true,
+        }),
+        Animated.spring(shareButtonScale, {
+          friction: 4,
+          tension: 100,
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    },
+    handleCloseBioModal = () => {
+      setBioModalVisible(false);
+      animateShareButtonPop();
+    },
     tracks = tracksQuery.data ?? [],
     projects = projectsQuery.data ?? [],
     user = meQuery.data?.user,
@@ -330,7 +353,7 @@ export default function DashboardHomeScreen() {
                 ]}
               >
                 <Text style={[styles.badgeText, { color: theme.primary }]}>
-                  Pro
+                  Premium
                 </Text>
               </View>
             ) : null}
@@ -362,7 +385,7 @@ export default function DashboardHomeScreen() {
           <Pressable
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push("/dashboard/music/tracks/new" as never);
+              router.push("/tracks" as never);
             }}
             style={({ pressed }) => [
               styles.quickActionPill,
@@ -375,14 +398,14 @@ export default function DashboardHomeScreen() {
           >
             <Ionicons color={theme.primary} name="musical-notes" size={13} />
             <Text style={[styles.quickActionText, { color: theme.text }]}>
-              Track
+              Tracks
             </Text>
           </Pressable>
 
           <Pressable
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push("/dashboard/music/projects/new" as never);
+              router.push("/projects" as never);
             }}
             style={({ pressed }) => [
               styles.quickActionPill,
@@ -395,14 +418,14 @@ export default function DashboardHomeScreen() {
           >
             <Ionicons color={theme.primary} name="albums" size={13} />
             <Text style={[styles.quickActionText, { color: theme.text }]}>
-              Project
+              Projects
             </Text>
           </Pressable>
 
           <Pressable
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push("/dashboard/live/streams" as never);
+              router.push("/videos" as never);
             }}
             style={({ pressed }) => [
               styles.quickActionPill,
@@ -413,40 +436,42 @@ export default function DashboardHomeScreen() {
               },
             ]}
           >
-            <Ionicons color={theme.primary} name="radio" size={13} />
+            <Ionicons color={theme.primary} name="videocam" size={13} />
             <Text style={[styles.quickActionText, { color: theme.text }]}>
-              Go Live
+              Videos
             </Text>
           </Pressable>
 
-          <Pressable
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push("/dashboard/create" as never);
-            }}
-            style={({ pressed }) => [
-              styles.quickActionPill,
-              {
-                backgroundColor: theme.primary,
-                borderColor: theme.primary,
-                opacity: pressed ? 0.85 : 1,
-              },
+          <Animated.View
+            style={[
+              styles.shareButtonWrapper,
+              { transform: [{ scale: shareButtonScale }] },
             ]}
           >
-            <Ionicons
-              color={theme.primaryForeground}
-              name="add-circle"
-              size={13}
-            />
-            <Text
-              style={[
-                styles.quickActionText,
-                { color: theme.primaryForeground },
+            <Pressable
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setBioModalVisible(true);
+              }}
+              style={({ pressed }) => [
+                styles.quickActionPill,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                  opacity: pressed ? 0.85 : 1,
+                },
               ]}
             >
-              Create
-            </Text>
-          </Pressable>
+              <Ionicons
+                color={theme.primary}
+                name="share-social-outline"
+                size={13}
+              />
+              <Text style={[styles.quickActionText, { color: theme.text }]}>
+                Share
+              </Text>
+            </Pressable>
+          </Animated.View>
         </View>
 
         {/* Rail 1: Recent Releases */}
@@ -578,6 +603,103 @@ export default function DashboardHomeScreen() {
           </NativeSection>
         </View>
       </ScrollView>
+
+      {/* SoundKit Bio Link Modal */}
+      <Modal
+        animationType="fade"
+        onRequestClose={handleCloseBioModal}
+        transparent
+        visible={bioModalVisible}
+      >
+        <Pressable
+          accessibilityLabel="Close bio modal backdrop"
+          onPress={handleCloseBioModal}
+          style={styles.modalBackdrop}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              styles.modalCard,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.bioTitle, { color: theme.text }]}>
+                  Official Bio Link
+                </Text>
+                <Text style={[styles.bioSubtitle, { color: theme.mutedText }]}>
+                  Add this link to your Instagram, TikTok, and X bios.
+                </Text>
+              </View>
+              <Pressable
+                accessibilityLabel="Close modal"
+                accessibilityRole="button"
+                hitSlop={12}
+                onPress={handleCloseBioModal}
+                style={styles.dismissBtn}
+              >
+                <Ionicons color={theme.mutedText} name="close" size={18} />
+              </Pressable>
+            </View>
+
+            <View style={styles.bioActionRow}>
+              <Pressable
+                onPress={async () => {
+                  const bioUrl = `https://soundkit.bio/${encodeURIComponent(user?.username ?? "")}`;
+                  await Clipboard.setStringAsync(bioUrl);
+                  void Haptics.notificationAsync(
+                    Haptics.NotificationFeedbackType.Success
+                  );
+                }}
+                style={({ pressed }) => [
+                  styles.bioUrlPill,
+                  {
+                    backgroundColor: theme.background,
+                    borderColor: theme.border,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <Ionicons color={theme.primary} name="copy-outline" size={13} />
+                <Text
+                  numberOfLines={1}
+                  style={[styles.bioUrlText, { color: theme.text }]}
+                >
+                  soundkit.bio/{user?.username ?? "artist"}
+                </Text>
+                <Text style={[styles.bioCopyBadge, { color: theme.primary }]}>
+                  Copy
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  const bioUrl = `https://soundkit.bio/${encodeURIComponent(user?.username ?? "")}`;
+                  void Share.share({
+                    message: `Check out my SoundKit: ${bioUrl}`,
+                    url: bioUrl,
+                  });
+                }}
+                style={({ pressed }) => [
+                  styles.bioShareBtn,
+                  {
+                    backgroundColor: theme.background,
+                    borderColor: theme.border,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <Ionicons
+                  color={theme.text}
+                  name="share-social-outline"
+                  size={15}
+                />
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Container>
   );
 }
@@ -721,6 +843,26 @@ const styles = StyleSheet.create({
   headerArea: {
     gap: 4,
   },
+  modalBackdrop: {
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    flex: 1,
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 14,
+    maxWidth: 420,
+    padding: 20,
+    width: "100%",
+  },
+  modalHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
   primaryBtn: {
     alignItems: "center",
     borderRadius: 12,
@@ -750,6 +892,9 @@ const styles = StyleSheet.create({
   },
   railsContainer: {
     gap: 28,
+  },
+  shareButtonWrapper: {
+    flex: 1,
   },
   signInCard: {
     borderRadius: 16,

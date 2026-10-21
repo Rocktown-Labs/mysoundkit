@@ -114,7 +114,15 @@ const artistGet = apiClient.v1.artists[":username"].$get,
   analyticsAudienceGet = apiClient.v1.analytics.audience.$get,
   analyticsEarningsGet = apiClient.v1.analytics.earnings.$get,
   merchPhysicalReleasesGet = apiClient.v1.merch["physical-releases"].$get,
-  merchDesignsGet = apiClient.v1.merch.designs.$get;
+  merchDesignsGet = apiClient.v1.merch.designs.$get,
+  conversationsGet = apiClient.v1.messages.conversations.$get,
+  conversationMessagesGet =
+    apiClient.v1.messages.conversations[":conversationId"].messages.$get,
+  conversationMessagesPost =
+    apiClient.v1.messages.conversations[":conversationId"].messages.$post,
+  conversationReadPost =
+    apiClient.v1.messages.conversations[":conversationId"].read.$post,
+  friendsGet = apiClient.v1.messages.friends.$get;
 
 // ---------------------------------------------------------------------------
 // Types (inferred from the canonical Hono RPC contract)
@@ -1391,4 +1399,101 @@ export const useCommunitiesQuery = (
     queryFn: async () =>
       rpcJson(await communitiesGet({ query })) as Promise<CommunitySummary[]>,
     queryKey: ["communities", query],
+  });
+
+export type ConversationSummary = InferResponseType<
+  typeof conversationsGet,
+  200
+>[number];
+export type MessageSummary = InferResponseType<
+  typeof conversationMessagesGet,
+  200
+>[number];
+export type FriendSummary = InferResponseType<typeof friendsGet, 200>[number];
+
+export const useConversationsQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      rpcJson(await conversationsGet()) as Promise<ConversationSummary[]>,
+    queryKey: ["messages", "conversations"],
+    refetchInterval: 10_000,
+  });
+
+export const useConversationMessagesQuery = (
+  conversationId: string,
+  enabled = true
+) =>
+  useQuery({
+    enabled: enabled && Boolean(conversationId),
+    queryFn: async () =>
+      rpcJson(
+        await conversationMessagesGet({
+          param: { conversationId },
+        })
+      ) as Promise<MessageSummary[]>,
+    queryKey: ["messages", "conversation", conversationId],
+    refetchInterval: 5000,
+  });
+
+export const useSendMessageMutation = (conversationId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      attachments = [],
+      body,
+    }: {
+      attachments?: {
+        displayName: string;
+        mimeType?: string;
+        sourceProjectId?: string;
+        sourceTrackId?: string;
+        url: string;
+      }[];
+      body: string;
+    }) =>
+      rpcJson(
+        await conversationMessagesPost({
+          json: { attachments, body },
+          param: { conversationId },
+        })
+      ) as Promise<MessageSummary>,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["messages", "conversation", conversationId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["messages", "conversations"],
+        }),
+      ]);
+    },
+  });
+};
+
+export const useMarkConversationReadMutation = (conversationId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () =>
+      rpcJson(
+        await conversationReadPost({
+          param: { conversationId },
+        })
+      ) as Promise<{ readAt: string; success: boolean }>,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["messages", "conversations"],
+      });
+    },
+  });
+};
+
+export const useFriendsQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      rpcJson(await friendsGet()) as Promise<FriendSummary[]>,
+    queryKey: ["messages", "friends"],
   });

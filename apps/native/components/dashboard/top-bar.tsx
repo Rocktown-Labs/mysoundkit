@@ -31,71 +31,65 @@ export function DashboardTopBar({
 
   return (
     <View style={styles.container}>
-      {/* Top action row */}
-      {showExit || onOpenJumpMenu ? (
-        <View
-          style={[
-            styles.actionRow,
-            showExit ? null : { justifyContent: "flex-end" },
-          ]}
-        >
-          {showExit ? (
-            <Pressable
-              accessibilityLabel="Exit to SoundKit"
-              accessibilityRole="button"
-              onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.replace("/(drawer)/(tabs)/(discover)" as never);
-              }}
-              style={({ pressed }) => [
-                styles.exitBtn,
-                {
-                  backgroundColor: pressed ? "#1E1E1E" : "#121212",
-                  borderColor: theme.border,
-                },
-              ]}
-            >
-              <Ionicons color={theme.primary} name="arrow-back" size={14} />
-              <Text style={[styles.exitBtnText, { color: theme.text }]}>
-                Exit to SoundKit
-              </Text>
-            </Pressable>
-          ) : null}
-
-          {onOpenJumpMenu ? (
-            <Pressable
-              accessibilityLabel="Jump to section"
-              accessibilityRole="button"
-              onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onOpenJumpMenu();
-              }}
-              style={({ pressed }) => [
-                styles.jumpBtn,
-                {
-                  backgroundColor: pressed ? "#222222" : "#141414",
-                  borderColor: theme.border,
-                },
-              ]}
-            >
-              <Ionicons color={theme.primary} name="apps-outline" size={15} />
-              <Text style={[styles.jumpBtnText, { color: theme.primary }]}>
-                Jump to Section
-              </Text>
-            </Pressable>
-          ) : null}
+      {/* Optional top exit row */}
+      {showExit ? (
+        <View style={styles.actionRow}>
+          <Pressable
+            accessibilityLabel="Exit to SoundKit"
+            accessibilityRole="button"
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.replace("/(drawer)/(tabs)/(discover)" as never);
+            }}
+            style={({ pressed }) => [
+              styles.exitBtn,
+              {
+                backgroundColor: pressed ? "#1E1E1E" : "#121212",
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <Ionicons color={theme.primary} name="arrow-back" size={14} />
+            <Text style={[styles.exitBtnText, { color: theme.text }]}>
+              Exit to SoundKit
+            </Text>
+          </Pressable>
         </View>
       ) : null}
 
-      {/* Main Title & Subtitle */}
-      <View style={styles.titleArea}>
+      {/* Main Title Row with Menu Button */}
+      <View style={styles.titleRow}>
         <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
-        {subtitle ? (
-          <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-            {subtitle}
-          </Text>
+        {onOpenJumpMenu ? (
+          <Pressable
+            accessibilityLabel="Menu"
+            accessibilityRole="button"
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onOpenJumpMenu();
+            }}
+            style={({ pressed }) => [
+              styles.jumpBtn,
+              {
+                backgroundColor: pressed ? "#222222" : "#141414",
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <Ionicons color={theme.primary} name="apps-outline" size={15} />
+            <Text style={[styles.jumpBtnText, { color: theme.primary }]}>
+              Menu
+            </Text>
+          </Pressable>
         ) : null}
       </View>
+
+      {/* Subtitle */}
+      {subtitle ? (
+        <Text style={[styles.subtitle, { color: theme.mutedText }]}>
+          {subtitle}
+        </Text>
+      ) : null}
 
       {/* Primary CTA or Custom Action */}
       {ctaLabel && ctaHref ? (
@@ -188,7 +182,9 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: -0.6,
   },
-  titleArea: {
-    gap: 2,
+  titleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
 });

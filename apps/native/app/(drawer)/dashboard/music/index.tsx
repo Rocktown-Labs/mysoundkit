@@ -51,7 +51,7 @@ const MUSIC_ITEMS: DashboardJumpItem[] = [
   },
   {
     description: "Messages from artists, fans, and collaborators",
-    href: "/dashboard/music/messages",
+    href: "/dashboard/messages",
     icon: "chatbubble-ellipses",
     title: "Messages",
   },
@@ -314,60 +314,6 @@ export default function MusicOverviewScreen() {
                 </View>
               ) : null}
             </NativeRail>
-          </NativeSection>
-
-          {/* Catalog Shortcuts */}
-          <NativeSection
-            description="Quick access to all catalog tools"
-            title="Catalog Shortcuts"
-          >
-            <View style={styles.menuGrid}>
-              {MUSIC_ITEMS.map((item) => (
-                <Pressable
-                  key={item.title}
-                  onPress={() => {
-                    router.push(item.href as never);
-                  }}
-                  style={({ pressed }) => [
-                    styles.menuItem,
-                    {
-                      backgroundColor: theme.card,
-                      borderColor: theme.border,
-                      opacity: pressed ? 0.85 : 1,
-                      transform: [{ scale: pressed ? 0.98 : 1 }],
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.iconBadge,
-                      { backgroundColor: "rgba(184, 163, 255, 0.12)" },
-                    ]}
-                  >
-                    <Ionicons
-                      color={theme.primary}
-                      name={item.icon}
-                      size={18}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      numberOfLines={1}
-                      style={[styles.menuTitle, { color: theme.text }]}
-                    >
-                      {item.title}
-                    </Text>
-                    <Text
-                      numberOfLines={1}
-                      style={[styles.menuDesc, { color: theme.mutedText }]}
-                    >
-                      {item.description}
-                    </Text>
-                  </View>
-                  <Ionicons color="#555555" name="chevron-forward" size={14} />
-                </Pressable>
-              ))}
-            </View>
           </NativeSection>
         </View>
       </ScrollView>

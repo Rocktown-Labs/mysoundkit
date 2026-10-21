@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Fixed mobile dashboard tab bar overflow by eliminating the `... More` button in iOS UIKit `UITabBarController`: pinned the 5 primary tabs to `Home`, `Music`, `Career`, `Live`, and `Messages` (`apps/native/app/(drawer)/dashboard/_layout.tsx`), ensuring both `Live` and `Messages` remain directly accessible first-class tabs on the dashboard without an iOS `... More` button (`#458`).
+- Aligned dashboard screen titles and "Menu" jump button on the same horizontal line (`apps/native/components/dashboard/top-bar.tsx`) and renamed the "Jump to Section" pill to "Menu" (`#458`).
+- Removed redundant "Catalog Shortcuts" section from the bottom of the mobile Music overview screen (`apps/native/app/(drawer)/dashboard/music/index.tsx`), streamlining catalog navigation into the top bar Menu modal (`#458`).
+- Updated dashboard home action buttons to `Tracks` (`/tracks`), `Projects` (`/projects`), `Videos` (`/videos`), and `Share` (opens SoundKit Bio modal), and renamed subscription tier badge references from "Pro" to "Premium" (`apps/native/app/(drawer)/dashboard/index.tsx`) (`#458`).
 - Fixed Hermes engine runtime crash (`TypeError: undefined is not a function`) on native Career screen caused by calling ES2023 `Array#toSorted` which Hermes does not natively implement (`#458`):
   - Added synchronous runtime polyfills for `Array.prototype.toSorted` and `Array.prototype.toReversed` in `apps/native/polyfills.js`.
   - Replaced direct `toSorted` calls with safe spread-sort helper `sortByPlays` in `apps/native/app/(drawer)/dashboard/career/index.tsx` and `apps/native/components/library-data-table.tsx`.
@@ -30,6 +34,12 @@
 
 ### Added
 
+- Added Instagram-style Messenger for mobile artist dashboard (`apps/native/app/(drawer)/dashboard/messages/`) (`#458`):
+  - Created thread inbox screen (`index.tsx`) featuring logged-in artist username header with unread indicator dot, search bar with quick query filtering, horizontal "Notes" avatar rail with speech bubbles ("Your note", "Familiar isn't always what's best I suppose..", "Have you voted?"), "Messages" and "Requests" tabs, and conversation list with online indicators and live typing badges (`typing...` with pulsing purple dots).
+  - Created direct message chat screen (`[id].tsx`) featuring back navigation, contact header with "Business chat" subtitle, call & video action buttons, chat bubbles (purple sent bubbles, dark gray received bubbles), video/track collaboration cards, live typing indicator bubble (`● ● ●`), slash commands picker (`/collab`, `/share`, `/help`) with collaboration proposal draft modal, and sticky bottom input bar with camera button, multiline message input, voice mic, photo gallery, sticker, and send actions positioned cleanly above the virtual keyboard.
+  - Added typed query hooks in `apps/native/lib/soundkit-api.ts` for messaging (`useConversationsQuery`, `useConversationMessagesQuery`, `useSendMessageMutation`, `useMarkConversationReadMutation`, `useFriendsQuery`).
+- Added interactive SoundKit Bio Link modal on Dashboard Home screen (`apps/native/app/(drawer)/dashboard/index.tsx`) triggered by the "Share" action pill, with clipboard copy, native system share sheet, and spring pop animation on modal dismissal (`#458`).
+- Added automatic search input focus and virtual keyboard summon on mount for the native Search tab (`apps/native/app/(drawer)/(tabs)/search/index.tsx`) via `useFocusEffect` and `autoFocus` (`#458`).
 - Enhanced mobile artist dashboard charts with purpose-fit visualizers, empty states, and delta context using `react-native-gifted-charts` (`#458`):
   - Upgraded `StatChartCard` (`apps/native/components/dashboard/stat-chart-card.tsx`) with specialized chart rendering modes: smooth curved area sparklines with vertical gradient fills for trending telemetry (Streams Growth, Direct Tips), ranked horizontal bars with rank badges and play counts for category rankings (Top Tracks), 100% split segmented bars for cohort comparisons (Audience Reach: Returning Fans vs. New Listeners; Live Crowd Votes: Your Share vs. Opponents), progress goal meters towards the $10.00 auto-deposit threshold with available balance and Stripe status (Payouts), and segmented W/L/T record bars with recent form history dots (`W`, `L`, `D`) for live arena matchups (Battle Rounds).
   - Added friendly empty states with themed icons and actionable CTA buttons (e.g. "Start First Battle" routing to `/dashboard/live/battles`, "Upload Music" routing to `/dashboard/music`) instead of empty bars when an artist has zero recorded activity.
