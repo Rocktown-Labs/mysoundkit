@@ -1,3 +1,5 @@
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { processStripeEvent } from "./webhooks-stripe";
@@ -77,4 +79,76 @@ describe("Checkout settlement", () => {
     });
     expect(update).not.toHaveBeenCalled();
   });
+
+  it("binds delayed failures to their session and updates only pending states", async () => {
+    const dialect = new PgDialect(),
+      queryParams = (condition: SQL | undefined) => {
+        if (!condition) {
+          throw new Error("Missing state guard");
+        }
+        return dialect.sqlToQuery(condition).params;
+      },
+      selectWhere = vi.fn((_condition: SQL) => ({
+        limit: () => Promise.resolve([{ id: "dummy" }]),
+      })),
+      set = vi.fn(() => ({ where })),
+      where = vi.fn((_condition: SQL) => Promise.resolve([]));
+    select.mockReturnValue({ from: () => ({ where: selectWhere }) });
+    update.mockReturnValue({ set });
+    await processStripeEvent({
+      event: {
+        data: {
+          object: { id: "cs_dummy", metadata: { transactionId: "dummy" } },
+        },
+        type: "checkout.session.async_payment_failed",
+      },
+    });
+    expect(set).toHaveBeenCalledTimes(2);
+    expect(set).toHaveBeenNthCalledWith(1, { status: "failed" });
+    expect(set).toHaveBeenNthCalledWith(2, { status: "failed" });
+    expect(queryParams(selectWhere.mock.calls[0]?.[0])).toEqual([
+      "dummy",
+      "cs_dummy",
+      "pending",
+      "failed",
+    ]);
+    expect(queryParams(where.mock.calls[0]?.[0])).toEqual([
+      "dummy",
+      "cs_dummy",
+      "pending",
+    ]);
+    expect(queryParams(where.mock.calls[1]?.[0])).toEqual([
+      "dummy",
+      "checkout_pending",
+    ]);
+  });
+
+  it("ignores a delayed failure with no matching pending or failed session", async () => {
+    select.mockReturnValue({
+      from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }),
+    });
+    await processStripeEvent({
+      event: {
+        data: {
+          object: { id: "stale-session", metadata: { transactionId: "dummy" } },
+        },
+        type: "checkout.session.async_payment_failed",
+      },
+    });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it.each([{ metadata: { transactionId: "dummy" } }, { id: "cs_dummy" }])(
+    "requires both transaction and session identity for failure events: %j",
+    async (object) => {
+      await processStripeEvent({
+        event: {
+          data: { object },
+          type: "checkout.session.async_payment_failed",
+        },
+      });
+      expect(select).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+    }
+  );
 });

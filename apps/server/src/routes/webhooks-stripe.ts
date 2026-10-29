@@ -17,7 +17,7 @@ import {
   transactions,
 } from "@soundkit/db/schema/payments";
 import { env } from "@soundkit/env/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
@@ -327,6 +327,50 @@ const processConnectAccountEvent = async ({
       object = event.data?.object ?? {},
       transactionId = object.metadata?.transactionId,
       db = createDb();
+
+    if (eventType === "checkout.session.async_payment_failed") {
+      if (!(transactionId && object.id)) {
+        return;
+      }
+      const [pendingTransaction] = await db
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.id, transactionId),
+            eq(transactions.stripeCheckoutSessionId, object.id),
+            or(
+              eq(transactions.status, "pending"),
+              eq(transactions.status, "failed")
+            )
+          )
+        )
+        .limit(1);
+      if (!pendingTransaction) {
+        return;
+      }
+      await db
+        .update(transactions)
+        .set({ status: "failed" })
+        .where(
+          and(
+            eq(transactions.id, transactionId),
+            eq(transactions.stripeCheckoutSessionId, object.id),
+            eq(transactions.status, "pending")
+          )
+        );
+      // Allow retries to finish the order update, without reversing a later success.
+      await db
+        .update(orders)
+        .set({ status: "failed" })
+        .where(
+          and(
+            eq(orders.transactionId, transactionId),
+            eq(orders.status, "checkout_pending")
+          )
+        );
+      return;
+    }
 
     if (
       eventType === "checkout.session.completed" ||

@@ -51,8 +51,14 @@ import {
   respondOpenVerseAccessRequestBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import {
+  claimUploadIntent,
+  completeUploadIntent,
+  UploadIntentConflictError,
+} from "@/lib/upload-intents";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
+import { isAllowedUploadKeyForAssetKind } from "@/routes/uploads";
 
 const app = new OpenAPIHono<AppEnv>(),
   listingIdParams = z.object({ listingId: z.string() }),
@@ -911,9 +917,9 @@ app.openapi(
     const status =
       body.action === "approve"
         ? "approved"
-        : body.action === "decline"
+        : (body.action === "decline"
           ? "declined"
-          : "canceled";
+          : "canceled");
     const [updated] = await db
       .update(openVerseAccessRequests)
       .set({
@@ -1084,6 +1090,59 @@ app.openapi(
       }
     }
 
+    const submissionAssets = [
+      body.audition,
+      body.vocalStem,
+      ...(body.adlibs ? [body.adlibs] : []),
+    ];
+    if (
+      submissionAssets.some(
+        (asset) =>
+          !isAllowedUploadKeyForAssetKind({
+            assetKind: "reference_audio",
+            objectKey: asset.assetObjectKey,
+            userId: user.id,
+          })
+      )
+    ) {
+      return c.json(
+        { message: "Submission uploads must belong to this user." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+    // Reserve every upload before inserting any asset on the listing owner's track.
+    try {
+      for (const asset of submissionAssets) {
+        if (
+          !(await claimUploadIntent({
+            entityId: accessListing.trackId,
+            entityType: "track_asset",
+            objectKey: asset.assetObjectKey,
+            userId: user.id,
+          }))
+        ) {
+          return c.json(
+            {
+              message:
+                "Upload provenance could not be verified. Upload the submission files again.",
+            },
+            HttpStatusCodes.FORBIDDEN
+          );
+        }
+      }
+    } catch (error) {
+      if (error instanceof UploadIntentConflictError) {
+        return c.json(
+          {
+            message:
+              "That upload is already registered elsewhere or belongs to another user.",
+          },
+          HttpStatusCodes.FORBIDDEN
+        );
+      }
+      throw error;
+    }
+
     const createSubmissionAsset = async ({
         asset,
         assetKind,
@@ -1112,6 +1171,14 @@ app.openapi(
             uploaderUserId: user.id,
           })
           .returning({ id: trackAssets.id });
+        if (createdAsset) {
+          await completeUploadIntent({
+            entityId: accessListing.trackId,
+            entityType: "track_asset",
+            objectKey: asset.assetObjectKey,
+            userId: user.id,
+          });
+        }
         return createdAsset?.id ?? null;
       },
       auditionAssetId = await createSubmissionAsset({
