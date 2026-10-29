@@ -27,6 +27,7 @@ import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { capture } from "@/lib/analytics";
 import {
   exploreLocationPhrase,
   exploreRegionSlug,
@@ -230,6 +231,12 @@ function LocalExplorePage() {
         localStorage.setItem("exploreRegion", slug);
         localStorage.setItem("exploreRegionType", newRegionType);
       }
+      capture("region_selected", {
+        has_region: Boolean(slug),
+        region: slug ?? "all",
+        region_type: newRegionType,
+        scope: newMapScope,
+      });
       navigate({
         replace: true,
         search: (prev) => ({

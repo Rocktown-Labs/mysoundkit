@@ -86,15 +86,61 @@ export const loadAnalytics = () => {
   });
 };
 
+declare global {
+  interface Window {
+    traks?: (
+      name: string,
+      props?: Record<string, string | number | boolean>,
+      value?: number
+    ) => void;
+  }
+}
+
 export const capture = (
   event: string,
-  properties?: Record<string, unknown>
+  properties?: Record<string, unknown>,
+  value?: number
 ) => {
   if (client) {
     client.capture(event, properties);
-    return;
+  } else {
+    enqueueOperation({ event, kind: "capture", properties });
   }
-  enqueueOperation({ event, kind: "capture", properties });
+
+  // Traks analytics: privacy-first, cookieless, flat scalar props
+  if (typeof window !== "undefined" && typeof window.traks === "function") {
+    const flatProps: Record<string, string | number | boolean> = {};
+    let numericValue = value;
+    if (properties) {
+      for (const [key, propVal] of Object.entries(properties)) {
+        if (
+          key === "value" &&
+          typeof propVal === "number" &&
+          Number.isFinite(propVal) &&
+          numericValue === undefined
+        ) {
+          numericValue = propVal;
+        } else if (
+          typeof propVal === "string" ||
+          (typeof propVal === "number" && Number.isFinite(propVal)) ||
+          typeof propVal === "boolean"
+        ) {
+          flatProps[key] = propVal;
+        }
+      }
+    }
+    try {
+      window.traks(
+        event,
+        flatProps,
+        typeof numericValue === "number" && Number.isFinite(numericValue)
+          ? numericValue
+          : undefined
+      );
+    } catch {
+      // Optional telemetry must never interrupt the action being measured.
+    }
+  }
 };
 
 export const captureAnalyticsException = (error: unknown) => {

@@ -1,3 +1,4 @@
+import { capture } from "./analytics";
 /* eslint-disable one-var, sort-vars, no-nested-ternary */
 import { mapScopes } from "./map-scopes";
 import type { MapScope } from "./map-scopes";
@@ -148,7 +149,9 @@ export async function withGlobalRegionFallback<T>(
 ): Promise<T[]> {
   const items = await fetchRegional();
   if (items.length === 0 && region !== undefined && region !== "all") {
-    return fetchGlobal();
+    const globalItems = await fetchGlobal();
+    capture("region_fallback_served", { requested_region: region });
+    return globalItems;
   }
   return items;
 }
