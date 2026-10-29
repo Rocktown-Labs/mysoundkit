@@ -32,7 +32,7 @@ export function GoogleAuthButton({
   if (capabilityQuery.isLoading) {
     return (
       <Button
-        className="h-[46px] w-full rounded-[10px] border-[#27272A] bg-[#050507] text-[#FAFAFA]"
+        className="h-[46px] w-full rounded-[10px] border-[#27272A] bg-[#050507] dark:bg-[#050507] text-[#FAFAFA]"
         disabled
         variant="outline"
       >
@@ -48,7 +48,7 @@ export function GoogleAuthButton({
 
   return (
     <Button
-      className="h-[46px] w-full rounded-[10px] border-[#27272A] bg-[#050507] text-sm font-semibold text-[#FAFAFA] hover:bg-[#18181B]"
+      className="h-[46px] w-full rounded-[10px] border-[#27272A] bg-[#050507] dark:bg-[#050507] text-sm font-semibold text-[#FAFAFA] hover:bg-[#18181B] dark:hover:bg-[#18181B]"
       onClick={() => {
         capture("signup_method_selected", {
           account_type: accountType,

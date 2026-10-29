@@ -173,7 +173,7 @@ export function CredentialsForm({
             </Label>
             <Input
               autoComplete="email"
-              className="h-[46px] rounded-[10px] border-[#27272A] bg-[#050507] px-3.5 text-[15px] placeholder:text-[#71717A] focus-visible:border-[#B8A3FF] focus-visible:ring-[#B8A3FF]/30"
+              className="h-[46px] rounded-[10px] border-[#27272A] bg-[#050507] dark:bg-[#050507] px-3.5 text-[15px] placeholder:text-[#71717A] focus-visible:border-[#B8A3FF] focus-visible:ring-[#B8A3FF]/30"
               id={`${mode}-email`}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
