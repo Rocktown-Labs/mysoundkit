@@ -1,6 +1,6 @@
 /* eslint-disable one-var, sort-vars */
 import type { LucideIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ArtistCard } from "@/components/explore/artist-card";
 import { BattleFilters } from "@/components/explore/battle-filters";
@@ -33,24 +33,30 @@ export function ArtistListPage({
   icon?: LucideIcon;
   title: string;
 }) {
-  const savedRegionType =
-      typeof window === "undefined"
-        ? null
-        : (localStorage.getItem("exploreRegionType") as
-            | "north-america"
-            | "global"
-            | null),
-    savedRegion =
-      typeof window === "undefined"
-        ? null
-        : localStorage.getItem("exploreRegion"),
-    [regionType, setRegionType] = useState<"north-america" | "global">(
-      savedRegionType ?? "global"
+  const [regionType, setRegionType] = useState<"north-america" | "global">(
+      "global"
     ),
-    [region, setRegion] = useState(savedRegion ?? "all"),
+    [region, setRegion] = useState("all"),
     [genre, setGenre] = useState("all"),
-    [sort, setSort] = useState("rank-asc"),
-    { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+    [sort, setSort] = useState("rank-asc");
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const savedType = localStorage.getItem("exploreRegionType") as
+      | "north-america"
+      | "global"
+      | null;
+    const savedReg = localStorage.getItem("exploreRegion");
+    if (savedType) {
+      setRegionType(savedType);
+    }
+    if (savedReg) {
+      setRegion(savedReg);
+    }
+  }, []);
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
       useArtistsInfiniteQuery({
         category,
         genre,

@@ -1664,7 +1664,7 @@ export const useArtistsInfiniteQuery = (query: ArtistRankingQuery = {}) => {
     initialPageParam: 1,
     queryFn: ({ pageParam = 1 }) =>
       withGlobalRegionFallback(
-        pageParam === 1 ? query.region : undefined,
+        query.region,
         async () =>
           rpcJson(
             await artistsGet({
@@ -1820,7 +1820,7 @@ export const useTracksInfiniteQuery = (query: PublicExploreQuery = {}) => {
     initialPageParam: 1,
     queryFn: ({ pageParam = 1 }) =>
       withGlobalRegionFallback(
-        pageParam === 1 ? query.region : undefined,
+        query.region,
         async () =>
           rpcJson(
             await tracksGet({
@@ -3179,7 +3179,7 @@ export const useVideosInfiniteQuery = (query: PublicExploreQuery = {}) => {
     initialPageParam: 1,
     queryFn: ({ pageParam = 1 }) =>
       withGlobalRegionFallback(
-        pageParam === 1 ? query.region : undefined,
+        query.region,
         async () =>
           rpcJson(
             await videosGet({

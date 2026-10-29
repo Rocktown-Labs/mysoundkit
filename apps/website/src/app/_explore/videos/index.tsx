@@ -76,12 +76,7 @@ function VideosPage() {
       const nextRegionType = next.regionType ?? regionType,
         nextRegion =
           next.region ??
-          (next.regionType === "global" && regionType !== "global"
-            ? "all"
-            : next.regionType === "north-america" &&
-                regionType !== "north-america"
-              ? (savedRegion ?? "all")
-              : region);
+          (next.regionType && next.regionType !== regionType ? "all" : region);
       if (typeof window !== "undefined") {
         localStorage.setItem("exploreRegionType", nextRegionType);
         localStorage.setItem("exploreRegion", nextRegion);
