@@ -47,9 +47,23 @@ export const Route = createFileRoute("/_explore/tracks/")({
 function TracksPage() {
   const search = Route.useSearch(),
     navigate = Route.useNavigate(),
-    regionType = search.regionType ?? "north-america",
+    savedRegionType =
+      typeof window === "undefined"
+        ? null
+        : (localStorage.getItem("exploreRegionType") as
+            | "north-america"
+            | "global"
+            | null),
+    savedRegion =
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem("exploreRegion"),
+    regionType = search.regionType ?? savedRegionType ?? "global",
     region =
-      search.region ?? (search.regionType === "global" ? "all" : "us-arkansas"),
+      search.region ??
+      (search.regionType === "global"
+        ? "all"
+        : (savedRegion ?? (regionType === "global" ? "all" : "all"))),
     genre = search.genre ?? "all",
     q = search.q ?? "",
     sort = search.sort ?? "plays-desc",
@@ -64,7 +78,7 @@ function TracksPage() {
             ? "all"
             : next.regionType === "north-america" &&
                 regionType !== "north-america"
-              ? "us-arkansas"
+              ? (savedRegion ?? "all")
               : region);
       if (typeof window !== "undefined") {
         localStorage.setItem("exploreRegionType", nextRegionType);

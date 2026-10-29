@@ -58,12 +58,12 @@ function VideosPage() {
       typeof window === "undefined"
         ? null
         : localStorage.getItem("exploreRegion"),
-    regionType = search.regionType ?? savedRegionType ?? "north-america",
+    regionType = search.regionType ?? savedRegionType ?? "global",
     region =
       search.region ??
       (search.regionType === "global"
         ? "all"
-        : (savedRegion ?? (regionType === "global" ? "all" : "us-arkansas"))),
+        : (savedRegion ?? (regionType === "global" ? "all" : "all"))),
     genre = search.genre ?? "all",
     sort = search.sort ?? "views-desc",
     view = search.view ?? "sections",
@@ -77,7 +77,7 @@ function VideosPage() {
             ? "all"
             : next.regionType === "north-america" &&
                 regionType !== "north-america"
-              ? "us-arkansas"
+              ? (savedRegion ?? "all")
               : region);
       if (typeof window !== "undefined") {
         localStorage.setItem("exploreRegionType", nextRegionType);
@@ -198,8 +198,8 @@ function VideosPage() {
             </div>
           ) : (
             <VideoEmptyState>
-              No videos found for this filter yet. Arkansas is selected by
-              default until this region has more uploads.
+              No videos found for this filter yet. Switch to Global View or be
+              the first to upload visuals.
             </VideoEmptyState>
           )}
         </div>

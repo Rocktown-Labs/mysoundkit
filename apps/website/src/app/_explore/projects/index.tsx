@@ -79,12 +79,12 @@ function ExploreProjectsPage() {
       typeof window === "undefined"
         ? null
         : localStorage.getItem("exploreRegion"),
-    regionType = search.regionType ?? savedRegionType ?? "north-america",
+    regionType = search.regionType ?? savedRegionType ?? "global",
     region =
       search.region ??
       (search.regionType === "global"
         ? "all"
-        : (savedRegion ?? (regionType === "global" ? "all" : "us-arkansas"))),
+        : (savedRegion ?? (regionType === "global" ? "all" : "all"))),
     genre = search.genre ?? "all",
     sort = search.sort ?? "date-desc",
     forSale = search.forSale ?? false,
@@ -102,7 +102,7 @@ function ExploreProjectsPage() {
             ? "all"
             : next.regionType === "north-america" &&
                 regionType !== "north-america"
-              ? "us-arkansas"
+              ? (savedRegion ?? "all")
               : region);
 
       if (typeof window !== "undefined") {

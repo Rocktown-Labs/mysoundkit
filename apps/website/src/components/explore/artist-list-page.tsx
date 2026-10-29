@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars */
 import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -32,10 +33,21 @@ export function ArtistListPage({
   icon?: LucideIcon;
   title: string;
 }) {
-  const [regionType, setRegionType] = useState<"north-america" | "global">(
-      "north-america"
+  const savedRegionType =
+      typeof window === "undefined"
+        ? null
+        : (localStorage.getItem("exploreRegionType") as
+            | "north-america"
+            | "global"
+            | null),
+    savedRegion =
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem("exploreRegion"),
+    [regionType, setRegionType] = useState<"north-america" | "global">(
+      savedRegionType ?? "global"
     ),
-    [region, setRegion] = useState("us-arkansas"),
+    [region, setRegion] = useState(savedRegion ?? "all"),
     [genre, setGenre] = useState("all"),
     [sort, setSort] = useState("rank-asc"),
     { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
@@ -94,9 +106,14 @@ export function ArtistListPage({
           />
         </>
       ) : (
-        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-          No artists found for this filter yet. Arkansas is selected by default
-          while regional data fills in.
+        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground space-y-2">
+          <p className="font-medium text-foreground">
+            No artists found for this filter yet.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Be the first artist from this scene to join, or switch to Global
+            View.
+          </p>
         </div>
       )}
     </div>
