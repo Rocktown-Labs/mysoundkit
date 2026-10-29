@@ -3607,11 +3607,13 @@ app.openapi(
         .select({
           asset: trackAssets,
           track: {
+            deletedAt: tracks.deletedAt,
             downloadsAllowed: tracks.downloadsAllowed,
             downloadsRequireFirstPlay: tracks.downloadsRequireFirstPlay,
             downloadsRequirePurchase: tracks.downloadsRequirePurchase,
             id: tracks.id,
             isForSale: tracks.isForSale,
+            isPublic: tracks.isPublic,
             ownerUserId: tracks.ownerUserId,
             title: tracks.title,
           },
@@ -3646,6 +3648,12 @@ app.openapi(
       });
 
     if (!isOwner) {
+      if ((row.track.deletedAt || !row.track.isPublic) && !hasPurchase) {
+        return c.json(
+          { message: "Track asset not found." },
+          HttpStatusCodes.NOT_FOUND
+        );
+      }
       if (isPrivateSourceAsset) {
         return c.json(
           { message: "This source asset is private to the track owner." },
@@ -3882,7 +3890,13 @@ app.openapi(
       .leftJoin(artistProfiles, eq(artistProfiles.userId, tracks.ownerUserId))
       .leftJoin(authUser, eq(authUser.id, tracks.ownerUserId))
       .leftJoin(genres, eq(genres.id, tracks.genreId))
-      .where(or(eq(tracks.id, trackId), eq(tracks.slug, trackId)))
+      .where(
+        and(
+          or(eq(tracks.id, trackId), eq(tracks.slug, trackId)),
+          eq(tracks.isPublic, true),
+          isNull(tracks.deletedAt)
+        )
+      )
       .limit(1);
 
     if (!row) {

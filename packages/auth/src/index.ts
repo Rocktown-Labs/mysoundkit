@@ -472,6 +472,7 @@ export const createAuth = () => {
         }),
     },
     emailVerification: {
+      sendOnSignUp: true,
       sendVerificationEmail: ({ user, url }) =>
         sendEmailVerificationEmail({
           email: user.email,

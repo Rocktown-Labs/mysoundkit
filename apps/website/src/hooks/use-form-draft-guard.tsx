@@ -87,6 +87,11 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
   // Persist values whenever they change.
   useEffect(() => {
     if (!persist) {
+      try {
+        window.localStorage.removeItem(storageKey);
+      } catch {
+        // Storage may be unavailable; disabled drafts are never restored.
+      }
       return;
     }
     const subscription = form.watch((values) => {
