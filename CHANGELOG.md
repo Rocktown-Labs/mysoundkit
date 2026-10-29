@@ -17,6 +17,10 @@
 
 ## Unreleased
 
+### Changed
+
+- Matched website sign-in and signup credential forms to the native dark auth shell, compact fields, rounded card, and white primary action (#469).
+
 ### Added
 
 - Added seamless global fallback for empty regional exploration on the website (`#465`):

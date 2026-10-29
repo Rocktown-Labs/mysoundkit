@@ -31,7 +31,11 @@ export function GoogleAuthButton({
 
   if (capabilityQuery.isLoading) {
     return (
-      <Button className="h-12 w-full" disabled variant="outline">
+      <Button
+        className="h-[46px] w-full rounded-[10px] border-[#27272A] bg-[#050507] text-[#FAFAFA]"
+        disabled
+        variant="outline"
+      >
         <LoaderCircle className="mr-2 size-4 animate-spin" />
         Checking sign-in options…
       </Button>
@@ -44,7 +48,7 @@ export function GoogleAuthButton({
 
   return (
     <Button
-      className="h-12 w-full border-border bg-background hover:bg-accent"
+      className="h-[46px] w-full rounded-[10px] border-[#27272A] bg-[#050507] text-sm font-semibold text-[#FAFAFA] hover:bg-[#18181B]"
       onClick={() => {
         capture("signup_method_selected", {
           account_type: accountType,
