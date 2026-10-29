@@ -43,7 +43,7 @@ test("an explicit zero value is preserved and non-finite values are omitted", ()
     { invalid: Number.POSITIVE_INFINITY },
     Number.NaN
   );
-  expect(traks).toHaveBeenLastCalledWith("checkout_completed", {});
+  expect(traks.mock.lastCall).toEqual(["checkout_completed", {}, undefined]);
 });
 
 test("tracker exceptions cannot interrupt the measured user action", () => {
