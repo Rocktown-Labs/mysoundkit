@@ -23,6 +23,7 @@
 ### Fixed
 
 - Isolated mocked browser state per retry so a partially completed attempt cannot contaminate the next attempt (#473).
+- Corrected the regional analytics selection flag so clearing a region reports no specific region selected (#471).
 - Counted content playback after preroll and on repeat without counting pauses as new starts; isolated Traks errors from user actions and rejected non-finite event values (#467).
 
 ### Added
