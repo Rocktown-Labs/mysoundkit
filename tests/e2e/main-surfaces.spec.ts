@@ -73,7 +73,7 @@ test.describe("main application surfaces", () => {
       await gotoWithViteRetry(page, "/signup");
       await expect(
         page.getByRole("heading", { name: "Choose Your Path" })
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 60_000 });
       await page
         .getByRole("button", {
           name:

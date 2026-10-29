@@ -19,6 +19,7 @@
 
 ### Fixed
 
+- Prevented the artist onboarding draft from being recreated during logout navigation and allowed cold-start signup chooser hydration to complete in browser tests (#464).
 - Added authenticated artist/fan signup chooser coverage and ran the mocked browser suite on pull requests before merge (#464).
 - Fixed the web browser smoke tests on `master` so `Verify and Deploy` can reach the deploy jobs again: the `main application surfaces` signup assertions expected the pre-#443 single-screen signup, so they now check the credentials-first flow (anonymous `/signup` shows the credentials form; the role chooser appears only after credentials) (#464).
 - Removed decorative icons preceding section headers and page titles across web and mobile explore, library, and dashboard screens (`#456`):
