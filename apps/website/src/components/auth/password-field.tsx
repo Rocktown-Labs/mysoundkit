@@ -25,12 +25,14 @@ export function PasswordField({
   const [visible, setVisible] = useState(false);
 
   return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+    <div className="space-y-1.5">
+      <Label className="text-[13px] font-semibold" htmlFor={id}>
+        {label}
+      </Label>
       <div className="relative">
         <Input
           autoComplete={autoComplete}
-          className="h-12 bg-background pr-12"
+          className="h-[46px] rounded-[10px] border-[#27272A] bg-[#050507] dark:bg-[#050507] pr-12 text-base md:text-[15px] text-[#FAFAFA] placeholder:text-[#71717A] focus-visible:border-[#B8A3FF] focus-visible:ring-[#B8A3FF]/30"
           id={id}
           minLength={minLength}
           onChange={(event) => onChange(event.target.value)}
@@ -41,7 +43,7 @@ export function PasswordField({
         />
         <Button
           aria-label={visible ? "Hide password" : "Show password"}
-          className="absolute right-1 top-1/2 size-10 -translate-y-1/2 text-muted-foreground"
+          className="absolute right-1 top-1/2 size-10 -translate-y-1/2 text-muted-foreground hover:bg-[#18181B] hover:text-[#FAFAFA] dark:hover:text-[#FAFAFA] dark:hover:bg-[#18181B]"
           onClick={() => setVisible((current) => !current)}
           type="button"
           variant="ghost"

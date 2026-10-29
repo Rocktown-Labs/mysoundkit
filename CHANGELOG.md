@@ -17,6 +17,9 @@
 
 ## Unreleased
 
+### Changed
+
+- Matched website sign-in, signup, and password recovery forms to the native dark auth shell, compact fields, rounded card, white primary action, and dark security widget (#469).
 ### Fixed
 
 - Corrected the regional analytics selection flag so clearing a region reports no specific region selected (#471).

@@ -5,13 +5,7 @@ import { useState } from "react";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { PasswordField } from "@/components/auth/password-field";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/reset-password")({
@@ -72,13 +66,12 @@ function ResetPasswordPage() {
       subtitle="Choose a new password for your SoundKit account."
       title="Create a new password"
     >
-      <Card className="border-border/60 bg-card/80 shadow-xl shadow-black/10">
-        <CardHeader>
-          <CardTitle>New password</CardTitle>
-          <CardDescription>Use at least 8 characters.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-5" onSubmit={handleSubmit}>
+      <Card className="gap-5 rounded-2xl border-[#27272A] bg-[#09090B] py-5 text-[#FAFAFA] shadow-none">
+        <CardContent className="px-5">
+          <form className="space-y-3.5" onSubmit={handleSubmit}>
+            <p className="text-sm text-muted-foreground">
+              Use at least 8 characters.
+            </p>
             <PasswordField
               autoComplete="new-password"
               id="reset-password"
@@ -102,7 +95,7 @@ function ResetPasswordPage() {
               </p>
             ) : null}
             <Button
-              className="h-12 w-full"
+              className="h-[46px] w-full rounded-[10px] bg-[#FAFAFA] text-sm font-bold text-[#09090B] hover:bg-white/90"
               disabled={isSubmitting}
               type="submit"
             >
@@ -112,7 +105,7 @@ function ResetPasswordPage() {
           <p className="mt-5 text-center text-sm text-muted-foreground">
             Need a new link?{" "}
             <Link
-              className="text-primary hover:underline"
+              className="font-semibold text-[#B8A3FF] hover:underline"
               to="/forgot-password"
             >
               Start again
