@@ -234,7 +234,6 @@ function ArtistOnboardingPage() {
         if (result.error) {
           throw new Error(result.error.message ?? "Sign out failed.");
         }
-        setHasExited(true);
         capture("onboarding_exited", {
           account_type: "artist",
           exit_action: "log_out",

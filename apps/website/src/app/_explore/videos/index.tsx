@@ -38,7 +38,10 @@ export const Route = createFileRoute("/_explore/videos/")({
           ? search.genre
           : undefined,
     region: typeof search.region === "string" ? search.region : undefined,
-    regionType: search.regionType === "global" ? "global" : "north-america",
+    regionType:
+      search.regionType === "global" || search.regionType === "north-america"
+        ? search.regionType
+        : undefined,
     sort: typeof search.sort === "string" ? search.sort : undefined,
     view: search.view === "all" ? "all" : "sections",
   }),
@@ -58,12 +61,12 @@ function VideosPage() {
       typeof window === "undefined"
         ? null
         : localStorage.getItem("exploreRegion"),
-    regionType = search.regionType ?? savedRegionType ?? "north-america",
+    regionType = search.regionType ?? savedRegionType ?? "global",
     region =
       search.region ??
       (search.regionType === "global"
         ? "all"
-        : (savedRegion ?? (regionType === "global" ? "all" : "us-arkansas"))),
+        : (savedRegion ?? (regionType === "global" ? "all" : "all"))),
     genre = search.genre ?? "all",
     sort = search.sort ?? "views-desc",
     view = search.view ?? "sections",
@@ -73,12 +76,7 @@ function VideosPage() {
       const nextRegionType = next.regionType ?? regionType,
         nextRegion =
           next.region ??
-          (next.regionType === "global" && regionType !== "global"
-            ? "all"
-            : next.regionType === "north-america" &&
-                regionType !== "north-america"
-              ? "us-arkansas"
-              : region);
+          (next.regionType && next.regionType !== regionType ? "all" : region);
       if (typeof window !== "undefined") {
         localStorage.setItem("exploreRegionType", nextRegionType);
         localStorage.setItem("exploreRegion", nextRegion);
@@ -198,8 +196,8 @@ function VideosPage() {
             </div>
           ) : (
             <VideoEmptyState>
-              No videos found for this filter yet. Arkansas is selected by
-              default until this region has more uploads.
+              No videos found for this filter yet. Switch to Global View or be
+              the first to upload visuals.
             </VideoEmptyState>
           )}
         </div>
