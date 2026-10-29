@@ -695,7 +695,11 @@ app.openapi(
       })
     );
 
-    return c.json({ tracks: trackPerformanceList }, HttpStatusCodes.OK);
+    const sortedTracks = trackPerformanceList.toSorted(
+      (a, b) => b.plays - a.plays
+    );
+
+    return c.json({ tracks: sortedTracks }, HttpStatusCodes.OK);
   }
 );
 
