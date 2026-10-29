@@ -59,7 +59,7 @@ jobs:
 
   browser:
     name: Browser Smoke Tests
-    if: ${{ github.event_name != 'pull_request' }}
+    if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' }}
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
