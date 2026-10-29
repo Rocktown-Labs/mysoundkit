@@ -1,8 +1,8 @@
 /* oxlint-disable one-var, sort-vars, sort-keys, react-hooks/refs */
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import type { Href } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -72,8 +72,19 @@ export default function SearchScreen() {
     [debouncedQuery, setDebouncedQuery] = useState(""),
     [isFocused, setIsFocused] = useState(false),
     focusAnim = useRef(new Animated.Value(0)).current,
+    inputRef = useRef<TextInput>(null),
     genresQuery = useGenresQuery(),
     searchResults = useNativeSearchQuery(debouncedQuery);
+
+  // Automatically focus the search bar and summon the keyboard on navigate
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }, [])
+  );
 
   // Debounce search input by 250ms
   useEffect(() => {
@@ -147,8 +158,10 @@ export default function SearchScreen() {
           >
             <Ionicons color="#8F8F8F" name="search" size={17} />
             <TextInput
+              ref={inputRef}
               autoCapitalize="none"
               autoCorrect={false}
+              autoFocus
               onBlur={() => setIsFocused(false)}
               onChangeText={setRawInput}
               onFocus={() => setIsFocused(true)}
