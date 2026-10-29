@@ -87,7 +87,7 @@ test.describe("main application surfaces", () => {
   }
 
   test.beforeEach(async ({ context }, testInfo) => {
-    const testId = `${testInfo.testId}-${testInfo.project.name}`;
+    const testId = `${testInfo.testId}-${testInfo.project.name}-${testInfo.retry}`;
 
     await context.route("**/*", async (route) => {
       const request = route.request(),

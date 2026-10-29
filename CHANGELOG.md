@@ -22,6 +22,7 @@
 - Matched website sign-in, signup, and password recovery forms to the native dark auth shell, compact fields, rounded card, white primary action, and dark security widget (#469).
 ### Fixed
 
+- Isolated mocked browser state per retry so a partially completed attempt cannot contaminate the next attempt (#473).
 - Counted content playback after preroll and on repeat without counting pauses as new starts; isolated Traks errors from user actions and rejected non-finite event values (#467).
 
 ### Added
