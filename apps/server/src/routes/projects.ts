@@ -522,6 +522,32 @@ app.openapi(
           : body.newTracks[0]?.genre
             ? await ensureGenreId(body.newTracks[0].genre)
             : null;
+      const existingTrackIds = [...new Set(body.trackIds)];
+      if (existingTrackIds.length > 0) {
+        const sourceOwnership = organizationId
+            ? or(
+                eq(tracks.ownerUserId, user.id),
+                eq(tracks.organizationId, organizationId)
+              )
+            : eq(tracks.ownerUserId, user.id),
+          sourceTracks = await db
+            .select({ id: tracks.id })
+            .from(tracks)
+            .where(
+              and(
+                inArray(tracks.id, existingTrackIds),
+                isNull(tracks.deletedAt),
+                sourceOwnership
+              )
+            );
+        if (sourceTracks.length !== existingTrackIds.length) {
+          return c.json(
+            { message: "One or more selected tracks is unavailable." },
+            HttpStatusCodes.BAD_REQUEST
+          );
+        }
+      }
+
       const projectStatus =
           body.status ??
           (body.releaseDate
@@ -563,8 +589,7 @@ app.openapi(
           .join("\n"),
       });
 
-      const existingTrackIds = body.trackIds,
-        newTrackIds: string[] = [];
+      const newTrackIds: string[] = [];
 
       for (const newTrack of body.newTracks) {
         const trackId = crypto.randomUUID(),

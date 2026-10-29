@@ -48,6 +48,7 @@ export const sessionMiddleware = createMiddleware<AppEnv>(async (c, next) => {
         ? {
             banned: session.user.banned ?? false,
             email: session.user.email ?? null,
+            emailVerified: session.user.emailVerified === true,
             id: session.user.id,
             name: session.user.name ?? null,
             role,

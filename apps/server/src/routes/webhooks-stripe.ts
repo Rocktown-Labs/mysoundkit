@@ -44,6 +44,7 @@ const app = new OpenAPIHono<AppEnv>(),
 interface StripeObject {
   account?: string;
   amount?: number;
+  amount_total?: number;
   capabilities?: Record<string, string>;
   charges_enabled?: boolean;
   charge?: string;
@@ -331,6 +332,16 @@ const processConnectAccountEvent = async ({
       eventType === "checkout.session.completed" ||
       eventType === "checkout.session.async_payment_succeeded"
     ) {
+      // Checkout completion may precede settlement for delayed payment methods.
+      if (
+        object.payment_status !== "paid" &&
+        !(
+          object.payment_status === "no_payment_required" &&
+          object.amount_total === 0
+        )
+      ) {
+        return;
+      }
       if (transactionId) {
         const [order] = await db
           .select()
@@ -642,5 +653,7 @@ app.openapi(
     return c.json({ message: "Stripe webhook accepted." }, HttpStatusCodes.OK);
   }
 );
+
+export { processStripeEvent };
 
 export default app;

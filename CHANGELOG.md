@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.1 (Unreleased security fixes)
+
+### Fixed
+
+- Required verified email ownership for administrator-email authorization (#461).
+- Restricted public track detail to published, non-deleted tracks and required retained purchases for nonowner downloads after privacy/deletion changes (#461).
+- Validated existing track ownership before project creation and rechecked source ownership and current workspace membership before exports (#461).
+- Prevented unsettled Checkout sessions from marking orders paid or initiating fulfillment and tip transfers (#461).
+- Disabled persisted video drafts and removed legacy drafts when persistence is disabled (#461).
+
 ## Unreleased
 
 ### Fixed
