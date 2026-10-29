@@ -7,10 +7,11 @@ import type { AppEnv } from "@/lib/types";
 
 import openVerseRoutes from "./open-verses";
 
-const { claim, complete, Conflict, insert, select } = vi.hoisted(() => ({
+const { claim, complete, Conflict, head, insert, select } = vi.hoisted(() => ({
   Conflict: class extends Error {},
   claim: vi.fn(),
   complete: vi.fn(),
+  head: vi.fn(),
   insert: vi.fn(),
   select: vi.fn(),
 }));
@@ -41,18 +42,22 @@ const body = {
   audition: { assetObjectKey: "uploads/submitter/audition.wav" },
   vocalStem: { assetObjectKey: "tracks/submitter/vocal.wav" },
 };
-const request = (payload: unknown) => {
+const request = (payload: unknown, storage = true) => {
   const app = new Hono<AppEnv>();
   app.use("*", async (c, next) => {
     c.set("user", { id: "submitter" });
     return await next();
   });
   app.route("/v1/open-verses", openVerseRoutes);
-  return app.request("/v1/open-verses/listing/submissions", {
-    body: JSON.stringify(payload),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+  return app.request(
+    "/v1/open-verses/listing/submissions",
+    {
+      body: JSON.stringify(payload),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+    storage ? { MEDIA_BUCKET: { head } as unknown as R2Bucket } : {}
+  );
 };
 
 describe("Open Verse submission upload provenance", () => {
@@ -68,6 +73,10 @@ describe("Open Verse submission upload provenance", () => {
       .mockReturnValueOnce(query([{ count: 0 }]));
     claim.mockResolvedValue(true);
     complete.mockResolvedValue(true);
+    head.mockResolvedValue({
+      httpMetadata: { contentType: "audio/wav" },
+      size: 64,
+    });
   });
 
   it.each(["audition", "vocalStem", "adlibs"])(
@@ -82,6 +91,21 @@ describe("Open Verse submission upload provenance", () => {
       expect(insert).not.toHaveBeenCalled();
     }
   );
+
+  it("rejects a presigned upload that has not reached storage", async () => {
+    head.mockResolvedValueOnce(null);
+    const response = await request(body);
+    expect(response.status).toBe(400);
+    expect(claim).not.toHaveBeenCalled();
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when upload storage is unavailable", async () => {
+    const response = await request(body, false);
+    expect(response.status).toBe(503);
+    expect(claim).not.toHaveBeenCalled();
+    expect(insert).not.toHaveBeenCalled();
+  });
 
   it("rejects an own-prefix key without a verified upload intent", async () => {
     claim.mockResolvedValue(false);
@@ -134,6 +158,8 @@ describe("Open Verse submission upload provenance", () => {
     }
     for (const asset of writes) {
       expect(asset).toMatchObject({
+        mimeType: "audio/wav",
+        sizeBytes: 64,
         trackId: "listing-owner-track",
         uploaderUserId: "submitter",
       });

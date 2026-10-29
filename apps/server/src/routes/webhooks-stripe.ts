@@ -398,7 +398,14 @@ const processConnectAccountEvent = async ({
           )
           .limit(1);
         if (!checkoutTransaction) {
-          return;
+          logWarn({
+            event: "checkout_session_binding_missing",
+            stripeCheckoutSessionId: object.id,
+            transactionId,
+          });
+          throw new Error(
+            "Checkout transaction session could not be verified."
+          );
         }
         const [order] = await db
           .select()

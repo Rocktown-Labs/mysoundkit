@@ -989,6 +989,8 @@ app.openapi(
         messageResponseSchema,
         "Submission eligibility or approval required"
       ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(messageResponseSchema, "Submission upload is missing"),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(messageResponseSchema, "Upload storage is unavailable"),
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         messageResponseSchema,
         "Open verse not found"
@@ -1110,7 +1112,19 @@ app.openapi(
         HttpStatusCodes.FORBIDDEN
       );
     }
-    // Reserve every upload before inserting any asset on the listing owner's track.
+    const bucket = c.env.MEDIA_BUCKET,
+      uploadedObjects = new Map<string, R2Object>();
+    if (!bucket) {
+      return c.json({ message: "Upload storage is unavailable." }, HttpStatusCodes.SERVICE_UNAVAILABLE);
+    }
+    for (const asset of submissionAssets) {
+      const object = await bucket.head(asset.assetObjectKey);
+      if (!object) {
+        return c.json({ message: "A submission upload has not completed. Upload the files again." }, HttpStatusCodes.BAD_REQUEST);
+      }
+      uploadedObjects.set(asset.assetObjectKey, object);
+    }
+    // Reserve every completed upload before inserting any asset on the listing owner's track.
     try {
       for (const asset of submissionAssets) {
         if (
@@ -1162,9 +1176,9 @@ app.openapi(
               originalFileName: asset.assetOriginalFileName ?? null,
               url: asset.assetUrl ?? null,
             },
-            mimeType: asset.assetMimeType ?? null,
+            mimeType: uploadedObjects.get(asset.assetObjectKey)?.httpMetadata?.contentType ?? null,
             objectKey: asset.assetObjectKey,
-            sizeBytes: asset.assetSizeBytes ?? null,
+            sizeBytes: uploadedObjects.get(asset.assetObjectKey)?.size ?? null,
             status: "ready",
             storageProvider: "r2",
             trackId: accessListing.trackId,

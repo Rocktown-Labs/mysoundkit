@@ -4,13 +4,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { processStripeEvent } from "./webhooks-stripe";
 
-const { select, update } = vi.hoisted(() => ({
+const { select, update, warn } = vi.hoisted(() => ({
   select: vi.fn(),
   update: vi.fn(),
+  warn: vi.fn(),
 }));
 vi.mock("@soundkit/db", () => ({
   createDb: () => ({ select, update }),
   isDatabaseConfigured: () => false,
+}));
+
+vi.mock("@/middleware/structured-logging", () => ({
+  logError: vi.fn(),
+  logInfo: vi.fn(),
+  logWarn: warn,
 }));
 
 describe("Checkout settlement", () => {
@@ -101,17 +108,24 @@ describe("Checkout settlement", () => {
       return { limit: () => Promise.resolve([]) };
     });
     select.mockReturnValue({ from: () => ({ where: matchSession }) });
-    await processStripeEvent({
-      event: {
-        data: {
-          object: {
-            id: "unrelated-session",
-            metadata: { transactionId: "dummy" },
-            payment_status: "paid",
+    await expect(
+      processStripeEvent({
+        event: {
+          data: {
+            object: {
+              id: "unrelated-session",
+              metadata: { transactionId: "dummy" },
+              payment_status: "paid",
+            },
           },
+          type: "checkout.session.completed",
         },
-        type: "checkout.session.completed",
-      },
+      })
+    ).rejects.toThrow("session could not be verified");
+    expect(warn).toHaveBeenCalledWith({
+      event: "checkout_session_binding_missing",
+      stripeCheckoutSessionId: "unrelated-session",
+      transactionId: "dummy",
     });
     expect(update).not.toHaveBeenCalled();
     expect(matchSession).toHaveBeenCalledTimes(1);
