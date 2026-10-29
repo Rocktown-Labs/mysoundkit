@@ -19,6 +19,7 @@ import type { MediaProcessorContainer } from "@/containers/media-processor";
 import { isAuthenticatedUser } from "@/lib/entitlements";
 import { parseImageDerivativeObjectKey } from "@/lib/image-derivative-keys";
 import { isPublicTrackArtwork } from "@/lib/media-access";
+import { isProjectExportSourceAuthorized } from "@/lib/project-export-access";
 import type { AppEnv } from "@/lib/types";
 import { logWarn } from "@/middleware/structured-logging";
 
@@ -217,6 +218,7 @@ app.get("/*", async (c) => {
           asset: {
             assetKind: projectAssets.assetKind,
             objectKey: projectAssets.objectKey,
+            sourceAssetId: projectAssets.sourceAssetId,
           },
           project: projects,
         })
@@ -245,6 +247,12 @@ app.get("/*", async (c) => {
             projectRow.project.isPublic &&
             projectRow.asset.assetKind === "cover_art";
         authorized = isOwner || Boolean(projectAccess) || publicArtwork;
+        if (authorized && projectRow.asset.assetKind === "release_export") {
+          authorized = await isProjectExportSourceAuthorized({
+            projectId: projectRow.project.id,
+            sourceAssetId: projectRow.asset.sourceAssetId,
+          });
+        }
       }
     }
   }

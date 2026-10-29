@@ -21,5 +21,5 @@ export const isAdminUser = (
       ?.split(",")
       .map((role) => role.trim())
       .includes("admin") ||
-      isConfiguredAdminEmail(user.email))
+      (user.emailVerified === true && isConfiguredAdminEmail(user.email)))
   );

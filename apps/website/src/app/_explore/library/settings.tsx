@@ -12,6 +12,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { LibraryEmptyState } from "@/components/explore/library-empty-state";
+import { EmailVerificationNotice } from "@/components/email-verification-notice";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -186,6 +187,7 @@ function AccountSettingsPage() {
               <Button onClick={saveProfile} disabled={updateProfile.isPending}>
                 {updateProfile.isPending ? "Saving..." : "Save Changes"}
               </Button>
+              <EmailVerificationNotice />
             </CardContent>
           </Card>
 
