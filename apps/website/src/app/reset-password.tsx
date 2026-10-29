@@ -5,13 +5,7 @@ import { useState } from "react";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { PasswordField } from "@/components/auth/password-field";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/reset-password")({
@@ -73,12 +67,11 @@ function ResetPasswordPage() {
       title="Create a new password"
     >
       <Card className="gap-5 rounded-2xl border-[#27272A] bg-[#09090B] py-5 text-[#FAFAFA] shadow-none">
-        <CardHeader className="px-5">
-          <CardTitle>New password</CardTitle>
-          <CardDescription>Use at least 8 characters.</CardDescription>
-        </CardHeader>
         <CardContent className="px-5">
           <form className="space-y-3.5" onSubmit={handleSubmit}>
+            <p className="text-sm text-muted-foreground">
+              Use at least 8 characters.
+            </p>
             <PasswordField
               autoComplete="new-password"
               id="reset-password"

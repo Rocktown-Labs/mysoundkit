@@ -10,13 +10,7 @@ import {
   TurnstileWidget,
 } from "@/components/auth/turnstile-widget";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
@@ -84,15 +78,12 @@ function ForgotPasswordPage() {
       title="Reset your password"
     >
       <Card className="gap-5 rounded-2xl border-[#27272A] bg-[#09090B] py-5 text-[#FAFAFA] shadow-none">
-        <CardHeader className="px-5">
-          <CardTitle>Forgot your password?</CardTitle>
-          <CardDescription>
-            Enter your email and we’ll send a secure reset link if an account
-            exists.
-          </CardDescription>
-        </CardHeader>
         <CardContent className="px-5">
           <form className="space-y-3.5" onSubmit={handleSubmit}>
+            <p className="text-sm text-muted-foreground">
+              Enter your email and we’ll send a secure reset link if an account
+              exists.
+            </p>
             <div className="space-y-1.5">
               <Label htmlFor="forgot-email">Email</Label>
               <Input

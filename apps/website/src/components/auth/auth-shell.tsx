@@ -24,7 +24,7 @@ export function AuthShell({
           <div className="relative mb-4 flex min-h-[52px] w-full items-center justify-center">
             <Button
               asChild
-              className="absolute left-0 size-10 rounded-full border border-[#27272A] bg-[#141417] p-0 text-[#FAFAFA] transition-transform hover:bg-[#27272A] hover:text-[#FAFAFA] dark:hover:bg-[#27272A] active:scale-95"
+              className="absolute left-0 size-10 rounded-full border border-[#27272A] bg-[#141417] p-0 text-[#FAFAFA] transition-transform hover:bg-[#27272A] hover:text-[#FAFAFA] dark:hover:text-[#FAFAFA] dark:hover:bg-[#27272A] active:scale-95"
               variant="ghost"
             >
               <a aria-label={backLabel} href={backHref}>
