@@ -7,7 +7,7 @@ import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 /**
- * Dashboard shell: Home / Music / Create / Career / Live native tabs.
+ * Dashboard shell: Home / Music / Career / Live / Messages native tabs.
  * While any dashboard screen is focused, the app-level tab bar is hidden so
  * this is the only tab bar visible — matching the mobile web dashboard.
  */
@@ -43,13 +43,6 @@ export default function DashboardLayout() {
         <NativeTabs.Trigger.Label>Music</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon md="music_note" sf="music.quarternote.3" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="create">
-        <NativeTabs.Trigger.Label>Create</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          md="add"
-          sf={{ default: "plus.circle", selected: "plus.circle.fill" }}
-        />
-      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="career">
         <NativeTabs.Trigger.Label>Career</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
@@ -62,6 +55,13 @@ export default function DashboardLayout() {
         <NativeTabs.Trigger.Icon
           md="podcasts"
           sf="dot.radiowaves.left.and.right"
+        />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="messages">
+        <NativeTabs.Trigger.Label>Messages</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          md="chat"
+          sf={{ default: "paperplane", selected: "paperplane.fill" }}
         />
       </NativeTabs.Trigger>
     </NativeTabs>
