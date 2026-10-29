@@ -52,6 +52,8 @@ export const Route = createFileRoute("/signup/artist/onboarding")({
   component: ArtistOnboardingPage,
 });
 
+let isLoggingOut = false;
+
 const RIGHTS_ATTESTATION_VERSION = "2026-01",
   creatorCopy = {
     independent: {
@@ -215,6 +217,7 @@ function ArtistOnboardingPage() {
       }
     },
     logOut = async () => {
+      isLoggingOut = true;
       setPendingExitAction("log-out");
       setErrorMessage(null);
       try {
@@ -231,7 +234,6 @@ function ArtistOnboardingPage() {
         if (result.error) {
           throw new Error(result.error.message ?? "Sign out failed.");
         }
-        setHasExited(true);
         capture("onboarding_exited", {
           account_type: "artist",
           exit_action: "log_out",
@@ -240,6 +242,7 @@ function ArtistOnboardingPage() {
         window.localStorage.removeItem(ARTIST_ONBOARDING_DRAFT_KEY);
         window.location.assign("/");
       } catch (error) {
+        isLoggingOut = false;
         setErrorMessage(
           error instanceof Error
             ? error.message
@@ -407,7 +410,7 @@ function ArtistOnboardingPage() {
   }, []);
 
   useEffect(() => {
-    if (!isDraftRestored || hasExited) {
+    if (!isDraftRestored || hasExited || isLoggingOut) {
       return;
     }
     window.localStorage.setItem(

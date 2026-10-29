@@ -17,6 +17,12 @@
 
 ## Unreleased
 
+### Added
+
+- Added seamless global fallback for empty regional exploration on the website (`#465`):
+  - Wired `withGlobalRegionFallback` into web catalog hooks (`apps/website/src/lib/soundkit-api-hooks.ts`) for tracks, artists, public projects, videos, battles, listening parties, and live experiences.
+  - When visitors detect or browse a state or region with no local releases (e.g. Virginia, Iowa, etc.), the feed seamlessly falls back to global/US catalog results so users never land on empty rails or ghost towns.
+
 ### Fixed
 
 - Preserved ties throughout native battle record totals and charts, rendered neutral tie segments, removed invented recent-match results, and retained actual zero-percent listener retention (#458).
@@ -46,6 +52,9 @@
 - Prevented the artist onboarding draft from being recreated during logout navigation and allowed cold-start signup chooser hydration to complete in browser tests (#464).
 - Added authenticated artist/fan signup chooser coverage and ran the mocked browser suite on pull requests before merge (#464).
 - Fixed the web browser smoke tests on `master` so `Verify and Deploy` can reach the deploy jobs again: the `main application surfaces` signup assertions expected the pre-#443 single-screen signup, so they now check the credentials-first flow (anonymous `/signup` shows the credentials form; the role chooser appears only after credentials) (#464).
+- Updated Explore subroutes to default to Global View rather than hardcoding Arkansas (`#465`):
+  - `/tracks`, `/artist`, `/videos`, and `/projects` now default to platform-wide global discovery (`regionType: "global", region: "all"`) when unconfigured, honoring saved preferences if present.
+
 - Removed decorative icons preceding section headers and page titles across web and mobile explore, library, and dashboard screens (`#456`):
   - Web: Removed icons from `SectionHeader` (`apps/website/src/components/explore/section-header.tsx`), explore home rails (`apps/website/src/app/_explore/index.tsx`), category explore headers (Top Songs, Projects, Music Videos, Merch/Shop, Live, Streams, Parties, Artists), project detail sections (Tracklist, Physical Editions), library pages (My SoundKit, Playlists, Purchased Tracks, Recently Played, Saved Tracks, Settings, Recently Watched), and dashboard pages (`community.tsx`, `career/merch.tsx`).
   - Mobile: Removed decorative header icons from the library bottom sheet (`apps/native/components/library-bottom-sheet.tsx`), artist leaderboards (`apps/native/app/(drawer)/(tabs)/artists/index.tsx`), shop title header (`apps/native/app/(drawer)/(tabs)/(discover)/shop.tsx`), and all native library screens (My SoundKit, Playlists, Purchased Music, Recently Played, Saved Music, Settings, Recently Watched).

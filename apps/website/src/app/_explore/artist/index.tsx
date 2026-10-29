@@ -50,7 +50,10 @@ export const Route = createFileRoute("/_explore/artist/")({
     genre: typeof search.genre === "string" ? search.genre : undefined,
     q: typeof search.q === "string" ? search.q : undefined,
     region: typeof search.region === "string" ? search.region : undefined,
-    regionType: search.regionType === "global" ? "global" : "north-america",
+    regionType:
+      search.regionType === "global" || search.regionType === "north-america"
+        ? search.regionType
+        : undefined,
     sort: typeof search.sort === "string" ? search.sort : undefined,
   }),
 });
@@ -125,9 +128,27 @@ function LeaderboardSection({
           ))}
         </div>
       ) : (
-        <div className="rounded-lg border border-dashed p-6 text-center text-muted-foreground">
-          No artists found yet. Arkansas is selected by default while local
-          communities fill in.
+        <div className="rounded-lg border border-dashed p-6 text-center text-muted-foreground space-y-2">
+          <p className="font-medium text-foreground">
+            No artists found for this view yet.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Be the first artist from this scene to join, or switch to Global
+            View to explore all artists.
+          </p>
+          <div className="pt-2 flex justify-center gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link
+                to="/artist"
+                search={{ region: "all", regionType: "global" }}
+              >
+                Switch to Global
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="default">
+              <Link to="/signup/artist/credentials">Publish Music</Link>
+            </Button>
+          </div>
         </div>
       )}
     </section>
@@ -206,12 +227,12 @@ function ArtistPage() {
       typeof window === "undefined"
         ? null
         : localStorage.getItem("exploreRegion"),
-    regionType = search.regionType ?? savedRegionType ?? "north-america",
+    regionType = search.regionType ?? savedRegionType ?? "global",
     region =
       search.region ??
       (search.regionType === "global"
         ? "all"
-        : (savedRegion ?? (regionType === "global" ? "all" : "us-arkansas"))),
+        : (savedRegion ?? (regionType === "global" ? "all" : "all"))),
     genre = search.genre ?? "all",
     q = search.q ?? "",
     sort = search.sort ?? "rank-asc",
@@ -219,12 +240,7 @@ function ArtistPage() {
       const nextRegionType = next.regionType ?? regionType,
         nextRegion =
           next.region ??
-          (next.regionType === "global" && regionType !== "global"
-            ? "all"
-            : next.regionType === "north-america" &&
-                regionType !== "north-america"
-              ? "us-arkansas"
-              : region);
+          (next.regionType && next.regionType !== regionType ? "all" : region);
       if (typeof window !== "undefined") {
         localStorage.setItem("exploreRegionType", nextRegionType);
         localStorage.setItem("exploreRegion", nextRegion);

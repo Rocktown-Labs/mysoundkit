@@ -1,5 +1,6 @@
+/* eslint-disable one-var, sort-vars */
 import type { LucideIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ArtistCard } from "@/components/explore/artist-card";
 import { BattleFilters } from "@/components/explore/battle-filters";
@@ -33,12 +34,29 @@ export function ArtistListPage({
   title: string;
 }) {
   const [regionType, setRegionType] = useState<"north-america" | "global">(
-      "north-america"
+      "global"
     ),
-    [region, setRegion] = useState("us-arkansas"),
+    [region, setRegion] = useState("all"),
     [genre, setGenre] = useState("all"),
-    [sort, setSort] = useState("rank-asc"),
-    { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+    [sort, setSort] = useState("rank-asc");
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const savedType = localStorage.getItem("exploreRegionType") as
+      | "north-america"
+      | "global"
+      | null;
+    const savedReg = localStorage.getItem("exploreRegion");
+    if (savedType) {
+      setRegionType(savedType);
+    }
+    if (savedReg) {
+      setRegion(savedReg);
+    }
+  }, []);
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
       useArtistsInfiniteQuery({
         category,
         genre,
@@ -94,9 +112,14 @@ export function ArtistListPage({
           />
         </>
       ) : (
-        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-          No artists found for this filter yet. Arkansas is selected by default
-          while regional data fills in.
+        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground space-y-2">
+          <p className="font-medium text-foreground">
+            No artists found for this filter yet.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Be the first artist from this scene to join, or switch to Global
+            View.
+          </p>
         </div>
       )}
     </div>

@@ -85,9 +85,9 @@ export const Route = createFileRoute("/_explore/genres/$id")({
   validateSearch: (search: Record<string, unknown>) => ({
     region: typeof search.region === "string" ? search.region : undefined,
     regionType:
-      search.regionType === "global"
-        ? ("global" as const)
-        : ("north-america" as const),
+      search.regionType === "global" || search.regionType === "north-america"
+        ? (search.regionType as "global" | "north-america")
+        : undefined,
     sort: typeof search.sort === "string" ? search.sort : undefined,
   }),
 });
@@ -235,8 +235,8 @@ function GenreDetailPage() {
         ? null
         : localStorage.getItem("exploreRegion"),
     regionType: "north-america" | "global" =
-      search.regionType ?? savedRegionType ?? "north-america",
-    region = search.region ?? savedRegion ?? "us-arkansas",
+      search.regionType ?? savedRegionType ?? "global",
+    region = search.region ?? savedRegion ?? "all",
     sort = search.sort ?? "plays-desc",
     updateFilters = (next: {
       region?: string;
