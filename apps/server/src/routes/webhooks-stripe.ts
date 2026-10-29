@@ -386,7 +386,20 @@ const processConnectAccountEvent = async ({
       ) {
         return;
       }
-      if (transactionId) {
+      if (transactionId && object.id) {
+        const [checkoutTransaction] = await db
+          .select({ id: transactions.id })
+          .from(transactions)
+          .where(
+            and(
+              eq(transactions.id, transactionId),
+              eq(transactions.stripeCheckoutSessionId, object.id)
+            )
+          )
+          .limit(1);
+        if (!checkoutTransaction) {
+          return;
+        }
         const [order] = await db
           .select()
           .from(orders)

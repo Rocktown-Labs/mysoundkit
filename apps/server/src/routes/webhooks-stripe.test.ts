@@ -44,13 +44,25 @@ describe("Checkout settlement", () => {
   ])("fulfills settled or genuinely free sessions: %j", async (payment) => {
     const set = vi.fn(() => ({ where })),
       where = vi.fn().mockResolvedValue([]);
-    select.mockReturnValue({
-      from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }),
-    });
+    select
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({ limit: () => Promise.resolve([{ id: "dummy" }]) }),
+        }),
+      })
+      .mockReturnValue({
+        from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }),
+      });
     update.mockReturnValue({ set });
     await processStripeEvent({
       event: {
-        data: { object: { ...payment, metadata: { transactionId: "dummy" } } },
+        data: {
+          object: {
+            ...payment,
+            id: "cs_dummy",
+            metadata: { transactionId: "dummy" },
+          },
+        },
         type: "checkout.session.completed",
       },
     });
@@ -78,6 +90,31 @@ describe("Checkout settlement", () => {
       },
     });
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("does not grant paid state from metadata on an unrelated Checkout session", async () => {
+    const matchSession = vi.fn((condition: SQL) => {
+      expect(new PgDialect().sqlToQuery(condition).params).toEqual([
+        "dummy",
+        "unrelated-session",
+      ]);
+      return { limit: () => Promise.resolve([]) };
+    });
+    select.mockReturnValue({ from: () => ({ where: matchSession }) });
+    await processStripeEvent({
+      event: {
+        data: {
+          object: {
+            id: "unrelated-session",
+            metadata: { transactionId: "dummy" },
+            payment_status: "paid",
+          },
+        },
+        type: "checkout.session.completed",
+      },
+    });
+    expect(update).not.toHaveBeenCalled();
+    expect(matchSession).toHaveBeenCalledTimes(1);
   });
 
   it("binds delayed failures to their session and updates only pending states", async () => {

@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Bound successful Checkout fulfillment to the transaction's stored Stripe session rather than trusting event metadata alone (#311).
 - Recorded failed delayed Checkout payments with session-bound, conditional status updates that preserve settled orders (#311).
 - Required caller-owned upload keys and upload-intent claims before registering Open Verse submission assets on another artist's track (#331).
 - Revalidated original source authority before rendering cached project export snapshots and serving existing exports through project downloads or the media proxy (#461).
