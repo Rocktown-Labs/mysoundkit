@@ -16,6 +16,7 @@ import {
   markProjectExportProcessing,
   registerProjectExport,
 } from "@/lib/project-export";
+import { isProjectExportSourceAuthorized } from "@/lib/project-export-access";
 import { logError, logInfo } from "@/middleware/structured-logging";
 
 const exportRetryConfig = {
@@ -105,13 +106,26 @@ export class ProjectExportWorkflow extends WorkflowEntrypoint<
         const generated = await step.do(
           `render project track ${stepLabel}`,
           exportRetryConfig,
-          () =>
-            processor.createDerivative({
+          async () => {
+            // Keep this check in the render callback: the snapshot step may be cached.
+            if (
+              !(await isProjectExportSourceAuthorized({
+                projectId: snapshot.projectId,
+                sourceAssetId: track.sourceAssetId,
+                sourceObjectKey: track.sourceObjectKey,
+              }))
+            ) {
+              throw new Error(
+                "Project source is no longer authorized for export."
+              );
+            }
+            return processor.createDerivative({
               metadata: track.metadata,
               purpose: "project_export",
               sourceObjectKey: track.sourceObjectKey,
               targetObjectKey: track.targetObjectKey,
-            })
+            });
+          }
         );
         await step.do(`register project track ${stepLabel}`, () =>
           registerProjectExport({

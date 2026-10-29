@@ -17,6 +17,7 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { logInfo } from "@/middleware/structured-logging";
 
 import type { GeneratedMedia } from "./media-processor";
+import { isAuthorizedProjectSource } from "./project-export-access";
 import { resolveTrackAssetFromRows } from "./track-asset-resolver";
 
 export interface ProjectExportTrackSnapshot {
@@ -108,13 +109,14 @@ export const createProjectExportSnapshot = async ({
   if (
     trackRows.some(
       (track) =>
-        track.deletedAt ||
-        (track.ownerUserId !== project.ownerUserId &&
-          !(
-            membership &&
-            project.organizationId &&
-            track.organizationId === project.organizationId
-          ))
+        !isAuthorizedProjectSource({
+          deletedAt: track.deletedAt,
+          hasOrganizationMembership: Boolean(membership),
+          projectOrganizationId: project.organizationId,
+          projectOwnerUserId: project.ownerUserId,
+          trackOrganizationId: track.organizationId,
+          trackOwnerUserId: track.ownerUserId,
+        })
     )
   ) {
     throw new Error(

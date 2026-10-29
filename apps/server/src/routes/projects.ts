@@ -70,6 +70,7 @@ import {
   PHYSICAL_FORMAT_RULES,
   PHYSICAL_PLATFORM_FEE_BPS,
 } from "@/lib/physical-pricing";
+import { isProjectExportSourceAuthorized } from "@/lib/project-export-access";
 import {
   genreSlugFromExploreFilter,
   profileRegionCondition,
@@ -1766,6 +1767,7 @@ app.openapi(
           id: projectAssets.id,
           mimeType: projectAssets.mimeType,
           objectKey: projectAssets.objectKey,
+          sourceAssetId: projectAssets.sourceAssetId,
           status: projectAssets.status,
         })
         .from(projectAssets)
@@ -1814,6 +1816,18 @@ app.openapi(
       !(project.ownerUserId === user.id || purchase || canAccessWorkspaceAsset)
     ) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (
+      asset.assetKind === "release_export" &&
+      !(await isProjectExportSourceAuthorized({
+        projectId,
+        sourceAssetId: asset.sourceAssetId,
+      }))
+    ) {
+      return c.json(
+        { message: "Project export not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
     }
     const object = await c.env.MEDIA_BUCKET?.get(asset.objectKey);
     if (!object) {

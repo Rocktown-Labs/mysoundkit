@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Revalidated original source authority before rendering cached project export snapshots and serving existing exports through project downloads or the media proxy (#461).
 - Required verified email ownership for administrator-email authorization (#461).
 - Restricted public track detail to published, non-deleted tracks and required retained purchases for nonowner downloads after privacy/deletion changes (#461).
 - Validated existing track ownership before project creation and rechecked source ownership and current workspace membership before exports (#461).
