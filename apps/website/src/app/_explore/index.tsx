@@ -232,7 +232,7 @@ function LocalExplorePage() {
         localStorage.setItem("exploreRegionType", newRegionType);
       }
       capture("region_selected", {
-        has_region: Boolean(slug),
+        has_region: Boolean(newRegion),
         region: slug ?? "all",
         region_type: newRegionType,
         scope: newMapScope,
