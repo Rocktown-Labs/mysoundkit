@@ -53,7 +53,10 @@ export const Route = createFileRoute("/_explore/projects/")({
     genre: typeof search.genre === "string" ? search.genre : undefined,
     q: typeof search.q === "string" ? search.q : undefined,
     region: typeof search.region === "string" ? search.region : undefined,
-    regionType: search.regionType === "global" ? "global" : "north-america",
+    regionType:
+      search.regionType === "global" || search.regionType === "north-america"
+        ? search.regionType
+        : undefined,
     sort: typeof search.sort === "string" ? search.sort : undefined,
     type:
       search.type === "album" ||
@@ -79,12 +82,12 @@ function ExploreProjectsPage() {
       typeof window === "undefined"
         ? null
         : localStorage.getItem("exploreRegion"),
-    regionType = search.regionType ?? savedRegionType ?? "north-america",
+    regionType = search.regionType ?? savedRegionType ?? "global",
     region =
       search.region ??
       (search.regionType === "global"
         ? "all"
-        : (savedRegion ?? (regionType === "global" ? "all" : "us-arkansas"))),
+        : (savedRegion ?? (regionType === "global" ? "all" : "all"))),
     genre = search.genre ?? "all",
     sort = search.sort ?? "date-desc",
     forSale = search.forSale ?? false,
@@ -98,12 +101,7 @@ function ExploreProjectsPage() {
       const nextRegionType = next.regionType ?? regionType,
         nextRegion =
           next.region ??
-          (next.regionType === "global" && regionType !== "global"
-            ? "all"
-            : next.regionType === "north-america" &&
-                regionType !== "north-america"
-              ? "us-arkansas"
-              : region);
+          (next.regionType && next.regionType !== regionType ? "all" : region);
 
       if (typeof window !== "undefined") {
         localStorage.setItem("exploreRegionType", nextRegionType);

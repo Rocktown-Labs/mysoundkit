@@ -38,7 +38,10 @@ export const Route = createFileRoute("/_explore/tracks/")({
     genre: typeof search.genre === "string" ? search.genre : undefined,
     q: typeof search.q === "string" ? search.q : undefined,
     region: typeof search.region === "string" ? search.region : undefined,
-    regionType: search.regionType === "global" ? "global" : "north-america",
+    regionType:
+      search.regionType === "global" || search.regionType === "north-america"
+        ? search.regionType
+        : undefined,
     sort: typeof search.sort === "string" ? search.sort : undefined,
     view: search.view === "all" ? "all" : "sections",
   }),
@@ -47,9 +50,23 @@ export const Route = createFileRoute("/_explore/tracks/")({
 function TracksPage() {
   const search = Route.useSearch(),
     navigate = Route.useNavigate(),
-    regionType = search.regionType ?? "north-america",
+    savedRegionType =
+      typeof window === "undefined"
+        ? null
+        : (localStorage.getItem("exploreRegionType") as
+            | "north-america"
+            | "global"
+            | null),
+    savedRegion =
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem("exploreRegion"),
+    regionType = search.regionType ?? savedRegionType ?? "global",
     region =
-      search.region ?? (search.regionType === "global" ? "all" : "us-arkansas"),
+      search.region ??
+      (search.regionType === "global"
+        ? "all"
+        : (savedRegion ?? (regionType === "global" ? "all" : "all"))),
     genre = search.genre ?? "all",
     q = search.q ?? "",
     sort = search.sort ?? "plays-desc",
@@ -60,12 +77,7 @@ function TracksPage() {
       const nextRegionType = next.regionType ?? regionType,
         nextRegion =
           next.region ??
-          (next.regionType === "global" && regionType !== "global"
-            ? "all"
-            : next.regionType === "north-america" &&
-                regionType !== "north-america"
-              ? "us-arkansas"
-              : region);
+          (next.regionType && next.regionType !== regionType ? "all" : region);
       if (typeof window !== "undefined") {
         localStorage.setItem("exploreRegionType", nextRegionType);
         localStorage.setItem("exploreRegion", nextRegion);
