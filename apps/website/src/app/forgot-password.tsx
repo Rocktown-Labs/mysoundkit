@@ -83,21 +83,21 @@ function ForgotPasswordPage() {
       subtitle="We’ll help you get back into your account."
       title="Reset your password"
     >
-      <Card className="border-border/60 bg-card/80 shadow-xl shadow-black/10">
-        <CardHeader>
+      <Card className="gap-5 rounded-2xl border-[#27272A] bg-[#09090B] py-5 text-[#FAFAFA] shadow-none">
+        <CardHeader className="px-5">
           <CardTitle>Forgot your password?</CardTitle>
           <CardDescription>
             Enter your email and we’ll send a secure reset link if an account
             exists.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div className="space-y-2">
+        <CardContent className="px-5">
+          <form className="space-y-3.5" onSubmit={handleSubmit}>
+            <div className="space-y-1.5">
               <Label htmlFor="forgot-email">Email</Label>
               <Input
                 autoComplete="email"
-                className="h-12 bg-background"
+                className="h-[46px] rounded-[10px] border-[#27272A] bg-[#050507] text-base placeholder:text-[#71717A] focus-visible:border-[#B8A3FF] focus-visible:ring-[#B8A3FF]/30 md:text-[15px] dark:bg-[#050507]"
                 id="forgot-email"
                 onChange={(event) => setEmail(event.target.value)}
                 required
@@ -109,6 +109,7 @@ function ForgotPasswordPage() {
               action="forgot_password"
               onTokenChange={setTurnstileToken}
               resetKey={turnstileResetKey}
+              theme="dark"
             />
             {message ? (
               <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
@@ -121,7 +122,7 @@ function ForgotPasswordPage() {
               </p>
             ) : null}
             <Button
-              className="h-12 w-full"
+              className="h-[46px] w-full rounded-[10px] bg-[#FAFAFA] text-sm font-bold text-[#09090B] hover:bg-white/90"
               disabled={isSubmitting}
               type="submit"
             >
@@ -131,7 +132,7 @@ function ForgotPasswordPage() {
           <p className="mt-5 text-center text-sm text-muted-foreground">
             Remembered it?{" "}
             <Link
-              className="text-primary hover:underline"
+              className="font-semibold text-[#B8A3FF] hover:underline"
               search={{ redirect: "/dashboard" }}
               to="/login"
             >

@@ -72,13 +72,13 @@ function ResetPasswordPage() {
       subtitle="Choose a new password for your SoundKit account."
       title="Create a new password"
     >
-      <Card className="border-border/60 bg-card/80 shadow-xl shadow-black/10">
-        <CardHeader>
+      <Card className="gap-5 rounded-2xl border-[#27272A] bg-[#09090B] py-5 text-[#FAFAFA] shadow-none">
+        <CardHeader className="px-5">
           <CardTitle>New password</CardTitle>
           <CardDescription>Use at least 8 characters.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <form className="space-y-5" onSubmit={handleSubmit}>
+        <CardContent className="px-5">
+          <form className="space-y-3.5" onSubmit={handleSubmit}>
             <PasswordField
               autoComplete="new-password"
               id="reset-password"
@@ -102,7 +102,7 @@ function ResetPasswordPage() {
               </p>
             ) : null}
             <Button
-              className="h-12 w-full"
+              className="h-[46px] w-full rounded-[10px] bg-[#FAFAFA] text-sm font-bold text-[#09090B] hover:bg-white/90"
               disabled={isSubmitting}
               type="submit"
             >
@@ -112,7 +112,7 @@ function ResetPasswordPage() {
           <p className="mt-5 text-center text-sm text-muted-foreground">
             Need a new link?{" "}
             <Link
-              className="text-primary hover:underline"
+              className="font-semibold text-[#B8A3FF] hover:underline"
               to="/forgot-password"
             >
               Start again
