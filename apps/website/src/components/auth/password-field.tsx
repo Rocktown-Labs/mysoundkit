@@ -43,7 +43,7 @@ export function PasswordField({
         />
         <Button
           aria-label={visible ? "Hide password" : "Show password"}
-          className="absolute right-1 top-1/2 size-10 -translate-y-1/2 text-muted-foreground"
+          className="absolute right-1 top-1/2 size-10 -translate-y-1/2 text-muted-foreground hover:bg-[#18181B] hover:text-[#FAFAFA] dark:hover:bg-[#18181B]"
           onClick={() => setVisible((current) => !current)}
           type="button"
           variant="ghost"
