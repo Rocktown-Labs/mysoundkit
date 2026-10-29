@@ -145,9 +145,9 @@ const normalizeGenre = (value) =>
       kind = "battle";
       title = isWaitingArtistBattle
         ? "Artist Battle Waiting Room"
-        : (isEndedBattle
+        : isEndedBattle
           ? "Completed Artist Battle"
-          : "Artist Battle - Hip-Hop");
+          : "Artist Battle - Hip-Hop";
     } else if (isStream) {
       kind = "stream";
       title = "Beat Making From The First Drum Hit";
@@ -222,6 +222,9 @@ const normalizeGenre = (value) =>
                 verified: false,
               },
             ],
+            hasPlayedTurn: isBattle && !isWaitingArtistBattle && !isEndedBattle,
+            replayStatus: "none",
+            replayVideoId: null,
             coordination: isWaitingArtistBattle
               ? {
                   battleId: roomId,
@@ -244,31 +247,23 @@ const normalizeGenre = (value) =>
                   }
                 : undefined,
             currentRoundId: isWaitingArtistBattle ? "" : "round-1",
-            hasPlayedTurn: isBattle && !isWaitingArtistBattle && !isEndedBattle,
-            replayStatus: "none",
-            replayVideoId: null,
-            rounds: isWaitingArtistBattle
-              ? []
-              : [
-                  {
-                    artistATrack: track,
-                    artistBTrack: {
-                      ...track,
-                      artistName: "MC Rhythm",
-                      id: `${roomId}-track-2`,
-                      title: "Urban Flow",
-                    },
-                    id: "round-1",
-                    isTiebreaker: false,
-                    number: 1,
-                    status: isEndedBattle ? "complete" : "voting",
-                    voteTotals: {
-                      "artist-dj-nova": 12,
-                      "artist-mc-rhythm": 10,
-                    },
-                    winnerArtistId: null,
-                  },
-                ],
+            rounds: isWaitingArtistBattle ? [] : [
+              {
+                artistATrack: track,
+                artistBTrack: {
+                  ...track,
+                  artistName: "MC Rhythm",
+                  id: `${roomId}-track-2`,
+                  title: "Urban Flow",
+                },
+                id: "round-1",
+                isTiebreaker: false,
+                number: 1,
+                status: isEndedBattle ? "complete" : "voting",
+                voteTotals: { "artist-dj-nova": 12, "artist-mc-rhythm": 10 },
+                winnerArtistId: null,
+              },
+            ],
             tiePolicy: "If the rounds end tied, a tiebreaker round unlocks.",
           }
         : undefined,
@@ -279,9 +274,9 @@ const normalizeGenre = (value) =>
                 id: `${roomId}-bot-chat-1`,
                 message: isWaitingArtistBattle
                   ? "The lobby is open. Waiting for both artists to check in and lock their Battle Kits."
-                  : (isEndedBattle
+                  : isEndedBattle
                     ? "The battle ended before the first turn. No result was recorded. The room is now read-only."
-                    : "The next round is ready."),
+                    : "The next round is ready.",
                 sentAt: "2026-05-26T11:59:00.000Z",
                 userId: "soundkit-battlebot",
                 userName: "BattleBot",
@@ -328,15 +323,15 @@ const normalizeGenre = (value) =>
           (isBattle && session === "participant")) &&
         (session === "complete" || session === "participant")
           ? "artist_a"
-          : (isParty && session === "complete"
+          : isParty && session === "complete"
             ? "host"
-            : "fan"),
+            : "fan",
       serverNow: Date.now(),
       status: isWaitingArtistBattle
         ? "upcoming"
-        : (isEndedBattle
+        : isEndedBattle
           ? "ended"
-          : "live"),
+          : "live",
       summary: "A live room with chat, track context, and lyrics.",
       title,
       tracklist: [track],
@@ -352,14 +347,14 @@ const normalizeGenre = (value) =>
       duration: "3:24",
       genre: "R&B/Soul",
       id: "track_summer_nights",
+      masterDownloadUrl: "/v1/tracks/track_summer_nights/master",
       isForSale: true,
       isPublic: true,
-      masterDownloadUrl: "/v1/tracks/track_summer_nights/master",
       plays: 2_400_000,
-      price: "$2.99",
-      priceCents: 299,
       releaseAt: null,
       releaseStrategy: "publish_when_ready",
+      price: "$2.99",
+      priceCents: 299,
       title: "Summer Nights",
     },
     {
@@ -370,9 +365,9 @@ const normalizeGenre = (value) =>
       duration: "3:12",
       genre: "Hip-Hop",
       id: "track_city_lights",
+      masterDownloadUrl: "/v1/tracks/track_city_lights/master",
       isForSale: false,
       isPublic: true,
-      masterDownloadUrl: "/v1/tracks/track_city_lights/master",
       plays: 1200,
       price: "$0.00",
       priceCents: 0,
@@ -388,9 +383,9 @@ const normalizeGenre = (value) =>
       duration: "2:58",
       genre: "Hip-Hop",
       id: "track_after_hours",
+      masterDownloadUrl: "/v1/tracks/track_after_hours/master",
       isForSale: false,
       isPublic: true,
-      masterDownloadUrl: "/v1/tracks/track_after_hours/master",
       plays: 980,
       price: "$0.00",
       priceCents: 0,
@@ -592,8 +587,7 @@ const normalizeGenre = (value) =>
       creatorName: "Battle Replay Bot",
       creatorUsername: "soundkit-battlebot",
       duration: "12:48",
-      externalPlaybackUrl:
-        "/media/live-recordings/battle-replayed/recording.mp4",
+      externalPlaybackUrl: "/media/live-recordings/battle-replayed/recording.mp4",
       genre: "Hip-Hop",
       id: "video_battle_replay",
       muxPlaybackId: null,
@@ -668,6 +662,8 @@ const normalizeGenre = (value) =>
       genre: "Hip-Hop",
       hasPlayedTurn: false,
       id: "battle-completed-result",
+      replayStatus: "none",
+      replayVideoId: null,
       isFeatured: false,
       joinMode: "watch_now",
       participants: [
@@ -685,8 +681,6 @@ const normalizeGenre = (value) =>
         },
       ],
       queueSize: 0,
-      replayStatus: "none",
-      replayVideoId: null,
       round: {
         current: 1,
         id: "round-1",
@@ -795,6 +789,8 @@ const normalizeGenre = (value) =>
       genre: "Hip-Hop",
       hasPlayedTurn: false,
       id: "battle-waiting-artist",
+      replayStatus: "none",
+      replayVideoId: null,
       isFeatured: false,
       joinMode: "waiting_room",
       participants: [
@@ -813,8 +809,6 @@ const normalizeGenre = (value) =>
       ],
       phaseEndsAt: null,
       queueSize: 0,
-      replayStatus: "none",
-      replayVideoId: null,
       round: null,
       status: "live",
       title: "Artist Battle Waiting Room",
@@ -827,6 +821,8 @@ const normalizeGenre = (value) =>
       genre: "Hip-Hop",
       hasPlayedTurn: false,
       id: "battle_upcoming_duel",
+      replayStatus: "none",
+      replayVideoId: null,
       isFeatured: false,
       joinMode: "watch_now",
       participants: [
@@ -844,8 +840,6 @@ const normalizeGenre = (value) =>
         },
       ],
       queueSize: 0,
-      replayStatus: "none",
-      replayVideoId: null,
       startsAt: "2026-09-30T20:00:00.000Z",
       status: "scheduled",
       title: "Artist Battle - Hip-Hop",
@@ -1080,2084 +1074,1654 @@ export const createMockApiServer = async ({
       return battles;
     },
     server = createServer((request, response) => {
-      const effectiveOrigin = request.headers.origin || webOrigin;
-      response.setHeader("access-control-allow-origin", effectiveOrigin);
-      response.setHeader("access-control-allow-credentials", "true");
-      response.setHeader(
-        "access-control-allow-headers",
-        "content-type,cookie,x-soundkit-test-id,x-soundkit-fail-notification-action"
+    response.setHeader("access-control-allow-origin", webOrigin);
+    response.setHeader("access-control-allow-credentials", "true");
+    response.setHeader(
+      "access-control-allow-headers",
+      "content-type,cookie,x-soundkit-test-id,x-soundkit-fail-notification-action"
+    );
+    response.setHeader(
+      "access-control-allow-methods",
+      "GET,POST,PATCH,PUT,DELETE,OPTIONS"
+    );
+
+    if (request.method === "OPTIONS") {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+
+    const url = new URL(request.url ?? "/", `http://${host}:${port}`);
+    console.log("[MockAPI]", request.method, url.pathname);
+    const session = request.headers.cookie
+      ?.split(";")
+      .map((cookie) => cookie.trim())
+      .find((cookie) => cookie.startsWith("soundkit_test_session="))
+      ?.split("=")[1];
+
+    if (url.pathname === "/test/session/admin") {
+      response.writeHead(302, {
+        location: `${webOrigin}/dashboard/admin`,
+        "set-cookie": "soundkit_test_session=admin; Path=/; SameSite=Lax",
+      });
+      response.end();
+      return;
+    }
+
+    if (url.pathname === "/auth/sign-out" && request.method === "POST") {
+      response.writeHead(200, {
+        "content-type": "application/json",
+        "set-cookie":
+          "soundkit_test_session=; Max-Age=0; Path=/; SameSite=Lax",
+      });
+      response.end(JSON.stringify({ success: true }));
+      return;
+    }
+
+    if (url.pathname === "/auth/sign-out" && request.method === "POST") {
+      response.writeHead(200, {
+        "content-type": "application/json",
+        "set-cookie":
+          "soundkit_test_session=; Max-Age=0; Path=/; SameSite=Lax",
+      });
+      response.end(JSON.stringify({ success: true }));
+      return;
+    }
+
+    if (url.pathname === "/auth/get-session") {
+      if (
+        session !== "admin" &&
+        session !== "complete" &&
+        session !== "participant" &&
+        session !== "nonparticipant" &&
+        session !== "incomplete" &&
+        session !== "fan_incomplete" &&
+        session !== "setup-incomplete" &&
+        session !== "setup-monetization-complete"
+      ) {
+        json(response, 200, null, webOrigin);
+        return;
+      }
+
+      const authenticatedUser = mockUser(session),
+        isAdminSession = session === "admin";
+      json(
+        response,
+        200,
+        {
+          session: {
+            expiresAt: "2026-07-22T12:00:00.000Z",
+            id: `session_${session}`,
+            token: "test-token",
+            userId: authenticatedUser.id,
+          },
+          user: {
+            banned: false,
+            createdAt: "2026-06-22T12:00:00.000Z",
+            email: isAdminSession
+              ? "cg@rocktownlabs.com"
+              : "complete@rocktownlabs.com",
+            emailVerified: true,
+            id: authenticatedUser.id,
+            name: authenticatedUser.displayName,
+            role: isAdminSession ? "admin" : "user",
+            updatedAt: "2026-06-22T12:00:00.000Z",
+          },
+        },
+        webOrigin
       );
-      response.setHeader(
-        "access-control-allow-methods",
-        "GET,POST,PATCH,PUT,DELETE,OPTIONS"
-      );
+      return;
+    }
 
-      if (request.method === "OPTIONS") {
-        response.writeHead(204);
-        response.end();
-        return;
-      }
+    if (url.pathname === "/v1/auth/capabilities") {
+      json(response, 200, { google: false }, webOrigin);
+      return;
+    }
 
-      const url = new URL(request.url ?? "/", `http://${host}:${port}`);
-      console.log("[MockAPI]", request.method, url.pathname);
-      const session = request.headers.cookie
-        ?.split(";")
-        .map((cookie) => cookie.trim())
-        .find((cookie) => cookie.startsWith("soundkit_test_session="))
-        ?.split("=")[1];
-
-      if (url.pathname === "/test/session/admin") {
-        response.writeHead(302, {
-          location: `${webOrigin}/dashboard/admin`,
-          "set-cookie": "soundkit_test_session=admin; Path=/; SameSite=Lax",
-        });
-        response.end();
-        return;
-      }
-
-      if (url.pathname === "/auth/sign-out" && request.method === "POST") {
-        response.writeHead(200, {
-          "content-type": "application/json",
-          "set-cookie":
-            "soundkit_test_session=; Max-Age=0; Path=/; SameSite=Lax",
-        });
-        response.end(JSON.stringify({ success: true }));
-        return;
-      }
-
-      if (url.pathname === "/auth/sign-out" && request.method === "POST") {
-        response.writeHead(200, {
-          "content-type": "application/json",
-          "set-cookie":
-            "soundkit_test_session=; Max-Age=0; Path=/; SameSite=Lax",
-        });
-        response.end(JSON.stringify({ success: true }));
-        return;
-      }
-
-      if (url.pathname === "/auth/get-session") {
-        if (
-          session !== "admin" &&
-          session !== "complete" &&
-          session !== "participant" &&
-          session !== "nonparticipant" &&
-          session !== "incomplete" &&
-          session !== "fan_incomplete" &&
-          session !== "setup-incomplete" &&
-          session !== "setup-monetization-complete"
-        ) {
-          json(response, 200, null, webOrigin);
-          return;
-        }
-
-        const authenticatedUser = mockUser(session),
-          isAdminSession = session === "admin";
-        json(
-          response,
-          200,
-          {
-            session: {
-              expiresAt: "2026-07-22T12:00:00.000Z",
-              id: `session_${session}`,
-              token: "test-token",
-              userId: authenticatedUser.id,
-            },
-            user: {
+    if (url.pathname === "/auth/admin/list-users") {
+      json(
+        response,
+        200,
+        {
+          limit: 100,
+          offset: 0,
+          total: 2,
+          users: [
+            {
               banned: false,
               createdAt: "2026-06-22T12:00:00.000Z",
-              email: isAdminSession
-                ? "cg@rocktownlabs.com"
-                : "complete@rocktownlabs.com",
+              email: "cg@rocktownlabs.com",
               emailVerified: true,
-              id: authenticatedUser.id,
-              name: authenticatedUser.displayName,
-              role: isAdminSession ? "admin" : "user",
+              id: "user_admin",
+              name: "CG Admin",
+              role: "admin",
               updatedAt: "2026-06-22T12:00:00.000Z",
             },
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      if (url.pathname === "/v1/auth/capabilities") {
-        json(response, 200, { google: false }, webOrigin);
-        return;
-      }
-
-      if (url.pathname === "/auth/admin/list-users") {
-        json(
-          response,
-          200,
-          {
-            limit: 100,
-            offset: 0,
-            total: 2,
-            users: [
-              {
-                banned: false,
-                createdAt: "2026-06-22T12:00:00.000Z",
-                email: "cg@rocktownlabs.com",
-                emailVerified: true,
-                id: "user_admin",
-                name: "CG Admin",
-                role: "admin",
-                updatedAt: "2026-06-22T12:00:00.000Z",
-              },
-              {
-                banned: false,
-                createdAt: "2026-06-21T12:00:00.000Z",
-                email: "artist@example.com",
-                emailVerified: true,
-                id: "user_artist_2",
-                name: "Arkansas Artist",
-                role: "user",
-                updatedAt: "2026-06-21T12:00:00.000Z",
-              },
-            ],
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      if (url.pathname === "/v1/admin/finance/payments/users") {
-        json(
-          response,
-          200,
-          {
-            users: [
-              {
-                accountType: "artist",
-                banned: false,
-                createdAt: "2026-06-22T12:00:00.000Z",
-                email: "cg@rocktownlabs.com",
-                id: "user_admin",
-                name: "CG Admin",
-                premiumPlan: "artist_premium",
-                premiumStatus: "active",
-                role: "admin",
-                username: "cg_admin",
-              },
-              {
-                accountType: "artist",
-                banned: false,
-                createdAt: "2026-06-21T12:00:00.000Z",
-                email: "artist@example.com",
-                id: "user_artist_2",
-                name: "Arkansas Artist",
-                premiumPlan: null,
-                premiumStatus: null,
-                role: "user",
-                username: "arkansas_artist",
-              },
-            ],
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      if (url.pathname === "/v1/discover/genres") {
-        const genres = [
-          "hip-hop",
-          "rb-soul",
-          "electronic",
-          "pop",
-          "spoken-word",
-          "rock",
-          "jazz",
-          "afrobeats",
-          "latin",
-          "country",
-          "reggae",
-          "indie",
-          "metal",
-        ].map((slug) => ({
-          id: `genre_${slug}`,
-          name: slug === "hip-hop" ? "Hip Hop" : slug.replaceAll("-", " "),
-          slug,
-          totalCount: slug === "hip-hop" ? 8 : 0,
-          trackCount: slug === "hip-hop" ? 3 : 0,
-          videoCount: slug === "hip-hop" ? 1 : 0,
-        }));
-        json(response, 200, genres, webOrigin);
-        return;
-      }
-
-      if (url.pathname === "/v1/admin/access") {
-        json(response, 200, { isAdmin: true }, webOrigin);
-        return;
-      }
-
-      if (url.pathname === "/v1/admin/overview") {
-        json(
-          response,
-          200,
-          {
-            commerce: {
-              grossRevenueCents: 12_500,
-              platformFeeCents: 1250,
-              successfulTransactions: 4,
-            },
-            content: {
-              communities: 1,
-              listeningParties: 2,
-              openVerses: 3,
-              projects: 4,
-              tracks: 8,
-              videos: 2,
-            },
-            operations: {
-              activeOpenVerses: 2,
-              publishedTracks: 5,
-              readyVideos: 1,
-              releasedProjects: 1,
-              scheduledListeningParties: 1,
-            },
-            people: {
-              admins: 1,
-              artists: 1,
-              bannedUsers: 0,
-              fans: 0,
-              users: 2,
-            },
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      if (url.pathname === "/v1/admin/open-verses") {
-        json(
-          response,
-          200,
-          [
             {
-              accessRequestCount: 0,
-              baseMasterAssetId: null,
-              createdAt: "2026-06-01T12:00:00.000Z",
-              genre: "Hip Hop",
-              id: "legacy_open_verse",
-              ownerDisplayName: "Matt Alvis",
-              ownerUserId: "user_artist_2",
-              ownerUsername: "mattalvis",
-              previewAssetId: null,
-              status: "open",
-              submissionCount: 0,
-              title: "IYKYK open verse listing title",
-              trackId: "track_iykyk",
-              trackTitle: "IYKYK",
+              banned: false,
+              createdAt: "2026-06-21T12:00:00.000Z",
+              email: "artist@example.com",
+              emailVerified: true,
+              id: "user_artist_2",
+              name: "Arkansas Artist",
+              role: "user",
+              updatedAt: "2026-06-21T12:00:00.000Z",
             },
           ],
-          webOrigin
-        );
-        return;
-      }
+        },
+        webOrigin
+      );
+      return;
+    }
 
-      if (
-        request.method === "DELETE" &&
-        url.pathname === "/v1/open-verses/legacy_open_verse"
-      ) {
-        json(
-          response,
-          200,
-          { message: "Open verse listing deleted." },
-          webOrigin
-        );
-        return;
-      }
-
-      if (url.pathname === "/v1/admin/genres") {
-        json(
-          response,
-          200,
-          [
+    if (url.pathname === "/v1/admin/finance/payments/users") {
+      json(
+        response,
+        200,
+        {
+          users: [
             {
-              battleCount: 1,
-              description: "Rhythm, rhyme, and lyrical competition.",
-              id: "genre_hip_hop",
-              name: "Hip Hop",
-              openVerseCount: 1,
-              partyCount: 1,
+              accountType: "artist",
+              banned: false,
+              createdAt: "2026-06-22T12:00:00.000Z",
+              email: "cg@rocktownlabs.com",
+              id: "user_admin",
+              name: "CG Admin",
+              premiumPlan: "artist_premium",
+              premiumStatus: "active",
+              role: "admin",
+              username: "cg_admin",
+            },
+            {
+              accountType: "artist",
+              banned: false,
+              createdAt: "2026-06-21T12:00:00.000Z",
+              email: "artist@example.com",
+              id: "user_artist_2",
+              name: "Arkansas Artist",
+              premiumPlan: null,
+              premiumStatus: null,
+              role: "user",
+              username: "arkansas_artist",
+            },
+          ],
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (url.pathname === "/v1/discover/genres") {
+      const genres = [
+        "hip-hop",
+        "rb-soul",
+        "electronic",
+        "pop",
+        "spoken-word",
+        "rock",
+        "jazz",
+        "afrobeats",
+        "latin",
+        "country",
+        "reggae",
+        "indie",
+        "metal",
+      ].map((slug) => ({
+        id: `genre_${slug}`,
+        name: slug === "hip-hop" ? "Hip Hop" : slug.replaceAll("-", " "),
+        slug,
+        totalCount: slug === "hip-hop" ? 8 : 0,
+        trackCount: slug === "hip-hop" ? 3 : 0,
+        videoCount: slug === "hip-hop" ? 1 : 0,
+      }));
+      json(response, 200, genres, webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/admin/access") {
+      json(response, 200, { isAdmin: true }, webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/admin/overview") {
+      json(
+        response,
+        200,
+        {
+          commerce: {
+            grossRevenueCents: 12_500,
+            platformFeeCents: 1250,
+            successfulTransactions: 4,
+          },
+          content: {
+            communities: 1,
+            listeningParties: 2,
+            openVerses: 3,
+            projects: 4,
+            tracks: 8,
+            videos: 2,
+          },
+          operations: {
+            activeOpenVerses: 2,
+            publishedTracks: 5,
+            readyVideos: 1,
+            releasedProjects: 1,
+            scheduledListeningParties: 1,
+          },
+          people: {
+            admins: 1,
+            artists: 1,
+            bannedUsers: 0,
+            fans: 0,
+            users: 2,
+          },
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (url.pathname === "/v1/admin/open-verses") {
+      json(
+        response,
+        200,
+        [
+          {
+            accessRequestCount: 0,
+            baseMasterAssetId: null,
+            createdAt: "2026-06-01T12:00:00.000Z",
+            genre: "Hip Hop",
+            id: "legacy_open_verse",
+            ownerDisplayName: "Matt Alvis",
+            ownerUserId: "user_artist_2",
+            ownerUsername: "mattalvis",
+            previewAssetId: null,
+            status: "open",
+            submissionCount: 0,
+            title: "IYKYK open verse listing title",
+            trackId: "track_iykyk",
+            trackTitle: "IYKYK",
+          },
+        ],
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "DELETE" &&
+      url.pathname === "/v1/open-verses/legacy_open_verse"
+    ) {
+      json(
+        response,
+        200,
+        { message: "Open verse listing deleted." },
+        webOrigin
+      );
+      return;
+    }
+
+    if (url.pathname === "/v1/admin/genres") {
+      json(
+        response,
+        200,
+        [
+          {
+            battleCount: 1,
+            description: "Rhythm, rhyme, and lyrical competition.",
+            id: "genre_hip_hop",
+            name: "Hip Hop",
+            openVerseCount: 1,
+            partyCount: 1,
+            projectCount: 1,
+            slug: "hip-hop",
+            totalCount: 8,
+            trackCount: 3,
+            videoCount: 1,
+          },
+        ],
+        webOrigin
+      );
+      return;
+    }
+
+    if (url.pathname === "/v1/admin/regions") {
+      json(
+        response,
+        200,
+        {
+          missingCountryCount: 0,
+          missingStateCount: 0,
+          regions: [
+            {
+              artistCount: 1,
+              country: "United States",
+              profileCount: 2,
               projectCount: 1,
-              slug: "hip-hop",
-              totalCount: 8,
+              state: "Arkansas",
+              totalUploadCount: 5,
               trackCount: 3,
               videoCount: 1,
             },
           ],
-          webOrigin
-        );
+          totalProfileCount: 2,
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/projects/project_after_dark"
+    ) {
+      json(response, 200, getMockProjectDetail(request), webOrigin);
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/projects/project_after_dark/library-assets"
+    ) {
+      const projectDetail = getMockProjectDetail(request);
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          selectedTracks = Array.isArray(body.trackIds)
+            ? body.trackIds
+                .map((trackId) =>
+                  mockTracks.find((track) => track.id === trackId)
+                )
+                .filter(Boolean)
+            : [];
+
+        if (body.assetKind === "master" && selectedTracks.length > 0) {
+          projectDetail.tracks = [
+            ...new Map(
+              [...projectDetail.tracks, ...selectedTracks].map((track) => [
+                track.id,
+                track,
+              ])
+            ).values(),
+          ];
+          projectDetail.trackCount = projectDetail.tracks.length;
+        }
+        json(response, 201, projectDetail, webOrigin);
+      });
+      return;
+    }
+
+    if (
+      url.pathname === "/v1/projects/public" ||
+      url.pathname === "/v1/projects/public/"
+    ) {
+      const requestedGenre = url.searchParams.get("genre"),
+        projects =
+          requestedGenre && requestedGenre !== "all"
+            ? mockProjects.filter(
+                (project) =>
+                  normalizeGenre(project.genre) === normalizeGenre(requestedGenre)
+              )
+            : mockProjects;
+      json(response, 200, projects, webOrigin);
+      return;
+    }
+
+    const publicProjectDetailMatch = url.pathname.match(
+      /^\/v1\/projects\/public\/([^/]+)$/
+    );
+    if (publicProjectDetailMatch) {
+      const project = mockProjects.find(
+        (entry) =>
+          entry.id === publicProjectDetailMatch[1] ||
+          entry.slug === publicProjectDetailMatch[1]
+      );
+      if (!project) {
+        json(response, 404, { message: "Project not found." }, webOrigin);
         return;
       }
 
-      if (url.pathname === "/v1/admin/regions") {
-        json(
-          response,
-          200,
-          {
-            missingCountryCount: 0,
-            missingStateCount: 0,
-            regions: [
+      json(
+        response,
+        200,
+        {
+          ...project,
+          assets: [],
+          collaborators: [],
+          tracks: mockTracks.slice(0, 2).map((track) => ({
+            ...track,
+            artistUsername: project.artistUsername,
+            playbackUrl: "/demo-audio/fantasy26.wav",
+            previewUrl: null,
+          })),
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (url.pathname === "/v1/tracks" || url.pathname === "/v1/tracks/") {
+      const requestedGenre = url.searchParams.get("genre"),
+        tracks =
+          requestedGenre && requestedGenre !== "all"
+            ? mockTracks.filter(
+                (track) =>
+                  normalizeGenre(track.genre) === normalizeGenre(requestedGenre)
+              )
+            : mockTracks;
+      json(response, 200, tracks, webOrigin);
+      return;
+    }
+
+    const trackDetailMatch = url.pathname.match(/^\/v1\/tracks\/([^/]+)$/);
+    if (trackDetailMatch) {
+      json(
+        response,
+        200,
+        {
+          ...mockTracks[0],
+          assets: [],
+          artist: {
+            avatarUrl: mockArtists[0].avatarUrl,
+            handle: "luna-eclipse",
+            id: "artist_luna_eclipse",
+            name: "Luna Eclipse",
+            roles: ["musician"],
+            username: "luna-eclipse",
+            verified: true,
+          },
+          credits: {
+            artists: [
               {
-                artistCount: 1,
-                country: "United States",
-                profileCount: 2,
-                projectCount: 1,
-                state: "Arkansas",
-                totalUploadCount: 5,
-                trackCount: 3,
-                videoCount: 1,
+                avatarUrl: null,
+                displayName: "Luna Eclipse",
+                id: "credit_artist_1",
+                legalName: null,
+                role: "artist",
+                splitBps: null,
+                username: "luna-eclipse",
               },
             ],
-            totalProfileCount: 2,
+            engineers: [
+              {
+                avatarUrl: null,
+                displayName: "Reese Nakamura",
+                id: "credit_engineer_1",
+                legalName: null,
+                role: "engineer",
+                splitBps: null,
+                username: null,
+              },
+            ],
+            producers: [
+              {
+                avatarUrl: null,
+                displayName: "Marcus Holt",
+                id: "credit_producer_1",
+                legalName: null,
+                role: "producer",
+                splitBps: null,
+                username: "marcus-holt",
+              },
+            ],
+            vocalists: [
+              {
+                avatarUrl: null,
+                displayName: "Cassandra Vale, Lena Ortiz",
+                id: "credit_vocalist_1",
+                legalName: null,
+                role: "vocalist",
+                splitBps: null,
+                username: null,
+              },
+            ],
+            writers: [
+              {
+                avatarUrl: null,
+                displayName: "Cassandra Vale, Priya Desmond",
+                id: "credit_writer_1",
+                legalName: null,
+                role: "songwriter",
+                splitBps: null,
+                username: null,
+              },
+            ],
           },
-          webOrigin
-        );
-        return;
-      }
-
-      if (
-        request.method === "GET" &&
-        url.pathname === "/v1/projects/project_after_dark"
-      ) {
-        json(response, 200, getMockProjectDetail(request), webOrigin);
-        return;
-      }
-
-      if (
-        request.method === "POST" &&
-        url.pathname === "/v1/projects/project_after_dark/library-assets"
-      ) {
-        const projectDetail = getMockProjectDetail(request);
-        let bodyText = "";
-        request.on("data", (chunk) => {
-          bodyText += chunk;
-        });
-        request.on("end", () => {
-          const body = JSON.parse(bodyText || "{}"),
-            selectedTracks = Array.isArray(body.trackIds)
-              ? body.trackIds
-                  .map((trackId) =>
-                    mockTracks.find((track) => track.id === trackId)
-                  )
-                  .filter(Boolean)
-              : [];
-
-          if (body.assetKind === "master" && selectedTracks.length > 0) {
-            projectDetail.tracks = [
-              ...new Map(
-                [...projectDetail.tracks, ...selectedTracks].map((track) => [
-                  track.id,
-                  track,
-                ])
-              ).values(),
-            ];
-            projectDetail.trackCount = projectDetail.tracks.length;
-          }
-          json(response, 201, projectDetail, webOrigin);
-        });
-        return;
-      }
-
-      if (
-        url.pathname === "/v1/projects/public" ||
-        url.pathname === "/v1/projects/public/"
-      ) {
-        const requestedGenre = url.searchParams.get("genre"),
-          projects =
-            requestedGenre && requestedGenre !== "all"
-              ? mockProjects.filter(
-                  (project) =>
-                    normalizeGenre(project.genre) ===
-                    normalizeGenre(requestedGenre)
-                )
-              : mockProjects;
-        json(response, 200, projects, webOrigin);
-        return;
-      }
-
-      const publicProjectDetailMatch = url.pathname.match(
-        /^\/v1\/projects\/public\/([^/]+)$/
+          listeningAccess: "public",
+          playbackUrl: "/v1/tracks/track_summer_nights/playback",
+        },
+        webOrigin
       );
-      if (publicProjectDetailMatch) {
-        const project = mockProjects.find(
-          (entry) =>
-            entry.id === publicProjectDetailMatch[1] ||
-            entry.slug === publicProjectDetailMatch[1]
-        );
-        if (!project) {
-          json(response, 404, { message: "Project not found." }, webOrigin);
-          return;
-        }
+      return;
+    }
 
-        json(
-          response,
-          200,
-          {
-            ...project,
-            assets: [],
-            collaborators: [],
-            tracks: mockTracks.slice(0, 2).map((track) => ({
-              ...track,
-              artistUsername: project.artistUsername,
-              playbackUrl: "/demo-audio/fantasy26.wav",
-              previewUrl: null,
-            })),
-          },
-          webOrigin
-        );
-        return;
-      }
+    const artistMediaMatch = url.pathname.match(
+      /^\/v1\/artists\/([^/]+)\/media$/
+    );
+    if (artistMediaMatch) {
+      json(response, 200, mockArtistMedia, webOrigin);
+      return;
+    }
 
-      if (url.pathname === "/v1/tracks" || url.pathname === "/v1/tracks/") {
-        const requestedGenre = url.searchParams.get("genre"),
-          tracks =
-            requestedGenre && requestedGenre !== "all"
-              ? mockTracks.filter(
-                  (track) =>
-                    normalizeGenre(track.genre) ===
-                    normalizeGenre(requestedGenre)
-                )
-              : mockTracks;
-        json(response, 200, tracks, webOrigin);
-        return;
-      }
-
-      const trackDetailMatch = url.pathname.match(/^\/v1\/tracks\/([^/]+)$/);
-      if (trackDetailMatch) {
-        json(
-          response,
-          200,
-          {
-            ...mockTracks[0],
-            artist: {
-              avatarUrl: mockArtists[0].avatarUrl,
-              handle: "luna-eclipse",
-              id: "artist_luna_eclipse",
-              name: "Luna Eclipse",
-              roles: ["musician"],
-              username: "luna-eclipse",
-              verified: true,
-            },
-            assets: [],
-            credits: {
-              artists: [
-                {
-                  avatarUrl: null,
-                  displayName: "Luna Eclipse",
-                  id: "credit_artist_1",
-                  legalName: null,
-                  role: "artist",
-                  splitBps: null,
-                  username: "luna-eclipse",
-                },
-              ],
-              engineers: [
-                {
-                  avatarUrl: null,
-                  displayName: "Reese Nakamura",
-                  id: "credit_engineer_1",
-                  legalName: null,
-                  role: "engineer",
-                  splitBps: null,
-                  username: null,
-                },
-              ],
-              producers: [
-                {
-                  avatarUrl: null,
-                  displayName: "Marcus Holt",
-                  id: "credit_producer_1",
-                  legalName: null,
-                  role: "producer",
-                  splitBps: null,
-                  username: "marcus-holt",
-                },
-              ],
-              vocalists: [
-                {
-                  avatarUrl: null,
-                  displayName: "Cassandra Vale, Lena Ortiz",
-                  id: "credit_vocalist_1",
-                  legalName: null,
-                  role: "vocalist",
-                  splitBps: null,
-                  username: null,
-                },
-              ],
-              writers: [
-                {
-                  avatarUrl: null,
-                  displayName: "Cassandra Vale, Priya Desmond",
-                  id: "credit_writer_1",
-                  legalName: null,
-                  role: "songwriter",
-                  splitBps: null,
-                  username: null,
-                },
-              ],
-            },
-            listeningAccess: "public",
-            playbackUrl: "/v1/tracks/track_summer_nights/playback",
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      const artistMediaMatch = url.pathname.match(
-        /^\/v1\/artists\/([^/]+)\/media$/
+    if (url.pathname === "/v1/artists/discover") {
+      const requestedCursor = url.searchParams.get("cursor"),
+        start = requestedCursor ? 1 : 0,
+        artists = mockArtists.slice(start, start + 12).map((artist, index) => ({
+          ...artist,
+          rank: start + index + 1,
+        }));
+      json(
+        response,
+        200,
+        {
+          artists,
+          hasMore: start + artists.length < mockArtists.length,
+          nextCursor: null,
+        },
+        webOrigin
       );
-      if (artistMediaMatch) {
-        json(response, 200, mockArtistMedia, webOrigin);
-        return;
-      }
+      return;
+    }
 
-      if (url.pathname === "/v1/artists/discover") {
-        const requestedCursor = url.searchParams.get("cursor"),
-          start = requestedCursor ? 1 : 0,
-          artists = mockArtists
-            .slice(start, start + 12)
-            .map((artist, index) => ({
-              ...artist,
-              rank: start + index + 1,
-            }));
-        json(
-          response,
-          200,
-          {
-            artists,
-            hasMore: start + artists.length < mockArtists.length,
-            nextCursor: null,
+    const artistDetailMatch = url.pathname.match(/^\/v1\/artists\/([^/]+)$/);
+    if (artistDetailMatch) {
+      const artist =
+        mockArtists.find((entry) => entry.username === artistDetailMatch[1]) ??
+        mockArtists[0];
+      json(response, 200, artist, webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/artists" || url.pathname === "/v1/artists/") {
+      const requestedGenre = url.searchParams.get("genre"),
+        artists =
+          requestedGenre && requestedGenre !== "all"
+            ? mockArtists.filter(
+                (artist) =>
+                  normalizeGenre(artist.genre) === normalizeGenre(requestedGenre)
+              )
+            : mockArtists;
+      json(response, 200, artists, webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/videos" || url.pathname === "/v1/videos/") {
+      const requestedGenre = url.searchParams.get("genre"),
+        videos =
+          requestedGenre && requestedGenre !== "all"
+            ? mockVideos.filter(
+                (video) =>
+                  normalizeGenre(video.genre) === normalizeGenre(requestedGenre)
+              )
+            : mockVideos;
+      json(response, 200, videos, webOrigin);
+      return;
+    }
+
+    const videoAnalyticsMatch = url.pathname.match(
+      /^\/v1\/videos\/([^/]+)\/analytics$/
+    );
+    if (videoAnalyticsMatch) {
+      const premium =
+        session === "complete" ||
+        session === "participant" ||
+        session === "nonparticipant" ||
+        session === "admin";
+      json(
+        response,
+        200,
+        {
+          geography: {
+            hasEnoughData: true,
+            level: premium ? "region" : "country",
+            locations: [
+              {
+                countryCode: "US",
+                label: premium ? "Arkansas, USA" : "USA",
+                percentage: 100,
+                regionCode: premium ? "AR" : null,
+                regionName: premium ? "Arkansas" : null,
+                viewers: 42,
+              },
+            ],
+            totalViewers: 42,
           },
-          webOrigin
-        );
-        return;
-      }
-
-      const artistDetailMatch = url.pathname.match(/^\/v1\/artists\/([^/]+)$/);
-      if (artistDetailMatch) {
-        const artist =
-          mockArtists.find(
-            (entry) => entry.username === artistDetailMatch[1]
-          ) ?? mockArtists[0];
-        json(response, 200, artist, webOrigin);
-        return;
-      }
-
-      if (url.pathname === "/v1/artists" || url.pathname === "/v1/artists/") {
-        const requestedGenre = url.searchParams.get("genre"),
-          artists =
-            requestedGenre && requestedGenre !== "all"
-              ? mockArtists.filter(
-                  (artist) =>
-                    normalizeGenre(artist.genre) ===
-                    normalizeGenre(requestedGenre)
-                )
-              : mockArtists;
-        json(response, 200, artists, webOrigin);
-        return;
-      }
-
-      if (url.pathname === "/v1/videos" || url.pathname === "/v1/videos/") {
-        const requestedGenre = url.searchParams.get("genre"),
-          videos =
-            requestedGenre && requestedGenre !== "all"
-              ? mockVideos.filter(
-                  (video) =>
-                    normalizeGenre(video.genre) ===
-                    normalizeGenre(requestedGenre)
-                )
-              : mockVideos;
-        json(response, 200, videos, webOrigin);
-        return;
-      }
-
-      const videoAnalyticsMatch = url.pathname.match(
-        /^\/v1\/videos\/([^/]+)\/analytics$/
-      );
-      if (videoAnalyticsMatch) {
-        const premium =
-          session === "complete" ||
-          session === "participant" ||
-          session === "nonparticipant" ||
-          session === "admin";
-        json(
-          response,
-          200,
-          {
-            geography: {
-              hasEnoughData: true,
-              level: premium ? "region" : "country",
-              locations: [
-                {
-                  countryCode: "US",
-                  label: premium ? "Arkansas, USA" : "USA",
-                  percentage: 100,
-                  regionCode: premium ? "AR" : null,
-                  regionName: premium ? "Arkansas" : null,
-                  viewers: 42,
-                },
-              ],
-              totalViewers: 42,
-            },
-            range: url.searchParams.get("range") ?? "28d",
-            summary: {
-              averageWatchPercent: 68,
-              completionRate: 54,
-              totalWatchedSeconds: 5400,
+          range: url.searchParams.get("range") ?? "28d",
+          summary: {
+            averageWatchPercent: 68,
+            completionRate: 54,
+            totalWatchedSeconds: 5400,
+            uniqueViewers: 42,
+            views: 56,
+          },
+          timeseries: [
+            {
+              date: "2026-06-01",
+              label: "Jun 1",
               uniqueViewers: 42,
               views: 56,
-            },
-            timeseries: [
-              {
-                date: "2026-06-01",
-                label: "Jun 1",
-                uniqueViewers: 42,
-                views: 56,
-                watchedSeconds: 5400,
-              },
-            ],
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      const videoCommentsMatch = url.pathname.match(
-        /^\/v1\/videos\/([^/]+)\/comments$/
-      );
-      if (videoCommentsMatch) {
-        if (request.method === "GET") {
-          json(response, 200, getMockVideoComments(request), webOrigin);
-          return;
-        }
-        if (request.method === "POST") {
-          let bodyText = "";
-          request.on("data", (chunk) => {
-            bodyText += chunk;
-          });
-          request.on("end", () => {
-            const body = JSON.parse(bodyText || "{}"),
-              comments = getMockVideoComments(request),
-              parent = body.parentCommentId
-                ? comments.find(
-                    (comment) => comment.id === body.parentCommentId
-                  )
-                : null;
-            if (body.parentCommentId && !parent) {
-              json(
-                response,
-                400,
-                { message: "The comment you are replying to does not exist." },
-                webOrigin
-              );
-              return;
-            }
-            const comment = {
-              authorAvatarUrl: "/summer-music-album-cover.webp",
-              authorName: "Complete Artist",
-              authorUsername: "complete_artist",
-              body: body.body,
-              createdAt: new Date().toISOString(),
-              id: body.clientCommentId ?? `mock-comment-${Date.now()}`,
-              parentCommentId: body.parentCommentId ?? null,
-              userId: "user_complete",
-            };
-            comments.push(comment);
-            json(response, 201, comment, webOrigin);
-          });
-          return;
-        }
-      }
-
-      if (request.method === "GET" && url.pathname === "/v1/presence") {
-        const onlineCount = Object.values(getMockPresence(request)).filter(
-          (presence) => presence.isOnline
-        ).length;
-        json(response, 200, { onlineCount }, webOrigin);
-        return;
-      }
-
-      if (request.method === "POST" && url.pathname === "/v1/presence/query") {
-        let bodyText = "";
-        request.on("data", (chunk) => {
-          bodyText += chunk;
-        });
-        request.on("end", () => {
-          const body = JSON.parse(bodyText || "{}"),
-            users = Object.fromEntries(
-              (Array.isArray(body.userIds) ? body.userIds : []).map((id) => [
-                id,
-                getMockPresence(request)[id] ?? {
-                  isOnline: false,
-                  lastSeen: 0,
-                  status: "offline",
-                },
-              ])
-            );
-          json(response, 200, { users }, webOrigin);
-        });
-        return;
-      }
-
-      if (
-        request.method === "POST" &&
-        url.pathname === "/v1/presence/heartbeat"
-      ) {
-        let bodyText = "";
-        request.on("data", (chunk) => {
-          bodyText += chunk;
-        });
-        request.on("end", () => {
-          const body = JSON.parse(bodyText || "{}"),
-            user = mockUser(session),
-            status =
-              body.status === "away" || body.status === "offline"
-                ? body.status
-                : "online";
-          if (user) {
-            getMockPresence(request)[user.id] = {
-              isOnline: status !== "offline",
-              lastSeen: Date.now(),
-              status,
-            };
-          }
-          json(response, 200, { success: true }, webOrigin);
-        });
-        return;
-      }
-
-      const messageConversationsMatch = url.pathname.match(
-        /^\/v1\/messages\/conversations\/([^/]+)\/messages$/
-      );
-      if (messageConversationsMatch) {
-        const conversationId = decodeURIComponent(messageConversationsMatch[1]);
-        if (request.method === "GET") {
-          json(
-            response,
-            200,
-            getMockMessages(request, conversationId),
-            webOrigin
-          );
-          return;
-        }
-        if (request.method === "POST") {
-          let bodyText = "";
-          request.on("data", (chunk) => {
-            bodyText += chunk;
-          });
-          request.on("end", () => {
-            const body = JSON.parse(bodyText || "{}"),
-              messages = getMockMessages(request, conversationId),
-              message = {
-                attachments: body.attachments ?? [],
-                body: body.body ?? "",
-                conversationId,
-                createdAt: new Date().toISOString(),
-                id: body.clientMessageId ?? `mock-message-${Date.now()}`,
-                senderId: "user_complete",
-                status: "sent",
-              },
-              conversation = getMockConversations(request).find(
-                (entry) => entry.id === conversationId
-              );
-            messages.push(message);
-            if (conversation) {
-              conversation.updatedAt = message.createdAt;
-              conversation.unreadCount = 0;
-            }
-            json(response, 201, message, webOrigin);
-          });
-          return;
-        }
-      }
-
-      const messageReadMatch = url.pathname.match(
-        /^\/v1\/messages\/conversations\/([^/]+)\/read$/
-      );
-      if (request.method === "POST" && messageReadMatch) {
-        const conversationId = decodeURIComponent(messageReadMatch[1]),
-          conversation = getMockConversations(request).find(
-            (entry) => entry.id === conversationId
-          );
-        if (conversation) {
-          conversation.unreadCount = 0;
-        }
-        json(response, 200, { success: true }, webOrigin);
-        return;
-      }
-
-      if (
-        request.method === "GET" &&
-        url.pathname === "/v1/messages/conversations"
-      ) {
-        json(response, 200, getMockConversations(request), webOrigin);
-        return;
-      }
-
-      if (
-        request.method === "POST" &&
-        url.pathname === "/v1/messages/conversations"
-      ) {
-        let bodyText = "";
-        request.on("data", (chunk) => {
-          bodyText += chunk;
-        });
-        request.on("end", () => {
-          const body = JSON.parse(bodyText || "{}"),
-            id = `mock-conversation-${Date.now()}`,
-            conversation = {
-              conversationType:
-                body.participantUserIds?.length > 1 ? "group" : "direct",
-              id,
-              participantAvatarUrl: "/soundkit-default-avatar.svg",
-              participantId: body.participantUserIds?.[0] ?? null,
-              participantName: body.title ?? "New conversation",
-              participantUsername: null,
-              title: body.title ?? "New conversation",
-              unreadCount: 0,
-              updatedAt: new Date().toISOString(),
-            };
-          getMockConversations(request).unshift(conversation);
-          json(response, 201, conversation, webOrigin);
-        });
-        return;
-      }
-
-      if (request.method === "GET" && url.pathname === "/v1/messages/friends") {
-        json(
-          response,
-          200,
-          [
-            {
-              avatarUrl: "/soundkit-default-avatar.svg",
-              email: null,
-              id: "artist-mc-rhythm",
-              lastInteractionAt: "2026-05-26T12:03:00.000Z",
-              name: "MC Rhythm",
-              relationship: "collaborator",
-              role: "Artist",
-              username: "mc-rhythm",
+              watchedSeconds: 5400,
             },
           ],
-          webOrigin
-        );
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    const videoCommentsMatch = url.pathname.match(
+      /^\/v1\/videos\/([^/]+)\/comments$/
+    );
+    if (videoCommentsMatch) {
+      if (request.method === "GET") {
+        json(response, 200, getMockVideoComments(request), webOrigin);
         return;
       }
-
-      if (request.method === "GET" && url.pathname === "/v1/messages/people") {
-        const query = (url.searchParams.get("q") ?? "").toLowerCase();
-        json(
-          response,
-          200,
-          "musicfan99".startsWith(query) || query.includes("fan")
-            ? [
-                {
-                  avatarUrl: "/soundkit-default-avatar.svg",
-                  displayName: "Music Fan",
-                  email: null,
-                  stageName: null,
-                  userId: "user_other_artist",
-                  username: "musicfan99",
-                },
-              ]
-            : [],
-          webOrigin
-        );
-        return;
-      }
-
-      const videoDetailMatch = url.pathname.match(/^\/v1\/videos\/([^/]+)$/);
-      if (videoDetailMatch) {
-        const video = mockVideos.find((v) => v.id === videoDetailMatch[1]) ?? {
-          ...mockVideos[0],
-          id: videoDetailMatch[1],
-        };
-        json(response, 200, video, webOrigin);
-        return;
-      }
-
-      if (
-        url.pathname === "/v1/battles/kits" ||
-        url.pathname === "/v1/battles/kits/"
-      ) {
-        const user = mockUser(session);
-        if (!user) {
-          json(
-            response,
-            401,
-            { message: "Authentication is required." },
-            webOrigin
-          );
-          return;
-        }
-
-        const mockBattleKits = getMockBattleKits(request);
-        if (request.method === "GET") {
-          const requestedFormat = url.searchParams.get("format");
-          if (requestedFormat) {
-            const requiredMainTracks = Number(requestedFormat.slice(-1)),
-              tracks = mockTracks
-                .slice(0, requiredMainTracks + 1)
-                .map((track, index) => ({
-                  coverArtUrl: track.coverArtUrl,
-                  id: `mock-waiting-kit-track-${index}`,
-                  mainSlot: index < requiredMainTracks ? index + 1 : null,
-                  role: index < requiredMainTracks ? "main" : "tiebreaker",
-                  title: track.title,
-                  trackId: track.id,
-                }));
+      if (request.method === "POST") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            comments = getMockVideoComments(request),
+            parent = body.parentCommentId
+              ? comments.find(
+                  (comment) => comment.id === body.parentCommentId
+                )
+              : null;
+          if (body.parentCommentId && !parent) {
             json(
               response,
-              200,
-              [
-                {
-                  createdAt: "2026-08-01T12:00:00.000Z",
-                  format: requestedFormat,
-                  id: "mock-waiting-kit",
-                  isBattleReady: true,
-                  mainTrackCount: requiredMainTracks,
-                  name: `${requestedFormat.replaceAll("_", " ").toUpperCase()} Warmup Kit`,
-                  reason: null,
-                  requiredMainTracks,
-                  tiebreakerCount: 1,
-                  totalRequiredTracks: requiredMainTracks + 1,
-                  totalUniqueTracks: tracks.length,
-                  tracks,
-                  updatedAt: "2026-08-01T12:00:00.000Z",
-                },
-              ],
+              400,
+              { message: "The comment you are replying to does not exist." },
               webOrigin
             );
             return;
           }
-          json(response, 200, mockBattleKits, webOrigin);
-          return;
-        }
+          const comment = {
+            authorAvatarUrl: "/summer-music-album-cover.webp",
+            authorName: "Complete Artist",
+            authorUsername: "complete_artist",
+            body: body.body,
+            createdAt: new Date().toISOString(),
+            id: body.clientCommentId ?? `mock-comment-${Date.now()}`,
+            parentCommentId: body.parentCommentId ?? null,
+            userId: "user_complete",
+          };
+          comments.push(comment);
+          json(response, 201, comment, webOrigin);
+        });
+        return;
+      }
+    }
 
-        if (request.method === "POST") {
-          let bodyText = "";
-          request.on("data", (chunk) => {
-            bodyText += chunk;
-          });
-          request.on("end", () => {
-            const body = JSON.parse(bodyText || "{}"),
-              inputTracks = Array.isArray(body.tracks) ? body.tracks : [],
-              tracks = inputTracks.map((track, index) => {
-                const source = mockTracks.find(
-                  (candidate) => candidate.id === track.trackId
-                );
-                return {
-                  coverArtUrl: source?.coverArtUrl ?? null,
-                  id: `mock-kit-track-${Date.now()}-${index}`,
-                  mainSlot: track.mainSlot ?? null,
-                  role: track.role,
-                  title: source?.title ?? `Track ${index + 1}`,
-                  trackId: track.trackId,
-                };
-              }),
-              mainTrackCount = tracks.filter(
-                (track) => track.role === "main"
-              ).length,
-              tiebreakerCount = tracks.filter(
-                (track) => track.role === "tiebreaker"
-              ).length,
-              kit = {
-                createdAt: new Date().toISOString(),
-                format: body.format,
-                id: `mock-kit-${Date.now()}`,
-                isBattleReady: mainTrackCount >= 3 && tiebreakerCount === 1,
-                mainTrackCount,
-                name: body.name,
-                reason: null,
-                requiredMainTracks: Number(String(body.format).slice(-1)),
-                tiebreakerCount,
-                totalRequiredTracks: Number(String(body.format).slice(-1)) + 1,
-                totalUniqueTracks: new Set(tracks.map((track) => track.trackId))
-                  .size,
-                tracks,
-                updatedAt: new Date().toISOString(),
-              };
-            mockBattleKits.push(kit);
-            json(response, 201, kit, webOrigin);
-          });
-          return;
+    if (request.method === "GET" && url.pathname === "/v1/presence") {
+      const onlineCount = Object.values(getMockPresence(request)).filter(
+        (presence) => presence.isOnline
+      ).length;
+      json(response, 200, { onlineCount }, webOrigin);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/presence/query") {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          users = Object.fromEntries(
+            (Array.isArray(body.userIds) ? body.userIds : []).map((id) => [
+              id,
+              getMockPresence(request)[id] ?? {
+                isOnline: false,
+                lastSeen: 0,
+                status: "offline",
+              },
+            ])
+          );
+        json(response, 200, { users }, webOrigin);
+      });
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/presence/heartbeat"
+    ) {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          user = mockUser(session),
+          status =
+            body.status === "away" || body.status === "offline"
+              ? body.status
+              : "online";
+        if (user) {
+          getMockPresence(request)[user.id] = {
+            isOnline: status !== "offline",
+            lastSeen: Date.now(),
+            status,
+          };
         }
+        json(response, 200, { success: true }, webOrigin);
+      });
+      return;
+    }
+
+    const messageConversationsMatch = url.pathname.match(
+      /^\/v1\/messages\/conversations\/([^/]+)\/messages$/
+    );
+    if (messageConversationsMatch) {
+      const conversationId = decodeURIComponent(messageConversationsMatch[1]);
+      if (request.method === "GET") {
+        json(response, 200, getMockMessages(request, conversationId), webOrigin);
+        return;
+      }
+      if (request.method === "POST") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            messages = getMockMessages(request, conversationId),
+            message = {
+              attachments: body.attachments ?? [],
+              body: body.body ?? "",
+              conversationId,
+              createdAt: new Date().toISOString(),
+              id: body.clientMessageId ?? `mock-message-${Date.now()}`,
+              senderId: "user_complete",
+              status: "sent",
+            },
+            conversation = getMockConversations(request).find(
+              (entry) => entry.id === conversationId
+            );
+          messages.push(message);
+          if (conversation) {
+            conversation.updatedAt = message.createdAt;
+            conversation.unreadCount = 0;
+          }
+          json(response, 201, message, webOrigin);
+        });
+        return;
+      }
+    }
+
+    const messageReadMatch = url.pathname.match(
+      /^\/v1\/messages\/conversations\/([^/]+)\/read$/
+    );
+    if (request.method === "POST" && messageReadMatch) {
+      const conversationId = decodeURIComponent(messageReadMatch[1]),
+        conversation = getMockConversations(request).find(
+          (entry) => entry.id === conversationId
+        );
+      if (conversation) {
+        conversation.unreadCount = 0;
+      }
+      json(response, 200, { success: true }, webOrigin);
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/messages/conversations") {
+      json(response, 200, getMockConversations(request), webOrigin);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/messages/conversations") {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          id = `mock-conversation-${Date.now()}`,
+          conversation = {
+            conversationType: body.participantUserIds?.length > 1 ? "group" : "direct",
+            id,
+            participantAvatarUrl: "/soundkit-default-avatar.svg",
+            participantId: body.participantUserIds?.[0] ?? null,
+            participantName: body.title ?? "New conversation",
+            participantUsername: null,
+            title: body.title ?? "New conversation",
+            unreadCount: 0,
+            updatedAt: new Date().toISOString(),
+          };
+        getMockConversations(request).unshift(conversation);
+        json(response, 201, conversation, webOrigin);
+      });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/messages/friends") {
+      json(
+        response,
+        200,
+        [
+          {
+            avatarUrl: "/soundkit-default-avatar.svg",
+            email: null,
+            id: "artist-mc-rhythm",
+            lastInteractionAt: "2026-05-26T12:03:00.000Z",
+            name: "MC Rhythm",
+            relationship: "collaborator",
+            role: "Artist",
+            username: "mc-rhythm",
+          },
+        ],
+        webOrigin
+      );
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/messages/people") {
+      const query = (url.searchParams.get("q") ?? "").toLowerCase();
+      json(
+        response,
+        200,
+        "musicfan99".startsWith(query) || query.includes("fan")
+          ? [
+              {
+                avatarUrl: "/soundkit-default-avatar.svg",
+                displayName: "Music Fan",
+                email: null,
+                stageName: null,
+                userId: "user_other_artist",
+                username: "musicfan99",
+              },
+            ]
+          : [],
+        webOrigin
+      );
+      return;
+    }
+
+    const videoDetailMatch = url.pathname.match(/^\/v1\/videos\/([^/]+)$/);
+    if (videoDetailMatch) {
+      const video = mockVideos.find((v) => v.id === videoDetailMatch[1]) ?? {
+        ...mockVideos[0],
+        id: videoDetailMatch[1],
+      };
+      json(response, 200, video, webOrigin);
+      return;
+    }
+
+    if (
+      url.pathname === "/v1/battles/kits" ||
+      url.pathname === "/v1/battles/kits/"
+    ) {
+      const user = mockUser(session);
+      if (!user) {
+        json(
+          response,
+          401,
+          { message: "Authentication is required." },
+          webOrigin
+        );
+        return;
       }
 
-      const battleChallengeMatch = url.pathname.match(
-        /^\/v1\/battles\/challenges\/([^/]+)$/
-      );
-      if (battleChallengeMatch) {
-        const user = mockUser(session);
-        if (!user) {
-          json(
-            response,
-            401,
-            { message: "Authentication is required." },
-            webOrigin
-          );
-          return;
-        }
-
-        const mockBattleChallenges = getMockBattleChallenges(request),
-          challengeId = battleChallengeMatch[1],
-          challengeIndex = mockBattleChallenges.findIndex(
-            (challenge) => challenge.id === challengeId
-          );
-        if (challengeIndex === -1) {
-          json(
-            response,
-            404,
-            { message: "Battle challenge not found." },
-            webOrigin
-          );
-          return;
-        }
-
-        if (request.method === "DELETE") {
-          mockBattleChallenges.splice(challengeIndex, 1);
+      const mockBattleKits = getMockBattleKits(request);
+      if (request.method === "GET") {
+        const requestedFormat = url.searchParams.get("format");
+        if (requestedFormat) {
+          const requiredMainTracks = Number(requestedFormat.slice(-1)),
+            tracks = mockTracks
+              .slice(0, requiredMainTracks + 1)
+              .map((track, index) => ({
+                coverArtUrl: track.coverArtUrl,
+                id: `mock-waiting-kit-track-${index}`,
+                mainSlot: index < requiredMainTracks ? index + 1 : null,
+                role: index < requiredMainTracks ? "main" : "tiebreaker",
+                title: track.title,
+                trackId: track.id,
+              }));
           json(
             response,
             200,
-            { message: "Battle challenge dismissed." },
+            [
+              {
+                createdAt: "2026-08-01T12:00:00.000Z",
+                format: requestedFormat,
+                id: "mock-waiting-kit",
+                isBattleReady: true,
+                mainTrackCount: requiredMainTracks,
+                name: `${requestedFormat.replaceAll("_", " ").toUpperCase()} Warmup Kit`,
+                reason: null,
+                requiredMainTracks,
+                tiebreakerCount: 1,
+                totalRequiredTracks: requiredMainTracks + 1,
+                totalUniqueTracks: tracks.length,
+                tracks,
+                updatedAt: "2026-08-01T12:00:00.000Z",
+              },
+            ],
             webOrigin
           );
           return;
         }
-
-        if (request.method === "PATCH") {
-          let bodyText = "";
-          request.on("data", (chunk) => {
-            bodyText += chunk;
-          });
-          request.on("end", () => {
-            const body = JSON.parse(bodyText || "{}"),
-              status = body.status === "accepted" ? "accepted" : body.status;
-            mockBattleChallenges[challengeIndex].status = status;
-            if (status === "accepted") {
-              const challenge = mockBattleChallenges[challengeIndex],
-                battleId = `mock-battle-${challenge.id}`,
-                clientBattles = getMockBattles(request);
-              if (!clientBattles.some((battle) => battle.id === battleId)) {
-                clientBattles.push({
-                  format: challenge.format,
-                  genre: challenge.genre,
-                  id: battleId,
-                  isFeatured: false,
-                  joinMode: "watch_now",
-                  participants: [
-                    {
-                      avatarUrl: "/soundkit-default-avatar.svg",
-                      id: "mock-artist-mattalvis",
-                      name: "Matt Alvis",
-                      username: challenge.challengerUsername,
-                    },
-                    {
-                      avatarUrl: "/soundkit-default-avatar.svg",
-                      id: "user_complete",
-                      name: "Complete Artist",
-                      username: "complete_artist",
-                    },
-                  ],
-                  startsAt: challenge.proposedDate,
-                  status: "scheduled",
-                  title: "Artist Battle - Hip-Hop",
-                  tracks: [],
-                  viewerCount: 0,
-                  visibility: "public",
-                });
-              }
-            }
-            json(
-              response,
-              200,
-              { message: `Battle challenge ${status}.` },
-              webOrigin
-            );
-          });
-          return;
-        }
-      }
-
-      if (
-        request.method === "GET" &&
-        url.pathname === "/v1/battles/challenges"
-      ) {
-        const user = mockUser(session);
-        if (!user) {
-          json(
-            response,
-            401,
-            { message: "Authentication is required." },
-            webOrigin
-          );
-          return;
-        }
-
-        const mockBattleChallenges = getMockBattleChallenges(request);
-        json(
-          response,
-          200,
-          {
-            incoming: mockBattleChallenges.filter(
-              (challenge) => challenge.direction === "incoming"
-            ),
-            outgoing: mockBattleChallenges.filter(
-              (challenge) => challenge.direction === "outgoing"
-            ),
-          },
-          webOrigin
-        );
+        json(response, 200, mockBattleKits, webOrigin);
         return;
       }
 
-      if (
-        request.method === "GET" &&
-        url.pathname === "/v1/me/notification-settings"
-      ) {
-        json(response, 200, mockNotificationSettings, webOrigin);
-        return;
-      }
-
-      if (
-        request.method === "PATCH" &&
-        url.pathname === "/v1/me/notification-settings"
-      ) {
+      if (request.method === "POST") {
         let bodyText = "";
         request.on("data", (chunk) => {
           bodyText += chunk;
         });
         request.on("end", () => {
-          Object.assign(mockNotificationSettings, JSON.parse(bodyText || "{}"));
-          json(response, 200, mockNotificationSettings, webOrigin);
+          const body = JSON.parse(bodyText || "{}"),
+            inputTracks = Array.isArray(body.tracks) ? body.tracks : [],
+            tracks = inputTracks.map((track, index) => {
+              const source = mockTracks.find(
+                (candidate) => candidate.id === track.trackId
+              );
+              return {
+                coverArtUrl: source?.coverArtUrl ?? null,
+                id: `mock-kit-track-${Date.now()}-${index}`,
+                mainSlot: track.mainSlot ?? null,
+                role: track.role,
+                title: source?.title ?? `Track ${index + 1}`,
+                trackId: track.trackId,
+              };
+            }),
+            mainTrackCount = tracks.filter(
+              (track) => track.role === "main"
+            ).length,
+            tiebreakerCount = tracks.filter(
+              (track) => track.role === "tiebreaker"
+            ).length,
+            kit = {
+              createdAt: new Date().toISOString(),
+              format: body.format,
+              id: `mock-kit-${Date.now()}`,
+              isBattleReady: mainTrackCount >= 3 && tiebreakerCount === 1,
+              mainTrackCount,
+              name: body.name,
+              reason: null,
+              requiredMainTracks: Number(String(body.format).slice(-1)),
+              tiebreakerCount,
+              totalRequiredTracks: Number(String(body.format).slice(-1)) + 1,
+              totalUniqueTracks: new Set(
+                tracks.map((track) => track.trackId)
+              ).size,
+              tracks,
+              updatedAt: new Date().toISOString(),
+            };
+          mockBattleKits.push(kit);
+          json(response, 201, kit, webOrigin);
         });
         return;
       }
+    }
 
-      if (
-        url.pathname === "/v1/communities" ||
-        url.pathname === "/v1/communities/"
-      ) {
-        json(response, 200, getMockCommunityCommunities(request), webOrigin);
-        return;
-      }
-
-      const communityDetailMatch = url.pathname.match(
-        /^\/v1\/communities\/([^/]+)$/
-      );
-      if (communityDetailMatch && request.method === "GET") {
-        const community = getMockCommunityCommunities(request).find(
-          (entry) => entry.id === communityDetailMatch[1]
-        );
+    const battleChallengeMatch = url.pathname.match(
+      /^\/v1\/battles\/challenges\/([^/]+)$/
+    );
+    if (battleChallengeMatch) {
+      const user = mockUser(session);
+      if (!user) {
         json(
           response,
-          community ? 200 : 404,
-          community ?? { message: "Community not found." },
+          401,
+          { message: "Authentication is required." },
           webOrigin
         );
         return;
       }
 
-      const communityJoinMatch = url.pathname.match(
-        /^\/v1\/communities\/([^/]+)\/join$/
-      );
-      if (communityJoinMatch && request.method === "POST") {
-        const community = getMockCommunityCommunities(request).find(
-          (entry) => entry.id === communityJoinMatch[1]
+      const mockBattleChallenges = getMockBattleChallenges(request),
+        challengeId = battleChallengeMatch[1],
+        challengeIndex = mockBattleChallenges.findIndex(
+          (challenge) => challenge.id === challengeId
         );
-        if (community && !community.isMember) {
-          community.isMember = true;
-          community.memberCount += 1;
-          getMockCommunityMembers(request).push({
-            avatarUrl: "/summer-music-album-cover.webp",
-            joinedAt: new Date().toISOString(),
-            name: "Complete Artist",
-            role: "member",
-            userId: "user_complete",
-            username: "complete_artist",
-          });
-        }
+      if (challengeIndex < 0) {
         json(
           response,
-          community ? 201 : 404,
-          community
-            ? { message: "Community joined." }
-            : { message: "Community not found." },
+          404,
+          { message: "Battle challenge not found." },
           webOrigin
         );
         return;
       }
 
-      const communityMessagesMatch = url.pathname.match(
-        /^\/v1\/communities\/([^/]+)\/messages$/
-      );
-      if (communityMessagesMatch) {
-        if (request.method === "GET") {
-          json(response, 200, getMockCommunityMessages(request), webOrigin);
-          return;
-        }
-        if (request.method === "POST") {
-          let bodyText = "";
-          request.on("data", (chunk) => {
-            bodyText += chunk;
-          });
-          request.on("end", () => {
-            const body = JSON.parse(bodyText || "{}"),
-              message = {
-                author: {
-                  avatarUrl: "/summer-music-album-cover.webp",
-                  name: "Complete Artist",
-                  username: "complete_artist",
-                },
-                body: body.body,
-                createdAt: new Date().toISOString(),
-                id: body.clientMessageId ?? `mock-message-${Date.now()}`,
-                userId: "user_complete",
-              };
-            getMockCommunityMessages(request).push(message);
-            json(response, 201, message, webOrigin);
-          });
-          return;
-        }
-      }
-
-      const communityPostsMatch = url.pathname.match(
-        /^\/v1\/communities\/([^/]+)\/posts$/
-      );
-      if (communityPostsMatch) {
-        if (request.method === "GET") {
-          json(response, 200, getMockCommunityPosts(request), webOrigin);
-          return;
-        }
-        if (request.method === "POST") {
-          let bodyText = "";
-          request.on("data", (chunk) => {
-            bodyText += chunk;
-          });
-          request.on("end", () => {
-            const body = JSON.parse(bodyText || "{}"),
-              post = {
-                author: {
-                  avatarUrl: "/summer-music-album-cover.webp",
-                  name: "Complete Artist",
-                  username: "complete_artist",
-                },
-                body: body.body ?? null,
-                createdAt: new Date().toISOString(),
-                id: `mock-post-${Date.now()}`,
-                isPinned: false,
-                mediaUrl: null,
-                metadata: null,
-                postType: body.postType ?? "text",
-                userId: "user_complete",
-              };
-            getMockCommunityPosts(request).push(post);
-            json(response, 201, post, webOrigin);
-          });
-          return;
-        }
-      }
-
-      const communityMembersMatch = url.pathname.match(
-        /^\/v1\/communities\/([^/]+)\/members$/
-      );
-      if (communityMembersMatch && request.method === "GET") {
-        json(response, 200, getMockCommunityMembers(request), webOrigin);
-        return;
-      }
-
-      if (
-        request.method === "GET" &&
-        url.pathname === "/v1/battles/opponents"
-      ) {
-        const normalizedQuery = (url.searchParams.get("q") ?? "")
-          .replace(/^@+/u, "")
-          .toLowerCase();
+      if (request.method === "DELETE") {
+        mockBattleChallenges.splice(challengeIndex, 1);
         json(
           response,
           200,
-          normalizedQuery && "new-opponent".includes(normalizedQuery)
-            ? [
-                {
-                  genre: "Hip-Hop",
-                  name: "New Opponent",
-                  username: "new-opponent",
-                },
-              ]
-            : [],
+          { message: "Battle challenge dismissed." },
           webOrigin
         );
         return;
       }
 
-      if (
-        request.method === "POST" &&
-        url.pathname === "/v1/battles/challenge"
-      ) {
-        const user = mockUser(session);
-        if (!user) {
+      if (request.method === "PATCH") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            status = body.status === "accepted" ? "accepted" : body.status;
+          mockBattleChallenges[challengeIndex].status = status;
+          if (status === "accepted") {
+            const challenge = mockBattleChallenges[challengeIndex],
+              battleId = `mock-battle-${challenge.id}`,
+              clientBattles = getMockBattles(request);
+            if (!clientBattles.some((battle) => battle.id === battleId)) {
+              clientBattles.push({
+                format: challenge.format,
+                genre: challenge.genre,
+                id: battleId,
+                isFeatured: false,
+                joinMode: "watch_now",
+                participants: [
+                  {
+                    avatarUrl: "/soundkit-default-avatar.svg",
+                    id: "mock-artist-mattalvis",
+                    name: "Matt Alvis",
+                    username: challenge.challengerUsername,
+                  },
+                  {
+                    avatarUrl: "/soundkit-default-avatar.svg",
+                    id: "user_complete",
+                    name: "Complete Artist",
+                    username: "complete_artist",
+                  },
+                ],
+                startsAt: challenge.proposedDate,
+                status: "scheduled",
+                title: "Artist Battle - Hip-Hop",
+                tracks: [],
+                viewerCount: 0,
+                visibility: "public",
+              });
+            }
+          }
           json(
             response,
-            401,
-            { message: "Authentication is required." },
+            200,
+            { message: `Battle challenge ${status}.` },
             webOrigin
           );
-          return;
-        }
-
-        const mockBattleChallenges = getMockBattleChallenges(request),
-          createdAt = new Date().toISOString();
-        mockBattleChallenges.push({
-          challengerUsername: user.username,
-          createdAt,
-          direction: "outgoing",
-          expiresAt: new Date(
-            Date.parse(createdAt) + 7 * 24 * 60 * 60 * 1000
-          ).toISOString(),
-          format: "best_of_5",
-          genre: "Hip-Hop",
-          id: `mock-challenge-${Date.now()}`,
-          message: null,
-          opponentUsername: "new-opponent",
-          proposedDate: null,
-          proposedTimeLabel: null,
-          status: "pending",
         });
-        json(response, 201, { message: "Challenge created." }, webOrigin);
         return;
       }
+    }
 
-      const battleDeleteMatch = url.pathname.match(/^\/v1\/battles\/([^/]+)$/);
-      if (request.method === "DELETE" && battleDeleteMatch) {
-        const clientBattles = getMockBattles(request),
-          battleIndex = clientBattles.findIndex(
-            (battle) => battle.id === battleDeleteMatch[1]
-          );
-        if (battleIndex !== -1) {
-          clientBattles.splice(battleIndex, 1);
-        }
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/battles/challenges"
+    ) {
+      const user = mockUser(session);
+      if (!user) {
         json(
           response,
-          200,
-          { message: "Scheduled battle deleted." },
+          401,
+          { message: "Authentication is required." },
           webOrigin
         );
         return;
       }
 
-      if (url.pathname === "/v1/battles/record") {
-        json(
-          response,
-          200,
-          {
-            history: [],
-            participation: {
-              battles: 0,
-              canceled: 0,
-              ducks: 0,
-              forfeits: 0,
-              losses: 0,
-              quits: 0,
-              roundsPlayed: 0,
-              ties: 0,
-              wins: 0,
-            },
-            ranked: {
-              battles: 0,
-              canceled: 0,
-              ducks: 0,
-              forfeits: 0,
-              losses: 0,
-              quits: 0,
-              ties: 0,
-              wins: 0,
-            },
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      if (url.pathname === "/v1/battles/stats") {
-        json(response, 200, [], webOrigin);
-        return;
-      }
-
-      if (url.pathname === "/v1/battles" || url.pathname === "/v1/battles/") {
-        const battles = getMockBattles(request),
-          visibleBattles =
-            url.searchParams.get("scope") === "public"
-              ? battles.filter(
-                  (battle) =>
-                    battle.status === "live" ||
-                    battle.status === "scheduled" ||
-                    (battle.hasPlayedTurn &&
-                      battle.replayStatus === "available" &&
-                      battle.replayVideoId)
-                )
-              : battles;
-        json(response, 200, visibleBattles, webOrigin);
-        return;
-      }
-
-      if (
-        url.pathname === "/v1/listening-parties" ||
-        url.pathname === "/v1/listening-parties/"
-      ) {
-        json(response, 200, [], webOrigin);
-        return;
-      }
-
-      if (url.pathname === "/v1/search") {
-        json(
-          response,
-          200,
-          {
-            artists: mockArtists,
-            projects: [],
-            tracks: mockTracks,
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      if (
-        url.pathname === "/v1/seller/status" ||
-        url.pathname === "/v1/seller/status/"
-      ) {
-        const enabled =
-          session === "complete" ||
-          session === "participant" ||
-          session === "nonparticipant" ||
-          session === "admin" ||
-          session === "setup-monetization-complete";
-        json(
-          response,
-          200,
-          {
-            accountLinkUrl: null,
-            chargesEnabled: enabled,
-            detailsSubmitted: enabled,
-            onboardingStatus: enabled ? "enabled" : "not_started",
-            payoutsEnabled: enabled,
-            stripeAccountId: enabled ? "acct_mock_enabled" : null,
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      if (
-        url.pathname === "/v1/artist-setup-guide" ||
-        url.pathname === "/v1/artist-setup-guide/"
-      ) {
-        const complete =
-            session === "complete" ||
-            session === "participant" ||
-            session === "nonparticipant" ||
-            session === "admin",
-          monetizationComplete =
-            complete || session === "setup-monetization-complete";
-        json(
-          response,
-          200,
-          {
-            battleKits: {
-              canStart: complete,
-              count: complete ? 1 : 0,
-              minimumReleasedTracks: 4,
-            },
-            capabilities: {
-              canCreateLiveBattles: complete,
-              canHostLiveStreams: complete,
-              canOperatePaidCommunity: complete,
-              canReceivePayouts: monetizationComplete,
-              canSellProducts: monetizationComplete,
-              isPremium: monetizationComplete,
-            },
-            catalog: {
-              hasPlayablePublicRelease: complete,
-              hasProject: complete,
-              hasSellableItem: complete,
-              hasTrack: complete,
-              releasedPlayableTrackCount: complete ? 4 : 0,
-              trackCount: complete ? 4 : 0,
-            },
-            community: { hasOwnedCommunity: complete },
-            creatorTools: {
-              hasLiveExperience: complete,
-              hasOpenVerse: complete,
-              hasVideo: complete,
-            },
-            monetization: {
-              chargesEnabled: monetizationComplete,
-              detailsSubmitted: monetizationComplete,
-              onboardingStatus: monetizationComplete
-                ? "enabled"
-                : "not_started",
-              payoutsEnabled: monetizationComplete,
-            },
-            profile: { isPublicReady: true },
-            referrals: { inviteSent: complete },
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      if (
-        request.method === "POST" &&
-        url.pathname === "/v1/referrals/invite"
-      ) {
-        json(
-          response,
-          200,
-          {
-            alreadyInvited: false,
-            message: "Invitation sent.",
-            sent: true,
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      if (
-        request.method === "GET" &&
-        (url.pathname === "/v1/notifications" ||
-          url.pathname === "/v1/notifications/")
-      ) {
-        const notifications = getMockNotifications(request),
-          limit = Math.min(
-            50,
-            Math.max(1, Number(url.searchParams.get("limit") ?? 20))
+      const mockBattleChallenges = getMockBattleChallenges(request);
+      json(
+        response,
+        200,
+        {
+          incoming: mockBattleChallenges.filter(
+            (challenge) => challenge.direction === "incoming"
           ),
-          offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0)),
-          items = notifications.slice(offset, offset + limit),
-          nextItem = notifications[offset + limit];
-        json(
-          response,
-          200,
-          {
-            items,
-            nextCursor: nextItem ? String(offset + limit) : null,
-            unreadCount: notifications.filter((item) => !item.read).length,
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      if (
-        request.method === "GET" &&
-        url.pathname === "/v1/notifications/summary"
-      ) {
-        const notifications = getMockNotifications(request);
-        json(
-          response,
-          200,
-          { unreadCount: notifications.filter((item) => !item.read).length },
-          webOrigin
-        );
-        return;
-      }
-
-      const notificationReadMatch = url.pathname.match(
-        /^\/v1\/notifications\/([^/]+)\/read$/
+          outgoing: mockBattleChallenges.filter(
+            (challenge) => challenge.direction === "outgoing"
+          ),
+        },
+        webOrigin
       );
-      if (notificationReadMatch && request.method === "POST") {
-        const notification = getMockNotifications(request).find(
-          (item) => item.id === notificationReadMatch[1]
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/me/notification-settings"
+    ) {
+      json(response, 200, mockNotificationSettings, webOrigin);
+      return;
+    }
+
+    if (
+      request.method === "PATCH" &&
+      url.pathname === "/v1/me/notification-settings"
+    ) {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        Object.assign(mockNotificationSettings, JSON.parse(bodyText || "{}"));
+        json(response, 200, mockNotificationSettings, webOrigin);
+      });
+      return;
+    }
+
+    if (
+      url.pathname === "/v1/communities" ||
+      url.pathname === "/v1/communities/"
+    ) {
+      json(response, 200, getMockCommunityCommunities(request), webOrigin);
+      return;
+    }
+
+    const communityDetailMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)$/
+    );
+    if (communityDetailMatch && request.method === "GET") {
+      const community = getMockCommunityCommunities(request).find(
+        (entry) => entry.id === communityDetailMatch[1]
+      );
+      json(
+        response,
+        community ? 200 : 404,
+        community ?? { message: "Community not found." },
+        webOrigin
+      );
+      return;
+    }
+
+    const communityJoinMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)\/join$/
+    );
+    if (communityJoinMatch && request.method === "POST") {
+      const community = getMockCommunityCommunities(request).find(
+        (entry) => entry.id === communityJoinMatch[1]
+      );
+      if (community && !community.isMember) {
+        community.isMember = true;
+        community.memberCount += 1;
+        getMockCommunityMembers(request).push({
+          avatarUrl: "/summer-music-album-cover.webp",
+          joinedAt: new Date().toISOString(),
+          name: "Complete Artist",
+          role: "member",
+          userId: "user_complete",
+          username: "complete_artist",
+        });
+      }
+      json(
+        response,
+        community ? 201 : 404,
+        community
+          ? { message: "Community joined." }
+          : { message: "Community not found." },
+        webOrigin
+      );
+      return;
+    }
+
+    const communityMessagesMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)\/messages$/
+    );
+    if (communityMessagesMatch) {
+      if (request.method === "GET") {
+        json(response, 200, getMockCommunityMessages(request), webOrigin);
+        return;
+      }
+      if (request.method === "POST") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            message = {
+              author: {
+                avatarUrl: "/summer-music-album-cover.webp",
+                name: "Complete Artist",
+                username: "complete_artist",
+              },
+              body: body.body,
+              createdAt: new Date().toISOString(),
+              id: body.clientMessageId ?? `mock-message-${Date.now()}`,
+              userId: "user_complete",
+            };
+          getMockCommunityMessages(request).push(message);
+          json(response, 201, message, webOrigin);
+        });
+        return;
+      }
+    }
+
+    const communityPostsMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)\/posts$/
+    );
+    if (communityPostsMatch) {
+      if (request.method === "GET") {
+        json(response, 200, getMockCommunityPosts(request), webOrigin);
+        return;
+      }
+      if (request.method === "POST") {
+        let bodyText = "";
+        request.on("data", (chunk) => {
+          bodyText += chunk;
+        });
+        request.on("end", () => {
+          const body = JSON.parse(bodyText || "{}"),
+            post = {
+              author: {
+                avatarUrl: "/summer-music-album-cover.webp",
+                name: "Complete Artist",
+                username: "complete_artist",
+              },
+              body: body.body ?? null,
+              createdAt: new Date().toISOString(),
+              id: `mock-post-${Date.now()}`,
+              isPinned: false,
+              mediaUrl: null,
+              metadata: null,
+              postType: body.postType ?? "text",
+              userId: "user_complete",
+            };
+          getMockCommunityPosts(request).push(post);
+          json(response, 201, post, webOrigin);
+        });
+        return;
+      }
+    }
+
+    const communityMembersMatch = url.pathname.match(
+      /^\/v1\/communities\/([^/]+)\/members$/
+    );
+    if (communityMembersMatch && request.method === "GET") {
+      json(response, 200, getMockCommunityMembers(request), webOrigin);
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/battles/opponents"
+    ) {
+      const normalizedQuery = (url.searchParams.get("q") ?? "")
+        .replace(/^@+/u, "")
+        .toLowerCase();
+      json(
+        response,
+        200,
+        normalizedQuery && "new-opponent".includes(normalizedQuery)
+          ? [
+              {
+                genre: "Hip-Hop",
+                name: "New Opponent",
+                username: "new-opponent",
+              },
+            ]
+          : [],
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/battles/challenge"
+    ) {
+      const user = mockUser(session);
+      if (!user) {
+        json(
+          response,
+          401,
+          { message: "Authentication is required." },
+          webOrigin
         );
-        if (notification) {
-          notification.read = true;
-        }
-        json(response, 200, { success: true }, webOrigin);
         return;
       }
 
-      if (
-        request.method === "POST" &&
-        url.pathname === "/v1/notifications/read-all"
-      ) {
-        if (
-          request.headers["x-soundkit-fail-notification-action"] === "read-all"
-        ) {
-          json(
-            response,
-            500,
-            { message: "Notification action failed in the test fixture." },
-            webOrigin
-          );
-          return;
-        }
+      const mockBattleChallenges = getMockBattleChallenges(request),
+        createdAt = new Date().toISOString();
+      mockBattleChallenges.push({
+        challengerUsername: user.username,
+        createdAt,
+        direction: "outgoing",
+        expiresAt: new Date(
+          Date.parse(createdAt) + 7 * 24 * 60 * 60 * 1000
+        ).toISOString(),
+        format: "best_of_5",
+        genre: "Hip-Hop",
+        id: `mock-challenge-${Date.now()}`,
+        message: null,
+        opponentUsername: "new-opponent",
+        proposedDate: null,
+        proposedTimeLabel: null,
+        status: "pending",
+      });
+      json(response, 201, { message: "Challenge created." }, webOrigin);
+      return;
+    }
 
-        for (const notification of getMockNotifications(request)) {
-          notification.read = true;
-        }
-        json(response, 200, { success: true }, webOrigin);
-        return;
+    const battleDeleteMatch = url.pathname.match(/^\/v1\/battles\/([^/]+)$/);
+    if (request.method === "DELETE" && battleDeleteMatch) {
+      const clientBattles = getMockBattles(request),
+        battleIndex = clientBattles.findIndex(
+          (battle) => battle.id === battleDeleteMatch[1]
+        );
+      if (battleIndex >= 0) {
+        clientBattles.splice(battleIndex, 1);
       }
+      json(
+        response,
+        200,
+        { message: "Scheduled battle deleted." },
+        webOrigin
+      );
+      return;
+    }
 
-      if (
-        request.method === "POST" &&
-        url.pathname === "/v1/notifications/clear"
-      ) {
-        getMockNotifications(request).length = 0;
-        json(response, 200, { success: true }, webOrigin);
-        return;
-      }
+    if (url.pathname === "/v1/battles/record") {
+      json(
+        response,
+        200,
+        {
+          history: [],
+          participation: {
+            battles: 0,
+            canceled: 0,
+            ducks: 0,
+            forfeits: 0,
+            losses: 0,
+            quits: 0,
+            roundsPlayed: 0,
+            ties: 0,
+            wins: 0,
+          },
+          ranked: {
+            battles: 0,
+            canceled: 0,
+            ducks: 0,
+            forfeits: 0,
+            losses: 0,
+            quits: 0,
+            ties: 0,
+            wins: 0,
+          },
+        },
+        webOrigin
+      );
+      return;
+    }
 
-      if (url.pathname === "/v1/me/entitlements") {
-        const complete =
+    if (url.pathname === "/v1/battles/stats") {
+      json(response, 200, [], webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/battles" || url.pathname === "/v1/battles/") {
+      const battles = getMockBattles(request),
+        visibleBattles =
+          url.searchParams.get("scope") === "public"
+            ? battles.filter(
+                (battle) =>
+                  battle.status === "live" ||
+                  battle.status === "scheduled" ||
+                  (battle.hasPlayedTurn &&
+                    battle.replayStatus === "available" &&
+                    battle.replayVideoId)
+              )
+            : battles;
+      json(response, 200, visibleBattles, webOrigin);
+      return;
+    }
+
+    if (
+      url.pathname === "/v1/listening-parties" ||
+      url.pathname === "/v1/listening-parties/"
+    ) {
+      json(response, 200, [], webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/search") {
+      json(
+        response,
+        200,
+        {
+          artists: mockArtists,
+          projects: [],
+          tracks: mockTracks,
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      url.pathname === "/v1/seller/status" ||
+      url.pathname === "/v1/seller/status/"
+    ) {
+      const enabled =
+        session === "complete" ||
+        session === "participant" ||
+        session === "nonparticipant" ||
+        session === "admin" ||
+        session === "setup-monetization-complete";
+      json(
+        response,
+        200,
+        {
+          accountLinkUrl: null,
+          chargesEnabled: enabled,
+          detailsSubmitted: enabled,
+          onboardingStatus: enabled ? "enabled" : "not_started",
+          payoutsEnabled: enabled,
+          stripeAccountId: enabled ? "acct_mock_enabled" : null,
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      url.pathname === "/v1/artist-setup-guide" ||
+      url.pathname === "/v1/artist-setup-guide/"
+    ) {
+      const complete =
           session === "complete" ||
           session === "participant" ||
           session === "nonparticipant" ||
-          session === "admin";
-        json(
-          response,
-          200,
-          {
-            activePlanCode: complete ? "soundkit_premium_artist" : null,
+          session === "admin",
+        monetizationComplete =
+          complete || session === "setup-monetization-complete";
+      json(
+        response,
+        200,
+        {
+          battleKits: {
+            canStart: complete,
+            count: complete ? 1 : 0,
+            minimumReleasedTracks: 4,
+          },
+          capabilities: {
             canCreateLiveBattles: complete,
             canHostLiveStreams: complete,
             canOperatePaidCommunity: complete,
-            canReceivePayouts: complete,
-            canSellProducts: complete,
-            canViewLiveBattles: complete,
-            canVoteLiveBattles: complete,
-            canWatchCreatorStreams: complete,
-            canWatchVod: complete,
-            isPremium: complete,
-            referenceId: complete ? "workspace_complete" : null,
-            status: complete ? "active" : null,
+            canReceivePayouts: monetizationComplete,
+            canSellProducts: monetizationComplete,
+            isPremium: monetizationComplete,
           },
-          webOrigin
-        );
-        return;
-      }
-
-      if (url.pathname === "/v1/me" || url.pathname === "/v1/me/") {
-        const user = mockUser(session);
-
-        if (!user) {
-          json(
-            response,
-            401,
-            { message: "Authentication is required." },
-            webOrigin
-          );
-          return;
-        }
-
-        json(
-          response,
-          200,
-          {
-            activeWorkspace: null,
-            entitlements: {
-              activePlanCode: null,
-              canCreateLiveBattles: false,
-              canHostLiveStreams: false,
-              canViewLiveBattles: false,
-              canVoteLiveBattles: false,
-              canWatchCreatorStreams: false,
-              isPremium: false,
-            },
-            user,
-            workspaces: [],
+          catalog: {
+            hasPlayablePublicRelease: complete,
+            hasProject: complete,
+            hasSellableItem: complete,
+            hasTrack: complete,
+            releasedPlayableTrackCount: complete ? 4 : 0,
+            trackCount: complete ? 4 : 0,
           },
-          webOrigin
-        );
-        return;
-      }
+          community: { hasOwnedCommunity: complete },
+          creatorTools: {
+            hasLiveExperience: complete,
+            hasOpenVerse: complete,
+            hasVideo: complete,
+          },
+          monetization: {
+            chargesEnabled: monetizationComplete,
+            detailsSubmitted: monetizationComplete,
+            onboardingStatus: monetizationComplete
+              ? "enabled"
+              : "not_started",
+            payoutsEnabled: monetizationComplete,
+          },
+          profile: { isPublicReady: true },
+          referrals: { inviteSent: complete },
+        },
+        webOrigin
+      );
+      return;
+    }
 
+    if (request.method === "POST" && url.pathname === "/v1/referrals/invite") {
+      json(
+        response,
+        200,
+        {
+          alreadyInvited: false,
+          message: "Invitation sent.",
+          sent: true,
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      (url.pathname === "/v1/notifications" ||
+        url.pathname === "/v1/notifications/")
+    ) {
+      const notifications = getMockNotifications(request),
+        limit = Math.min(
+          50,
+          Math.max(1, Number(url.searchParams.get("limit") ?? 20))
+        ),
+        offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0)),
+        items = notifications.slice(offset, offset + limit),
+        nextItem = notifications[offset + limit];
+      json(
+        response,
+        200,
+        {
+          items,
+          nextCursor: nextItem ? String(offset + limit) : null,
+          unreadCount: notifications.filter((item) => !item.read).length,
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/v1/notifications/summary"
+    ) {
+      const notifications = getMockNotifications(request);
+      json(
+        response,
+        200,
+        { unreadCount: notifications.filter((item) => !item.read).length },
+        webOrigin
+      );
+      return;
+    }
+
+    const notificationReadMatch = url.pathname.match(
+      /^\/v1\/notifications\/([^/]+)\/read$/
+    );
+    if (notificationReadMatch && request.method === "POST") {
+      const notification = getMockNotifications(request).find(
+        (item) => item.id === notificationReadMatch[1]
+      );
+      if (notification) {
+        notification.read = true;
+      }
+      json(response, 200, { success: true }, webOrigin);
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/notifications/read-all"
+    ) {
       if (
-        request.method === "POST" &&
-        url.pathname === "/v1/onboarding/eligibility"
+        request.headers["x-soundkit-fail-notification-action"] === "read-all"
       ) {
         json(
           response,
-          200,
-          {
-            completedAt: null,
-            creatorEligibility: "independent",
-            creatorEligibilityLocked: false,
-            currentStep: 2,
-            exitedAt: null,
-            intendedAccountType: "artist",
-            lastActivityAt: new Date().toISOString(),
-            marketingOptIn: false,
-            rightsAttested: false,
-            selectedPlanCode: "soundkit_premium_artist",
-            startedAt: new Date().toISOString(),
-            userId: "user_incomplete",
-          },
+          500,
+          { message: "Notification action failed in the test fixture." },
           webOrigin
         );
         return;
       }
 
-      if (request.method === "POST" && url.pathname === "/v1/onboarding/exit") {
-        json(
-          response,
-          200,
-          {
-            completedAt: null,
-            creatorEligibility: null,
-            creatorEligibilityLocked: false,
-            currentStep: 2,
-            exitedAt: new Date().toISOString(),
-            intendedAccountType: "artist",
-            lastActivityAt: new Date().toISOString(),
-            marketingOptIn: false,
-            rightsAttested: false,
-            selectedPlanCode: "soundkit_premium_artist",
-            startedAt: new Date().toISOString(),
-            userId: "user_incomplete",
-          },
-          webOrigin
-        );
-        return;
+      for (const notification of getMockNotifications(request)) {
+        notification.read = true;
       }
+      json(response, 200, { success: true }, webOrigin);
+      return;
+    }
 
-      if (
-        request.method === "DELETE" &&
-        url.pathname === "/v1/onboarding/state"
-      ) {
-        response.writeHead(204);
-        response.end();
-        return;
-      }
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/notifications/clear"
+    ) {
+      getMockNotifications(request).length = 0;
+      json(response, 200, { success: true }, webOrigin);
+      return;
+    }
 
-      if (
-        request.method === "POST" &&
-        url.pathname === "/v1/onboarding/eligibility"
-      ) {
-        json(
-          response,
-          200,
-          {
-            completedAt: null,
-            creatorEligibility: "independent",
-            creatorEligibilityLocked: false,
-            currentStep: 2,
-            exitedAt: null,
-            intendedAccountType: "artist",
-            lastActivityAt: new Date().toISOString(),
-            marketingOptIn: false,
-            rightsAttested: false,
-            selectedPlanCode: "soundkit_premium_artist",
-            startedAt: new Date().toISOString(),
-            userId: "user_incomplete",
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      if (request.method === "POST" && url.pathname === "/v1/onboarding/exit") {
-        json(
-          response,
-          200,
-          {
-            completedAt: null,
-            creatorEligibility: null,
-            creatorEligibilityLocked: false,
-            currentStep: 2,
-            exitedAt: new Date().toISOString(),
-            intendedAccountType: "artist",
-            lastActivityAt: new Date().toISOString(),
-            marketingOptIn: false,
-            rightsAttested: false,
-            selectedPlanCode: "soundkit_premium_artist",
-            startedAt: new Date().toISOString(),
-            userId: "user_incomplete",
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      if (
-        request.method === "DELETE" &&
-        url.pathname === "/v1/onboarding/state"
-      ) {
-        response.writeHead(204);
-        response.end();
-        return;
-      }
-
-      if (url.pathname === "/v1/onboarding/username-availability") {
-        const username = (url.searchParams.get("username") ?? "")
-            .trim()
-            .toLowerCase(),
-          reserved = username === "soundkit";
-
-        json(
-          response,
-          200,
-          {
-            available: !reserved,
-            message: reserved
-              ? "That username is reserved."
-              : "Username is available.",
-            reason: reserved ? "reserved" : "available",
-            username,
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      if (url.pathname === "/v1/live/experiences/public") {
-        json(response, 200, [], webOrigin);
-        return;
-      }
-
-      if (url.pathname === "/v1/live/experiences/me") {
-        const user = mockUser(session);
-
-        if (!user) {
-          json(
-            response,
-            401,
-            { message: "Authentication is required." },
-            webOrigin
-          );
-          return;
-        }
-
-        json(response, 200, [], webOrigin);
-        return;
-      }
-
-      if (url.pathname === "/v1/live/rooms/queue") {
-        const user = mockUser(session);
-
-        if (!user) {
-          json(
-            response,
-            401,
-            { message: "Authentication is required." },
-            webOrigin
-          );
-          return;
-        }
-
-        json(
-          response,
-          200,
-          {
-            battles: [],
-            participatingBattles:
-              session === "participant"
-                ? [
-                    {
-                      battleId: "battle-west-coast-showdown",
-                      role: "artist_a",
-                      startsAt: null,
-                      status: "live",
-                      title: "West Coast Showdown",
-                    },
-                  ]
-                : [],
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      const liveRoomMatch = url.pathname.match(/^\/v1\/live\/rooms\/([^/]+)$/);
-
-      if (liveRoomMatch) {
-        json(
-          response,
-          200,
-          getMockLiveRoom(request, liveRoomMatch[1], session),
-          webOrigin
-        );
-        return;
-      }
-
-      const liveExperienceMatch = url.pathname.match(
-        /^\/v1\/live\/experiences\/([^/]+)$/
+    if (url.pathname === "/v1/me/entitlements") {
+      const complete =
+        session === "complete" ||
+        session === "participant" ||
+        session === "nonparticipant" ||
+        session === "admin";
+      json(
+        response,
+        200,
+        {
+          activePlanCode: complete ? "soundkit_premium_artist" : null,
+          canCreateLiveBattles: complete,
+          canHostLiveStreams: complete,
+          canOperatePaidCommunity: complete,
+          canReceivePayouts: complete,
+          canSellProducts: complete,
+          canViewLiveBattles: complete,
+          canVoteLiveBattles: complete,
+          canWatchCreatorStreams: complete,
+          canWatchVod: complete,
+          isPremium: complete,
+          referenceId: complete ? "workspace_complete" : null,
+          status: complete ? "active" : null,
+        },
+        webOrigin
       );
+      return;
+    }
 
-      if (liveExperienceMatch) {
+    if (url.pathname === "/v1/me" || url.pathname === "/v1/me/") {
+      const user = mockUser(session);
+
+      if (!user) {
         json(
           response,
-          200,
-          getMockLiveRoom(request, liveExperienceMatch[1], session),
-          webOrigin
-        );
-        return;
-      }
-
-      const liveExperienceJoinMatch = url.pathname.match(
-        /^\/v1\/live\/experiences\/([^/]+)\/join$/
-      );
-
-      if (liveExperienceJoinMatch && request.method === "POST") {
-        if (liveExperienceJoinMatch[1] === "battle-completed-result") {
-          json(
-            response,
-            409,
-            {
-              message:
-                "This battle has ended. The result is available to view, but the room cannot be re-entered.",
-            },
-            webOrigin
-          );
-          return;
-        }
-
-        json(
-          response,
-          201,
-          {
-            participant: {
-              authToken: `mock_rtk_meeting-${liveExperienceJoinMatch[1]}_participant-${session ?? "anonymous"}`,
-              meetingId: `meeting-${liveExperienceJoinMatch[1]}`,
-              participantId: `participant-${session ?? "anonymous"}`,
-              presetName:
-                session === "complete"
-                  ? "soundkit-party-host"
-                  : "soundkit-party-listener",
-            },
-            setupScreen: true,
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      const listeningPartyDetailMatch = url.pathname.match(
-        /^\/v1\/listening-parties\/([^/]+)$/
-      );
-
-      if (listeningPartyDetailMatch) {
-        json(
-          response,
-          200,
-          getMockLiveRoom(request, listeningPartyDetailMatch[1], session),
-          webOrigin
-        );
-        return;
-      }
-
-      const liveRoomBattleKitMatch = url.pathname.match(
-        /^\/v1\/live\/rooms\/([^/]+)\/battle\/kit$/
-      );
-
-      if (liveRoomBattleKitMatch) {
-        json(
-          response,
-          200,
-          {
-            battleId: liveRoomBattleKitMatch[1],
-            kitId: "mock-waiting-kit",
-            role: "artist_a",
-          },
-          webOrigin
-        );
-        return;
-      }
-
-      const liveRoomBattleActionMatch = url.pathname.match(
-        /^\/v1\/live\/rooms\/([^/]+)\/battle\/(ready|disposition)$/
-      );
-
-      if (liveRoomBattleActionMatch && request.method === "POST") {
-        let bodyText = "";
-        request.on("data", (chunk) => {
-          bodyText += chunk;
-        });
-        request.on("end", () => {
-          const body = JSON.parse(bodyText || "{}"),
-            room = getMockLiveRoom(
-              request,
-              liveRoomBattleActionMatch[1],
-              session
-            );
-          if (liveRoomBattleActionMatch[2] === "ready" && room.battle) {
-            room.battle.coordination.artistReadyUserIds = body.ready
-              ? [room.battle.artists[0].id]
-              : [];
-          }
-          json(response, 200, room, webOrigin);
-        });
-        return;
-      }
-
-      const liveRoomQueueMutationMatch = url.pathname.match(
-        /^\/v1\/live\/rooms\/([^/]+)\/(queue|leave)$/
-      );
-
-      if (liveRoomQueueMutationMatch && request.method === "POST") {
-        const room = getMockLiveRoom(
-          request,
-          liveRoomQueueMutationMatch[1],
-          session
-        );
-        if (room.battle) {
-          room.battle.viewerQueueStatus =
-            liveRoomQueueMutationMatch[2] === "queue" ? "queued" : null;
-          room.battle.queueSize =
-            liveRoomQueueMutationMatch[2] === "queue" ? 1 : 0;
-        }
-        json(response, 200, room, webOrigin);
-        return;
-      }
-
-      const liveRoomPartyPlaybackMatch = url.pathname.match(
-        /^\/v1\/live\/rooms\/([^/]+)\/party\/playback$/
-      );
-
-      if (liveRoomPartyPlaybackMatch && request.method === "POST") {
-        let bodyText = "";
-        request.on("data", (chunk) => {
-          bodyText += chunk;
-        });
-        request.on("end", () => {
-          const body = JSON.parse(bodyText || "{}"),
-            room = getMockLiveRoom(
-              request,
-              liveRoomPartyPlaybackMatch[1],
-              session
-            ),
-            playback = room.party?.playback;
-          if (playback) {
-            playback.playbackState =
-              body.type === "pause"
-                ? "paused"
-                : (body.type === "resume"
-                  ? "playing"
-                  : playback.playbackState);
-            if (body.trackId) {
-              playback.trackId = body.trackId;
-              playback.positionMs = 0;
-            }
-          }
-          json(response, 200, room, webOrigin);
-        });
-        return;
-      }
-
-      const liveRoomMutationMatch = url.pathname.match(
-        /^\/v1\/live\/rooms\/([^/]+)\/(chat|vote)$/
-      );
-
-      if (liveRoomMutationMatch) {
-        json(
-          response,
-          200,
-          getMockLiveRoom(request, liveRoomMutationMatch[1], session),
+          401,
+          { message: "Authentication is required." },
           webOrigin
         );
         return;
@@ -3165,11 +2729,420 @@ export const createMockApiServer = async ({
 
       json(
         response,
-        404,
-        { message: `Not Found - ${url.pathname}` },
+        200,
+        {
+          activeWorkspace: null,
+          entitlements: {
+            activePlanCode: null,
+            canCreateLiveBattles: false,
+            canHostLiveStreams: false,
+            canViewLiveBattles: false,
+            canVoteLiveBattles: false,
+            canWatchCreatorStreams: false,
+            isPremium: false,
+          },
+          user,
+          workspaces: [],
+        },
         webOrigin
       );
-    });
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/eligibility"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: "independent",
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: null,
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/exit"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: null,
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: new Date().toISOString(),
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "DELETE" &&
+      url.pathname === "/v1/onboarding/state"
+    ) {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/eligibility"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: "independent",
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: null,
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/v1/onboarding/exit"
+    ) {
+      json(
+        response,
+        200,
+        {
+          completedAt: null,
+          creatorEligibility: null,
+          creatorEligibilityLocked: false,
+          currentStep: 2,
+          exitedAt: new Date().toISOString(),
+          intendedAccountType: "artist",
+          lastActivityAt: new Date().toISOString(),
+          marketingOptIn: false,
+          rightsAttested: false,
+          selectedPlanCode: "soundkit_premium_artist",
+          startedAt: new Date().toISOString(),
+          userId: "user_incomplete",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (
+      request.method === "DELETE" &&
+      url.pathname === "/v1/onboarding/state"
+    ) {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+
+    if (url.pathname === "/v1/onboarding/username-availability") {
+      const username = (url.searchParams.get("username") ?? "")
+          .trim()
+          .toLowerCase(),
+        reserved = username === "soundkit";
+
+      json(
+        response,
+        200,
+        {
+          available: !reserved,
+          message: reserved
+            ? "That username is reserved."
+            : "Username is available.",
+          reason: reserved ? "reserved" : "available",
+          username,
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (url.pathname === "/v1/live/experiences/public") {
+      json(response, 200, [], webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/live/experiences/me") {
+      const user = mockUser(session);
+
+      if (!user) {
+        json(
+          response,
+          401,
+          { message: "Authentication is required." },
+          webOrigin
+        );
+        return;
+      }
+
+      json(response, 200, [], webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/live/rooms/queue") {
+      const user = mockUser(session);
+
+      if (!user) {
+        json(
+          response,
+          401,
+          { message: "Authentication is required." },
+          webOrigin
+        );
+        return;
+      }
+
+      json(
+        response,
+        200,
+        {
+          battles: [],
+          participatingBattles:
+            session === "participant"
+              ? [
+                  {
+                    battleId: "battle-west-coast-showdown",
+                    role: "artist_a",
+                    startsAt: null,
+                    status: "live",
+                    title: "West Coast Showdown",
+                  },
+                ]
+              : [],
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    const liveRoomMatch = url.pathname.match(/^\/v1\/live\/rooms\/([^/]+)$/);
+
+    if (liveRoomMatch) {
+      json(
+        response,
+        200,
+        getMockLiveRoom(request, liveRoomMatch[1], session),
+        webOrigin
+      );
+      return;
+    }
+
+    const liveExperienceMatch = url.pathname.match(
+      /^\/v1\/live\/experiences\/([^/]+)$/
+    );
+
+    if (liveExperienceMatch) {
+      json(
+        response,
+        200,
+        getMockLiveRoom(request, liveExperienceMatch[1], session),
+        webOrigin
+      );
+      return;
+    }
+
+    const liveExperienceJoinMatch = url.pathname.match(
+      /^\/v1\/live\/experiences\/([^/]+)\/join$/
+    );
+
+    if (liveExperienceJoinMatch && request.method === "POST") {
+      if (liveExperienceJoinMatch[1] === "battle-completed-result") {
+        json(
+          response,
+          409,
+          {
+            message:
+              "This battle has ended. The result is available to view, but the room cannot be re-entered.",
+          },
+          webOrigin
+        );
+        return;
+      }
+
+      json(
+        response,
+        201,
+        {
+          participant: {
+            authToken: `mock_rtk_meeting-${liveExperienceJoinMatch[1]}_participant-${session ?? "anonymous"}`,
+            meetingId: `meeting-${liveExperienceJoinMatch[1]}`,
+            participantId: `participant-${session ?? "anonymous"}`,
+            presetName:
+              session === "complete"
+                ? "soundkit-party-host"
+                : "soundkit-party-listener",
+          },
+          setupScreen: true,
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    const listeningPartyDetailMatch = url.pathname.match(
+      /^\/v1\/listening-parties\/([^/]+)$/
+    );
+
+    if (listeningPartyDetailMatch) {
+      json(
+        response,
+        200,
+        getMockLiveRoom(request, listeningPartyDetailMatch[1], session),
+        webOrigin
+      );
+      return;
+    }
+
+    const liveRoomBattleKitMatch = url.pathname.match(
+      /^\/v1\/live\/rooms\/([^/]+)\/battle\/kit$/
+    );
+
+    if (liveRoomBattleKitMatch) {
+      json(
+        response,
+        200,
+        {
+          battleId: liveRoomBattleKitMatch[1],
+          kitId: "mock-waiting-kit",
+          role: "artist_a",
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    const liveRoomBattleActionMatch = url.pathname.match(
+      /^\/v1\/live\/rooms\/([^/]+)\/battle\/(ready|disposition)$/
+    );
+
+    if (liveRoomBattleActionMatch && request.method === "POST") {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          room = getMockLiveRoom(
+            request,
+            liveRoomBattleActionMatch[1],
+            session
+          );
+        if (liveRoomBattleActionMatch[2] === "ready" && room.battle) {
+          room.battle.coordination.artistReadyUserIds = body.ready
+            ? [room.battle.artists[0].id]
+            : [];
+        }
+        json(response, 200, room, webOrigin);
+      });
+      return;
+    }
+
+    const liveRoomQueueMutationMatch = url.pathname.match(
+      /^\/v1\/live\/rooms\/([^/]+)\/(queue|leave)$/
+    );
+
+    if (liveRoomQueueMutationMatch && request.method === "POST") {
+      const room = getMockLiveRoom(
+        request,
+        liveRoomQueueMutationMatch[1],
+        session
+      );
+      if (room.battle) {
+        room.battle.viewerQueueStatus =
+          liveRoomQueueMutationMatch[2] === "queue" ? "queued" : null;
+        room.battle.queueSize =
+          liveRoomQueueMutationMatch[2] === "queue" ? 1 : 0;
+      }
+      json(response, 200, room, webOrigin);
+      return;
+    }
+
+    const liveRoomPartyPlaybackMatch = url.pathname.match(
+      /^\/v1\/live\/rooms\/([^/]+)\/party\/playback$/
+    );
+
+    if (liveRoomPartyPlaybackMatch && request.method === "POST") {
+      let bodyText = "";
+      request.on("data", (chunk) => {
+        bodyText += chunk;
+      });
+      request.on("end", () => {
+        const body = JSON.parse(bodyText || "{}"),
+          room = getMockLiveRoom(
+            request,
+            liveRoomPartyPlaybackMatch[1],
+            session
+          ),
+          playback = room.party?.playback;
+        if (playback) {
+          playback.playbackState =
+            body.type === "pause"
+              ? "paused"
+              : body.type === "resume"
+                ? "playing"
+                : playback.playbackState;
+          if (body.trackId) {
+            playback.trackId = body.trackId;
+            playback.positionMs = 0;
+          }
+        }
+        json(response, 200, room, webOrigin);
+      });
+      return;
+    }
+
+    const liveRoomMutationMatch = url.pathname.match(
+      /^\/v1\/live\/rooms\/([^/]+)\/(chat|vote)$/
+    );
+
+    if (liveRoomMutationMatch) {
+      json(
+        response,
+        200,
+        getMockLiveRoom(request, liveRoomMutationMatch[1], session),
+        webOrigin
+      );
+      return;
+    }
+
+    json(response, 404, { message: `Not Found - ${url.pathname}` }, webOrigin);
+  });
 
   server.listen(port, host);
   await once(server, "listening");

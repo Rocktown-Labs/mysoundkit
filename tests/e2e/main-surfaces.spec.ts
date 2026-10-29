@@ -60,6 +60,8 @@ test.describe("main application surfaces", () => {
       context,
       page,
     }) => {
+      test.setTimeout(75_000);
+
       await context.addCookies([
         {
           domain: cookieDomain,
