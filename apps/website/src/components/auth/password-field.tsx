@@ -32,7 +32,7 @@ export function PasswordField({
       <div className="relative">
         <Input
           autoComplete={autoComplete}
-          className="h-[46px] rounded-[10px] border-[#27272A] bg-[#050507] dark:bg-[#050507] pr-12 text-[15px] text-[#FAFAFA] placeholder:text-[#71717A] focus-visible:border-[#B8A3FF] focus-visible:ring-[#B8A3FF]/30"
+          className="h-[46px] rounded-[10px] border-[#27272A] bg-[#050507] dark:bg-[#050507] pr-12 text-base md:text-[15px] text-[#FAFAFA] placeholder:text-[#71717A] focus-visible:border-[#B8A3FF] focus-visible:ring-[#B8A3FF]/30"
           id={id}
           minLength={minLength}
           onChange={(event) => onChange(event.target.value)}
