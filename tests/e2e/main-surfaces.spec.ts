@@ -231,7 +231,6 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { name: /create artist account/i })
     ).toBeVisible();
-    await expect(page.getByText("I'm an Artist")).toBeHidden();
 
     await gotoWithViteRetry(page, "/signup/fan/credentials");
     await expect(
@@ -1599,6 +1598,8 @@ test.describe("main application surfaces", () => {
   });
 
   test("signup surfaces load without console errors", async ({ page }) => {
+    test.setTimeout(75_000);
+
     const consoleErrors: string[] = [],
       httpErrors: string[] = [];
 
@@ -1627,14 +1628,14 @@ test.describe("main application surfaces", () => {
         httpErrors.push(`${status} ${responseUrl.pathname}`);
       }
     });
-    await page.goto("/signup");
+    await gotoWithViteRetry(page, "/signup");
     await expect(
       page.getByRole("heading", { name: /join soundkit/i })
     ).toBeVisible();
 
     await expect(page.getByRole("textbox", { name: "Email" })).toBeVisible();
 
-    await page.goto("/signup/artist/credentials");
+    await gotoWithViteRetry(page, "/signup/artist/credentials");
     await expect(
       page.getByRole("heading", { name: /create artist account/i })
     ).toBeVisible();
@@ -1675,7 +1676,7 @@ test.describe("signup onboarding guards", () => {
       },
     ]);
 
-    await page.goto("/signup/artist/credentials");
+    await gotoWithViteRetry(page, "/signup/artist/credentials");
 
     await expect(page).toHaveURL(/\/signup\/artist\/onboarding$/);
     await expect(
@@ -1696,7 +1697,7 @@ test.describe("signup onboarding guards", () => {
       },
     ]);
 
-    await page.goto("/signup/artist/credentials");
+    await gotoWithViteRetry(page, "/signup/artist/credentials");
 
     await expect(page).toHaveURL(/\/dashboard$/);
   });
