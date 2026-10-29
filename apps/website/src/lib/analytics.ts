@@ -86,15 +86,50 @@ export const loadAnalytics = () => {
   });
 };
 
+declare global {
+  interface Window {
+    traks?: (
+      name: string,
+      props?: Record<string, string | number | boolean>,
+      value?: number
+    ) => void;
+  }
+}
+
 export const capture = (
   event: string,
-  properties?: Record<string, unknown>
+  properties?: Record<string, unknown>,
+  value?: number
 ) => {
   if (client) {
     client.capture(event, properties);
-    return;
+  } else {
+    enqueueOperation({ event, kind: "capture", properties });
   }
-  enqueueOperation({ event, kind: "capture", properties });
+
+  // Traks analytics: privacy-first, cookieless, flat scalar props
+  if (typeof window !== "undefined" && typeof window.traks === "function") {
+    const flatProps: Record<string, string | number | boolean> = {};
+    let numericValue = value;
+    if (properties) {
+      for (const [key, propVal] of Object.entries(properties)) {
+        if (
+          key === "value" &&
+          typeof propVal === "number" &&
+          numericValue === undefined
+        ) {
+          numericValue = propVal;
+        } else if (
+          typeof propVal === "string" ||
+          typeof propVal === "number" ||
+          typeof propVal === "boolean"
+        ) {
+          flatProps[key] = propVal;
+        }
+      }
+    }
+    window.traks(event, flatProps, numericValue);
+  }
 };
 
 export const captureAnalyticsException = (error: unknown) => {

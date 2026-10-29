@@ -65,6 +65,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useMobile } from "@/hooks/use-mobile";
 import { toast } from "@/hooks/use-toast";
+import { capture } from "@/lib/analytics";
 import { API_V1_URL } from "@/lib/api";
 import { getDefaultPlayerPresentation } from "@/lib/player-device";
 import {
@@ -671,6 +672,10 @@ export function MusicPlayer() {
 
       await audio.play();
       setIsPlaying(true);
+      capture("track_play_started", {
+        source: currentTrack.sourceType ?? "catalog",
+        track_id: currentTrack.id,
+      });
     };
 
   useEffect(() => {
@@ -938,6 +943,10 @@ export function MusicPlayer() {
       );
 
       if (completed) {
+        capture("track_play_completed", {
+          source: currentTrack.sourceType ?? "catalog",
+          track_id: currentTrack.id,
+        });
         markRecentlyPlayed(currentTrack);
         const completedState = completeQueuedTrack({
           currentTrack,
@@ -1862,9 +1871,9 @@ export function MusicPlayer() {
                       <p>
                         {repeatMode === "one"
                           ? "Repeat: One"
-                          : (repeatMode === "all"
+                          : repeatMode === "all"
                             ? "Repeat: All"
-                            : "Repeat: Off")}
+                            : "Repeat: Off"}
                       </p>
                     </TooltipContent>
                   </Tooltip>

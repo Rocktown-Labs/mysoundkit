@@ -148,6 +148,28 @@ export async function withGlobalRegionFallback<T>(
 ): Promise<T[]> {
   const items = await fetchRegional();
   if (items.length === 0 && region !== undefined && region !== "all") {
+    if (
+      typeof window !== "undefined" &&
+      typeof (
+        window as unknown as {
+          traks?: (
+            name: string,
+            props?: Record<string, string | number | boolean>
+          ) => void;
+        }
+      ).traks === "function"
+    ) {
+      (
+        window as unknown as {
+          traks?: (
+            name: string,
+            props?: Record<string, string | number | boolean>
+          ) => void;
+        }
+      ).traks?.("region_fallback_served", {
+        requested_region: region,
+      });
+    }
     return fetchGlobal();
   }
   return items;

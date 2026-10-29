@@ -19,6 +19,12 @@
 
 ### Added
 
+- Instrumented privacy-first Traks analytics and configured conversion funnels and goals (`#467`):
+  - Forwarded web `capture()` events to `window.traks()` with flat scalar property sanitization and value tracking (`apps/website/src/lib/analytics.ts`).
+  - Added playback telemetry events (`track_play_started` and `track_play_completed`) to the audio player (`apps/website/src/components/explore/music-player.tsx`).
+  - Instrumented regional selection (`region_selected`) and fallback triggers (`region_fallback_served`) to track multi-state listener engagement.
+  - Configured 16 Traks conversion goals and 3 conversion funnels over MCP for onboarding, audio engagement, and uploads.
+
 - Added seamless global fallback for empty regional exploration on the website (`#465`):
   - Wired `withGlobalRegionFallback` into web catalog hooks (`apps/website/src/lib/soundkit-api-hooks.ts`) for tracks, artists, public projects, videos, battles, listening parties, and live experiences.
   - When visitors detect or browse a state or region with no local releases (e.g. Virginia, Iowa, etc.), the feed seamlessly falls back to global/US catalog results so users never land on empty rails or ghost towns.
