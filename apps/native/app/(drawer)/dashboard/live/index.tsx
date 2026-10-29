@@ -216,7 +216,8 @@ export default function LiveOverviewScreen() {
     experiences = experiencesQuery.data ?? [],
     wins = record?.ranked?.wins ?? record?.participation?.wins ?? 0,
     losses = record?.ranked?.losses ?? record?.participation?.losses ?? 0,
-    totalBattles = wins + losses,
+    draws = record?.ranked?.ties ?? record?.participation?.ties ?? 0,
+    totalBattles = wins + losses + draws,
     winRate =
       totalBattles > 0 ? `${Math.round((wins / totalBattles) * 100)}%` : "0%",
     stats: DashboardStat[] = useMemo(
@@ -225,7 +226,7 @@ export default function LiveOverviewScreen() {
           description: "Matchup record",
           icon: "trophy",
           title: "Record",
-          value: `${wins}W - ${losses}L`,
+          value: `${wins}W - ${losses}L - ${draws}T`,
         },
         {
           description: "Crowd victory rate",
@@ -240,7 +241,7 @@ export default function LiveOverviewScreen() {
           value: `${experiences.length} Active`,
         },
       ],
-      [wins, losses, winRate, experiences.length]
+      [wins, losses, draws, winRate, experiences.length]
     ),
     liveChartTabs = useMemo((): [
       ChartTabConfig,
@@ -253,21 +254,10 @@ export default function LiveOverviewScreen() {
           label: item.trackName.slice(0, 10),
           value: item.wins,
         }));
-      } else if (totalBattles > 0) {
-        battlePoints = [
-          { label: "B1", value: Math.min(wins, 3) },
-          { label: "B2", value: Math.max(wins - 1, 1) },
-          { label: "B3", value: Math.max(wins - 2, 0) },
-        ];
       }
 
-      // Build recent form dots (up to 5 recent matches)
+      // Aggregate totals cannot establish the order of recent match results.
       const recentForm: ("D" | "L" | "W")[] = [];
-      if (totalBattles > 0) {
-        for (let i = 0; i < Math.min(totalBattles, 5); i += 1) {
-          recentForm.push(i < wins ? "W" : "L");
-        }
-      }
 
       const voteShare =
         totalBattles > 0
@@ -289,7 +279,7 @@ export default function LiveOverviewScreen() {
           label: "Battle Rounds",
           mode: "segmented_record",
           recordForm: {
-            draws: 0,
+            draws,
             losses,
             recentForm,
             wins,
@@ -298,7 +288,7 @@ export default function LiveOverviewScreen() {
             totalBattles > 0
               ? "Official duel rounds won"
               : "No matches recorded yet",
-          valueLabel: `${wins} Won · ${losses} Lost`,
+          valueLabel: `${wins} Won · ${draws} Tied · ${losses} Lost`,
         },
         {
           badge: totalBattles > 0 ? `${voteShare}% Share` : "Crowd Share",
@@ -328,7 +318,7 @@ export default function LiveOverviewScreen() {
           mode: "bars",
         },
       ];
-    }, [statsData, totalBattles, wins, losses, winRate, theme.primary]);
+    }, [statsData, totalBattles, wins, losses, draws, winRate, theme.primary]);
 
   return (
     <Container>

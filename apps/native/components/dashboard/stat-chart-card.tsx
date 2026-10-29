@@ -400,7 +400,9 @@ export function StatChartCard({
         wins: 0,
       };
       const total = record.wins + record.losses + (record.draws ?? 0);
-      const winPct = total > 0 ? Math.round((record.wins / total) * 100) : 50;
+      const winPct = total > 0 ? (record.wins / total) * 100 : 0;
+      const lossPct = total > 0 ? (record.losses / total) * 100 : 0;
+      const drawPct = total > 0 ? ((record.draws ?? 0) / total) * 100 : 0;
 
       return (
         <View style={styles.recordContainer}>
@@ -419,11 +421,17 @@ export function StatChartCard({
             <View
               style={[
                 styles.recordBarSeg,
+                { backgroundColor: "#6B7280", width: `${drawPct}%` },
+              ]}
+            />
+            <View
+              style={[
+                styles.recordBarSeg,
                 {
                   backgroundColor: "#EF4444",
                   borderBottomRightRadius: 6,
                   borderTopRightRadius: 6,
-                  width: `${100 - winPct}%`,
+                  width: `${lossPct}%`,
                 },
               ]}
             />

@@ -4,7 +4,6 @@
 
 ### Fixed
 
-- Preserved draw-only battle records as real activity in native dashboard charts (#458).
 - Addressed PR #463 review: enabled signup verification and a resend action, kept unmatched paid webhooks retryable with warnings, and verified completed R2 uploads before registering Open Verse assets (#461).
 - Bound successful Checkout fulfillment to the transaction's stored Stripe session rather than trusting event metadata alone (#311).
 - Recorded failed delayed Checkout payments with session-bound, conditional status updates that preserve settled orders (#311).
@@ -19,6 +18,8 @@
 ## Unreleased
 
 ### Fixed
+
+- Preserved ties throughout native battle record totals and charts, rendered neutral tie segments, removed invented recent-match results, and retained actual zero-percent listener retention (#458).
 
 - Fixed real data telemetry across artist dashboard analytics and finances (`apps/native/app/(drawer)/dashboard/career/index.tsx`):
   - Replaced hardcoded fallback numbers with real telemetry: streams growth now tracks actual telemetry points or clean empty states instead of fake weekdays; audience reach displays real follower and listener retention rates; and finances reflect actual Stripe earnings balance and payout thresholds with friendly empty states instead of hardcoded $2,840.00 mock months (`#458`).

@@ -381,12 +381,12 @@ export default function CareerOverviewScreen() {
             {
               color: theme.primary,
               label: "Returning Fans",
-              percent: retRate > 0 ? retRate : 50,
+              percent: retRate,
             },
             {
               color: "rgba(255, 255, 255, 0.2)",
               label: "New Listeners",
-              percent: retRate > 0 ? 100 - retRate : 50,
+              percent: 100 - retRate,
             },
           ],
           sublabel: "Unique fans and listener retention",
