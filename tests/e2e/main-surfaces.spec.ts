@@ -55,6 +55,35 @@ const gotoWithViteRetry = async (page: Page, path: string) => {
 };
 
 test.describe("main application surfaces", () => {
+  for (const accountType of ["artist", "fan"] as const) {
+    test(`signed-in ${accountType} can choose their signup path`, async ({
+      context,
+      page,
+    }) => {
+      await context.addCookies([
+        {
+          domain: cookieDomain,
+          name: "soundkit_test_session",
+          path: "/",
+          value: accountType === "artist" ? "incomplete" : "fan_incomplete",
+        },
+      ]);
+      await gotoWithViteRetry(page, "/signup");
+      await expect(
+        page.getByRole("heading", { name: "Choose Your Path" })
+      ).toBeVisible();
+      await page
+        .getByRole("button", {
+          name:
+            accountType === "artist" ? "Continue as Artist" : "Continue as Fan",
+        })
+        .click();
+      await expect(page).toHaveURL(
+        new RegExp(`/signup/${accountType}/onboarding$`)
+      );
+    });
+  }
+
   test.beforeEach(async ({ context }, testInfo) => {
     const testId = `${testInfo.testId}-${testInfo.project.name}`;
 

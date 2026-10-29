@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Added authenticated artist/fan signup chooser coverage and ran the mocked browser suite on pull requests before merge (#464).
 - Fixed the web browser smoke tests on `master` so `Verify and Deploy` can reach the deploy jobs again: the `main application surfaces` signup assertions expected the pre-#443 single-screen signup, so they now check the credentials-first flow (anonymous `/signup` shows the credentials form; the role chooser appears only after credentials) (#443).
 - Removed decorative icons preceding section headers and page titles across web and mobile explore, library, and dashboard screens (`#456`):
   - Web: Removed icons from `SectionHeader` (`apps/website/src/components/explore/section-header.tsx`), explore home rails (`apps/website/src/app/_explore/index.tsx`), category explore headers (Top Songs, Projects, Music Videos, Merch/Shop, Live, Streams, Parties, Artists), project detail sections (Tracklist, Physical Editions), library pages (My SoundKit, Playlists, Purchased Tracks, Recently Played, Saved Tracks, Settings, Recently Watched), and dashboard pages (`community.tsx`, `career/merch.tsx`).
