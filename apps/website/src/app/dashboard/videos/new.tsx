@@ -352,6 +352,8 @@ function NewVideoPage() {
         youtubeUrl: "",
       },
       form,
+      persist: false,
+      restoreOnMount: false,
       storageKey: "soundkit:new-video-draft",
     }),
     filteredHistory = useMemo(() => {

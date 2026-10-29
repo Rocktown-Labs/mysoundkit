@@ -11,11 +11,13 @@ import {
   tracks,
   userProfiles,
 } from "@soundkit/db/schema/app";
+import { member } from "@soundkit/db/schema/auth";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { logInfo } from "@/middleware/structured-logging";
 
 import type { GeneratedMedia } from "./media-processor";
+import { isAuthorizedProjectSource } from "./project-export-access";
 import { resolveTrackAssetFromRows } from "./track-asset-resolver";
 
 export interface ProjectExportTrackSnapshot {
@@ -58,6 +60,7 @@ export const createProjectExportSnapshot = async ({
         albumArtist: userProfiles.displayName,
         exportVersion: projects.exportVersion,
         genre: genres.name,
+        organizationId: projects.organizationId,
         ownerUserId: projects.ownerUserId,
         releaseDate: projects.releaseDate,
         title: projects.title,
@@ -71,10 +74,26 @@ export const createProjectExportSnapshot = async ({
     throw new Error("Project export version is stale.");
   }
 
+  const [membership] = project.organizationId
+    ? await db
+        .select({ id: member.id })
+        .from(member)
+        .where(
+          and(
+            eq(member.organizationId, project.organizationId),
+            eq(member.userId, project.ownerUserId)
+          )
+        )
+        .limit(1)
+    : [];
+
   const trackRows = await db
     .select({
       artistName: userProfiles.displayName,
+      deletedAt: tracks.deletedAt,
       isrc: tracks.isrc,
+      organizationId: tracks.organizationId,
+      ownerUserId: tracks.ownerUserId,
       position: projectTracks.position,
       title: tracks.title,
       trackId: tracks.id,
@@ -86,6 +105,23 @@ export const createProjectExportSnapshot = async ({
     .orderBy(asc(projectTracks.position));
   if (trackRows.length === 0) {
     throw new Error("Project has no tracks to export.");
+  }
+  if (
+    trackRows.some(
+      (track) =>
+        !isAuthorizedProjectSource({
+          deletedAt: track.deletedAt,
+          hasOrganizationMembership: Boolean(membership),
+          projectOrganizationId: project.organizationId,
+          projectOwnerUserId: project.ownerUserId,
+          trackOrganizationId: track.organizationId,
+          trackOwnerUserId: track.ownerUserId,
+        })
+    )
+  ) {
+    throw new Error(
+      "Project contains tracks that are no longer authorized for export."
+    );
   }
 
   const trackIds = trackRows.map((row) => row.trackId),

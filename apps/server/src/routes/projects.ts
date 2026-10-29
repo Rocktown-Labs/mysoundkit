@@ -70,6 +70,7 @@ import {
   PHYSICAL_FORMAT_RULES,
   PHYSICAL_PLATFORM_FEE_BPS,
 } from "@/lib/physical-pricing";
+import { isProjectExportSourceAuthorized } from "@/lib/project-export-access";
 import {
   genreSlugFromExploreFilter,
   profileRegionCondition,
@@ -522,6 +523,32 @@ app.openapi(
           : body.newTracks[0]?.genre
             ? await ensureGenreId(body.newTracks[0].genre)
             : null;
+      const existingTrackIds = [...new Set(body.trackIds)];
+      if (existingTrackIds.length > 0) {
+        const sourceOwnership = organizationId
+            ? or(
+                eq(tracks.ownerUserId, user.id),
+                eq(tracks.organizationId, organizationId)
+              )
+            : eq(tracks.ownerUserId, user.id),
+          sourceTracks = await db
+            .select({ id: tracks.id })
+            .from(tracks)
+            .where(
+              and(
+                inArray(tracks.id, existingTrackIds),
+                isNull(tracks.deletedAt),
+                sourceOwnership
+              )
+            );
+        if (sourceTracks.length !== existingTrackIds.length) {
+          return c.json(
+            { message: "One or more selected tracks is unavailable." },
+            HttpStatusCodes.BAD_REQUEST
+          );
+        }
+      }
+
       const projectStatus =
           body.status ??
           (body.releaseDate
@@ -563,8 +590,7 @@ app.openapi(
           .join("\n"),
       });
 
-      const existingTrackIds = body.trackIds,
-        newTrackIds: string[] = [];
+      const newTrackIds: string[] = [];
 
       for (const newTrack of body.newTracks) {
         const trackId = crypto.randomUUID(),
@@ -1741,6 +1767,7 @@ app.openapi(
           id: projectAssets.id,
           mimeType: projectAssets.mimeType,
           objectKey: projectAssets.objectKey,
+          sourceAssetId: projectAssets.sourceAssetId,
           status: projectAssets.status,
         })
         .from(projectAssets)
@@ -1789,6 +1816,18 @@ app.openapi(
       !(project.ownerUserId === user.id || purchase || canAccessWorkspaceAsset)
     ) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (
+      asset.assetKind === "release_export" &&
+      !(await isProjectExportSourceAuthorized({
+        projectId,
+        sourceAssetId: asset.sourceAssetId,
+      }))
+    ) {
+      return c.json(
+        { message: "Project export not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
     }
     const object = await c.env.MEDIA_BUCKET?.get(asset.objectKey);
     if (!object) {
