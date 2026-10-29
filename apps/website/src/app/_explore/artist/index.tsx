@@ -50,7 +50,10 @@ export const Route = createFileRoute("/_explore/artist/")({
     genre: typeof search.genre === "string" ? search.genre : undefined,
     q: typeof search.q === "string" ? search.q : undefined,
     region: typeof search.region === "string" ? search.region : undefined,
-    regionType: search.regionType === "global" ? "global" : "north-america",
+    regionType:
+      search.regionType === "global" || search.regionType === "north-america"
+        ? search.regionType
+        : undefined,
     sort: typeof search.sort === "string" ? search.sort : undefined,
   }),
 });
