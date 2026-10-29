@@ -17,6 +17,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Counted content playback after preroll and on repeat without counting pauses as new starts; isolated Traks errors from user actions and rejected non-finite event values (#467).
+
 ### Added
 
 - Instrumented privacy-first Traks analytics and configured conversion funnels and goals (`#467`):

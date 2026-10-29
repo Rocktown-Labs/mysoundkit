@@ -116,19 +116,30 @@ export const capture = (
         if (
           key === "value" &&
           typeof propVal === "number" &&
+          Number.isFinite(propVal) &&
           numericValue === undefined
         ) {
           numericValue = propVal;
         } else if (
           typeof propVal === "string" ||
-          typeof propVal === "number" ||
+          (typeof propVal === "number" && Number.isFinite(propVal)) ||
           typeof propVal === "boolean"
         ) {
           flatProps[key] = propVal;
         }
       }
     }
-    window.traks(event, flatProps, numericValue);
+    try {
+      window.traks(
+        event,
+        flatProps,
+        typeof numericValue === "number" && Number.isFinite(numericValue)
+          ? numericValue
+          : undefined
+      );
+    } catch {
+      // Optional telemetry must never interrupt the action being measured.
+    }
   }
 };
 

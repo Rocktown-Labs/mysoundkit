@@ -279,6 +279,7 @@ export function MusicPlayer() {
     hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null),
     pendingContentSrcRef = useRef<string | null>(null),
     loadedTrackKeyRef = useRef<string | null>(null),
+    analyticsStartedTrackRef = useRef<string | null>(null),
     playbackErrorRetryRef = useRef(false),
     playbackTelemetryRef = useRef<PlaybackTelemetrySession | null>(null),
     prerollServedTrackRef = useRef<string | null>(null),
@@ -672,10 +673,6 @@ export function MusicPlayer() {
 
       await audio.play();
       setIsPlaying(true);
-      capture("track_play_started", {
-        source: currentTrack.sourceType ?? "catalog",
-        track_id: currentTrack.id,
-      });
     };
 
   useEffect(() => {
@@ -793,6 +790,7 @@ export function MusicPlayer() {
     const loadedTrackKey = `${currentTrack.id}::${currentTrack.src}`;
     if (loadedTrackKeyRef.current !== loadedTrackKey) {
       loadedTrackKeyRef.current = loadedTrackKey;
+      analyticsStartedTrackRef.current = null;
       playbackErrorRetryRef.current = false;
       audio.src = currentTrack.src;
       audio.load();
@@ -864,6 +862,20 @@ export function MusicPlayer() {
           });
         }
       },
+      handlePlaying = () => {
+        if (
+          !currentTrack ||
+          activeAdRef.current ||
+          analyticsStartedTrackRef.current === currentTrack.id
+        ) {
+          return;
+        }
+        analyticsStartedTrackRef.current = currentTrack.id;
+        capture("track_play_started", {
+          source: currentTrack.sourceType ?? "catalog",
+          track_id: currentTrack.id,
+        });
+      },
       handleEnded = () => {
         const completedAd = activeAdRef.current,
           pendingContentSrc = pendingContentSrcRef.current;
@@ -879,6 +891,13 @@ export function MusicPlayer() {
           return;
         }
 
+        if (currentTrack) {
+          capture("track_play_completed", {
+            source: currentTrack.sourceType ?? "catalog",
+            track_id: currentTrack.id,
+          });
+        }
+        analyticsStartedTrackRef.current = null;
         sendPlaybackProgress({ ended: true });
 
         if (repeatMode === "one") {
@@ -894,12 +913,14 @@ export function MusicPlayer() {
     audio.addEventListener("error", handlePlaybackError);
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("playing", handlePlaying);
 
     return () => {
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
       audio.removeEventListener("error", handlePlaybackError);
       audio.removeEventListener("timeupdate", handleTimeUpdate);
       audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("playing", handlePlaying);
     };
   });
 
@@ -943,10 +964,6 @@ export function MusicPlayer() {
       );
 
       if (completed) {
-        capture("track_play_completed", {
-          source: currentTrack.sourceType ?? "catalog",
-          track_id: currentTrack.id,
-        });
         markRecentlyPlayed(currentTrack);
         const completedState = completeQueuedTrack({
           currentTrack,
@@ -1871,9 +1888,9 @@ export function MusicPlayer() {
                       <p>
                         {repeatMode === "one"
                           ? "Repeat: One"
-                          : repeatMode === "all"
+                          : (repeatMode === "all"
                             ? "Repeat: All"
-                            : "Repeat: Off"}
+                            : "Repeat: Off")}
                       </p>
                     </TooltipContent>
                   </Tooltip>
