@@ -7,7 +7,7 @@ import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 /**
- * Dashboard shell: Home / Music / Create / Career / Live native tabs.
+ * Dashboard shell: Home / Music / Career / Live / Messages native tabs.
  * While any dashboard screen is focused, the app-level tab bar is hidden so
  * this is the only tab bar visible — matching the mobile web dashboard.
  */

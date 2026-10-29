@@ -92,7 +92,9 @@ export function StatChartCard({
     chartWidth = Math.max(screenWidth - 72, 280),
     isAllZero =
       currentTab.mode === "segmented_record" && currentTab.recordForm
-        ? currentTab.recordForm.wins === 0 && currentTab.recordForm.losses === 0
+        ? currentTab.recordForm.wins === 0 &&
+          currentTab.recordForm.losses === 0 &&
+          (currentTab.recordForm.draws ?? 0) === 0
         : currentTab.mode === "progress_goal" && currentTab.progressGoal
           ? currentTab.progressGoal.availableCents === 0 &&
             (currentTab.progressGoal.pendingCents ?? 0) === 0
