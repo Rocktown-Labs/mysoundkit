@@ -135,3 +135,20 @@ export const mapScopeForDetectedLocation = ({
   }
   return "global";
 };
+
+/**
+ * If a regional catalog query returns no items, fall back to the global
+ * catalog (`region: "all", regionType: "global"`) so screens never render empty
+ * when a region has no releases yet.
+ */
+export async function withGlobalRegionFallback<T>(
+  region: string | undefined,
+  fetchRegional: () => Promise<T[]>,
+  fetchGlobal: () => Promise<T[]>
+): Promise<T[]> {
+  const items = await fetchRegional();
+  if (items.length === 0 && region !== undefined && region !== "all") {
+    return fetchGlobal();
+  }
+  return items;
+}

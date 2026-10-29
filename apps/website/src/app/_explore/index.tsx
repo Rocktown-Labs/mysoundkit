@@ -14,7 +14,6 @@ import {
   PublicCardMeta,
   PublicCardThumbnail,
 } from "@/components/explore/public-card";
-import { RegionalEmptySceneCard } from "@/components/explore/regional-empty-scene-card";
 import { SectionHeader } from "@/components/explore/section-header";
 import { StreamCard } from "@/components/explore/stream-card";
 import { TrackCard } from "@/components/explore/track-card";
@@ -210,70 +209,6 @@ function LocalExplorePage() {
       usePublicLiveExperiencesQuery("stream", regionalLiveQuery),
     { data: listeningParties = [], isLoading: isLoadingParties } =
       useListeningPartiesQuery(regionalLiveQuery),
-    globalExploreQuery = {
-      limit: 12,
-      region: "all",
-      regionType: "global" as const,
-      scope: "public" as const,
-    },
-    { data: globalTopTracks = [], isLoading: isLoadingGlobalTopTracks } =
-      useTracksQuery(undefined, {
-        ...globalExploreQuery,
-        sort: "plays-desc",
-      }),
-    { data: globalNewTracks = [], isLoading: isLoadingGlobalNewTracks } =
-      useTracksQuery(undefined, {
-        ...globalExploreQuery,
-        sort: "date-desc",
-      }),
-    { data: globalArtists = [], isLoading: isLoadingGlobalArtists } =
-      useArtistsQuery({
-        category: "top",
-        limit: 10,
-        region: "all",
-        regionType: "global",
-        sort: "rank-asc",
-      }),
-    { data: globalVideos = [], isLoading: isLoadingGlobalVideos } =
-      useVideosQuery(globalExploreQuery),
-    { data: globalBattles = [], isLoading: isLoadingGlobalBattles } =
-      useBattlesQuery(globalExploreQuery),
-    isRegionalEmpty =
-      !isGlobalView &&
-      Boolean(selectedRegion) &&
-      !isLoadingTopTracks &&
-      !isLoadingArtists &&
-      topTracks.length === 0 &&
-      artists.length === 0,
-    displayedTopTracks =
-      isRegionalEmpty && globalTopTracks.length > 0
-        ? globalTopTracks
-        : topTracks,
-    isLoadingDisplayedTopTracks = isRegionalEmpty
-      ? isLoadingGlobalTopTracks
-      : isLoadingTopTracks,
-    displayedNewTracks =
-      isRegionalEmpty && globalNewTracks.length > 0
-        ? globalNewTracks
-        : newTracks,
-    isLoadingDisplayedNewTracks = isRegionalEmpty
-      ? isLoadingGlobalNewTracks
-      : isLoadingNewTracks,
-    displayedArtists =
-      isRegionalEmpty && globalArtists.length > 0 ? globalArtists : artists,
-    isLoadingDisplayedArtists = isRegionalEmpty
-      ? isLoadingGlobalArtists
-      : isLoadingArtists,
-    displayedVideos =
-      isRegionalEmpty && globalVideos.length > 0 ? globalVideos : videos,
-    isLoadingDisplayedVideos = isRegionalEmpty
-      ? isLoadingGlobalVideos
-      : isLoadingVideos,
-    displayedBattles =
-      isRegionalEmpty && globalBattles.length > 0 ? globalBattles : battles,
-    isLoadingDisplayedBattles = isRegionalEmpty
-      ? isLoadingGlobalBattles
-      : isLoadingBattles,
     syncLocation = ({
       newMapScope,
       newRegion,
@@ -524,38 +459,21 @@ function LocalExplorePage() {
           </section>
 
           <div className="space-y-6 md:space-y-8 lg:space-y-10 pb-8 md:pb-10 lg:pb-12">
-            {isRegionalEmpty ? (
-              <RegionalEmptySceneCard
-                onResetGlobal={handleResetGlobal}
-                regionName={activeRegion}
-              />
-            ) : null}
-
             {/* 1. Top Songs in {location} */}
             <section>
               <SectionHeader
                 description={
-                  isRegionalEmpty
-                    ? `Most played tracks across SoundKit while the ${activeRegion} scene warms up`
-                    : isGlobalView
-                      ? "Most played tracks across the app this week"
-                      : `Most played tracks in ${activeRegion} this week`
+                  isGlobalView
+                    ? "Most played tracks across the app this week"
+                    : `Most played tracks in ${activeRegion} this week`
                 }
-                title={
-                  isRegionalEmpty
-                    ? "Trending Across SoundKit"
-                    : `Top Songs ${locationPhrase}`
-                }
-                viewAllHref={
-                  isRegionalEmpty
-                    ? "/tracks?regionType=global&region=all"
-                    : tracksHref
-                }
+                title={`Top Songs ${locationPhrase}`}
+                viewAllHref={tracksHref}
               />
               <HomeRail
                 empty="No songs are live for this view yet."
-                isLoading={isLoadingDisplayedTopTracks}
-                items={displayedTopTracks}
+                isLoading={isLoadingTopTracks}
+                items={topTracks}
                 keyForItem={(track) => track.id}
                 renderItem={(track) => (
                   <TrackCard
@@ -578,27 +496,17 @@ function LocalExplorePage() {
             <section>
               <SectionHeader
                 description={
-                  isRegionalEmpty
-                    ? "Fresh drops from across the SoundKit community"
-                    : isGlobalView
-                      ? "Fresh drops from every active scene"
-                      : `Fresh tracks from artists in ${activeRegion}`
+                  isGlobalView
+                    ? "Fresh drops from every active scene"
+                    : `Fresh tracks from artists in ${activeRegion}`
                 }
-                title={
-                  isRegionalEmpty
-                    ? "New Releases on SoundKit"
-                    : `New Releases ${locationPhrase}`
-                }
-                viewAllHref={
-                  isRegionalEmpty
-                    ? "/tracks?regionType=global&region=all&sort=date-desc"
-                    : releasesHref
-                }
+                title={`New Releases ${locationPhrase}`}
+                viewAllHref={releasesHref}
               />
               <HomeRail
                 empty="No new releases are live for this view yet."
-                isLoading={isLoadingDisplayedNewTracks}
-                items={displayedNewTracks}
+                isLoading={isLoadingNewTracks}
+                items={newTracks}
                 keyForItem={(track) => track.id}
                 renderItem={(track) => (
                   <TrackCard
@@ -621,27 +529,17 @@ function LocalExplorePage() {
             <section>
               <SectionHeader
                 description={
-                  isRegionalEmpty
+                  isGlobalView
                     ? "Top beat battles happening across the app right now"
-                    : isGlobalView
-                      ? "Top beat battles happening across the app right now"
-                      : `Vote in head-to-head producer matchups in ${activeRegion}`
+                    : `Vote in head-to-head producer matchups in ${activeRegion}`
                 }
-                title={
-                  isRegionalEmpty
-                    ? "Live Battles Across SoundKit"
-                    : `Live Battles ${locationPhrase}`
-                }
-                viewAllHref={
-                  isRegionalEmpty
-                    ? "/live/battles?regionType=global&region=all"
-                    : battlesHref
-                }
+                title={`Live Battles ${locationPhrase}`}
+                viewAllHref={battlesHref}
               />
               <HomeRail
                 empty="No battles are live for this view yet."
-                isLoading={isLoadingDisplayedBattles}
-                items={displayedBattles}
+                isLoading={isLoadingBattles}
+                items={battles}
                 keyForItem={(battle) => battle.id}
                 renderItem={(battle) => (
                   <BattleSummaryCard battle={battle} key={battle.id} />
@@ -653,30 +551,17 @@ function LocalExplorePage() {
             <section>
               <SectionHeader
                 description={
-                  isRegionalEmpty
-                    ? `Featured artists across the app while local creators join in ${activeRegion}`
-                    : isGlobalView
-                      ? "Rising stars and established artists across the app"
-                      : `Rising stars and top performers in ${activeRegion}`
+                  isGlobalView
+                    ? "Rising stars and established artists across the app"
+                    : `Rising stars and top performers in ${activeRegion}`
                 }
-                title={
-                  isRegionalEmpty
-                    ? "Top Artists on SoundKit"
-                    : `Top Artists ${locationPhrase}`
-                }
-                viewAllHref={
-                  isRegionalEmpty
-                    ? "/artist?regionType=global&region=all"
-                    : artistsHref
-                }
+                title={`Top Artists ${locationPhrase}`}
+                viewAllHref={artistsHref}
               />
               <HomeRail
                 empty="No artists are live for this view yet."
-                isLoading={isLoadingDisplayedArtists}
-                items={chunkArtists(
-                  displayedArtists,
-                  isRegionalEmpty ? "SoundKit" : activeRegion
-                )}
+                isLoading={isLoadingArtists}
+                items={chunkArtists(artists, activeRegion)}
                 keyForItem={(artistGroup) =>
                   artistGroup.map((artist) => artist.slug).join("-")
                 }
@@ -699,27 +584,17 @@ function LocalExplorePage() {
             <section>
               <SectionHeader
                 description={
-                  isRegionalEmpty
-                    ? "Official music videos and visual drops from SoundKit artists"
-                    : isGlobalView
-                      ? "Official music videos, studio sessions, and live drops from SoundKit artists"
-                      : `Watch official drops and visual releases from ${activeRegion}`
+                  isGlobalView
+                    ? "Official music videos, studio sessions, and live drops from SoundKit artists"
+                    : `Watch official drops and visual releases from ${activeRegion}`
                 }
-                title={
-                  isRegionalEmpty
-                    ? "Featured Videos on SoundKit"
-                    : `Featured Videos ${locationPhrase}`
-                }
-                viewAllHref={
-                  isRegionalEmpty
-                    ? "/videos?regionType=global&region=all"
-                    : videosHref
-                }
+                title={`Featured Videos ${locationPhrase}`}
+                viewAllHref={videosHref}
               />
               <HomeRail
                 empty="No videos are live for this view yet."
-                isLoading={isLoadingDisplayedVideos}
-                items={displayedVideos}
+                isLoading={isLoadingVideos}
+                items={videos}
                 keyForItem={(video) => video.id}
                 renderItem={(video) => (
                   <div

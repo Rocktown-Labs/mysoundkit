@@ -10,6 +10,7 @@ import { useEffect } from "react";
 
 import { API_V1_URL, SoundKitApiError, apiClient, rpcJson } from "./api";
 import { authClient } from "./auth-client";
+import { withGlobalRegionFallback } from "./explore-region";
 import { liveRoomKey } from "./live-room";
 
 const meGet = apiClient.v1.me.index.$get,
@@ -830,14 +831,13 @@ export const useRefreshMerchProductMutation = () => {
   });
 };
 
-
 export interface MerchCatalogProduct {
   brand: string | null;
   id: string;
   image: string | null;
   isDiscontinued: boolean;
   name: string;
-  placements: Array<Record<string, unknown>>;
+  placements: Record<string, unknown>[];
   retailMaxCents: number;
   retailMinCents: number;
   type: string | null;
@@ -885,8 +885,8 @@ export interface MerchMockup {
   status: "completed" | "failed" | "pending" | "queued";
 }
 
-const merchCatalogKey = ["merch", "catalog"] as const;
-const merchDesignsKey = ["merch", "designs"] as const;
+const merchCatalogKey = ["merch", "catalog"] as const,
+  merchDesignsKey = ["merch", "designs"] as const;
 
 export const useMerchCatalogQuery = (enabled = true) =>
   useQuery({
@@ -1060,7 +1060,6 @@ export const usePublicMerchQuery = (
       filters?.projectId ?? "",
       filters?.trackId ?? "",
     ],
-
   });
 
 export interface AudioSpikeReport {
@@ -1635,7 +1634,17 @@ export const useArtistMediaQuery = (username: string) =>
 
 export const useArtistsQuery = (query: ArtistRankingQuery = {}) =>
   useQuery({
-    queryFn: async () => rpcJson(await artistsGet({ query })),
+    queryFn: () =>
+      withGlobalRegionFallback(
+        query.region,
+        async () => rpcJson(await artistsGet({ query })),
+        async () =>
+          rpcJson(
+            await artistsGet({
+              query: { ...query, region: "all", regionType: "global" },
+            })
+          )
+      ),
     queryKey: soundkitQueryKeys.artists(query),
   });
 
@@ -1653,14 +1662,29 @@ export const useArtistsInfiniteQuery = (query: ArtistRankingQuery = {}) => {
       return allPages.length + 1;
     },
     initialPageParam: 1,
-    queryFn: async ({ pageParam = 1 }) =>
-      rpcJson(
-        await artistsGet({
-          query: {
-            ...query,
-            page: pageParam,
-          },
-        })
+    queryFn: ({ pageParam = 1 }) =>
+      withGlobalRegionFallback(
+        pageParam === 1 ? query.region : undefined,
+        async () =>
+          rpcJson(
+            await artistsGet({
+              query: {
+                ...query,
+                page: pageParam,
+              },
+            })
+          ),
+        async () =>
+          rpcJson(
+            await artistsGet({
+              query: {
+                ...query,
+                page: pageParam,
+                region: "all",
+                regionType: "global",
+              },
+            })
+          )
       ),
     queryKey: [...soundkitQueryKeys.artists(query), "infinite"],
   });
@@ -1766,7 +1790,17 @@ export const useTracksQuery = (
 ) =>
   useQuery({
     initialData,
-    queryFn: async () => rpcJson(await tracksGet({ query })),
+    queryFn: () =>
+      withGlobalRegionFallback(
+        query.region,
+        async () => rpcJson(await tracksGet({ query })),
+        async () =>
+          rpcJson(
+            await tracksGet({
+              query: { ...query, region: "all", regionType: "global" },
+            })
+          )
+      ),
     queryKey: soundkitQueryKeys.tracks(query),
   });
 
@@ -1784,14 +1818,29 @@ export const useTracksInfiniteQuery = (query: PublicExploreQuery = {}) => {
       return allPages.length + 1;
     },
     initialPageParam: 1,
-    queryFn: async ({ pageParam = 1 }) =>
-      rpcJson(
-        await tracksGet({
-          query: {
-            ...query,
-            page: pageParam,
-          },
-        })
+    queryFn: ({ pageParam = 1 }) =>
+      withGlobalRegionFallback(
+        pageParam === 1 ? query.region : undefined,
+        async () =>
+          rpcJson(
+            await tracksGet({
+              query: {
+                ...query,
+                page: pageParam,
+              },
+            })
+          ),
+        async () =>
+          rpcJson(
+            await tracksGet({
+              query: {
+                ...query,
+                page: pageParam,
+                region: "all",
+                regionType: "global",
+              },
+            })
+          )
       ),
     queryKey: [...soundkitQueryKeys.tracks(query), "infinite"],
   });
@@ -2050,7 +2099,17 @@ export const useProjectsQuery = () =>
 
 export const usePublicProjectsQuery = (query: PublicProjectsQuery = {}) =>
   useQuery<PublicProjectSummary[]>({
-    queryFn: async () => rpcJson(await publicProjectsGet({ query })),
+    queryFn: () =>
+      withGlobalRegionFallback(
+        query.region,
+        async () => rpcJson(await publicProjectsGet({ query })),
+        async () =>
+          rpcJson(
+            await publicProjectsGet({
+              query: { ...query, region: "all", regionType: "global" },
+            })
+          )
+      ),
     queryKey: soundkitQueryKeys.publicProjects(query),
   });
 
@@ -2219,7 +2278,17 @@ export interface PublicRegionQuery {
 
 export const useListeningPartiesQuery = (query: PublicRegionQuery = {}) =>
   useQuery({
-    queryFn: async () => rpcJson(await listeningPartiesGet({ query })),
+    queryFn: () =>
+      withGlobalRegionFallback(
+        query.region,
+        async () => rpcJson(await listeningPartiesGet({ query })),
+        async () =>
+          rpcJson(
+            await listeningPartiesGet({
+              query: { ...query, region: "all", regionType: "global" },
+            })
+          )
+      ),
     queryKey: [...soundkitQueryKeys.listeningParties, query],
   });
 
@@ -2324,7 +2393,17 @@ export const useBattlesQuery = (query: PublicRegionQuery = {}) => {
   useEffect(() => subscribeToBattleDirectory(queryClient), [queryClient]);
 
   return useQuery({
-    queryFn: async () => rpcJson(await battlesGet({ query })),
+    queryFn: () =>
+      withGlobalRegionFallback(
+        query.region,
+        async () => rpcJson(await battlesGet({ query })),
+        async () =>
+          rpcJson(
+            await battlesGet({
+              query: { ...query, region: "all", regionType: "global" },
+            })
+          )
+      ),
     queryKey: [...soundkitQueryKeys.battles, query],
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
@@ -2355,8 +2434,23 @@ export const usePublicLiveExperiencesQuery = (
   query: PublicRegionQuery = {}
 ) =>
   useQuery({
-    queryFn: async () =>
-      rpcJson(await liveExperiencesGet({ query: { kind, ...query } })),
+    queryFn: () =>
+      withGlobalRegionFallback(
+        query.region,
+        async () =>
+          rpcJson(await liveExperiencesGet({ query: { kind, ...query } })),
+        async () =>
+          rpcJson(
+            await liveExperiencesGet({
+              query: {
+                kind,
+                ...query,
+                region: "all",
+                regionType: "global",
+              },
+            })
+          )
+      ),
     queryKey: ["live", "experiences", kind, query],
     refetchInterval: 10_000,
   });
@@ -3055,7 +3149,17 @@ export const useSubmitOpenVerseMutation = (listingId: string) => {
 
 export const useVideosQuery = (query: PublicExploreQuery = {}) =>
   useQuery({
-    queryFn: async () => rpcJson(await videosGet({ query })),
+    queryFn: () =>
+      withGlobalRegionFallback(
+        query.region,
+        async () => rpcJson(await videosGet({ query })),
+        async () =>
+          rpcJson(
+            await videosGet({
+              query: { ...query, region: "all", regionType: "global" },
+            })
+          )
+      ),
     queryKey: soundkitQueryKeys.videos(query),
   });
 
@@ -3073,14 +3177,29 @@ export const useVideosInfiniteQuery = (query: PublicExploreQuery = {}) => {
       return allPages.length + 1;
     },
     initialPageParam: 1,
-    queryFn: async ({ pageParam = 1 }) =>
-      rpcJson(
-        await videosGet({
-          query: {
-            ...query,
-            page: pageParam,
-          },
-        })
+    queryFn: ({ pageParam = 1 }) =>
+      withGlobalRegionFallback(
+        pageParam === 1 ? query.region : undefined,
+        async () =>
+          rpcJson(
+            await videosGet({
+              query: {
+                ...query,
+                page: pageParam,
+              },
+            })
+          ),
+        async () =>
+          rpcJson(
+            await videosGet({
+              query: {
+                ...query,
+                page: pageParam,
+                region: "all",
+                regionType: "global",
+              },
+            })
+          )
       ),
     queryKey: [...soundkitQueryKeys.videos(query), "infinite"],
   });

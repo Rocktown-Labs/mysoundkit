@@ -5,6 +5,7 @@ import {
   exploreRegionQuery,
   exploreRegionSlug,
   resolveInitialExploreRegion,
+  withGlobalRegionFallback,
 } from "./explore-region";
 
 describe("Regional empty-state & fallback behavior", () => {
@@ -64,5 +65,31 @@ describe("Regional empty-state & fallback behavior", () => {
       region: "all",
       regionType: "global",
     });
+  });
+
+  it("falls back to global items when regional query returns empty array", async () => {
+    const regionalFetch = async () => [];
+    const globalFetch = async () => [{ id: "global-1", title: "Global Track" }];
+
+    const result = await withGlobalRegionFallback(
+      "virginia",
+      regionalFetch,
+      globalFetch
+    );
+
+    expect(result).toEqual([{ id: "global-1", title: "Global Track" }]);
+  });
+
+  it("preserves regional items when regional query has results", async () => {
+    const regionalFetch = async () => [{ id: "local-1", title: "Local Track" }];
+    const globalFetch = async () => [{ id: "global-1", title: "Global Track" }];
+
+    const result = await withGlobalRegionFallback(
+      "arkansas",
+      regionalFetch,
+      globalFetch
+    );
+
+    expect(result).toEqual([{ id: "local-1", title: "Local Track" }]);
   });
 });

@@ -19,17 +19,14 @@
 
 ### Added
 
-- Added graceful regional empty-state fallback and creator call-to-action (`#465`):
-  - When visitors detect or select a state with no local releases (e.g., Virginia, Iowa, California), the Explore home feed (`apps/website/src/app/_explore/index.tsx`) renders a restrained, clean `RegionalEmptySceneCard` informing them they are early to that scene.
-  - Automatically streams trending global tracks, fresh releases, active battles, top artists, and featured videos beneath the notice so visitors can immediately listen rather than experiencing an empty ghost town.
-  - Includes a prominent creator call-to-action ("Are you a [Region] creator? Publish music") linking to creator onboarding, plus a 1-click "Reset to Global" button.
-  - Provided an interactive HTML prototype (`apps/website/public/prototypes/regional-empty-state.html`) implementing the spec pill picker (`PICKER.md`) exploring Quiet, Editorial, and Split directions.
+- Added seamless global fallback for empty regional exploration on the website (`#465`):
+  - Wired `withGlobalRegionFallback` into web catalog hooks (`apps/website/src/lib/soundkit-api-hooks.ts`) for tracks, artists, public projects, videos, battles, listening parties, and live experiences.
+  - When visitors detect or browse a state or region with no local releases (e.g. Virginia, Iowa, etc.), the feed seamlessly falls back to global/US catalog results so users never land on empty rails or ghost towns.
 
 ### Fixed
 
 - Updated Explore subroutes to default to Global View rather than hardcoding Arkansas (`#465`):
   - `/tracks`, `/artist`, `/videos`, and `/projects` now default to platform-wide global discovery (`regionType: "global", region: "all"`) when unconfigured, honoring saved preferences if present.
-  - Replaced hardcoded "Arkansas is selected by default while local communities fill in" empty-state messages with contextual guidance and direct actions to explore globally or publish music.
 
 - Removed decorative icons preceding section headers and page titles across web and mobile explore, library, and dashboard screens (`#456`):
   - Web: Removed icons from `SectionHeader` (`apps/website/src/components/explore/section-header.tsx`), explore home rails (`apps/website/src/app/_explore/index.tsx`), category explore headers (Top Songs, Projects, Music Videos, Merch/Shop, Live, Streams, Parties, Artists), project detail sections (Tracklist, Physical Editions), library pages (My SoundKit, Playlists, Purchased Tracks, Recently Played, Saved Tracks, Settings, Recently Watched), and dashboard pages (`community.tsx`, `career/merch.tsx`).
