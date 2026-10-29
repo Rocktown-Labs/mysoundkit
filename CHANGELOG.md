@@ -35,6 +35,9 @@
 
 ### Fixed
 
+- Prevented the artist onboarding draft from being recreated during logout navigation and allowed cold-start signup chooser hydration to complete in browser tests (#464).
+- Added authenticated artist/fan signup chooser coverage and ran the mocked browser suite on pull requests before merge (#464).
+- Fixed the web browser smoke tests on `master` so `Verify and Deploy` can reach the deploy jobs again: the `main application surfaces` signup assertions expected the pre-#443 single-screen signup, so they now check the credentials-first flow (anonymous `/signup` shows the credentials form; the role chooser appears only after credentials) (#464).
 - Updated Explore subroutes to default to Global View rather than hardcoding Arkansas (`#465`):
   - `/tracks`, `/artist`, `/videos`, and `/projects` now default to platform-wide global discovery (`regionType: "global", region: "all"`) when unconfigured, honoring saved preferences if present.
 
