@@ -18,6 +18,7 @@ interface TurnstileApi {
       "error-callback": () => void;
       "expired-callback": () => void;
       sitekey: string;
+      theme: "auto" | "dark" | "light";
     }
   ) => TurnstileWidgetId;
   reset: (widgetId?: TurnstileWidgetId) => void;
@@ -35,10 +36,12 @@ export function TurnstileWidget({
   action,
   onTokenChange,
   resetKey = 0,
+  theme = "auto",
 }: {
   action: "forgot_password" | "login" | "signup";
   onTokenChange: (token: string) => void;
   resetKey?: number;
+  theme?: "auto" | "dark" | "light";
 }) {
   const containerRef = useRef<HTMLDivElement>(null),
     widgetIdRef = useRef<TurnstileWidgetId | null>(null),
@@ -63,6 +66,7 @@ export function TurnstileWidget({
           "error-callback": () => onTokenChange(""),
           "expired-callback": () => onTokenChange(""),
           sitekey: siteKey,
+          theme,
         });
       },
       existingScript = document.querySelector(`#${TURNSTILE_SCRIPT_ID}`);
@@ -88,7 +92,7 @@ export function TurnstileWidget({
       widgetIdRef.current = null;
       onTokenChange("");
     };
-  }, [action, onTokenChange, resetKey, siteKey]);
+  }, [action, onTokenChange, resetKey, siteKey, theme]);
 
   if (!siteKey) {
     return null;

@@ -11,13 +11,7 @@ import {
   TurnstileWidget,
 } from "@/components/auth/turnstile-widget";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -25,9 +19,6 @@ import { capture, captureAnalyticsException, identify } from "@/lib/analytics";
 import { API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { completeBattleShareReferral } from "@/lib/battle-share";
-
-const accountLabel = (accountType: "artist" | "fan") =>
-  accountType === "artist" ? "Artist" : "Fan";
 
 export function CredentialsForm({
   accountType,
@@ -42,7 +33,6 @@ export function CredentialsForm({
 }) {
   const router = useRouter(),
     isSignup = mode === "signup",
-    label = accountType ? accountLabel(accountType) : "SoundKit",
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [confirmPassword, setConfirmPassword] = useState(""),
@@ -165,30 +155,25 @@ export function CredentialsForm({
     };
 
   return (
-    <Card className="border-border/60 bg-card/80 shadow-xl shadow-black/10">
-      <CardHeader className="space-y-2">
-        <CardTitle>
-          {isSignup ? `Create ${label} account` : "Sign in"}
-        </CardTitle>
-        <CardDescription>
-          {isSignup
-            ? "Start with Google or create an account with email. Setup takes a few minutes."
-            : "Use your SoundKit email and password to continue."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
+    <Card className="gap-0 rounded-2xl border-[#27272A] bg-[#09090B] py-5 text-[#FAFAFA] shadow-none">
+      <CardContent className="space-y-3.5 px-5">
         <GoogleAuthButton accountType={accountType} callbackURL={callbackURL} />
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <Separator className="flex-1" />
           <span>or use email</span>
           <Separator className="flex-1" />
         </div>
-        <form className="space-y-5" onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <Label htmlFor={`${mode}-email`}>Email</Label>
+        <form className="space-y-3.5" onSubmit={handleSubmit}>
+          <div className="space-y-1.5">
+            <Label
+              className="text-[13px] font-semibold text-[#E4E4E7]"
+              htmlFor={`${mode}-email`}
+            >
+              Email
+            </Label>
             <Input
               autoComplete="email"
-              className="h-12 bg-background"
+              className="h-[46px] rounded-[10px] border-[#27272A] bg-[#050507] dark:bg-[#050507] px-3.5 text-base md:text-[15px] placeholder:text-[#71717A] focus-visible:border-[#B8A3FF] focus-visible:ring-[#B8A3FF]/30"
               id={`${mode}-email`}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
@@ -237,13 +222,18 @@ export function CredentialsForm({
             action={isSignup ? "signup" : "login"}
             onTokenChange={setTurnstileToken}
             resetKey={turnstileResetKey}
+            theme="dark"
           />
           {errorMessage ? (
             <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {errorMessage}
             </p>
           ) : null}
-          <Button className="h-12 w-full" disabled={isSubmitting} type="submit">
+          <Button
+            className="h-[46px] w-full rounded-[10px] bg-[#FAFAFA] text-sm font-bold text-[#09090B] hover:bg-white/90"
+            disabled={isSubmitting}
+            type="submit"
+          >
             {isSubmitting
               ? isSignup
                 ? "Creating your account…"
@@ -256,7 +246,7 @@ export function CredentialsForm({
         {isSignup ? null : (
           <div className="text-right">
             <Link
-              className="text-sm text-primary hover:underline"
+              className="text-[13px] font-semibold text-[#B8A3FF] hover:underline"
               to="/forgot-password"
             >
               Forgot password?
