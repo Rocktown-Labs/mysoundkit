@@ -1074,8 +1074,7 @@ export const createMockApiServer = async ({
       return battles;
     },
     server = createServer((request, response) => {
-    const effectiveOrigin = request.headers.origin || webOrigin;
-    response.setHeader("access-control-allow-origin", effectiveOrigin);
+    response.setHeader("access-control-allow-origin", webOrigin);
     response.setHeader("access-control-allow-credentials", "true");
     response.setHeader(
       "access-control-allow-headers",
@@ -1135,6 +1134,8 @@ export const createMockApiServer = async ({
         session !== "complete" &&
         session !== "participant" &&
         session !== "nonparticipant" &&
+        session !== "incomplete" &&
+        session !== "fan_incomplete" &&
         session !== "setup-incomplete" &&
         session !== "setup-monetization-complete"
       ) {

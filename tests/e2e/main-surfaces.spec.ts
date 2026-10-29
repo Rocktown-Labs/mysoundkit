@@ -55,6 +55,37 @@ const gotoWithViteRetry = async (page: Page, path: string) => {
 };
 
 test.describe("main application surfaces", () => {
+  for (const accountType of ["artist", "fan"] as const) {
+    test(`signed-in ${accountType} can choose their signup path`, async ({
+      context,
+      page,
+    }) => {
+      test.setTimeout(75_000);
+
+      await context.addCookies([
+        {
+          domain: cookieDomain,
+          name: "soundkit_test_session",
+          path: "/",
+          value: accountType === "artist" ? "incomplete" : "fan_incomplete",
+        },
+      ]);
+      await gotoWithViteRetry(page, "/signup");
+      await expect(
+        page.getByRole("heading", { name: "Choose Your Path" })
+      ).toBeVisible({ timeout: 60_000 });
+      await page
+        .getByRole("button", {
+          name:
+            accountType === "artist" ? "Continue as Artist" : "Continue as Fan",
+        })
+        .click();
+      await expect(page).toHaveURL(
+        new RegExp(`/signup/${accountType}/onboarding$`)
+      );
+    });
+  }
+
   test.beforeEach(async ({ context }, testInfo) => {
     const testId = `${testInfo.testId}-${testInfo.project.name}`;
 
@@ -189,42 +220,24 @@ test.describe("main application surfaces", () => {
     await gotoWithViteRetry(page, "/pricing");
     await expect(page.getByText(/Premium|artist|fan/i).first()).toBeVisible();
 
+    // Signup is credentials-first: the role chooser only appears after a
+    // visitor creates credentials, so an anonymous /signup shows the form.
     await gotoWithViteRetry(page, "/signup");
     await expect(
       page.getByRole("heading", { name: /join soundkit/i })
     ).toBeVisible();
-    await expect(page.getByText("I'm a Fan")).toBeVisible();
-
-    const artistLink = page.getByRole("link", {
-      name: /continue as artist|i'm an artist/i,
-    });
-    await artistLink.scrollIntoViewIfNeeded();
-    await artistLink.click();
-    await expect(page).toHaveURL(/\/signup\/artist\/credentials$/);
-    await expect(
-      page.getByRole("heading", { name: /create artist account/i })
-    ).toBeVisible();
-
-    await gotoWithViteRetry(page, "/signup");
-    await expect(
-      page.getByRole("heading", { name: /join soundkit/i })
-    ).toBeVisible();
-    await expect(page.getByText("I'm a Fan")).toBeVisible();
-    const fanLink = page.getByRole("link", {
-      name: /continue as fan|i'm a fan/i,
-    });
-    await fanLink.scrollIntoViewIfNeeded();
-    await fanLink.click();
-    await expect(page).toHaveURL(/\/signup\/fan\/credentials$/);
-    await expect(
-      page.getByRole("heading", { name: /create fan account/i })
-    ).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Email" })).toBeVisible();
+    await expect(page.getByText("I'm a Fan")).toBeHidden();
 
     await gotoWithViteRetry(page, "/signup/artist/credentials");
     await expect(
       page.getByRole("heading", { name: /create artist account/i })
     ).toBeVisible();
-    await expect(page.getByText("I'm an Artist")).toBeHidden();
+
+    await gotoWithViteRetry(page, "/signup/fan/credentials");
+    await expect(
+      page.getByRole("heading", { name: /create fan account/i })
+    ).toBeVisible();
   });
 
   test("Explore keeps rails contained and applies real map scopes", async ({
@@ -1587,6 +1600,8 @@ test.describe("main application surfaces", () => {
   });
 
   test("signup surfaces load without console errors", async ({ page }) => {
+    test.setTimeout(75_000);
+
     const consoleErrors: string[] = [],
       httpErrors: string[] = [];
 
@@ -1615,12 +1630,14 @@ test.describe("main application surfaces", () => {
         httpErrors.push(`${status} ${responseUrl.pathname}`);
       }
     });
-    await page.goto("/signup");
+    await gotoWithViteRetry(page, "/signup");
     await expect(
       page.getByRole("heading", { name: /join soundkit/i })
     ).toBeVisible();
 
-    await page.getByRole("link", { name: /continue as artist/i }).click();
+    await expect(page.getByRole("textbox", { name: "Email" })).toBeVisible();
+
+    await gotoWithViteRetry(page, "/signup/artist/credentials");
     await expect(
       page.getByRole("heading", { name: /create artist account/i })
     ).toBeVisible();
@@ -1661,7 +1678,7 @@ test.describe("signup onboarding guards", () => {
       },
     ]);
 
-    await page.goto("/signup/artist/credentials");
+    await gotoWithViteRetry(page, "/signup/artist/credentials");
 
     await expect(page).toHaveURL(/\/signup\/artist\/onboarding$/);
     await expect(
@@ -1682,7 +1699,7 @@ test.describe("signup onboarding guards", () => {
       },
     ]);
 
-    await page.goto("/signup/artist/credentials");
+    await gotoWithViteRetry(page, "/signup/artist/credentials");
 
     await expect(page).toHaveURL(/\/dashboard$/);
   });
