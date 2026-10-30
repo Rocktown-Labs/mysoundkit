@@ -24,3 +24,15 @@ Only the production deployment forwards these production OAuth credentials. PR p
 - Email sign-in stays available when Google is unconfigured.
 
 References: [Better Auth Google provider](https://better-auth.com/docs/authentication/google), [Google web-server OAuth configuration](https://developers.google.com/identity/protocols/oauth2/web-server).
+
+## SoundKit Bio
+
+Bio uses the same Google client and the same API callback above. No
+`soundkit.bio/auth/callback/google` redirect URI is needed. Bio opens the
+SoundKit account handoff in a popup, where Google and email sign-in are offered.
+After authentication, the handoff returns the session only to the approved Bio
+origin using `postMessage`; Bio validates both the sender origin and popup window.
+The session stays out of URLs. Bio signup then resumes artist/fan onboarding
+without a password, and onboarding requests use the Bio bearer session because
+API cookies cannot authenticate cross-site requests from `soundkit.bio`. Allow
+popups for Bio when using this flow.

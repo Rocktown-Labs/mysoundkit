@@ -221,7 +221,7 @@ test.describe("main application surfaces", () => {
         domain: cookieDomain,
         name: "soundkit_test_session",
         path: "/",
-        value: "complete",
+        value: "nonparticipant",
       },
     ]);
 

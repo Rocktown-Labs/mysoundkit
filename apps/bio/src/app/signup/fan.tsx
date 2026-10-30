@@ -20,10 +20,12 @@ import {
 import React, { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
+import { BioGoogleAuthButton } from "@/components/bio-google-auth-button";
 import {
   BioTurnstile,
   isBioTurnstileConfigured,
 } from "@/components/bio-turnstile";
+import type { BioCurrentUser } from "@/lib/api";
 import {
   checkUsernameAvailable,
   loadGenres,
@@ -91,6 +93,19 @@ function FanSignupPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [turnstileToken, setTurnstileToken] = useState("");
+
+  const handleGoogleSignedIn = (user: BioCurrentUser) => {
+    if (user.onboardingCompletedAt) {
+      navigate({ to: user.accountType === "artist" ? "/dashboard" : "/" });
+      return;
+    }
+    setIsAccountCreated(true);
+    setName(user.displayName);
+    setEmail(user.email ?? "");
+    setPassword("");
+    setErrorMessage(null);
+    setStep(2);
+  };
 
   // Load genres on mount
   useEffect(() => {
@@ -199,7 +214,7 @@ function FanSignupPage() {
 
   const handleBack = () => {
     setErrorMessage(null);
-    setStep((prev) => Math.max(prev - 1, 1));
+    setStep((prev) => Math.max(prev - 1, isAccountCreated ? 2 : 1));
   };
 
   const toggleGenre = (genre: string) => {
@@ -337,6 +352,8 @@ function FanSignupPage() {
                   regional discovery.
                 </p>
               </div>
+
+              <BioGoogleAuthButton onSignedIn={handleGoogleSignedIn} />
 
               <div className="space-y-3.5 pt-2">
                 <div>

@@ -1011,6 +1011,7 @@ const submitOnboarding = async (
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      ...getBioAuthHeaders(),
     },
     method: "POST",
   });
