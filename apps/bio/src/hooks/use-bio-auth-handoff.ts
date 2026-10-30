@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
-  clearBioAuthToken,
   getCurrentSessionUser,
   setBioAuthToken,
   SOUNDKIT_WEB_URL,
@@ -10,7 +9,8 @@ import type { BioCurrentUser } from "@/lib/api";
 import { isBioAuthHandoffMessage } from "@/lib/auth-handoff";
 
 export function useBioAuthHandoff(onSignedIn: (user: BioCurrentUser) => void) {
-  const popupRef = useRef<Window | null>(null),
+  const onSignedInRef = useRef(onSignedIn),
+    popupRef = useRef<Window | null>(null),
     [isPending, setIsPending] = useState(false),
     [error, setError] = useState<string | null>(null),
     signIn = () => {
@@ -37,6 +37,10 @@ export function useBioAuthHandoff(onSignedIn: (user: BioCurrentUser) => void) {
     };
 
   useEffect(() => {
+    onSignedInRef.current = onSignedIn;
+  }, [onSignedIn]);
+
+  useEffect(() => {
     let active = true;
     const receiveSession = async (event: MessageEvent<unknown>) => {
       if (
@@ -49,16 +53,15 @@ export function useBioAuthHandoff(onSignedIn: (user: BioCurrentUser) => void) {
         return;
       }
       popupRef.current = null;
-      setBioAuthToken(event.data.token);
-      const user = await getCurrentSessionUser();
+      const user = await getCurrentSessionUser(event.data.token);
       if (!active) {
         return;
       }
       setIsPending(false);
       if (user) {
-        onSignedIn(user);
+        setBioAuthToken(event.data.token);
+        onSignedInRef.current(user);
       } else {
-        clearBioAuthToken();
         setError("Your session could not be verified. Please sign in again.");
       }
     };
@@ -67,7 +70,7 @@ export function useBioAuthHandoff(onSignedIn: (user: BioCurrentUser) => void) {
       active = false;
       window.removeEventListener("message", receiveSession);
     };
-  }, [onSignedIn]);
+  }, []);
 
   useEffect(() => {
     if (!isPending) {

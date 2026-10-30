@@ -1077,54 +1077,54 @@ export const clearBioAuthToken = (): void => {
   }
 };
 
-export const getCurrentSessionUser =
-  async (): Promise<BioCurrentUser | null> => {
-    try {
-      const headers: Record<string, string> = { Accept: "application/json" };
-      const token = getBioAuthToken();
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
+export const getCurrentSessionUser = async (
+  token = getBioAuthToken()
+): Promise<BioCurrentUser | null> => {
+  try {
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
 
-      const response = await fetch(`${API_V1_URL}/me`, {
-        credentials: "include",
-        headers,
-      });
+    const response = await fetch(`${API_V1_URL}/me`, {
+      credentials: "include",
+      headers,
+    });
 
-      if (!response.ok) {
-        return null;
-      }
-
-      const payload: unknown = await response.json(),
-        data =
-          isRecord(payload) && isRecord(payload.user) ? payload.user : payload;
-      const id = isRecord(data) ? stringValue(data.id) : null;
-      if (!isRecord(data) || !id) {
-        return null;
-      }
-
-      const accountType = data.accountType === "fan" ? "fan" : "artist",
-        username =
-          stringValue(data.username) ??
-          stringValue(data.stageName)?.toLowerCase().replaceAll(/\s+/gu, "") ??
-          "artist";
-
-      return {
-        accountType,
-        avatarUrl: apiMediaUrl(stringValue(data.avatarUrl)),
-        displayName:
-          stringValue(data.displayName) ?? stringValue(data.name) ?? "Artist",
-        email: stringValue(data.email),
-        id,
-        name: stringValue(data.name),
-        onboardingCompletedAt: stringValue(data.onboardingCompletedAt),
-        role: stringValue(data.role),
-        username,
-      };
-    } catch {
+    if (!response.ok) {
       return null;
     }
-  };
+
+    const payload: unknown = await response.json(),
+      data =
+        isRecord(payload) && isRecord(payload.user) ? payload.user : payload;
+    const id = isRecord(data) ? stringValue(data.id) : null;
+    if (!isRecord(data) || !id) {
+      return null;
+    }
+
+    const accountType = data.accountType === "fan" ? "fan" : "artist",
+      username =
+        stringValue(data.username) ??
+        stringValue(data.stageName)?.toLowerCase().replaceAll(/\s+/gu, "") ??
+        "artist";
+
+    return {
+      accountType,
+      avatarUrl: apiMediaUrl(stringValue(data.avatarUrl)),
+      displayName:
+        stringValue(data.displayName) ?? stringValue(data.name) ?? "Artist",
+      email: stringValue(data.email),
+      id,
+      name: stringValue(data.name),
+      onboardingCompletedAt: stringValue(data.onboardingCompletedAt),
+      role: stringValue(data.role),
+      username,
+    };
+  } catch {
+    return null;
+  }
+};
 
 export class BioApiError extends Error {
   public status: number;
