@@ -20,10 +20,12 @@ import {
 import React, { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
+import { BioGoogleAuthButton } from "@/components/bio-google-auth-button";
 import {
   BioTurnstile,
   isBioTurnstileConfigured,
 } from "@/components/bio-turnstile";
+import type { BioCurrentUser } from "@/lib/api";
 import {
   checkUsernameAvailable,
   getCurrentSessionUser,
@@ -139,6 +141,19 @@ function ArtistSignupPage() {
       active = false;
     };
   }, [navigate]);
+
+  const handleGoogleSignedIn = (user: BioCurrentUser) => {
+    if (user.onboardingCompletedAt) {
+      navigate({ to: user.accountType === "artist" ? "/dashboard" : "/" });
+      return;
+    }
+    setIsAccountCreated(true);
+    setName(user.displayName);
+    setEmail(user.email ?? "");
+    setPassword("");
+    setErrorMessage(null);
+    setStep(2);
+  };
 
   // Load genres on mount
   useEffect(() => {
@@ -256,7 +271,7 @@ function ArtistSignupPage() {
 
   const handleBack = () => {
     setErrorMessage(null);
-    setStep((prev) => Math.max(prev - 1, 1));
+    setStep((prev) => Math.max(prev - 1, isAccountCreated ? 2 : 1));
   };
 
   const toggleRole = (role: string) => {
@@ -413,6 +428,8 @@ function ArtistSignupPage() {
                   Start by setting up your SoundKit account credentials.
                 </p>
               </div>
+
+              <BioGoogleAuthButton onSignedIn={handleGoogleSignedIn} />
 
               <div className="space-y-3.5 pt-2">
                 <div>

@@ -55,6 +55,60 @@ const gotoWithViteRetry = async (page: Page, path: string) => {
 };
 
 test.describe("main application surfaces", () => {
+  for (const { authPath, callbackPath } of [
+    { authPath: "/login", callbackPath: "/dashboard" },
+    { authPath: "/signup", callbackPath: "/signup" },
+    {
+      authPath: "/signup/artist/credentials",
+      callbackPath: "/signup/artist/onboarding?intent=artist",
+    },
+    {
+      authPath: "/signup/fan/credentials",
+      callbackPath: "/signup/fan/onboarding?intent=fan",
+    },
+  ] as const) {
+    test(`Google sign-in shows its logo and submits from ${authPath}`, async ({
+      page,
+    }) => {
+      test.setTimeout(75_000);
+      const corsHeaders = {
+        "access-control-allow-credentials": "true",
+        "access-control-allow-origin": webOrigin,
+      };
+      await page.route(`${apiOrigin}/v1/auth/capabilities`, async (route) => {
+        await route.fulfill({ headers: corsHeaders, json: { google: true } });
+      });
+      await page.route(`${apiOrigin}/auth/sign-in/social`, async (route) => {
+        if (route.request().method() !== "POST") {
+          await route.continue();
+          return;
+        }
+        await route.fulfill({
+          headers: corsHeaders,
+          json: { redirect: false, url: `${webOrigin}/oauth-test` },
+        });
+      });
+      await gotoWithViteRetry(page, authPath);
+      const googleButton = page.getByRole("button", {
+        name: "Continue with Google",
+      });
+      await expect(googleButton).toBeVisible({ timeout: 60_000 });
+      await expect(googleButton.locator("svg")).toBeVisible();
+      const socialRequest = page.waitForRequest(
+        (request) =>
+          request.url() === `${apiOrigin}/auth/sign-in/social` &&
+          request.method() === "POST"
+      );
+      await googleButton.click();
+      const request = await socialRequest;
+      const payload = request.postDataJSON();
+      expect(payload.provider).toBe("google");
+      expect(payload.callbackURL).toBe(`${webOrigin}${callbackPath}`);
+      expect(payload.newUserCallbackURL).toBe(`${webOrigin}${callbackPath}`);
+      expect(new URL(page.url()).pathname).toBe(authPath);
+    });
+  }
+
   for (const accountType of ["artist", "fan"] as const) {
     test(`signed-in ${accountType} can choose their signup path`, async ({
       context,
@@ -167,7 +221,7 @@ test.describe("main application surfaces", () => {
         domain: cookieDomain,
         name: "soundkit_test_session",
         path: "/",
-        value: "complete",
+        value: "nonparticipant",
       },
     ]);
 
@@ -610,7 +664,7 @@ test.describe("main application surfaces", () => {
         domain: cookieDomain,
         name: "soundkit_test_session",
         path: "/",
-        value: "complete",
+        value: "nonparticipant",
       },
     ]);
 
@@ -712,10 +766,22 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { name: "Edit track details" })
     ).toBeVisible();
+    await page.getByLabel("Track name").focus();
+    await page
+      .getByRole("button", {
+        includeHidden: true,
+        name: "Actions for Summer Nights",
+      })
+      .focus();
+    await expect(page.getByLabel("Track name")).toBeFocused();
     await expect(page.getByLabel("Track name")).toHaveValue("Summer Nights");
     await expect(page.getByLabel("Visibility")).toBeVisible();
     await expect(page.getByLabel("Allow downloads")).toBeVisible();
     await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("dialog", { name: "Edit track details" })
+    ).toHaveCount(0);
+    await expect(page.locator("body")).toHaveCSS("pointer-events", "auto");
 
     await page
       .getByRole("button", { name: "Actions for Summer Nights" })

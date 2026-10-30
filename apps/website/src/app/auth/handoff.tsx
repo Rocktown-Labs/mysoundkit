@@ -4,6 +4,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, LoaderCircle, ShieldAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { API_V1_URL } from "@/lib/api";
 
 export const Route = createFileRoute("/auth/handoff")({
@@ -120,13 +121,18 @@ function AuthHandoffPage() {
         <h1 className="mt-3 font-bold text-2xl">Secure account handoff</h1>
         <p className="mt-3 text-muted-foreground text-sm">{message}</p>
         {status === "signed_out" ? (
-          <Link
-            className="mt-6 inline-flex rounded-full bg-primary px-5 py-2.5 font-medium text-primary-foreground text-sm transition hover:opacity-90"
-            search={{ redirect: loginRedirect }}
-            to="/login"
-          >
-            Sign in to SoundKit
-          </Link>
+          <div className="mt-6 space-y-3">
+            <GoogleAuthButton
+              callbackURL={`${window.location.origin}${loginRedirect}`}
+            />
+            <Link
+              className="inline-flex rounded-full bg-primary px-5 py-2.5 font-medium text-primary-foreground text-sm transition hover:opacity-90"
+              search={{ redirect: loginRedirect }}
+              to="/login"
+            >
+              Sign in with email
+            </Link>
+          </div>
         ) : null}
         {status === "failed" ? (
           <Link

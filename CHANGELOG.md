@@ -22,6 +22,10 @@
 - Matched website sign-in, signup, and password recovery forms to the native dark auth shell, compact fields, rounded card, white primary action, and dark security widget (#469).
 ### Fixed
 
+- Prevented the track action menu from retaining a page pointer lock after an edit dialog closes, while keeping dialogs modal and verifying focus containment (#479).
+- Added Google sign-in to Bio signup and the secure account handoff, verifying sessions before storing tokens and preserving bearer authentication through artist and fan onboarding; covered custom preview API domains for every mocked auth and onboarding request in browser tests (#478).
+- Used a spectator session for the public battle-chat smoke test so participant redirects cannot race its waiting-room assertion (#477).
+- Passed optional Google OAuth credentials into production deployments, bound the client secret securely, and covered the Google button/logo and sign-in request on all credential pages (#475).
 - Isolated mocked browser state per retry so a partially completed attempt cannot contaminate the next attempt (#473).
 - Corrected the regional analytics selection flag so clearing a region reports no specific region selected (#471).
 - Counted content playback after preroll and on repeat without counting pauses as new starts; isolated Traks errors from user actions and rejected non-finite event values (#467).
