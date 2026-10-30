@@ -766,9 +766,14 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { name: "Edit track details" })
     ).toBeVisible();
-    await expect(
-      page.getByRole("dialog", { name: "Edit track details" })
-    ).toHaveAttribute("aria-modal", "true");
+    await page.getByLabel("Track name").focus();
+    await page
+      .getByRole("button", {
+        includeHidden: true,
+        name: "Actions for Summer Nights",
+      })
+      .focus();
+    await expect(page.getByLabel("Track name")).toBeFocused();
     await expect(page.getByLabel("Track name")).toHaveValue("Summer Nights");
     await expect(page.getByLabel("Visibility")).toBeVisible();
     await expect(page.getByLabel("Allow downloads")).toBeVisible();
