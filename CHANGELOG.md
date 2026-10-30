@@ -17,6 +17,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Passed optional Google OAuth credentials into production deployments, bound the client secret securely, and covered the Google button/logo and sign-in request on all credential pages (#475).
+
 ### Changed
 
 - Matched website sign-in, signup, and password recovery forms to the native dark auth shell, compact fields, rounded card, white primary action, and dark security widget (#469).

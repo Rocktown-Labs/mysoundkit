@@ -55,6 +55,60 @@ const gotoWithViteRetry = async (page: Page, path: string) => {
 };
 
 test.describe("main application surfaces", () => {
+  for (const { authPath, callbackPath } of [
+    { authPath: "/login", callbackPath: "/dashboard" },
+    { authPath: "/signup", callbackPath: "/signup" },
+    {
+      authPath: "/signup/artist/credentials",
+      callbackPath: "/signup/artist/onboarding?intent=artist",
+    },
+    {
+      authPath: "/signup/fan/credentials",
+      callbackPath: "/signup/fan/onboarding?intent=fan",
+    },
+  ] as const) {
+    test(`Google sign-in shows its logo and submits from ${authPath}`, async ({
+      page,
+    }) => {
+      test.setTimeout(75_000);
+      const corsHeaders = {
+        "access-control-allow-credentials": "true",
+        "access-control-allow-origin": webOrigin,
+      };
+      await page.route(`${apiOrigin}/v1/auth/capabilities`, async (route) => {
+        await route.fulfill({ headers: corsHeaders, json: { google: true } });
+      });
+      await page.route(`${apiOrigin}/auth/sign-in/social`, async (route) => {
+        if (route.request().method() !== "POST") {
+          await route.continue();
+          return;
+        }
+        await route.fulfill({
+          headers: corsHeaders,
+          json: { redirect: false, url: `${webOrigin}/oauth-test` },
+        });
+      });
+      await gotoWithViteRetry(page, authPath);
+      const googleButton = page.getByRole("button", {
+        name: "Continue with Google",
+      });
+      await expect(googleButton).toBeVisible({ timeout: 60_000 });
+      await expect(googleButton.locator("svg")).toBeVisible();
+      const socialRequest = page.waitForRequest(
+        (request) =>
+          request.url() === `${apiOrigin}/auth/sign-in/social` &&
+          request.method() === "POST"
+      );
+      await googleButton.click();
+      const request = await socialRequest;
+      const payload = request.postDataJSON();
+      expect(payload.provider).toBe("google");
+      expect(payload.callbackURL).toBe(`${webOrigin}${callbackPath}`);
+      expect(payload.newUserCallbackURL).toBe(`${webOrigin}${callbackPath}`);
+      expect(new URL(page.url()).pathname).toBe(authPath);
+    });
+  }
+
   for (const accountType of ["artist", "fan"] as const) {
     test(`signed-in ${accountType} can choose their signup path`, async ({
       context,

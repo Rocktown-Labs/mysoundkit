@@ -599,7 +599,9 @@ export const server = Cloudflare.Worker(
         ...optionalEnvBinding("ADMIN_EMAILS"),
         ...optionalEnvBinding("BATTLE_ADMISSION_BATCH_SIZE"),
         ...optionalEnvBinding("GOOGLE_CLIENT_ID"),
-        ...optionalEnvBinding("GOOGLE_CLIENT_SECRET"),
+        ...(process.env.GOOGLE_CLIENT_SECRET
+          ? { GOOGLE_CLIENT_SECRET: Config.Redacted("GOOGLE_CLIENT_SECRET") }
+          : {}),
         ...(r2Jurisdiction
           ? { CLOUDFLARE_R2_JURISDICTION: r2Jurisdiction }
           : {}),
