@@ -84,29 +84,26 @@ for (const accountType of ["artist", "fan"] as const) {
         json: { google: true },
       });
     });
-    await context.route(
-      `${apiBaseUrl}/v1/auth/handoff-token`,
-      async (route) => {
-        const request = route.request();
-        if (request.method() === "OPTIONS") {
-          await route.fulfill({
-            headers: cors(request.headers().origin),
-            status: 204,
-          });
-          return;
-        }
-        expect(request.postDataJSON().targetOrigin).toBe(
-          new URL(bioBaseUrl).origin
-        );
+    await context.route("**/v1/auth/handoff-token", async (route) => {
+      const request = route.request();
+      if (request.method() === "OPTIONS") {
         await route.fulfill({
           headers: cors(request.headers().origin),
-          json: authenticated
-            ? { token: sessionToken }
-            : { message: "Signed out" },
-          status: authenticated ? 200 : 401,
+          status: 204,
         });
+        return;
       }
-    );
+      expect(request.postDataJSON().targetOrigin).toBe(
+        new URL(bioBaseUrl).origin
+      );
+      await route.fulfill({
+        headers: cors(request.headers().origin),
+        json: authenticated
+          ? { token: sessionToken }
+          : { message: "Signed out" },
+        status: authenticated ? 200 : 401,
+      });
+    });
     await context.route("**/auth/sign-in/social", async (route) => {
       const request = route.request();
       if (request.method() === "OPTIONS") {

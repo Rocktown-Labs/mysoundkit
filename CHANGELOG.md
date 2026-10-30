@@ -23,7 +23,7 @@
 ### Fixed
 
 - Prevented the track action menu from retaining a page pointer lock after an edit dialog closes, while keeping dialogs modal (#479).
-- Added Google sign-in to Bio signup and the secure account handoff, verifying sessions before storing tokens and preserving bearer authentication through artist and fan onboarding; covered custom preview API domains in browser tests (#478).
+- Added Google sign-in to Bio signup and the secure account handoff, verifying sessions before storing tokens and preserving bearer authentication through artist and fan onboarding; covered custom preview API domains for every mocked auth and onboarding request in browser tests (#478).
 - Used a spectator session for the public battle-chat smoke test so participant redirects cannot race its waiting-room assertion (#477).
 - Passed optional Google OAuth credentials into production deployments, bound the client secret securely, and covered the Google button/logo and sign-in request on all credential pages (#475).
 - Isolated mocked browser state per retry so a partially completed attempt cannot contaminate the next attempt (#473).
