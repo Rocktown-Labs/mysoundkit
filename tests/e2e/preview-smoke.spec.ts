@@ -78,7 +78,7 @@ for (const accountType of ["artist", "fan"] as const) {
     }
     const sessionToken = "mock-bio-google-session";
     let authenticated = false;
-    await context.route(`${apiBaseUrl}/v1/auth/capabilities`, async (route) => {
+    await context.route("**/v1/auth/capabilities", async (route) => {
       await route.fulfill({
         headers: cors(route.request().headers().origin),
         json: { google: true },
@@ -107,7 +107,7 @@ for (const accountType of ["artist", "fan"] as const) {
         });
       }
     );
-    await context.route(`${apiBaseUrl}/auth/sign-in/social`, async (route) => {
+    await context.route("**/auth/sign-in/social", async (route) => {
       const request = route.request();
       if (request.method() === "OPTIONS") {
         await route.fulfill({
@@ -130,7 +130,7 @@ for (const accountType of ["artist", "fan"] as const) {
         json: { redirect: true, url: callback.href },
       });
     });
-    await context.route(`${apiBaseUrl}/v1/me`, async (route) => {
+    await context.route("**/v1/me", async (route) => {
       const request = route.request();
       if (request.method() === "OPTIONS") {
         await route.fulfill({
@@ -163,7 +163,7 @@ for (const accountType of ["artist", "fan"] as const) {
       });
     });
     await context.route(
-      `${apiBaseUrl}/v1/onboarding/username-availability?**`,
+      "**/v1/onboarding/username-availability?**",
       async (route) => {
         await route.fulfill({
           headers: cors(route.request().headers().origin),
@@ -171,24 +171,21 @@ for (const accountType of ["artist", "fan"] as const) {
         });
       }
     );
-    await context.route(
-      `${apiBaseUrl}/v1/onboarding/${accountType}`,
-      async (route) => {
-        const request = route.request();
-        if (request.method() === "OPTIONS") {
-          await route.fulfill({
-            headers: cors(request.headers().origin),
-            status: 204,
-          });
-          return;
-        }
-        expect(request.headers().authorization).toBe(`Bearer ${sessionToken}`);
+    await context.route(`**/v1/onboarding/${accountType}`, async (route) => {
+      const request = route.request();
+      if (request.method() === "OPTIONS") {
         await route.fulfill({
           headers: cors(request.headers().origin),
-          json: {},
+          status: 204,
         });
+        return;
       }
-    );
+      expect(request.headers().authorization).toBe(`Bearer ${sessionToken}`);
+      await route.fulfill({
+        headers: cors(request.headers().origin),
+        json: {},
+      });
+    });
     await page.goto(`${bioBaseUrl}/signup/${accountType}`, {
       waitUntil: "domcontentloaded",
     });
@@ -224,7 +221,7 @@ for (const accountType of ["artist", "fan"] as const) {
       await page.getByRole("button", { exact: true, name: "Continue" }).click();
       const onboarding = page.waitForRequest(
         (request) =>
-          request.url() === `${apiBaseUrl}/v1/onboarding/fan` &&
+          new URL(request.url()).pathname === "/v1/onboarding/fan" &&
           request.method() === "POST"
       );
       await page.getByRole("button", { name: "Complete Signup" }).click();
