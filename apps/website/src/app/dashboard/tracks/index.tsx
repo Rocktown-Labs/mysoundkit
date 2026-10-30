@@ -302,7 +302,8 @@ function TracksPage() {
                     </p>
                   </div>
                 </div>
-                <DropdownMenu>
+                {/* Dialogs own modality; a second modal layer can retain its pointer lock. */}
+                <DropdownMenu modal={false}>
                   <DropdownMenuTrigger asChild={true}>
                     <Button
                       aria-label={`Actions for ${track.title}`}

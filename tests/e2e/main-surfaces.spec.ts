@@ -766,10 +766,17 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { name: "Edit track details" })
     ).toBeVisible();
+    await expect(
+      page.getByRole("dialog", { name: "Edit track details" })
+    ).toHaveAttribute("aria-modal", "true");
     await expect(page.getByLabel("Track name")).toHaveValue("Summer Nights");
     await expect(page.getByLabel("Visibility")).toBeVisible();
     await expect(page.getByLabel("Allow downloads")).toBeVisible();
     await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("dialog", { name: "Edit track details" })
+    ).toHaveCount(0);
+    await expect(page.locator("body")).toHaveCSS("pointer-events", "auto");
 
     await page
       .getByRole("button", { name: "Actions for Summer Nights" })
