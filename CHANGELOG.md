@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Enforced playlist owner authorization and current track visibility throughout library reads and mutations, retaining buyer-scoped purchase access (#485).
+
 - Addressed PR #463 review: enabled signup verification and a resend action, kept unmatched paid webhooks retryable with warnings, and verified completed R2 uploads before registering Open Verse assets (#461).
 - Bound successful Checkout fulfillment to the transaction's stored Stripe session rather than trusting event metadata alone (#311).
 - Recorded failed delayed Checkout payments with session-bound, conditional status updates that preserve settled orders (#311).

@@ -10,7 +10,18 @@ import {
   trackAssets,
   tracks,
 } from "@soundkit/db/schema/app";
-import { and, count, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  exists,
+  gte,
+  inArray,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
@@ -43,7 +54,33 @@ import {
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>(),
+const libraryErrors = {
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      z.object({ message: z.string() }),
+      "Authentication required"
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      z.object({ message: z.string() }),
+      "Resource not found"
+    ),
+  },
+  readableTrack = (userId?: string) => {
+    const publicTrack = and(
+      eq(tracks.isPublic, true),
+      isNull(tracks.deletedAt)
+    );
+    if (!userId) {
+      return publicTrack;
+    }
+    return or(
+      publicTrack,
+      and(eq(tracks.ownerUserId, userId), isNull(tracks.deletedAt)),
+      exists(
+        sql`select 1 from ${purchases} where ${purchases.buyerUserId} = ${userId} and ${purchases.trackId} = ${tracks.id}`
+      )
+    );
+  },
+  app = new OpenAPIHono<AppEnv>(),
   toSavedTrack = async ({
     savedAt,
     track,
@@ -183,24 +220,31 @@ app.openapi(
               value: sql<number>`count(distinct ${playbackSessions.trackId})::int`,
             })
             .from(playbackSessions)
+            .innerJoin(tracks, eq(tracks.id, playbackSessions.trackId))
             .where(
               and(
                 eq(playbackSessions.userId, user.id),
                 eq(playbackSessions.riskStatus, "clear"),
+                readableTrack(user.id),
                 gte(playbackSessions.playedSeconds, 30)
               )
             ),
           db
             .select({ value: count() })
             .from(librarySaves)
-            .where(eq(librarySaves.userId, user.id)),
+            .innerJoin(tracks, eq(tracks.id, librarySaves.trackId))
+            .where(
+              and(eq(librarySaves.userId, user.id), readableTrack(user.id))
+            ),
           db
             .select({ value: count() })
             .from(playbackSessions)
+            .innerJoin(tracks, eq(tracks.id, playbackSessions.trackId))
             .where(
               and(
                 eq(playbackSessions.userId, user.id),
-                inArray(playbackSessions.sourceType, watchedSourceTypes)
+                inArray(playbackSessions.sourceType, watchedSourceTypes),
+                readableTrack(user.id)
               )
             ),
         ]);
@@ -306,6 +350,7 @@ app.openapi(
           and(
             eq(playbackSessions.userId, user.id),
             eq(playbackSessions.riskStatus, "clear"),
+            readableTrack(user.id),
             gte(playbackSessions.playedSeconds, 30)
           )
         )
@@ -420,7 +465,7 @@ app.openapi(
         })
         .from(librarySaves)
         .innerJoin(tracks, eq(tracks.id, librarySaves.trackId))
-        .where(eq(librarySaves.userId, user.id))
+        .where(and(eq(librarySaves.userId, user.id), readableTrack(user.id)))
         .orderBy(desc(librarySaves.createdAt))
         .limit(100),
       items = await Promise.all(
@@ -481,7 +526,8 @@ app.openapi(
         .where(
           and(
             eq(playbackSessions.userId, user.id),
-            inArray(playbackSessions.sourceType, watchedSourceTypes)
+            inArray(playbackSessions.sourceType, watchedSourceTypes),
+            readableTrack(user.id)
           )
         )
         .orderBy(desc(playbackSessions.startedAt))
@@ -671,6 +717,7 @@ app.openapi(
       }),
     },
     responses: {
+      ...libraryErrors,
       [HttpStatusCodes.OK]: jsonContent(
         saveTrackStateSchema,
         "Saved track state"
@@ -720,6 +767,15 @@ app.openapi(
       return c.json({ saved: false, trackId }, HttpStatusCodes.OK);
     }
 
+    const [readable] = await db
+      .select({ id: tracks.id })
+      .from(tracks)
+      .where(and(eq(tracks.id, trackId), readableTrack(user.id)))
+      .limit(1);
+    if (!readable) {
+      return c.json({ message: "Track not found" }, HttpStatusCodes.NOT_FOUND);
+    }
+
     await db
       .insert(librarySaves)
       .values({
@@ -743,6 +799,7 @@ app.openapi(
       }),
     },
     responses: {
+      ...libraryErrors,
       [HttpStatusCodes.OK]: jsonContent(
         saveTrackStateSchema,
         "Saved track state"
@@ -874,6 +931,7 @@ app.openapi(
       }),
     },
     responses: {
+      ...libraryErrors,
       [HttpStatusCodes.OK]: jsonContent(
         z.object({
           playlist: playlistSchema,
@@ -901,20 +959,17 @@ app.openapi(
     tags: ["Library"],
   }),
   async (c) => {
-    const { id } = c.req.valid("param");
+    const { id } = c.req.valid("param"),
+      user = c.get("user");
 
     if (!isDatabaseConfigured()) {
-      const sample = samplePlaylists.find((p) => p.id === id) ?? {
-        coverArtUrl: null,
-        createdAt: new Date().toISOString(),
-        description: "My custom playlist",
-        id,
-        isPublic: false,
-        ownerUserId: "user_demo",
-        title: "My Playlist",
-        trackCount: sampleTracks.slice(0, 3).length,
-        updatedAt: new Date().toISOString(),
-      };
+      const sample = samplePlaylists.find((p) => p.id === id);
+      if (!sample || !sample.isPublic) {
+        return c.json(
+          { message: "Playlist not found" },
+          HttpStatusCodes.NOT_FOUND
+        );
+      }
       return c.json(
         {
           playlist: sample,
@@ -941,7 +996,10 @@ app.openapi(
         .where(eq(playlists.id, id))
         .limit(1);
 
-    if (!playlistRow) {
+    if (
+      !playlistRow ||
+      (!playlistRow.isPublic && playlistRow.ownerUserId !== user?.id)
+    ) {
       return c.json(
         { message: "Playlist not found" },
         HttpStatusCodes.NOT_FOUND
@@ -954,7 +1012,7 @@ app.openapi(
         })
         .from(playlistTracks)
         .innerJoin(tracks, eq(tracks.id, playlistTracks.trackId))
-        .where(eq(playlistTracks.playlistId, id))
+        .where(and(eq(playlistTracks.playlistId, id), readableTrack(user?.id)))
         .orderBy(desc(playlistTracks.createdAt)),
       trackItems = await Promise.all(
         playlistTrackRows.map(async (row) => {
@@ -1013,6 +1071,7 @@ app.openapi(
       }),
     },
     responses: {
+      ...libraryErrors,
       [HttpStatusCodes.OK]: jsonContent(
         z.object({ added: z.boolean() }),
         "Track added to playlist"
@@ -1021,18 +1080,50 @@ app.openapi(
     tags: ["Library"],
   }),
   async (c) => {
+    const user = c.get("user");
+    if (!user) {
+      return c.json(
+        { message: "Authentication required" },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
     const { id } = c.req.valid("param"),
       { trackId } = c.req.valid("json");
-
-    if (isDatabaseConfigured()) {
-      const db = createDb();
-      await db
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Playlist not found" },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    const added = await createDb().transaction(async (tx) => {
+      const [playlist] = await tx
+        .select()
+        .from(playlists)
+        .where(and(eq(playlists.id, id), eq(playlists.ownerUserId, user.id)))
+        .limit(1)
+        .for("update");
+      if (!playlist || playlist.ownerUserId !== user.id) {
+        return false;
+      }
+      const [track] = await tx
+        .select({ id: tracks.id })
+        .from(tracks)
+        .where(and(eq(tracks.id, trackId), readableTrack(user.id)))
+        .limit(1);
+      if (!track) {
+        return false;
+      }
+      await tx
         .insert(playlistTracks)
-        .values({
-          playlistId: id,
-          trackId,
-        })
+        .values({ playlistId: id, trackId })
         .onConflictDoNothing();
+      return true;
+    });
+    if (!added) {
+      return c.json(
+        { message: "Playlist or track not found" },
+        HttpStatusCodes.NOT_FOUND
+      );
     }
 
     return c.json({ added: true }, HttpStatusCodes.OK);
@@ -1051,6 +1142,7 @@ app.openapi(
       }),
     },
     responses: {
+      ...libraryErrors,
       [HttpStatusCodes.OK]: jsonContent(
         z.object({ removed: z.boolean() }),
         "Track removed from playlist"
@@ -1059,11 +1151,31 @@ app.openapi(
     tags: ["Library"],
   }),
   async (c) => {
+    const user = c.get("user");
+    if (!user) {
+      return c.json(
+        { message: "Authentication required" },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
     const { id, trackId } = c.req.valid("param");
-
-    if (isDatabaseConfigured()) {
-      const db = createDb();
-      await db
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Playlist not found" },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    const removed = await createDb().transaction(async (tx) => {
+      const [playlist] = await tx
+        .select()
+        .from(playlists)
+        .where(and(eq(playlists.id, id), eq(playlists.ownerUserId, user.id)))
+        .limit(1)
+        .for("update");
+      if (!playlist || playlist.ownerUserId !== user.id) {
+        return false;
+      }
+      await tx
         .delete(playlistTracks)
         .where(
           and(
@@ -1071,6 +1183,13 @@ app.openapi(
             eq(playlistTracks.trackId, trackId)
           )
         );
+      return true;
+    });
+    if (!removed) {
+      return c.json(
+        { message: "Playlist not found" },
+        HttpStatusCodes.NOT_FOUND
+      );
     }
 
     return c.json({ removed: true }, HttpStatusCodes.OK);
@@ -1088,6 +1207,7 @@ app.openapi(
       }),
     },
     responses: {
+      ...libraryErrors,
       [HttpStatusCodes.OK]: jsonContent(
         z.object({ deleted: z.boolean() }),
         "Playlist deleted"
@@ -1096,11 +1216,29 @@ app.openapi(
     tags: ["Library"],
   }),
   async (c) => {
+    const user = c.get("user");
+    if (!user) {
+      return c.json(
+        { message: "Authentication required" },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
     const { id } = c.req.valid("param");
-
-    if (isDatabaseConfigured()) {
-      const db = createDb();
-      await db.delete(playlists).where(eq(playlists.id, id));
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Playlist not found" },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    const deleted = await createDb()
+      .delete(playlists)
+      .where(and(eq(playlists.id, id), eq(playlists.ownerUserId, user.id)))
+      .returning({ id: playlists.id });
+    if (!deleted.length) {
+      return c.json(
+        { message: "Playlist not found" },
+        HttpStatusCodes.NOT_FOUND
+      );
     }
 
     return c.json({ deleted: true }, HttpStatusCodes.OK);
