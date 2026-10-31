@@ -37,7 +37,7 @@ export function YouTubePlayerView({
     onPlaying,
     onProgress,
   });
-  const [error, setError] = useState<string | null>(null);
+  const [playerError, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -156,9 +156,9 @@ export function YouTubePlayerView({
         data-testid="youtube-player"
         ref={hostRef}
       />
-      {error ? (
+      {playerError ? (
         <output className="flex items-center justify-between gap-3 p-3">
-          <p className="text-sm text-muted-foreground">{error}</p>
+          <p className="text-sm text-muted-foreground">{playerError}</p>
           <Button
             onClick={() => {
               setError(null);
