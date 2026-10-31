@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { PlayerTrack } from "../components/audio-player-provider";
 import {
   getYouTubeVideoId,
+  httpUrl,
   isDirectVideoUrl,
   isStoredVideoMetadata,
   videoQueueItem,
@@ -53,6 +54,13 @@ describe("mixed media queue", () => {
     ).toBe(true);
     expect(isDirectVideoUrl("/media/recording.mp4?token=dummy")).toBe(true);
     expect(isDirectVideoUrl("javascript:recording.mp4")).toBe(false);
+  });
+  it("only exposes http(s) external links", () => {
+    expect(httpUrl("javascript:alert(1)")).toBeNull();
+    expect(httpUrl("data:text/html,hello")).toBeNull();
+    expect(httpUrl("https://example.com/watch")?.href).toBe(
+      "https://example.com/watch"
+    );
   });
   it("advances song to YouTube video to hosted video and back to a song", () => {
     const first: PlayerTrack = {

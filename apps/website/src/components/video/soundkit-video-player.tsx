@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { VideoPlaybackHandle } from "@/components/video/video-playback-handle";
 import { YouTubePlayerView } from "@/components/video/youtube-player";
-import { directVideoUrl, getYouTubeVideoId } from "@/lib/player-media";
+import { directVideoUrl, getYouTubeVideoId, httpUrl } from "@/lib/player-media";
 import {
   createVideoViewSession,
   updateVideoViewSession,
@@ -323,8 +323,9 @@ export function SoundKitVideoPlayer({
   }
 
   const directSource = externalPlaybackUrl
-    ? directVideoUrl(externalPlaybackUrl)
-    : null;
+      ? directVideoUrl(externalPlaybackUrl)
+      : null,
+    externalSource = externalPlaybackUrl ? httpUrl(externalPlaybackUrl) : null;
   if (directSource) {
     return (
       <video
@@ -402,10 +403,10 @@ export function SoundKitVideoPlayer({
             embeddable external source.
           </p>
         </div>
-        {externalPlaybackUrl ? (
+        {externalSource ? (
           <Button asChild={true} variant="secondary">
             <a
-              href={externalPlaybackUrl}
+              href={externalSource.href}
               rel="noopener noreferrer"
               target="_blank"
             >
