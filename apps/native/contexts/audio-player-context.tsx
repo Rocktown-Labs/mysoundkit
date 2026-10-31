@@ -20,9 +20,10 @@ import {
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { API_V1_URL } from "@/lib/api";
+import { API_BASE_URL, API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import { resolvePlaybackSource } from "@/lib/playback-source";
 import {
   advanceQueue,
   cycleRepeatMode,
@@ -296,24 +297,13 @@ export function AudioPlayerProvider({
    * session lives in SecureStore (not the native cookie jar), so entitled
    * playback (premium / purchased tracks) needs the cookie header attached. */
   const resolvePlayerSource = useCallback(async (): Promise<AudioSource> => {
-    let cookie: string | null = null;
-    try {
-      cookie = await authClient.getCookie();
-    } catch {
-      cookie = null;
-    }
     const pendingTrack = pendingTrackRef.current;
-    if (!pendingTrack) {
-      return { uri: "" };
-    }
-    const headers: Record<string, string> = {};
-    if (cookie && cookie.length > 0) {
-      headers.cookie = cookie;
-    }
-    return {
-      headers,
+    if (!pendingTrack) {return { uri: "" };}
+    return await resolvePlaybackSource({
       uri: pendingTrack.src,
-    };
+      apiBaseUrl: API_BASE_URL,
+      getCookie: async () => await authClient.getCookie(),
+    });
   }, []);
 
   const pendingTrackRef = useRef<PlayerTrack | null>(null),
@@ -321,7 +311,9 @@ export function AudioPlayerProvider({
 
   /** Loads the pending content source (cookie-aware) and starts it. */
   const loadPendingContent = useCallback(async () => {
+    const pendingTrack = pendingTrackRef.current;
     const source = await resolvePlayerSource();
+    if (!pendingTrack || pendingTrackRef.current !== pendingTrack) {return;}
     player.replace(source);
     player.play();
   }, [player, resolvePlayerSource]);
