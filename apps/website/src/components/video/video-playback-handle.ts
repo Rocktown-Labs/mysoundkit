@@ -1,0 +1,6 @@
+export interface VideoPlaybackHandle {
+  pause: () => void;
+  play: () => void;
+  requestPictureInPicture: () => Promise<boolean>;
+  seek: (seconds: number) => void;
+}

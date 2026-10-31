@@ -27,7 +27,14 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
@@ -68,6 +75,7 @@ import { toast } from "@/hooks/use-toast";
 import { capture } from "@/lib/analytics";
 import { API_V1_URL } from "@/lib/api";
 import { getDefaultPlayerPresentation } from "@/lib/player-device";
+import { isVideoQueueItem } from "@/lib/player-media";
 import {
   completeQueuedTrack,
   shouldRestartCurrentTrack,
@@ -243,15 +251,33 @@ const formatTime = (seconds: number) => {
       .find((entry) => entry.startsWith(`${sidebarStateCookieName}=`));
 
     return sidebarCookie ? sidebarCookie.endsWith("true") : true;
-  };
+  },
+  QueueVideoPlayer = lazy(async () => {
+    const module = await import("@/components/video/queue-video-player");
+    return { default: module.QueueVideoPlayer };
+  });
 
 export function MusicPlayer() {
+  const { currentTrack } = useAudioPlayer();
+  if (isVideoQueueItem(currentTrack)) {
+    return (
+      <Suspense fallback={null}>
+        <QueueVideoPlayer key={currentTrack.id} />
+      </Suspense>
+    );
+  }
+  return <AudioMusicPlayer />;
+}
+
+function AudioMusicPlayer() {
   const isMobile = useMobile(),
     {
       currentTrack,
       markRecentlyPlayed,
       queue,
       recentlyPlayed,
+      repeatMode,
+      setRepeatMode,
       registerTogglePlay,
       setCurrentTrack,
       setIsPlaying: setContextIsPlaying,
@@ -281,6 +307,7 @@ export function MusicPlayer() {
     loadedTrackKeyRef = useRef<string | null>(null),
     analyticsStartedTrackRef = useRef<string | null>(null),
     playbackErrorRetryRef = useRef(false),
+    mountedRef = useRef(true),
     playbackTelemetryRef = useRef<PlaybackTelemetrySession | null>(null),
     prerollServedTrackRef = useRef<string | null>(null),
     [audioOutput, setAudioOutput] = useState<Device>({
@@ -313,7 +340,6 @@ export function MusicPlayer() {
     mobileDefaultAppliedRef = useRef(false),
     [progress, setProgress] = useState(0),
     [queueOpen, setQueueOpen] = useState(false),
-    [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off"),
     [volume, setVolume] = useState(75),
     [activeAd, setActiveAd] = useState<ServedAudioAd | null>(null),
     enumerateAudioDevices = useCallback(async () => {
@@ -517,13 +543,6 @@ export function MusicPlayer() {
       if (typeof parsed.isMuted === "boolean") {
         setIsMuted(parsed.isMuted);
       }
-      if (
-        parsed.repeatMode === "off" ||
-        parsed.repeatMode === "all" ||
-        parsed.repeatMode === "one"
-      ) {
-        setRepeatMode(parsed.repeatMode);
-      }
     } catch {
       window.localStorage.removeItem(playerRuntimeStorageKey);
     }
@@ -536,9 +555,18 @@ export function MusicPlayer() {
 
     window.localStorage.setItem(
       playerRuntimeStorageKey,
-      JSON.stringify({ isMuted, repeatMode, volume })
+      JSON.stringify({ isMuted, volume })
     );
-  }, [isMuted, repeatMode, volume]);
+  }, [isMuted, volume]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const audio = audioRef.current;
+    return () => {
+      mountedRef.current = false;
+      audio?.pause();
+    };
+  }, []);
 
   const sendPlaybackProgress = ({
       ended = false,
@@ -649,6 +677,9 @@ export function MusicPlayer() {
         return false;
       }
 
+      if (!mountedRef.current) {
+        return false;
+      }
       prerollServedTrackRef.current = currentTrack.id;
       pendingContentSrcRef.current = currentTrack.src;
       activeAdRef.current = payload.ad;
@@ -656,6 +687,10 @@ export function MusicPlayer() {
       audio.src = payload.ad.mediaUrl;
       audio.load();
       await audio.play();
+      if (!mountedRef.current) {
+        audio.pause();
+        return false;
+      }
       sendAdEvent(payload.ad.campaignId, "impression");
       return true;
     },
@@ -671,7 +706,14 @@ export function MusicPlayer() {
         return;
       }
 
+      if (!mountedRef.current) {
+        return;
+      }
       await audio.play();
+      if (!mountedRef.current) {
+        audio.pause();
+        return;
+      }
       setIsPlaying(true);
     };
 
@@ -754,7 +796,11 @@ export function MusicPlayer() {
       ),
       nextTrack = currentIndex === -1 ? queue[0] : queue[currentIndex + 1];
 
-    if (!nextTrack || nextTrack.id === currentTrack.id) {
+    if (
+      !nextTrack ||
+      isVideoQueueItem(nextTrack) ||
+      nextTrack.id === currentTrack.id
+    ) {
       preloadedAudioRef.current = null;
       return;
     }
