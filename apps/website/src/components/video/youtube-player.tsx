@@ -37,7 +37,7 @@ export function YouTubePlayerView({
     onPlaying,
     onProgress,
   });
-  const [playerError, setError] = useState<string | null>(null);
+  const [playerError, setPlayerError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -61,7 +61,7 @@ export function YouTubePlayerView({
     let progressTimer: number | undefined;
     const reportError = (message: string) => {
       if (!cancelled) {
-        setError(message);
+        setPlayerError(message);
         callbacks.current.onPaused?.();
         callbacks.current.onError?.(message);
       }
@@ -103,7 +103,7 @@ export function YouTubePlayerView({
                 return;
               }
               if (data === 1) {
-                setError(null);
+                setPlayerError(null);
                 callbacks.current.onPlaying?.();
               } else if (data === 2) {
                 callbacks.current.onPaused?.();
@@ -161,7 +161,7 @@ export function YouTubePlayerView({
           <p className="text-sm text-muted-foreground">{playerError}</p>
           <Button
             onClick={() => {
-              setError(null);
+              setPlayerError(null);
               setAttempt((value) => value + 1);
             }}
             size="sm"
