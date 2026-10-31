@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { VideoPlaybackHandle } from "@/components/video/video-playback-handle";
 import { YouTubePlayerView } from "@/components/video/youtube-player";
-import { getYouTubeVideoId, isDirectVideoUrl } from "@/lib/player-media";
+import { directVideoUrl, getYouTubeVideoId } from "@/lib/player-media";
 import {
   createVideoViewSession,
   updateVideoViewSession,
@@ -322,7 +322,10 @@ export function SoundKitVideoPlayer({
     );
   }
 
-  if (externalPlaybackUrl && isDirectVideoUrl(externalPlaybackUrl)) {
+  const directSource = externalPlaybackUrl
+    ? directVideoUrl(externalPlaybackUrl)
+    : null;
+  if (directSource) {
     return (
       <video
         autoPlay={autoPlay}
@@ -331,7 +334,7 @@ export function SoundKitVideoPlayer({
         playsInline
         poster={posterUrl}
         ref={nativeRef}
-        src={externalPlaybackUrl}
+        src={directSource.href}
         onEnded={(event) => {
           sendProgress(event, true, true);
           onEnded?.();

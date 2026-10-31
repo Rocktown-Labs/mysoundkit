@@ -43,17 +43,20 @@ export const getYouTubeVideoId = (value: string): string | null => {
   }
 };
 
-export const isDirectVideoUrl = (value: string): boolean => {
+export const directVideoUrl = (value: string): URL | null => {
   try {
     const url = new URL(value, "https://mysoundkit.com");
-    return (
-      (url.protocol === "https:" || url.protocol === "http:") &&
+    return (url.protocol === "https:" || url.protocol === "http:") &&
       videoFilePattern.test(url.pathname)
-    );
+      ? url
+      : null;
   } catch {
-    return false;
+    return null;
   }
 };
+
+export const isDirectVideoUrl = (value: string): boolean =>
+  directVideoUrl(value) !== null;
 
 export const isStoredVideoMetadata = (
   value: unknown
