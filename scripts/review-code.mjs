@@ -11,12 +11,7 @@ import { assertCompleteReview } from "./code-review-result.mjs";
 // Pass ref/background/resume options directly through to the pinned CLI.
 async function main() {
   const args = process.argv.slice(2),
-    output =
-      process.env.OCR_REPORT_PATH ??
-      path.join(
-        await mkdtemp(path.join(tmpdir(), "soundkit-ocr-")),
-        "review.json"
-      ),
+    output = process.env.OCR_REPORT_PATH ?? (await defaultReportPath()),
     version = await promisify(execFile)("ocr", ["version"]);
   if (
     args.some((arg) =>
@@ -35,6 +30,11 @@ async function main() {
 
   await runReview(args, output);
   await validateReport(output);
+}
+
+async function defaultReportPath() {
+  const directory = await mkdtemp(path.join(tmpdir(), "soundkit-ocr-"));
+  return path.join(directory, "review.json");
 }
 
 async function validateReport(output) {
