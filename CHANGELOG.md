@@ -20,6 +20,7 @@
 - Validated existing track ownership before project creation and rechecked source ownership and current workspace membership before exports (#461).
 - Prevented unsettled Checkout sessions from marking orders paid or initiating fulfillment and tip transfers (#461).
 - Disabled persisted video drafts and removed legacy drafts when persistence is disabled (#461).
+- Enforced playlist owner authorization and current track visibility throughout library reads and mutations, retaining buyer-scoped purchase access (#485).
 
 ## Unreleased
 
