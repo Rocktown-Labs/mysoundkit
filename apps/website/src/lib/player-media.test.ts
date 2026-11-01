@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { PlayerTrack } from "../components/audio-player-provider";
 import {
+  directVideoUrl,
   getYouTubeVideoId,
   httpUrl,
   isDirectVideoUrl,
@@ -114,4 +115,14 @@ describe("mixed media queue", () => {
       }).restartCurrent
     ).toBe(true);
   });
+});
+
+it("keeps relative native video and source links on the supplied preview origin", () => {
+  expect(
+    directVideoUrl("/media/recording.mp4", "https://preview.soundkit.test")
+      ?.href
+  ).toBe("https://preview.soundkit.test/media/recording.mp4");
+  expect(httpUrl("/original", "http://127.0.0.1:4311")?.href).toBe(
+    "http://127.0.0.1:4311/original"
+  );
 });

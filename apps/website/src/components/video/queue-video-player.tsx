@@ -76,39 +76,52 @@ export function QueueVideoPlayer() {
     []
   );
 
-  const advance = (completed = false) => {
-    if (!currentTrack) {
-      return;
-    }
-    if (completed) {
-      if (endedRef.current) {
+  const advance = useCallback(
+    (completed = false) => {
+      if (!currentTrack) {
         return;
       }
-      endedRef.current = true;
-      markRecentlyPlayed(currentTrack);
-      const next = completeQueuedTrack({ currentTrack, queue, repeatMode });
-      if (next.restartCurrent) {
-        endedRef.current = false;
-        playerRef.current?.seek(0);
-        playerRef.current?.play();
+      if (completed) {
+        if (endedRef.current) {
+          return;
+        }
+        endedRef.current = true;
+        markRecentlyPlayed(currentTrack);
+        const next = completeQueuedTrack({ currentTrack, queue, repeatMode });
+        if (next.restartCurrent) {
+          endedRef.current = false;
+          playerRef.current?.seek(0);
+          playerRef.current?.play();
+          return;
+        }
+        setQueue(next.queue);
+        setIsPlaying(false);
+        setCurrentTrack(
+          next.nextTrack ? { ...next.nextTrack, autoplay: true } : null
+        );
         return;
       }
-      setQueue(next.queue);
-      setIsPlaying(false);
-      setCurrentTrack(
-        next.nextTrack ? { ...next.nextTrack, autoplay: true } : null
+      const currentIndex = queue.findIndex(
+        (item) => item.id === currentTrack.id
       );
-      return;
-    }
-    const currentIndex = queue.findIndex((item) => item.id === currentTrack.id);
-    const next = queue[currentIndex + 1] ?? queue[0];
-    if (next && next.id !== currentTrack.id) {
-      playerRef.current?.pause();
-      setIsPlaying(false);
-      setCurrentTrack({ ...next, autoplay: true });
-    }
-  };
-  const previous = () => {
+      const next = queue[currentIndex + 1] ?? queue[0];
+      if (next && next.id !== currentTrack.id) {
+        playerRef.current?.pause();
+        setIsPlaying(false);
+        setCurrentTrack({ ...next, autoplay: true });
+      }
+    },
+    [
+      currentTrack,
+      markRecentlyPlayed,
+      queue,
+      repeatMode,
+      setCurrentTrack,
+      setIsPlaying,
+      setQueue,
+    ]
+  );
+  const previous = useCallback(() => {
     if (!currentTrack) {
       return;
     }
@@ -129,7 +142,37 @@ export function QueueVideoPlayer() {
       setIsPlaying(false);
       setCurrentTrack({ ...item, autoplay: true });
     }
-  };
+  }, [currentTrack, queue, seconds, setCurrentTrack, setIsPlaying]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest(
+          "input, textarea, select, [contenteditable='true'], [role='textbox']"
+        )
+      )
+        return;
+      if (event.code === "Space") {
+        event.preventDefault();
+        toggle();
+      } else if (event.shiftKey && event.key === "ArrowRight") {
+        event.preventDefault();
+        advance();
+      } else if (event.shiftKey && event.key === "ArrowLeft") {
+        event.preventDefault();
+        previous();
+      } else if (event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        playerRef.current?.toggleMute();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [advance, previous, toggle]);
+
   const enterPictureInPicture = async () => {
     try {
       const supported = await playerRef.current?.requestPictureInPicture();

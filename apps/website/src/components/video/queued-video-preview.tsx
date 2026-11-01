@@ -1,11 +1,11 @@
 /* eslint-disable one-var, sort-vars */
-import { ListPlus, Pause, Play } from "lucide-react";
+import { ExternalLink, ListPlus, Pause, Play } from "lucide-react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { AppImage } from "@/components/ui/app-image";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { videoQueueItem } from "@/lib/player-media";
+import { httpUrl, videoQueueItem } from "@/lib/player-media";
 import type { PlayerVideoMetadata } from "@/lib/player-media";
 
 export function QueuedVideoPreview(
@@ -48,6 +48,47 @@ export function QueuedVideoPreview(
     setIsPlaying(false);
     setCurrentTrack(item);
   };
+
+  if (!item) {
+    const source = props.externalPlaybackUrl
+      ? httpUrl(
+          props.externalPlaybackUrl,
+          typeof window === "undefined"
+            ? "https://mysoundkit.com"
+            : window.location.origin
+        )
+      : null;
+    return (
+      <section
+        className="space-y-4 rounded-2xl border bg-card p-6"
+        data-testid="queued-video-preview"
+      >
+        <h2 className="text-lg font-semibold">
+          Video unavailable in the queue
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          {source
+            ? "This source cannot play in your SoundKit queue. You can watch the original video."
+            : "This video is still processing. Check back when playback is ready."}
+        </p>
+        {source ? (
+          <Button asChild variant="outline">
+            <a
+              href={source.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                if (isPlaying) togglePlay();
+              }}
+            >
+              <ExternalLink aria-hidden="true" />
+              Open Source Video
+            </a>
+          </Button>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3" data-testid="queued-video-preview">

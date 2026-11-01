@@ -1,4 +1,5 @@
 export interface VideoPlaybackHandle {
+  toggleMute: () => void;
   pause: () => void;
   play: () => void;
   requestPictureInPicture: () => Promise<boolean>;

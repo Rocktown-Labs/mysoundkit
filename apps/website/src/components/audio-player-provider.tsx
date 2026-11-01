@@ -192,11 +192,19 @@ export function AudioPlayerProvider({
     visible,
   ]);
 
-  const handleSetCurrentTrack = useCallback((track: PlayerTrack | null) => {
-      setCurrentTrack(track);
-      setIsPlaying(false);
-      setVisible(Boolean(track));
-    }, []),
+  const handleSetCurrentTrack = useCallback(
+      (track: PlayerTrack | null) => {
+        setCurrentTrack(track);
+        if (
+          track?.id !== currentTrack?.id ||
+          track?.src !== currentTrack?.src
+        ) {
+          setIsPlaying(false);
+        }
+        setVisible(Boolean(track));
+      },
+      [currentTrack]
+    ),
     addToQueue = useCallback(
       (track: PlayerTrack) => {
         if (queue.some((item) => item.id === track.id)) {

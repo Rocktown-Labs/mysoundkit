@@ -40,6 +40,9 @@ window.YT = { Player: class {
   playVideo() { this.state = 1; this.options.events.onStateChange({ data:1, target:this }); }
   pauseVideo() { this.state = 2; this.options.events.onStateChange({ data:2, target:this }); }
   getPlayerState() { return this.state; }
+  isMuted() { return this.muted === true; }
+  mute() { this.muted = true; }
+  unMute() { this.muted = false; }
   getCurrentTime() { return this.time; }
   getDuration() { return 120; }
   seekTo(time) { this.time = time; }
@@ -139,7 +142,27 @@ for (const first of ["audio", "video"] as const) {
     expect(
       await page.evaluate("window.__queueYouTubePlayers[0].getCurrentTime()")
     ).toBe(17);
-    await page.evaluate("window.__queueYouTubePlayers[0].finish()");
+    await page.keyboard.press("m");
+    expect(
+      await page.evaluate("window.__queueYouTubePlayers[0].isMuted()")
+    ).toBe(true);
+    await page.keyboard.press("Space");
+    await expect(
+      player.getByRole("button", { exact: true, name: "Play video" })
+    ).toBeVisible();
+    await page.keyboard.press("Space");
+    await expect(
+      player.getByRole("button", { exact: true, name: "Pause video" })
+    ).toBeVisible();
+    if (first === "video") {
+      await page.keyboard.press("Shift+ArrowLeft");
+      expect(
+        await page.evaluate("window.__queueYouTubePlayers[0].getCurrentTime()")
+      ).toBe(0);
+      await page.keyboard.press("Shift+ArrowRight");
+    } else {
+      await page.evaluate("window.__queueYouTubePlayers[0].finish()");
+    }
     await expect(player).toHaveCount(0);
     await expect(page.locator("audio")).toHaveAttribute(
       "src",
@@ -194,6 +217,10 @@ test("hosted video PiP uses the persistent media element and music replaces it",
   });
   const player = page.getByTestId("video-queue-player");
   await expect(player.locator("video")).toBeVisible({ timeout: 60_000 });
+  await expect(player.locator("video")).toHaveAttribute(
+    "src",
+    `${new URL(page.url()).origin}/media/test-video.mp4`
+  );
   await player.locator("video").evaluate((video) => {
     video.dataset.queueIdentity = "hosted-original";
     Object.defineProperty(document, "pictureInPictureEnabled", {
@@ -259,4 +286,34 @@ test("anonymous player never restores another account or legacy private queue", 
       page.evaluate(() => localStorage.getItem("soundkit.audio-player.v1"))
     )
     .toBeNull();
+});
+
+test("unsupported external video offers its original source without a dead transport", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await page.route("**/v1/videos/video_all_votes_matter", async (route) => {
+    const response = await route.fetch();
+    const video = await response.json();
+    await route.fulfill({
+      json: {
+        ...video,
+        muxPlaybackId: null,
+        externalPlaybackUrl: "https://vimeo.com/example",
+      },
+    });
+  });
+  await page.goto("/videos/video_all_votes_matter", {
+    waitUntil: "domcontentloaded",
+  });
+  const preview = page.getByTestId("queued-video-preview");
+  await expect(
+    preview.getByRole("heading", { name: "Video unavailable in the queue" })
+  ).toBeVisible({ timeout: 60_000 });
+  await expect(preview.getByRole("button", { name: "Play video" })).toHaveCount(
+    0
+  );
+  await expect(
+    preview.getByRole("link", { name: "Open Source Video" })
+  ).toHaveAttribute("href", "https://vimeo.com/example");
 });

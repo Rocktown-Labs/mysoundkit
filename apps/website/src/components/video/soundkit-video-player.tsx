@@ -174,6 +174,12 @@ export function SoundKitVideoPlayer({
   useImperativeHandle(
     playerRef,
     () => ({
+      toggleMute: () => {
+        if (muxRef.current) muxRef.current.muted = !muxRef.current.muted;
+        else if (nativeRef.current)
+          nativeRef.current.muted = !nativeRef.current.muted;
+        else youtubeRef.current?.toggleMute();
+      },
       pause: () => {
         muxRef.current?.pause();
         nativeRef.current?.pause();
@@ -322,10 +328,16 @@ export function SoundKitVideoPlayer({
     );
   }
 
-  const directSource = externalPlaybackUrl
-      ? directVideoUrl(externalPlaybackUrl)
+  const playbackBaseUrl =
+      typeof window === "undefined"
+        ? "https://mysoundkit.com"
+        : window.location.origin,
+    directSource = externalPlaybackUrl
+      ? directVideoUrl(externalPlaybackUrl, playbackBaseUrl)
       : null,
-    externalSource = externalPlaybackUrl ? httpUrl(externalPlaybackUrl) : null;
+    externalSource = externalPlaybackUrl
+      ? httpUrl(externalPlaybackUrl, playbackBaseUrl)
+      : null;
   if (directSource) {
     return (
       <video

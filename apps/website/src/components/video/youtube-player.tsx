@@ -47,6 +47,11 @@ export function YouTubePlayerView({
   useImperativeHandle(
     playerRef,
     () => ({
+      toggleMute: () => {
+        const player = apiRef.current;
+        if (player?.isMuted()) player.unMute();
+        else player?.mute();
+      },
       pause: () => apiRef.current?.pauseVideo(),
       play: () => apiRef.current?.playVideo(),
       requestPictureInPicture: () => Promise.resolve(false),

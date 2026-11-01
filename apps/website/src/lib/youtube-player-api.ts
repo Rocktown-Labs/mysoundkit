@@ -4,6 +4,9 @@ export interface YouTubePlayer {
   getCurrentTime: () => number;
   getDuration: () => number;
   getPlayerState: () => number;
+  isMuted: () => boolean;
+  mute: () => void;
+  unMute: () => void;
   pauseVideo: () => void;
   playVideo: () => void;
   seekTo: (seconds: number, allowSeekAhead: boolean) => void;
