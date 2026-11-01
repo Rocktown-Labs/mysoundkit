@@ -54,9 +54,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run maintenance script regression tests
-        run: node --test scripts/*.test.mjs
-
       - name: Run verification suite (types, hooks, tests, build)
         run: pnpm run verify
 

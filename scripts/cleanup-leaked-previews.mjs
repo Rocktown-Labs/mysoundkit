@@ -13,7 +13,7 @@
 //
 // This script finds every cloud resource whose name matches a `pr-<number>`
 // preview pattern AND whose PR is closed in this repository, and deletes them
-// in dependency order (domains -> workers -> queues -> databases -> buckets).
+// in dependency order (domains -> workers -> Hyperdrives -> queues -> databases -> buckets).
 // The alchemy-state-service-pr-<n> workers are intentionally left alone: their
 // names are shared across every Alchemy project on the account, so deleting
 // one for a closed soundkit PR could destroy another project's state.
@@ -24,7 +24,7 @@
 //
 // Requires:
 //   - CLOUDFLARE_API_TOKEN (account-scoped: Workers Scripts Edit + delete,
-//     Queues Edit, D1 Edit, R2 Edit, Workers Domains Edit)
+//     Queues Edit, D1 Edit, R2 Edit, Workers Domains Edit, Hyperdrive Read/Edit)
 //   - `gh` authenticated against the repository (PR open/closed verification)
 
 import { execFileSync } from "node:child_process";
