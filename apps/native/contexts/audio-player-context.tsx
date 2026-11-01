@@ -264,7 +264,12 @@ export function AudioPlayerProvider({
   const player = useAudioPlayer(null, { updateInterval: 250 });
   const status = useAudioPlayerStatus(player);
 
+  const pendingTrackRef = useRef<PlayerTrack | null>(null),
+    prerollServedTrackRef = useRef<string | null>(null);
+
   const dismissPlayer = useCallback(() => {
+    pendingTrackRef.current = null;
+    setActiveAd(null);
     player.pause();
     setCurrentTrack(null);
     setIsNowPlayingVisible(false);
@@ -294,9 +299,6 @@ export function AudioPlayerProvider({
       // Ignore if volume setting not supported on platform
     }
   }, [player, volume]);
-
-  const pendingTrackRef = useRef<PlayerTrack | null>(null),
-    prerollServedTrackRef = useRef<string | null>(null);
 
   // Credentials can resolve after the user selects another track. Apply the
   // source only while the captured selection is still current.
@@ -335,6 +337,9 @@ export function AudioPlayerProvider({
       ) {
         prerollServedTrackRef.current = track.id;
         const ad = await requestAudioPreroll(track.id);
+        if (pendingTrackRef.current !== track) {
+          return;
+        }
         if (ad) {
           setActiveAd(ad);
           player.replace({ uri: ad.mediaUrl });
