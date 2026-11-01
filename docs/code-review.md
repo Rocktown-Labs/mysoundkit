@@ -22,7 +22,8 @@ OCR_REPORT_PATH=/tmp/soundkit-review.json node scripts/review-code.mjs \
 
 The wrapper pins the CLI version, defaults to two concurrent tasks, low effort,
 a 700,000 token budget and a 15 minute per-task timeout, and exits nonzero for
-partial coverage. Additional CLI flags can override the usage defaults. Reports
+partial coverage. OCR checks the budget between model rounds, so active tasks
+can overshoot the token target. Additional CLI flags can override the usage defaults. Reports
 contain source context; save them outside the repository. OCR can exclude tests
 and documentation, so its completion only covers the selected source files.
 The report's manifest records exact commits and selected/completed coverage.
@@ -57,7 +58,7 @@ a successful job means the selected range was reviewed and published, not that
 the code is approved. Existing checks remain responsible for types and tests.
 
 Run the standalone completion checks with:
-`node --test scripts/code-review-result.test.mjs`.
+`node --test scripts/code-review-*.test.mjs`.
 
 When upgrading OCR, update the workflow pin, CLI version and defaults in both
 the workflow and standalone wrapper together, then run both paths again. The

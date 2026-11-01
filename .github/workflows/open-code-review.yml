@@ -26,9 +26,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: node --test scripts/code-review-result.test.mjs
+      - run: node --test scripts/code-review-*.test.mjs
 
   review:
+    needs: completion-tests
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -84,6 +85,7 @@ jobs:
           checkpoint_range: 'true'
           resolve_outdated: 'false'
 
+      # The pinned v1.13.3 action writes /tmp/ocr-result.json. Recheck on upgrades.
       - name: Require complete review and published findings
         env:
           REVIEWED_HEAD: ${{ steps.ocr.outputs.checkpoint_after }}

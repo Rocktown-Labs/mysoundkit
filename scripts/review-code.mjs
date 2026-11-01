@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { once } from "node:events";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -13,7 +13,10 @@ async function main() {
   const args = process.argv.slice(2),
     output =
       process.env.OCR_REPORT_PATH ??
-      path.join(tmpdir(), "soundkit-ocr-review.json"),
+      path.join(
+        await mkdtemp(path.join(tmpdir(), "soundkit-ocr-")),
+        "review.json"
+      ),
     version = await promisify(execFile)("ocr", ["version"]);
   if (
     args.some((arg) =>
@@ -24,7 +27,7 @@ async function main() {
       "Output options are managed by this wrapper; use OCR_REPORT_PATH."
     );
   }
-  if (!/\bv?1\.13\.3\b/u.test(version.stdout)) {
+  if (!/^open-code-review v1\.13\.3(?:\s|$)/u.test(version.stdout)) {
     throw new Error(
       "Install Open Code Review v1.13.3 before running this script."
     );
