@@ -2,6 +2,10 @@
 
 ## 0.0.1 (Unreleased security fixes)
 
+### Added
+
+- Added pinned Kimi Open Code Review for standalone use and trusted pull requests, with bounded usage, saved review artifacts, and completion gates (#493).
+
 ### Fixed
 
 - Reclaimed Hyperdrive configurations leaked by closed preview PRs, preventing account quota exhaustion from blocking server uploads and causing downstream queue-handler errors (#492).

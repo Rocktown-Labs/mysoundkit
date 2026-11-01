@@ -1,0 +1,109 @@
+name: Kimi Code Review
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Open same-repository PR number
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kimi-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  completion-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: node --test scripts/code-review-*.test.mjs
+
+  review:
+    needs: completion-tests
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Validate target and configuration
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          REVIEW_KEY: ${{ secrets.OPEN_CODE_REVIEW_API_KEY }}
+          REVIEW_URL: ${{ vars.OPEN_CODE_REVIEW_LLM_URL }}
+          REVIEW_MODEL: ${{ vars.OPEN_CODE_REVIEW_LLM_MODEL }}
+        run: |
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || exit 1
+          test -n "$REVIEW_KEY" && test -n "$REVIEW_URL" && test -n "$REVIEW_MODEL"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > /tmp/review-target.json
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const pr = JSON.parse(fs.readFileSync('/tmp/review-target.json', 'utf8'));
+          if (pr.state !== 'open' || pr.head.repo.full_name !== process.env.GITHUB_REPOSITORY || pr.base.ref !== 'master') {
+            throw new Error('Review requires an open same-repository PR targeting master');
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `number=${pr.number}\nbase=${pr.base.ref}\nhead=${pr.head.sha}\n`);
+          JS
+
+      # Only same-repository PRs receive credentials. The pinned action reads
+      # the comparison through git objects and publishes advisory findings.
+      - name: Review with Kimi K2.7 Code
+        id: ocr
+        uses: alibaba/open-code-review@375f64cd6f67a48a135da83cfcf59c52669a09cb # v1.13.3
+        with:
+          ocr_version: '1.13.3'
+          github_token: ${{ github.token }}
+          pr_number: ${{ steps.target.outputs.number }}
+          base_ref: ${{ steps.target.outputs.base }}
+          head_sha: ${{ steps.target.outputs.head }}
+          llm_url: ${{ vars.OPEN_CODE_REVIEW_LLM_URL }}
+          llm_auth_token: ${{ secrets.OPEN_CODE_REVIEW_API_KEY }}
+          llm_model: ${{ vars.OPEN_CODE_REVIEW_LLM_MODEL }}
+          llm_use_anthropic: 'false'
+          llm_protocol: openai
+          llm_extra_body: '{}'
+          review_concurrency: '2'
+          effort: low
+          max_tokens_budget: '700000'
+          review_task_timeout: '15'
+          upload_artifacts: 'true'
+          sticky_summary: 'true'
+          checkpoint_range: 'true'
+          resolve_outdated: 'false'
+
+      # The pinned v1.13.3 action writes /tmp/ocr-result.json. Recheck on upgrades.
+      - name: Require complete review and published findings
+        env:
+          REVIEWED_HEAD: ${{ steps.ocr.outputs.checkpoint_after }}
+          TARGET_HEAD: ${{ steps.target.outputs.head }}
+          RANGE_REASON: ${{ steps.ocr.outputs.range_reason }}
+          FAILED_COMMENTS: ${{ steps.ocr.outputs.comments_failed }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import { assertReviewPublication } from './scripts/code-review-result.mjs';
+          const result = JSON.parse(fs.readFileSync('/tmp/ocr-result.json', 'utf8'));
+          assertReviewPublication({
+            result,
+            rangeReason: process.env.RANGE_REASON,
+            reviewedHead: process.env.REVIEWED_HEAD,
+            targetHead: process.env.TARGET_HEAD,
+            commentsFailed: process.env.FAILED_COMMENTS,
+          });
+          console.log(`Review outcome: ${result.status}; selected files: ${result.manifest.coverage.selected.length}`);
+          JS
