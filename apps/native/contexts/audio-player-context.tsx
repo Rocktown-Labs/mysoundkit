@@ -4,7 +4,6 @@ import {
   useAudioPlayer,
   useAudioPlayerStatus,
 } from "expo-audio";
-import type { AudioSource } from "expo-audio";
 /* eslint-disable one-var, sort-vars, sort-keys, react/immutability, react/set-state-in-effect, complexity, no-nested-ternary */
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -20,9 +19,13 @@ import {
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { API_V1_URL } from "@/lib/api";
+import { API_BASE_URL, API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import {
+  loadPendingPlayback,
+  resolvePlaybackSource,
+} from "@/lib/playback-source";
 import {
   advanceQueue,
   cycleRepeatMode,
@@ -261,7 +264,12 @@ export function AudioPlayerProvider({
   const player = useAudioPlayer(null, { updateInterval: 250 });
   const status = useAudioPlayerStatus(player);
 
+  const pendingTrackRef = useRef<PlayerTrack | null>(null),
+    prerollServedTrackRef = useRef<string | null>(null);
+
   const dismissPlayer = useCallback(() => {
+    pendingTrackRef.current = null;
+    setActiveAd(null);
     player.pause();
     setCurrentTrack(null);
     setIsNowPlayingVisible(false);
@@ -292,39 +300,21 @@ export function AudioPlayerProvider({
     }
   }, [player, volume]);
 
-  /** Builds a cookie-aware audio source for a remote URL. The better-auth
-   * session lives in SecureStore (not the native cookie jar), so entitled
-   * playback (premium / purchased tracks) needs the cookie header attached. */
-  const resolvePlayerSource = useCallback(async (): Promise<AudioSource> => {
-    let cookie: string | null = null;
-    try {
-      cookie = await authClient.getCookie();
-    } catch {
-      cookie = null;
-    }
-    const pendingTrack = pendingTrackRef.current;
-    if (!pendingTrack) {
-      return { uri: "" };
-    }
-    const headers: Record<string, string> = {};
-    if (cookie && cookie.length > 0) {
-      headers.cookie = cookie;
-    }
-    return {
-      headers,
-      uri: pendingTrack.src,
-    };
-  }, []);
-
-  const pendingTrackRef = useRef<PlayerTrack | null>(null),
-    prerollServedTrackRef = useRef<string | null>(null);
-
-  /** Loads the pending content source (cookie-aware) and starts it. */
+  // Credentials can resolve after the user selects another track. Apply the
+  // source only while the captured selection is still current.
   const loadPendingContent = useCallback(async () => {
-    const source = await resolvePlayerSource();
-    player.replace(source);
-    player.play();
-  }, [player, resolvePlayerSource]);
+    await loadPendingPlayback({
+      getPendingTrack: () => pendingTrackRef.current,
+      resolveSource: (track) =>
+        resolvePlaybackSource({
+          uri: track.src,
+          apiBaseUrl: API_BASE_URL,
+          getCookie: async () => await authClient.getCookie(),
+        }),
+      replaceSource: (source) => player.replace(source),
+      play: () => player.play(),
+    });
+  }, [player]);
 
   /** Starts a track: pre-roll ad first (skipped for premium, one attempt per
    * track), then the guarded audio source with the session cookie attached.
@@ -347,6 +337,9 @@ export function AudioPlayerProvider({
       ) {
         prerollServedTrackRef.current = track.id;
         const ad = await requestAudioPreroll(track.id);
+        if (pendingTrackRef.current !== track) {
+          return;
+        }
         if (ad) {
           setActiveAd(ad);
           player.replace({ uri: ad.mediaUrl });

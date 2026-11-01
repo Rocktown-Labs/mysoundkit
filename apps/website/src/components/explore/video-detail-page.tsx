@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { SoundKitVideoPlayer } from "@/components/video/soundkit-video-player";
+import { QueuedVideoPreview } from "@/components/video/queued-video-preview";
 import { toast } from "@/hooks/use-toast";
 import { authClient } from "@/lib/auth-client";
 import type { DbVideoComment } from "@/lib/data-db";
@@ -297,11 +297,14 @@ export function VideoDetailPage({ lookupId }: { lookupId: string }) {
       </div>
     ),
     videoNode = (
-      <div className="relative aspect-video w-full bg-black">
+      <div className="relative w-full bg-black">
         {video.muxPlaybackId ||
         video.externalPlaybackUrl ||
         video.thumbnailUrl ? (
-          <SoundKitVideoPlayer
+          <QueuedVideoPreview
+            artist={creatorName}
+            artistHref={`/artist/${creatorUsername}`}
+            videoHref={`/videos/${video.id}`}
             externalPlaybackUrl={video.externalPlaybackUrl}
             muxPlaybackId={video.muxPlaybackId}
             posterUrl={video.thumbnailUrl || "/soundkit-default-banner.svg"}

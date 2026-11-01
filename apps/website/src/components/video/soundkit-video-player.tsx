@@ -2,6 +2,7 @@
 
 /* eslint-disable no-useless-return, one-var, sort-vars, react/iframe-missing-sandbox */
 import MuxPlayer from "@mux/mux-player-react";
+import type { MuxPlayerRefAttributes } from "@mux/mux-player-react";
 import {
   ExternalLink,
   Maximize,
@@ -9,33 +10,21 @@ import {
   ShieldCheck,
   VideoOff,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useImperativeHandle, useRef } from "react";
+import type { Ref } from "react";
 
 import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { VideoPlaybackHandle } from "@/components/video/video-playback-handle";
+import { YouTubePlayerView } from "@/components/video/youtube-player";
+import { directVideoUrl, getYouTubeVideoId, httpUrl } from "@/lib/player-media";
 import {
   createVideoViewSession,
   updateVideoViewSession,
 } from "@/lib/soundkit-api-hooks";
 
 const VIDEO_VIEWER_STORAGE_KEY = "soundkit.video-viewer-id.v1",
-  YOUTUBE_PATTERNS = [
-    /youtu\.be\/(?<videoId>[A-Za-z0-9_-]{6,})/u,
-    /youtube\.com\/watch\?v=(?<videoId>[A-Za-z0-9_-]{6,})/u,
-    /youtube(?:-nocookie)?\.com\/(?:embed|live|shorts)\/(?<videoId>[A-Za-z0-9_-]{6,})/u,
-  ] as const,
-  getYouTubeEmbedUrl = (url: string) => {
-    for (const pattern of YOUTUBE_PATTERNS) {
-      const match = url.match(pattern);
-
-      if (match?.groups?.videoId) {
-        return `https://www.youtube.com/embed/${match.groups.videoId}`;
-      }
-    }
-
-    return null;
-  },
   getAnonymousViewerId = () => {
     if (typeof window === "undefined") {
       return;
@@ -54,7 +43,9 @@ const VIDEO_VIEWER_STORAGE_KEY = "soundkit.video-viewer-id.v1",
       return;
     }
   },
-  playbackPositionFromEvent = (event: Event) => {
+  playbackPositionFromEvent = (event: {
+    currentTarget: EventTarget | null;
+  }) => {
     const target = event.currentTarget as HTMLMediaElement | null,
       currentTime = Number(target?.currentTime),
       duration = Number(target?.duration);
@@ -86,14 +77,28 @@ const reportAnalytics = async (request: Promise<unknown>) => {
 };
 
 export function SoundKitVideoPlayer({
+  autoPlay = false,
   externalPlaybackUrl,
   muxPlaybackId,
+  onEnded,
+  onError,
+  onPaused,
+  onPlaying,
+  onProgress,
+  playerRef,
   posterUrl,
   title,
   verifiedOnPlatform,
   videoId,
 }: {
+  autoPlay?: boolean;
   externalPlaybackUrl?: string | null;
+  onEnded?: () => void;
+  onError?: (message: string) => void;
+  onPaused?: () => void;
+  onPlaying?: () => void;
+  onProgress?: (seconds: number, duration: number) => void;
+  playerRef?: Ref<VideoPlaybackHandle>;
   muxPlaybackId?: string | null;
   posterUrl: string;
   title: string;
@@ -102,8 +107,11 @@ export function SoundKitVideoPlayer({
 }) {
   const { containerRef, isFullscreen, toggleFullscreen } =
       useBrowserFullscreen(),
+    muxRef = useRef<MuxPlayerRefAttributes>(null),
+    nativeRef = useRef<HTMLVideoElement>(null),
+    youtubeRef = useRef<VideoPlaybackHandle>(null),
     telemetryRef = useRef<VideoViewTelemetry | null>(null),
-    startViewSession = async (event: Event) => {
+    startViewSession = async (event: { currentTarget: EventTarget | null }) => {
       if (telemetryRef.current || !videoId) {
         return;
       }
@@ -123,7 +131,11 @@ export function SoundKitVideoPlayer({
         // Playback analytics must never interrupt video playback.
       }
     },
-    sendProgress = (event: Event, ended = false, force = false) => {
+    sendProgress = (
+      event: { currentTarget: EventTarget | null },
+      ended = false,
+      force = false
+    ) => {
       const telemetry = telemetryRef.current;
       if (!telemetry || !videoId) {
         return;
@@ -155,9 +167,79 @@ export function SoundKitVideoPlayer({
         )
       );
     },
-    externalEmbedUrl = externalPlaybackUrl
-      ? getYouTubeEmbedUrl(externalPlaybackUrl)
+    youtubeId = externalPlaybackUrl
+      ? getYouTubeVideoId(externalPlaybackUrl)
       : null;
+
+  useImperativeHandle(
+    playerRef,
+    () => ({
+      toggleMute: () => {
+        if (muxRef.current) muxRef.current.muted = !muxRef.current.muted;
+        else if (nativeRef.current)
+          nativeRef.current.muted = !nativeRef.current.muted;
+        else youtubeRef.current?.toggleMute();
+      },
+      pause: () => {
+        muxRef.current?.pause();
+        nativeRef.current?.pause();
+        youtubeRef.current?.pause();
+      },
+      play: async () => {
+        try {
+          if (muxRef.current) {
+            await muxRef.current.play();
+          } else if (nativeRef.current) {
+            await nativeRef.current.play();
+          } else {
+            youtubeRef.current?.play();
+          }
+        } catch {
+          onPaused?.();
+        }
+      },
+      requestPictureInPicture: async () => {
+        const media = muxRef.current?.media ?? nativeRef.current;
+        if (!media) {
+          return false;
+        }
+        const native = nativeRef.current ?? muxRef.current?.media?.nativeEl;
+        if (!native) {
+          return false;
+        }
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+          return true;
+        }
+        if (
+          document.pictureInPictureEnabled &&
+          typeof media.requestPictureInPicture === "function"
+        ) {
+          await media.requestPictureInPicture();
+          return true;
+        }
+        const safari = native as HTMLVideoElement & {
+          webkitSetPresentationMode?: (mode: string) => void;
+          webkitSupportsPresentationMode?: (mode: string) => boolean;
+        };
+        if (safari.webkitSupportsPresentationMode?.("picture-in-picture")) {
+          safari.webkitSetPresentationMode?.("picture-in-picture");
+          return true;
+        }
+        return false;
+      },
+      seek: (seconds) => {
+        if (muxRef.current) {
+          muxRef.current.currentTime = Math.max(0, seconds);
+        } else if (nativeRef.current) {
+          nativeRef.current.currentTime = Math.max(0, seconds);
+        } else {
+          youtubeRef.current?.seek(seconds);
+        }
+      },
+    }),
+    [onPaused]
+  );
 
   useEffect(
     () => () => {
@@ -191,15 +273,33 @@ export function SoundKitVideoPlayer({
       >
         <MuxPlayer
           accentColor="#A798FF"
+          autoPlay={autoPlay}
+          ref={muxRef}
           className="aspect-video w-full"
           metadata={{
             video_id: videoId,
             video_title: title,
           }}
-          onEnded={(event) => sendProgress(event, true, true)}
-          onPause={(event) => sendProgress(event, false, true)}
+          onEnded={(event) => {
+            sendProgress(event, true, true);
+            onEnded?.();
+          }}
+          onError={() =>
+            onError?.(
+              "This video could not play. Try again or choose another item."
+            )
+          }
+          onPause={(event) => {
+            sendProgress(event, false, true);
+            onPaused?.();
+          }}
           onPlay={startViewSession}
-          onTimeUpdate={(event) => sendProgress(event)}
+          onPlaying={() => onPlaying?.()}
+          onTimeUpdate={(event) => {
+            sendProgress(event);
+            const position = playbackPositionFromEvent(event);
+            onProgress?.(position.playedSeconds, position.durationSeconds ?? 0);
+          }}
           playbackId={muxPlaybackId}
           poster={posterUrl}
           streamType="on-demand"
@@ -228,22 +328,67 @@ export function SoundKitVideoPlayer({
     );
   }
 
-  if (externalEmbedUrl) {
+  const playbackBaseUrl =
+      typeof window === "undefined"
+        ? "https://mysoundkit.com"
+        : window.location.origin,
+    directSource = externalPlaybackUrl
+      ? directVideoUrl(externalPlaybackUrl, playbackBaseUrl)
+      : null,
+    externalSource = externalPlaybackUrl
+      ? httpUrl(externalPlaybackUrl, playbackBaseUrl)
+      : null;
+  if (directSource) {
     return (
-      <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-black">
-        <div className="aspect-video">
-          <iframe
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen={true}
-            className="h-full w-full"
-            referrerPolicy="strict-origin-when-cross-origin"
-            src={externalEmbedUrl}
-            title={title}
-          />
-        </div>
-        <Badge className="absolute left-4 top-4 bg-black/80 text-white">
-          External Source
-        </Badge>
+      <video
+        autoPlay={autoPlay}
+        className="aspect-video min-h-[200px] w-full rounded-2xl bg-black"
+        controls
+        playsInline
+        poster={posterUrl}
+        ref={nativeRef}
+        src={directSource.href}
+        onEnded={(event) => {
+          sendProgress(event, true, true);
+          onEnded?.();
+        }}
+        onError={() =>
+          onError?.(
+            "This video could not play. Try again or choose another item."
+          )
+        }
+        onPause={(event) => {
+          sendProgress(event, false, true);
+          onPaused?.();
+        }}
+        onPlay={startViewSession}
+        onPlaying={() => onPlaying?.()}
+        onTimeUpdate={(event) => {
+          sendProgress(event);
+          const position = playbackPositionFromEvent(event);
+          onProgress?.(position.playedSeconds, position.durationSeconds ?? 0);
+        }}
+      >
+        <track kind="captions" />
+      </video>
+    );
+  }
+
+  if (youtubeId) {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-border/50 bg-black">
+        <YouTubePlayerView
+          autoPlay={autoPlay}
+          onEnded={onEnded}
+          onError={onError}
+          onPaused={onPaused}
+          onPlaying={onPlaying}
+          onProgress={onProgress}
+          playerRef={youtubeRef}
+          title={title}
+          youtubeId={youtubeId}
+        />
+        <p className="px-3 py-2 text-xs text-muted-foreground">YouTube</p>
       </div>
     );
   }
@@ -270,10 +415,10 @@ export function SoundKitVideoPlayer({
             embeddable external source.
           </p>
         </div>
-        {externalPlaybackUrl ? (
+        {externalSource ? (
           <Button asChild={true} variant="secondary">
             <a
-              href={externalPlaybackUrl}
+              href={externalSource.href}
               rel="noopener noreferrer"
               target="_blank"
             >
