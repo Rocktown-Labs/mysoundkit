@@ -4,7 +4,8 @@
 
 ### Fixed
 
-- Restricted native playback cookies to the configured API guarded playback endpoint, discarded stale source loads, revoked sessions after password recovery, and required verified organization invitation recipients (#487).
+- Kept regional discovery results tied to the selected region, collapsed empty rails, and labeled broader recommendations separately; stopped cross-region pagination substitutions (#481).
+
 
 - Addressed PR #463 review: enabled signup verification and a resend action, kept unmatched paid webhooks retryable with warnings, and verified completed R2 uploads before registering Open Verse assets (#461).
 - Bound successful Checkout fulfillment to the transaction's stored Stripe session rather than trusting event metadata alone (#311).
@@ -12,6 +13,7 @@
 - Required caller-owned upload keys and upload-intent claims before registering Open Verse submission assets on another artist's track (#331).
 - Revalidated original source authority before rendering cached project export snapshots and serving existing exports through project downloads or the media proxy (#461).
 - Required verified email ownership for administrator-email authorization (#461).
+- Restricted native playback cookies to the configured API guarded playback endpoint, discarded stale source loads, revoked sessions after password recovery, and required verified organization invitation recipients (#487).
 - Restricted public track detail to published, non-deleted tracks and required retained purchases for nonowner downloads after privacy/deletion changes (#461).
 - Validated existing track ownership before project creation and rechecked source ownership and current workspace membership before exports (#461).
 - Prevented unsettled Checkout sessions from marking orders paid or initiating fulfillment and tip transfers (#461).
