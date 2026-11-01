@@ -43,3 +43,28 @@ export async function resolvePlaybackSource({
     return { uri };
   }
 }
+
+export async function loadPendingPlayback<Track>({
+  getPendingTrack,
+  resolveSource,
+  replaceSource,
+  play,
+}: {
+  getPendingTrack: () => Track | null;
+  resolveSource: (track: Track) => Promise<NativePlaybackSource>;
+  replaceSource: (source: NativePlaybackSource) => void;
+  play: () => void;
+}): Promise<boolean> {
+  const capturedTrack = getPendingTrack(),
+    source = capturedTrack === null ? null : await resolveSource(capturedTrack);
+  if (
+    capturedTrack === null ||
+    source === null ||
+    getPendingTrack() !== capturedTrack
+  ) {
+    return false;
+  }
+  replaceSource(source);
+  play();
+  return true;
+}

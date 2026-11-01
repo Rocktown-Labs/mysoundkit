@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   isCredentialedPlaybackUrl,
+  loadPendingPlayback,
   resolvePlaybackSource,
 } from "./playback-source";
 
@@ -71,5 +72,78 @@ describe("native playback credential destinations", () => {
         "http://127.0.0.1:3000"
       )
     ).toBe(false);
+  });
+});
+
+describe("pending native playback handoff", () => {
+  it.each(["switch", "clear", "reselect"] as const)(
+    "discards a resolved source after selection changes: %s",
+    async (change) => {
+      const original = { src: guarded };
+      let current: { src: string } | null = original;
+      const cookie = Promise.withResolvers<string>();
+      const replaceSource = vi.fn();
+      const play = vi.fn();
+      const pending = loadPendingPlayback({
+        getPendingTrack: () => current,
+        play,
+        replaceSource,
+        resolveSource: (track) =>
+          resolvePlaybackSource({
+            apiBaseUrl,
+            getCookie: () => cookie.promise,
+            uri: track.src,
+          }),
+      });
+      if (change === "clear") {
+        current = null;
+      } else if (change === "switch") {
+        current = { src: "https://media.soundkit.test/new.mp3" };
+      } else {
+        current = { ...original };
+      }
+      cookie.resolve("dummy-session");
+      expect(await pending).toBe(false);
+      expect(replaceSource).not.toHaveBeenCalled();
+      expect(play).not.toHaveBeenCalled();
+    }
+  );
+  it("applies the resolved credentialed source when the selection is unchanged", async () => {
+    const track = { src: guarded };
+    const replaceSource = vi.fn();
+    const play = vi.fn();
+    const applied = await loadPendingPlayback({
+      getPendingTrack: () => track,
+      play,
+      replaceSource,
+      resolveSource: (item) =>
+        resolvePlaybackSource({
+          apiBaseUrl,
+          getCookie: () => Promise.resolve("dummy-session"),
+          uri: item.src,
+        }),
+    });
+    expect(applied).toBe(true);
+    expect(replaceSource).toHaveBeenCalledWith({
+      headers: { cookie: "dummy-session" },
+      uri: guarded,
+    });
+    expect(play).toHaveBeenCalledOnce();
+  });
+  it("does not resolve credentials or play when no track is pending", async () => {
+    const resolveSource = vi.fn();
+    const replaceSource = vi.fn();
+    const play = vi.fn();
+    expect(
+      await loadPendingPlayback({
+        getPendingTrack: () => null,
+        play,
+        replaceSource,
+        resolveSource,
+      })
+    ).toBe(false);
+    expect(resolveSource).not.toHaveBeenCalled();
+    expect(replaceSource).not.toHaveBeenCalled();
+    expect(play).not.toHaveBeenCalled();
   });
 });

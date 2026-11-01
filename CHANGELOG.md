@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Covered native playback handoff races during deferred credential reads, including track switches, clearing playback, and reselecting the same track (#487).
+
 - Kept regional discovery results tied to the selected region, collapsed empty rails, and labeled broader recommendations separately; stopped cross-region pagination substitutions (#481).
 
 
