@@ -66,16 +66,21 @@ function FanOnboardingPage() {
         : fallbackBillingPlans.filter((plan) => plan.audience === "fan");
     }, [plansQuery.data]),
     persistProgress = async (nextStep: number) => {
-      await fetch(`${API_V1_URL}/onboarding/state`, {
-        body: JSON.stringify({
-          currentStep: nextStep,
-          intendedAccountType: "fan",
-          selectedPlanCode,
-        }),
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
+      try {
+        await fetch(`${API_V1_URL}/onboarding/state`, {
+          body: JSON.stringify({
+            currentStep: nextStep,
+            intendedAccountType: "fan",
+            selectedPlanCode,
+          }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+      } catch {
+        // Best-effort onboarding intent persistence: navigation continues
+        // regardless, and the localStorage draft still applies on return.
+      }
     },
     goToStep = (nextStep: number) => {
       capture("onboarding_step_completed", {
@@ -272,28 +277,34 @@ function FanOnboardingPage() {
     setIsDraftRestored(true);
 
     const restoreProgress = async () => {
-      const response = await fetch(`${API_V1_URL}/onboarding/state`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        capture("onboarding_started", { account_type: "fan" });
-        return;
-      }
-      const state = (await response.json().catch(() => null)) as {
-        currentStep?: number;
-        selectedPlanCode?: string | null;
-      } | null;
-      if (state?.currentStep && state.currentStep > 1) {
-        setStep(Math.min(state.currentStep, totalSteps));
-        capture("onboarding_resumed", {
-          account_type: "fan",
-          step: state.currentStep,
+      try {
+        const response = await fetch(`${API_V1_URL}/onboarding/state`, {
+          credentials: "include",
         });
-      } else {
+        if (!response.ok) {
+          capture("onboarding_started", { account_type: "fan" });
+          return;
+        }
+        const state = (await response.json().catch(() => null)) as {
+          currentStep?: number;
+          selectedPlanCode?: string | null;
+        } | null;
+        if (state?.currentStep && state.currentStep > 1) {
+          setStep(Math.min(state.currentStep, totalSteps));
+          capture("onboarding_resumed", {
+            account_type: "fan",
+            step: state.currentStep,
+          });
+        } else {
+          capture("onboarding_started", { account_type: "fan" });
+        }
+        if (state?.selectedPlanCode) {
+          setSelectedPlanCode(state.selectedPlanCode);
+        }
+      } catch {
+        // Transient network failures restore like a fresh start; the
+        // localStorage draft still applies on the next visit.
         capture("onboarding_started", { account_type: "fan" });
-      }
-      if (state?.selectedPlanCode) {
-        setSelectedPlanCode(state.selectedPlanCode);
       }
     };
     void restoreProgress();
