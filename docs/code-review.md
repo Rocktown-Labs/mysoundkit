@@ -7,8 +7,9 @@ constitute a security sign-off. Verify findings against requirements before fixi
 
 ## Standalone
 
-Install the v1.13.3 CLI from the upstream release and configure a provider with
-`ocr config` (or the supported `OCR_LLM_*` environment variables). Keep credentials
+Install the v1.13.3 CLI from the upstream release and configure a custom provider
+named `cloudflare` using `ocr config provider` (see `ocr config provider --help`
+for the interactive setup). Keep credentials
 in the local OCR configuration, never in repository files or command arguments.
 
 ```sh
@@ -25,6 +26,9 @@ partial coverage. Additional CLI flags can override the usage defaults. Reports
 contain source context; save them outside the repository. OCR can exclude tests
 and documentation, so its completion only covers the selected source files.
 The report's manifest records exact commits and selected/completed coverage.
+For an environment-only setup, use the supported `OCR_LLM_*` variables and omit
+`--provider cloudflare` from the command; that flag requires a saved provider.
+
 Resume a partial run with the same refs and `--resume <session_id>`; inspect the
 new report rather than treating the first CLI exit code as success.
 
@@ -47,9 +51,14 @@ The upstream action and CLI are pinned. It checks out the repository, reads
 the PR comparison through git objects, publishes inline comments and a summary,
 and uploads review artifacts. Fork PRs do not receive credentials. Jobs have bounded runtime
 and token usage; stale runs cancel when a newer commit arrives. Partial reviews
-or failed publication fail the completion gate. Findings still require triage;
+or failed publication fail the completion gate. Docs-only changes and repeated
+reviews of an already-reviewed head pass as no-work outcomes. Findings still require triage;
 a successful job means the selected range was reviewed and published, not that
 the code is approved. Existing checks remain responsible for types and tests.
 
 Run the standalone completion checks with:
 `node --test scripts/code-review-result.test.mjs`.
+
+When upgrading OCR, update the workflow pin, CLI version and defaults in both
+the workflow and standalone wrapper together, then run both paths again. The
+workflow uses the upstream publisher; standalone use saves a local report.

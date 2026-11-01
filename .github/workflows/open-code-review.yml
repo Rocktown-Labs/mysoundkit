@@ -21,6 +21,7 @@ concurrency:
 jobs:
   completion-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,7 +29,7 @@ jobs:
       - run: node --test scripts/code-review-result.test.mjs
 
   review:
-    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft)
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -87,10 +88,20 @@ jobs:
         env:
           REVIEWED_HEAD: ${{ steps.ocr.outputs.checkpoint_after }}
           TARGET_HEAD: ${{ steps.target.outputs.head }}
+          RANGE_REASON: ${{ steps.ocr.outputs.range_reason }}
           FAILED_COMMENTS: ${{ steps.ocr.outputs.comments_failed }}
         run: |
           set -euo pipefail
-          if [ "$REVIEWED_HEAD" != "$TARGET_HEAD" ] || [ "$FAILED_COMMENTS" != "0" ]; then
-            echo '::error::Review incomplete or comments could not be published. Inspect OCR artifacts; this is not a clean review.'
-            exit 1
-          fi
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import { assertReviewPublication } from './scripts/code-review-result.mjs';
+          const result = JSON.parse(fs.readFileSync('/tmp/ocr-result.json', 'utf8'));
+          assertReviewPublication({
+            result,
+            rangeReason: process.env.RANGE_REASON,
+            reviewedHead: process.env.REVIEWED_HEAD,
+            targetHead: process.env.TARGET_HEAD,
+            commentsFailed: process.env.FAILED_COMMENTS,
+          });
+          console.log(`Review outcome: ${result.status}; selected files: ${result.manifest.coverage.selected.length}`);
+          JS

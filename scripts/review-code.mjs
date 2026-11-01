@@ -17,7 +17,7 @@ async function main() {
     version = await promisify(execFile)("ocr", ["version"]);
   if (
     args.some((arg) =>
-      /^--(?:output|format|audience)(?:=|$)|^-[ofa]$/u.test(arg)
+      /^--(?:output|format|audience)(?:=|$)|^-[ofa]/u.test(arg)
     )
   ) {
     throw new Error(
@@ -31,9 +31,16 @@ async function main() {
   }
 
   await runReview(args, output);
-  assertCompleteReview(JSON.parse(await readFile(output, "utf-8")));
+  await validateReport(output);
+}
+
+async function validateReport(output) {
+  const result = JSON.parse(await readFile(output, "utf-8"));
+  assertCompleteReview(result);
   console.info(
-    `Review completed. Inspect findings in ${output}; completion is not approval.`
+    result.status === "skipped"
+      ? `No supported files to review. Report saved to ${output}.`
+      : `Review completed. Inspect findings in ${output}; completion is not approval.`
   );
 }
 
