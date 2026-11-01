@@ -13,7 +13,7 @@
 //
 // This script finds every cloud resource whose name matches a `pr-<number>`
 // preview pattern AND whose PR is closed in this repository, and deletes them
-// in dependency order (domains -> workers -> queues -> databases -> buckets).
+// in dependency order (domains -> workers -> Hyperdrives -> queues -> databases -> buckets).
 // The alchemy-state-service-pr-<n> workers are intentionally left alone: their
 // names are shared across every Alchemy project on the account, so deleting
 // one for a closed soundkit PR could destroy another project's state.
@@ -24,10 +24,12 @@
 //
 // Requires:
 //   - CLOUDFLARE_API_TOKEN (account-scoped: Workers Scripts Edit + delete,
-//     Queues Edit, D1 Edit, R2 Edit, Workers Domains Edit)
+//     Queues Edit, D1 Edit, R2 Edit, Workers Domains Edit, Hyperdrive Read/Edit)
 //   - `gh` authenticated against the repository (PR open/closed verification)
 
 import { execFileSync } from "node:child_process";
+
+import { collectClosedPreviewHyperdrives } from "./preview-hyperdrives.mjs";
 
 const API = "https://api.cloudflare.com/client/v4",
   CLOUDFLARE_ACCOUNT_ID =
@@ -226,6 +228,14 @@ const main = async () => {
     }
   );
 
+  // Hyperdrives have a small account quota. A leak here prevents the real
+  // server upload, leaving its placeholder without a queue handler (#492).
+  const hyperdrives = await collectClosedPreviewHyperdrives(
+    (page) => cf(`/hyperdrive/configs?per_page=100&page=${page}`),
+    prState
+  );
+  console.log(`hyperdrives: ${hyperdrives.length} leaked from closed PRs`);
+
   if (!apply) {
     console.log("\nDry run — nothing deleted. Re-run with --apply to delete.");
     return;
@@ -270,6 +280,16 @@ const main = async () => {
       results.push(`worker ${s.id}: deleted`);
     } catch (e) {
       results.push(`worker ${s.id}: FAILED ${e.message}`);
+    }
+  }
+  for (const config of hyperdrives) {
+    try {
+      await cf(`/hyperdrive/configs/${encodeURIComponent(config.id)}`, {
+        method: "DELETE",
+      });
+      results.push(`hyperdrive ${config.name}: deleted`);
+    } catch (e) {
+      results.push(`hyperdrive ${config.name}: FAILED ${e.message}`);
     }
   }
   for (const q of queues) {

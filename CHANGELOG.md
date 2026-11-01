@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Reclaimed Hyperdrive configurations leaked by closed preview PRs, preventing account quota exhaustion from blocking server uploads and causing downstream queue-handler errors (#492).
 - Covered native playback handoff races during deferred credential reads, including track switches, clearing playback, and reselecting the same track (#487).
 
 - Kept regional discovery results tied to the selected region, collapsed empty rails, and labeled broader recommendations separately; stopped cross-region pagination substitutions (#481).
