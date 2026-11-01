@@ -120,7 +120,10 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
           >
             <KeyboardShortcutsProvider>
               <PresenceProvider>
-                <AudioPlayerProvider>
+                <AudioPlayerProvider
+                  key={clientScopeKey}
+                  storageScope={clientScopeKey}
+                >
                   <CartProvider>{children}</CartProvider>
                   <Suspense fallback={null}>
                     <MusicPlayer />

@@ -11,6 +11,9 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
+import { isStoredVideoMetadata } from "@/lib/player-media";
+import type { PlayerVideoMetadata } from "@/lib/player-media";
+
 const audioPlayerStorageKey = "soundkit.audio-player.v1",
   recentlyPlayedLimit = 20;
 
@@ -21,6 +24,8 @@ export interface PlayerTrack {
   autoplay?: boolean;
   duration?: number | null;
   id: string;
+  mediaType?: "audio" | "video";
+  video?: PlayerVideoMetadata;
   src: string;
   sourceType?: "battle" | "library" | "listening_party" | "vod";
   artistHref?: string | null;
@@ -37,6 +42,8 @@ interface AudioPlayerContextValue {
   recentlyPlayed: PlayerTrack[];
   registerTogglePlay: (fn: (() => void) | null) => void;
   setCurrentTrack: (track: PlayerTrack | null) => void;
+  repeatMode: "off" | "all" | "one";
+  setRepeatMode: (mode: "off" | "all" | "one") => void;
   setIsPlaying: (playing: boolean) => void;
   setQueue: (queue: PlayerTrack[]) => void;
   setVisible: (visible: boolean) => void;
@@ -57,6 +64,9 @@ const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null),
     const track = value as Partial<PlayerTrack>;
 
     return (
+      (track.mediaType === undefined ||
+        track.mediaType === "audio" ||
+        (track.mediaType === "video" && isStoredVideoMetadata(track.video))) &&
       typeof track.artist === "string" &&
       typeof track.id === "string" &&
       isPlayableSrc(track.src) &&
@@ -67,15 +77,17 @@ const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null),
     currentTrack: null as PlayerTrack | null,
     queue: [] as PlayerTrack[],
     recentlyPlayed: [] as PlayerTrack[],
+    repeatMode: "off" as "off" | "all" | "one",
     visible: false,
   },
-  readStoredPlayerState = () => {
+  readStoredPlayerState = (storageKey: string): typeof EMPTY_PLAYER_STATE => {
     if (typeof window === "undefined") {
       return EMPTY_PLAYER_STATE;
     }
 
     try {
-      const raw = window.localStorage.getItem(audioPlayerStorageKey);
+      window.localStorage.removeItem(audioPlayerStorageKey);
+      const raw = window.localStorage.getItem(storageKey);
 
       if (!raw) {
         return EMPTY_PLAYER_STATE;
@@ -86,9 +98,10 @@ const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null),
           queue?: unknown;
           recentlyPlayed?: unknown;
           visible?: unknown;
+          repeatMode?: unknown;
         },
         currentTrack = isPlayerTrack(parsed.currentTrack)
-          ? parsed.currentTrack
+          ? { ...parsed.currentTrack, autoplay: false }
           : null,
         queue = Array.isArray(parsed.queue)
           ? parsed.queue.filter(isPlayerTrack)
@@ -105,6 +118,10 @@ const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null),
         recentlyPlayed,
         // Only restore visibility when there is a playable track to show.
         visible: parsed.visible === true && currentTrack !== null,
+        repeatMode:
+          parsed.repeatMode === "all" || parsed.repeatMode === "one"
+            ? parsed.repeatMode
+            : ("off" as const),
       };
     } catch {
       return EMPTY_PLAYER_STATE;
@@ -113,12 +130,15 @@ const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null),
 
 export function AudioPlayerProvider({
   children,
-}: Readonly<{ children: ReactNode }>) {
+  storageScope = "anonymous",
+}: Readonly<{ children: ReactNode; storageScope?: string }>) {
   // Always initialize empty so the first client render matches the
   // server-rendered HTML; restore persisted state after mount instead,
   // otherwise hydration fails (React error #418) and the app crashes.
-  const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null),
+  const storageKey = `${audioPlayerStorageKey}:${storageScope}`,
+    [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null),
     [isPlaying, setIsPlaying] = useState(false),
+    [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off"),
     [queue, setQueue] = useState<PlayerTrack[]>([]),
     [recentlyPlayed, setRecentlyPlayed] = useState<PlayerTrack[]>([]),
     [visible, setVisible] = useState(false),
@@ -134,29 +154,57 @@ export function AudioPlayerProvider({
     }, []);
 
   useEffect(() => {
-    const stored = readStoredPlayerState();
+    const stored = readStoredPlayerState(storageKey);
     setCurrentTrack(stored.currentTrack);
     setQueue(stored.queue);
     setRecentlyPlayed(stored.recentlyPlayed);
+    setRepeatMode(stored.repeatMode);
     setVisible(stored.visible);
     setHasRestored(true);
-  }, []);
+  }, [storageKey]);
 
   useEffect(() => {
     if (!hasRestored || typeof window === "undefined") {
       return;
     }
 
-    window.localStorage.setItem(
-      audioPlayerStorageKey,
-      JSON.stringify({ currentTrack, queue, recentlyPlayed, visible })
-    );
-  }, [hasRestored, currentTrack, queue, recentlyPlayed, visible]);
+    try {
+      window.localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          currentTrack,
+          queue,
+          recentlyPlayed,
+          repeatMode,
+          visible,
+        })
+      );
+    } catch {
+      // Storage quotas and private browsing must not stop active playback.
+    }
+  }, [
+    hasRestored,
+    storageKey,
+    currentTrack,
+    queue,
+    recentlyPlayed,
+    repeatMode,
+    visible,
+  ]);
 
-  const handleSetCurrentTrack = useCallback((track: PlayerTrack | null) => {
-      setCurrentTrack(track);
-      setVisible(Boolean(track));
-    }, []),
+  const handleSetCurrentTrack = useCallback(
+      (track: PlayerTrack | null) => {
+        setCurrentTrack(track);
+        if (
+          track?.id !== currentTrack?.id ||
+          track?.src !== currentTrack?.src
+        ) {
+          setIsPlaying(false);
+        }
+        setVisible(Boolean(track));
+      },
+      [currentTrack]
+    ),
     addToQueue = useCallback(
       (track: PlayerTrack) => {
         if (queue.some((item) => item.id === track.id)) {
@@ -184,9 +232,11 @@ export function AudioPlayerProvider({
         queue,
         recentlyPlayed,
         registerTogglePlay,
+        repeatMode,
         setCurrentTrack: handleSetCurrentTrack,
         setIsPlaying,
         setQueue,
+        setRepeatMode,
         setVisible,
         togglePlay,
         visible,
@@ -199,6 +249,7 @@ export function AudioPlayerProvider({
         markRecentlyPlayed,
         queue,
         recentlyPlayed,
+        repeatMode,
         registerTogglePlay,
         togglePlay,
         visible,

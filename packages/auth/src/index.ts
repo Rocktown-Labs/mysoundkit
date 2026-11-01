@@ -464,6 +464,7 @@ export const createAuth = () => {
     },
     emailAndPassword: {
       enabled: true,
+      revokeSessionsOnPasswordReset: true,
       sendResetPassword: ({ user, url }) =>
         sendPasswordResetEmail({
           email: user.email,
@@ -518,7 +519,7 @@ export const createAuth = () => {
       bearer(),
       organization({
         allowUserToCreateOrganization: true,
-        requireEmailVerificationOnInvitation: false,
+        requireEmailVerificationOnInvitation: true,
         sendInvitationEmail: (data) =>
           sendOrganizationInviteEmail({
             email: data.email,
