@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Reclaimed Hyperdrive configurations leaked by closed preview PRs, preventing account quota exhaustion from blocking server uploads and causing downstream queue-handler errors (#492).
+
 - Kept regional discovery results tied to the selected region, collapsed empty rails, and labeled broader recommendations separately; stopped cross-region pagination substitutions (#481).
 
 - Addressed PR #463 review: enabled signup verification and a resend action, kept unmatched paid webhooks retryable with warnings, and verified completed R2 uploads before registering Open Verse assets (#461).

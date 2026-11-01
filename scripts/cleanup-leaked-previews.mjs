@@ -29,6 +29,8 @@
 
 import { execFileSync } from "node:child_process";
 
+import { collectClosedPreviewHyperdrives } from "./preview-hyperdrives.mjs";
+
 const API = "https://api.cloudflare.com/client/v4",
   CLOUDFLARE_ACCOUNT_ID =
     process.env.CLOUDFLARE_ACCOUNT_ID ?? "5af47adc047fa74dcfa59048858b486c",
@@ -226,6 +228,14 @@ const main = async () => {
     }
   );
 
+  // Hyperdrives have a small account quota. A leak here prevents the real
+  // server upload, leaving its placeholder without a queue handler (#492).
+  const hyperdrives = await collectClosedPreviewHyperdrives(
+    (page) => cf(`/hyperdrive/configs?per_page=100&page=${page}`),
+    prState
+  );
+  console.log(`hyperdrives: ${hyperdrives.length} leaked from closed PRs`);
+
   if (!apply) {
     console.log("\nDry run — nothing deleted. Re-run with --apply to delete.");
     return;
@@ -270,6 +280,16 @@ const main = async () => {
       results.push(`worker ${s.id}: deleted`);
     } catch (e) {
       results.push(`worker ${s.id}: FAILED ${e.message}`);
+    }
+  }
+  for (const config of hyperdrives) {
+    try {
+      await cf(`/hyperdrive/configs/${encodeURIComponent(config.id)}`, {
+        method: "DELETE",
+      });
+      results.push(`hyperdrive ${config.name}: deleted`);
+    } catch (e) {
+      results.push(`hyperdrive ${config.name}: FAILED ${e.message}`);
     }
   }
   for (const q of queues) {
