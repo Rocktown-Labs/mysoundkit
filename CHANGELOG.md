@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Kept regional discovery results tied to the selected region, collapsed empty rails, and labeled broader recommendations separately; stopped cross-region pagination substitutions (#481).
+
 - Scoped saved playback queues to the current account and discarded legacy unscoped private playback metadata (#482).
 - Addressed PR #463 review: enabled signup verification and a resend action, kept unmatched paid webhooks retryable with warnings, and verified completed R2 uploads before registering Open Verse assets (#461).
 - Bound successful Checkout fulfillment to the transaction's stored Stripe session rather than trusting event metadata alone (#311).
