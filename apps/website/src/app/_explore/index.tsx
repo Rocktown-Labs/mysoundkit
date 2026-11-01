@@ -169,30 +169,47 @@ function LocalExplorePage() {
       regionType: exploreRegionType,
       scope: "public",
     } as const,
-    { data: topTracks = [], isLoading: isLoadingTopTracks } = useTracksQuery(
-      undefined,
-      {
-        ...publicExploreQuery,
-        sort: "plays-desc",
-      }
-    ),
-    { data: newTracks = [], isLoading: isLoadingNewTracks } = useTracksQuery(
-      undefined,
-      {
-        ...publicExploreQuery,
-        sort: "date-desc",
-      }
-    ),
-    { data: videos = [], isLoading: isLoadingVideos } =
-      useVideosQuery(publicExploreQuery),
-    { data: projects = [], isLoading: isLoadingProjects } =
-      usePublicProjectsQuery({
-        limit: 12,
-        region: regionSlug,
-        regionType: exploreRegionType,
-        sort: "date-desc",
-      }),
-    { data: artists = [], isLoading: isLoadingArtists } = useArtistsQuery({
+    {
+      data: topTracks = [],
+      isLoading: isLoadingTopTracks,
+      isError: hasTopTracksError,
+      refetch: refetchTopTracks,
+    } = useTracksQuery(undefined, {
+      ...publicExploreQuery,
+      sort: "plays-desc",
+    }),
+    {
+      data: newTracks = [],
+      isLoading: isLoadingNewTracks,
+      isError: hasNewTracksError,
+      refetch: refetchNewTracks,
+    } = useTracksQuery(undefined, {
+      ...publicExploreQuery,
+      sort: "date-desc",
+    }),
+    {
+      data: videos = [],
+      isLoading: isLoadingVideos,
+      isError: hasVideosError,
+      refetch: refetchVideos,
+    } = useVideosQuery(publicExploreQuery),
+    {
+      data: projects = [],
+      isLoading: isLoadingProjects,
+      isError: hasProjectsError,
+      refetch: refetchProjects,
+    } = usePublicProjectsQuery({
+      limit: 12,
+      region: regionSlug,
+      regionType: exploreRegionType,
+      sort: "date-desc",
+    }),
+    {
+      data: artists = [],
+      isLoading: isLoadingArtists,
+      isError: hasArtistsError,
+      refetch: refetchArtists,
+    } = useArtistsQuery({
       category: "top",
       limit: 10,
       region: regionSlug,
@@ -204,12 +221,69 @@ function LocalExplorePage() {
       regionType: exploreRegionType,
       scope: "public" as const,
     } as const,
-    { data: battles = [], isLoading: isLoadingBattles } =
-      useBattlesQuery(regionalLiveQuery),
-    { data: publicStreams = [], isLoading: isLoadingStreams } =
-      usePublicLiveExperiencesQuery("stream", regionalLiveQuery),
-    { data: listeningParties = [], isLoading: isLoadingParties } =
-      useListeningPartiesQuery(regionalLiveQuery),
+    {
+      data: battles = [],
+      isLoading: isLoadingBattles,
+      isError: hasBattlesError,
+      refetch: refetchBattles,
+    } = useBattlesQuery(regionalLiveQuery),
+    {
+      data: publicStreams = [],
+      isLoading: isLoadingStreams,
+      isError: hasStreamsError,
+      refetch: refetchStreams,
+    } = usePublicLiveExperiencesQuery("stream", regionalLiveQuery),
+    {
+      data: listeningParties = [],
+      isLoading: isLoadingParties,
+      isError: hasPartiesError,
+      refetch: refetchParties,
+    } = useListeningPartiesQuery(regionalLiveQuery),
+    regionalLoading = [
+      isLoadingTopTracks,
+      isLoadingNewTracks,
+      isLoadingVideos,
+      isLoadingProjects,
+      isLoadingArtists,
+      isLoadingBattles,
+      isLoadingStreams,
+      isLoadingParties,
+    ].some(Boolean),
+    regionalError = [
+      hasTopTracksError,
+      hasNewTracksError,
+      hasVideosError,
+      hasProjectsError,
+      hasArtistsError,
+      hasBattlesError,
+      hasStreamsError,
+      hasPartiesError,
+    ].some(Boolean),
+    regionalEmpty =
+      !regionalLoading &&
+      !regionalError &&
+      [
+        topTracks,
+        newTracks,
+        videos,
+        projects,
+        artists,
+        battles,
+        publicStreams,
+        listeningParties,
+      ].every((items) => items.length === 0),
+    retryRegion = () => {
+      void Promise.all([
+        refetchTopTracks(),
+        refetchNewTracks(),
+        refetchVideos(),
+        refetchProjects(),
+        refetchArtists(),
+        refetchBattles(),
+        refetchStreams(),
+        refetchParties(),
+      ]);
+    },
     syncLocation = ({
       newMapScope,
       newRegion,
@@ -466,223 +540,342 @@ function LocalExplorePage() {
           </section>
 
           <div className="space-y-6 md:space-y-8 lg:space-y-10 pb-8 md:pb-10 lg:pb-12">
-            {/* 1. Top Songs in {location} */}
-            <section>
-              <SectionHeader
-                description={
-                  isGlobalView
-                    ? "Most played tracks across the app this week"
-                    : `Most played tracks in ${activeRegion} this week`
-                }
-                title={`Top Songs ${locationPhrase}`}
-                viewAllHref={tracksHref}
-              />
-              <HomeRail
-                empty="No songs are live for this view yet."
-                isLoading={isLoadingTopTracks}
-                items={topTracks}
-                keyForItem={(track) => track.id}
-                renderItem={(track) => (
-                  <TrackCard
-                    artist={track.artistName}
-                    artistSlug={track.artistUsername ?? "artist"}
-                    cover={track.coverArtUrl ?? "/placeholder.svg"}
-                    duration={track.duration}
-                    id={track.id}
-                    key={track.id}
-                    plays={track.plays.toLocaleString()}
-                    regionSlug={track.regionSlug}
-                    slug={track.slug}
-                    title={track.title}
-                  />
+            {regionalError ? (
+              <div
+                role="alert"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-5"
+              >
+                <p>Some results for {activeRegion} could not load.</p>
+                <Button onClick={retryRegion} variant="outline">
+                  Try again
+                </Button>
+              </div>
+            ) : null}
+            {regionalEmpty ? (
+              <section
+                data-testid="regional-empty-state"
+                className="rounded-xl border border-border bg-card p-6"
+              >
+                <h2 className="text-xl font-semibold">
+                  {isGlobalView
+                    ? "New scenes start here"
+                    : `No releases in ${activeRegion} yet`}
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {isGlobalView
+                    ? "Check back for new music, videos and live events."
+                    : "Your map selection is still active. Choose another region, or explore music from across SoundKit below."}
+                </p>
+                {isGlobalView ? null : (
+                  <Button
+                    className="mt-4"
+                    onClick={() =>
+                      syncLocation({
+                        newMapScope: "global",
+                        newRegion: null,
+                        newRegionType: "global",
+                      })
+                    }
+                    variant="outline"
+                  >
+                    Explore all regions
+                  </Button>
                 )}
-              />
-            </section>
+              </section>
+            ) : null}
+            {regionalEmpty && !isGlobalView ? <BroaderRecommendations /> : null}
+            {/* 1. Top Songs in {location} */}
+            {isLoadingTopTracks || topTracks.length > 0 ? (
+              <section>
+                <SectionHeader
+                  description={
+                    isGlobalView
+                      ? "Most played tracks across the app this week"
+                      : `Most played tracks in ${activeRegion} this week`
+                  }
+                  title={`Top Songs ${locationPhrase}`}
+                  viewAllHref={tracksHref}
+                />
+                <HomeRail
+                  empty="No songs are live for this view yet."
+                  isLoading={isLoadingTopTracks}
+                  items={topTracks}
+                  keyForItem={(track) => track.id}
+                  renderItem={(track) => (
+                    <TrackCard
+                      artist={track.artistName}
+                      artistSlug={track.artistUsername ?? "artist"}
+                      cover={track.coverArtUrl ?? "/placeholder.svg"}
+                      duration={track.duration}
+                      id={track.id}
+                      key={track.id}
+                      plays={track.plays.toLocaleString()}
+                      regionSlug={track.regionSlug}
+                      slug={track.slug}
+                      title={track.title}
+                    />
+                  )}
+                />
+              </section>
+            ) : null}
 
             {/* 2. New Releases in {location} */}
-            <section>
-              <SectionHeader
-                description={
-                  isGlobalView
-                    ? "Fresh drops from every active scene"
-                    : `Fresh tracks from artists in ${activeRegion}`
-                }
-                title={`New Releases ${locationPhrase}`}
-                viewAllHref={releasesHref}
-              />
-              <HomeRail
-                empty="No new releases are live for this view yet."
-                isLoading={isLoadingNewTracks}
-                items={newTracks}
-                keyForItem={(track) => track.id}
-                renderItem={(track) => (
-                  <TrackCard
-                    artist={track.artistName}
-                    artistSlug={track.artistUsername ?? "artist"}
-                    cover={track.coverArtUrl ?? "/placeholder.svg"}
-                    duration={track.duration}
-                    id={track.id}
-                    key={track.id}
-                    plays={track.plays.toLocaleString()}
-                    regionSlug={track.regionSlug}
-                    slug={track.slug}
-                    title={track.title}
-                  />
-                )}
-              />
-            </section>
+            {isLoadingNewTracks || newTracks.length > 0 ? (
+              <section>
+                <SectionHeader
+                  description={
+                    isGlobalView
+                      ? "Fresh drops from every active scene"
+                      : `Fresh tracks from artists in ${activeRegion}`
+                  }
+                  title={`New Releases ${locationPhrase}`}
+                  viewAllHref={releasesHref}
+                />
+                <HomeRail
+                  empty="No new releases are live for this view yet."
+                  isLoading={isLoadingNewTracks}
+                  items={newTracks}
+                  keyForItem={(track) => track.id}
+                  renderItem={(track) => (
+                    <TrackCard
+                      artist={track.artistName}
+                      artistSlug={track.artistUsername ?? "artist"}
+                      cover={track.coverArtUrl ?? "/placeholder.svg"}
+                      duration={track.duration}
+                      id={track.id}
+                      key={track.id}
+                      plays={track.plays.toLocaleString()}
+                      regionSlug={track.regionSlug}
+                      slug={track.slug}
+                      title={track.title}
+                    />
+                  )}
+                />
+              </section>
+            ) : null}
 
             {/* 3. Live Battles */}
-            <section>
-              <SectionHeader
-                description={
-                  isGlobalView
-                    ? "Top beat battles happening across the app right now"
-                    : `Vote in head-to-head producer matchups in ${activeRegion}`
-                }
-                title={`Live Battles ${locationPhrase}`}
-                viewAllHref={battlesHref}
-              />
-              <HomeRail
-                empty="No battles are live for this view yet."
-                isLoading={isLoadingBattles}
-                items={battles}
-                keyForItem={(battle) => battle.id}
-                renderItem={(battle) => (
-                  <BattleSummaryCard battle={battle} key={battle.id} />
-                )}
-              />
-            </section>
+            {isLoadingBattles || battles.length > 0 ? (
+              <section>
+                <SectionHeader
+                  description={
+                    isGlobalView
+                      ? "Top beat battles happening across the app right now"
+                      : `Vote in head-to-head producer matchups in ${activeRegion}`
+                  }
+                  title={`Live Battles ${locationPhrase}`}
+                  viewAllHref={battlesHref}
+                />
+                <HomeRail
+                  empty="No battles are live for this view yet."
+                  isLoading={isLoadingBattles}
+                  items={battles}
+                  keyForItem={(battle) => battle.id}
+                  renderItem={(battle) => (
+                    <BattleSummaryCard battle={battle} key={battle.id} />
+                  )}
+                />
+              </section>
+            ) : null}
 
             {/* 4. Top Artists in {location} */}
-            <section>
-              <SectionHeader
-                description={
-                  isGlobalView
-                    ? "Rising stars and established artists across the app"
-                    : `Rising stars and top performers in ${activeRegion}`
-                }
-                title={`Top Artists ${locationPhrase}`}
-                viewAllHref={artistsHref}
-              />
-              <HomeRail
-                empty="No artists are live for this view yet."
-                isLoading={isLoadingArtists}
-                items={chunkArtists(artists, activeRegion)}
-                keyForItem={(artistGroup) =>
-                  artistGroup.map((artist) => artist.slug).join("-")
-                }
-                renderItem={(artistGroup) => (
-                  <div
-                    className="w-[320px] shrink-0 md:w-[360px]"
-                    key={artistGroup.map((artist) => artist.slug).join("-")}
-                  >
-                    <ArtistLeaderboardCard
-                      artists={artistGroup}
-                      showBorder={false}
-                      type="rising"
-                    />
-                  </div>
-                )}
-              />
-            </section>
+            {isLoadingArtists || artists.length > 0 ? (
+              <section>
+                <SectionHeader
+                  description={
+                    isGlobalView
+                      ? "Rising stars and established artists across the app"
+                      : `Rising stars and top performers in ${activeRegion}`
+                  }
+                  title={`Top Artists ${locationPhrase}`}
+                  viewAllHref={artistsHref}
+                />
+                <HomeRail
+                  empty="No artists are live for this view yet."
+                  isLoading={isLoadingArtists}
+                  items={chunkArtists(artists, activeRegion)}
+                  keyForItem={(artistGroup) =>
+                    artistGroup.map((artist) => artist.slug).join("-")
+                  }
+                  renderItem={(artistGroup) => (
+                    <div
+                      className="w-[320px] shrink-0 md:w-[360px]"
+                      key={artistGroup.map((artist) => artist.slug).join("-")}
+                    >
+                      <ArtistLeaderboardCard
+                        artists={artistGroup}
+                        showBorder={false}
+                        type="rising"
+                      />
+                    </div>
+                  )}
+                />
+              </section>
+            ) : null}
 
             {/* 5. Featured Videos */}
-            <section>
-              <SectionHeader
-                description={
-                  isGlobalView
-                    ? "Official music videos, studio sessions, and live drops from SoundKit artists"
-                    : `Watch official drops and visual releases from ${activeRegion}`
-                }
-                title={`Featured Videos ${locationPhrase}`}
-                viewAllHref={videosHref}
-              />
-              <HomeRail
-                empty="No videos are live for this view yet."
-                isLoading={isLoadingVideos}
-                items={videos}
-                keyForItem={(video) => video.id}
-                renderItem={(video) => (
-                  <div
-                    className="w-[300px] shrink-0 md:w-[360px]"
-                    key={video.id}
-                  >
-                    <VideoCard video={toExploreVideo(video)} />
-                  </div>
-                )}
-              />
-            </section>
+            {isLoadingVideos || videos.length > 0 ? (
+              <section>
+                <SectionHeader
+                  description={
+                    isGlobalView
+                      ? "Official music videos, studio sessions, and live drops from SoundKit artists"
+                      : `Watch official drops and visual releases from ${activeRegion}`
+                  }
+                  title={`Featured Videos ${locationPhrase}`}
+                  viewAllHref={videosHref}
+                />
+                <HomeRail
+                  empty="No videos are live for this view yet."
+                  isLoading={isLoadingVideos}
+                  items={videos}
+                  keyForItem={(video) => video.id}
+                  renderItem={(video) => (
+                    <div
+                      className="w-[300px] shrink-0 md:w-[360px]"
+                      key={video.id}
+                    >
+                      <VideoCard video={toExploreVideo(video)} />
+                    </div>
+                  )}
+                />
+              </section>
+            ) : null}
 
             {/* 6. Live Streams in {location} / Featured Streams */}
-            <section>
-              <SectionHeader
-                description={
-                  isGlobalView
-                    ? "Real-time broadcasts, studio sessions, and DJ sets live right now"
-                    : `Active live streams broadcasting in ${activeRegion}`
-                }
-                title={`Live Streams ${locationPhrase}`}
-                viewAllHref={streamsHref}
-              />
-              <HomeRail
-                empty="No live streams currently broadcasting. Start one from your artist dashboard!"
-                isLoading={isLoadingStreams}
-                items={publicStreams}
-                keyForItem={(stream) => stream.id}
-                renderItem={(stream) => (
-                  <LiveStreamSummaryCard key={stream.id} stream={stream} />
-                )}
-              />
-            </section>
+            {isLoadingStreams || publicStreams.length > 0 ? (
+              <section>
+                <SectionHeader
+                  description={
+                    isGlobalView
+                      ? "Real-time broadcasts, studio sessions, and DJ sets live right now"
+                      : `Active live streams broadcasting in ${activeRegion}`
+                  }
+                  title={`Live Streams ${locationPhrase}`}
+                  viewAllHref={streamsHref}
+                />
+                <HomeRail
+                  empty="No live streams currently broadcasting. Start one from your artist dashboard!"
+                  isLoading={isLoadingStreams}
+                  items={publicStreams}
+                  keyForItem={(stream) => stream.id}
+                  renderItem={(stream) => (
+                    <LiveStreamSummaryCard key={stream.id} stream={stream} />
+                  )}
+                />
+              </section>
+            ) : null}
 
             {/* 7. Featured Projects / Mixtapes */}
-            <section>
-              <SectionHeader
-                description={
-                  isGlobalView
-                    ? "Albums, EPs, beat kits, and mixtapes from across SoundKit"
-                    : `Albums, EPs, and mixtapes in ${activeRegion}`
-                }
-                title={`Featured Projects ${locationPhrase}`}
-                viewAllHref={projectsHref}
-              />
-              <HomeRail
-                empty="No featured projects are live for this view yet."
-                isLoading={isLoadingProjects}
-                items={projects}
-                keyForItem={(project) => project.id}
-                renderItem={(project) => (
-                  <HomeProjectCard key={project.id} project={project} />
-                )}
-              />
-            </section>
+            {isLoadingProjects || projects.length > 0 ? (
+              <section>
+                <SectionHeader
+                  description={
+                    isGlobalView
+                      ? "Albums, EPs, beat kits, and mixtapes from across SoundKit"
+                      : `Albums, EPs, and mixtapes in ${activeRegion}`
+                  }
+                  title={`Featured Projects ${locationPhrase}`}
+                  viewAllHref={projectsHref}
+                />
+                <HomeRail
+                  empty="No featured projects are live for this view yet."
+                  isLoading={isLoadingProjects}
+                  items={projects}
+                  keyForItem={(project) => project.id}
+                  renderItem={(project) => (
+                    <HomeProjectCard key={project.id} project={project} />
+                  )}
+                />
+              </section>
+            ) : null}
 
             {/* 8. Upcoming Listening Parties */}
-            <section>
-              <SectionHeader
-                description={
-                  isGlobalView
-                    ? "Join community listening parties and track premieres with the creator"
-                    : `Upcoming album listening parties in ${activeRegion}`
-                }
-                title={`Listening Parties ${locationPhrase}`}
-                viewAllHref={partiesHref}
-              />
-              <HomeRail
-                empty="No upcoming listening parties scheduled right now."
-                isLoading={isLoadingParties}
-                items={listeningParties}
-                keyForItem={(party) => party.id}
-                renderItem={(party) => (
-                  <ListeningPartySummaryCard key={party.id} party={party} />
-                )}
-              />
-            </section>
+            {isLoadingParties || listeningParties.length > 0 ? (
+              <section>
+                <SectionHeader
+                  description={
+                    isGlobalView
+                      ? "Join community listening parties and track premieres with the creator"
+                      : `Upcoming album listening parties in ${activeRegion}`
+                  }
+                  title={`Listening Parties ${locationPhrase}`}
+                  viewAllHref={partiesHref}
+                />
+                <HomeRail
+                  empty="No upcoming listening parties scheduled right now."
+                  isLoading={isLoadingParties}
+                  items={listeningParties}
+                  keyForItem={(party) => party.id}
+                  renderItem={(party) => (
+                    <ListeningPartySummaryCard key={party.id} party={party} />
+                  )}
+                />
+              </section>
+            ) : null}
           </div>
         </main>
       </div>
     </div>
+  );
+}
+
+function BroaderRecommendations() {
+  const tracksQuery = useTracksQuery(undefined, {
+    limit: 12,
+    region: "all",
+    regionType: "global",
+    scope: "public",
+    sort: "plays-desc",
+  });
+  if (tracksQuery.isError) {
+    return (
+      <section className="rounded-xl border p-5">
+        <p>Recommendations could not load.</p>
+        <Button
+          onClick={() => {
+            void tracksQuery.refetch();
+          }}
+          variant="outline"
+        >
+          Retry recommendations
+        </Button>
+      </section>
+    );
+  }
+  if (!tracksQuery.isLoading && !tracksQuery.data?.length) {
+    return null;
+  }
+  return (
+    <section
+      aria-label="Music from across SoundKit"
+      data-testid="broader-recommendations"
+    >
+      <SectionHeader
+        title="Discover across SoundKit"
+        description="These recommendations are from all regions, outside your current map selection."
+        viewAllHref="/tracks?region=all&regionType=global"
+      />
+      <HomeRail
+        empty=""
+        isLoading={tracksQuery.isLoading}
+        items={tracksQuery.data ?? []}
+        keyForItem={(track) => track.id}
+        renderItem={(track) => (
+          <TrackCard
+            artist={track.artistName}
+            artistSlug={track.artistUsername ?? "artist"}
+            cover={track.coverArtUrl ?? "/placeholder.svg"}
+            duration={track.duration}
+            id={track.id}
+            plays={track.plays.toLocaleString()}
+            regionSlug={track.regionSlug}
+            slug={track.slug}
+            title={track.title}
+          />
+        )}
+      />
+    </section>
   );
 }
 

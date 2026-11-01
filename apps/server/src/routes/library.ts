@@ -4,10 +4,13 @@ import {
   librarySaves,
   orderItems,
   playbackSessions,
+  projectCollaborators,
+  projectTracks,
   playlists,
   playlistTracks,
   purchases,
   trackAssets,
+  trackCollaborators,
   tracks,
 } from "@soundkit/db/schema/app";
 import {
@@ -42,6 +45,7 @@ import {
   samplePurchasedCatalogItems,
   samplePlaylists,
   sampleTracks,
+  sampleUser,
 } from "@/lib/sample-data";
 import {
   libraryRecentTrackSchema,
@@ -77,7 +81,12 @@ const libraryErrors = {
       and(eq(tracks.ownerUserId, userId), isNull(tracks.deletedAt)),
       exists(
         sql`select 1 from ${purchases} where ${purchases.buyerUserId} = ${userId} and ${purchases.trackId} = ${tracks.id}`
-      )
+      ),
+      exists(sql`select 1 from ${purchases} inner join ${projectTracks} on ${projectTracks.projectId} = ${purchases.projectId} where ${purchases.buyerUserId} = ${userId} and ${projectTracks.trackId} = ${tracks.id}`),
+      and(isNull(tracks.deletedAt), or(
+        exists(sql`select 1 from ${trackCollaborators} where ${trackCollaborators.trackId} = ${tracks.id} and ${trackCollaborators.collaboratorUserId} = ${userId} and ${trackCollaborators.invitationStatus} = 'accepted'`),
+        exists(sql`select 1 from ${projectTracks} inner join ${projectCollaborators} on ${projectCollaborators.projectId} = ${projectTracks.projectId} where ${projectTracks.trackId} = ${tracks.id} and ${projectCollaborators.collaboratorUserId} = ${userId} and ${projectCollaborators.invitationStatus} = 'accepted'`)
+      ))
     );
   },
   app = new OpenAPIHono<AppEnv>(),
@@ -282,7 +291,7 @@ app.openapi(
     }
 
     if (!isDatabaseConfigured()) {
-      return c.json(samplePlaylists, HttpStatusCodes.OK);
+      return c.json(samplePlaylists.filter(playlist => playlist.isPublic || user.id === sampleUser.id), HttpStatusCodes.OK);
     }
 
     const db = createDb(),
@@ -964,7 +973,7 @@ app.openapi(
 
     if (!isDatabaseConfigured()) {
       const sample = samplePlaylists.find((p) => p.id === id);
-      if (!sample || !sample.isPublic) {
+      if (!sample || (!sample.isPublic && user?.id !== sampleUser.id)) {
         return c.json(
           { message: "Playlist not found" },
           HttpStatusCodes.NOT_FOUND

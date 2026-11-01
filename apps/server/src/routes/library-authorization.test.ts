@@ -8,7 +8,9 @@ import type { AppEnv } from "@/lib/types";
 
 import libraryRoutes from "./library";
 
-const { select, insert, deleteRows, transaction } = vi.hoisted(() => ({
+const { select, insert, deleteRows, transaction, configured, summary } = vi.hoisted(() => ({
+  configured: vi.fn(),
+  summary: vi.fn(),
   deleteRows: vi.fn(),
   insert: vi.fn(),
   select: vi.fn(),
@@ -17,11 +19,11 @@ const { select, insert, deleteRows, transaction } = vi.hoisted(() => ({
 const fakeDb = () => ({ delete: deleteRows, insert, select, transaction });
 vi.mock("@soundkit/db", () => ({
   createDb: () => ({ delete: deleteRows, insert, select, transaction }),
-  isDatabaseConfigured: () => true,
+  isDatabaseConfigured: () => configured(),
 }));
 vi.mock("@/lib/dashboard-mappers", () => ({
   buildTrackSummaries: vi.fn(),
-  buildTrackSummary: vi.fn(),
+  buildTrackSummary: summary,
 }));
 
 const query = (rows: unknown[]) => {
@@ -71,6 +73,7 @@ const mutations = [
 describe("playlist and library authorization", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    configured.mockReturnValue(true);
     transaction.mockImplementation(
       async (run: (tx: ReturnType<typeof fakeDb>) => Promise<unknown>) =>
         await run(fakeDb())
@@ -175,4 +178,34 @@ describe("playlist and library authorization", () => {
       trackId: "track",
     });
   });
+  it.each(["project purchase", "accepted collaboration"])("preserves saved private metadata authorized by %s", async grant => {
+    const rows = query([{savedAt: new Date(),track: {id: "granted", title: "Authorized private track"}}]);
+    select.mockReturnValue(rows);
+    summary.mockResolvedValue({id: "granted",title: "Authorized private track",artistName: "Owner",artistUsername: "owner",duration: "1:00",coverArtUrl: null,genre: "Hip-Hop",regionSlug: null,slug: "granted"});
+    const response = await request("/saved", "GET", "buyer-or-collaborator");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([expect.objectContaining({id: "granted",title: "Authorized private track"})]);
+    const policy = new PgDialect().sqlToQuery(rows.where.mock.calls[0]?.[0] as SQL);
+    expect(policy.params).toContain("buyer-or-collaborator");
+    if (grant === "project purchase") {
+      expect(policy.sql).toContain('"project_tracks"');
+      expect(policy.sql).toContain('"project_id"');
+      expect(policy.sql).toContain('"buyer_user_id"');
+    } else {
+      expect(policy.sql).toContain('"track_collaborators"');
+      expect(policy.sql).toContain('"project_collaborators"');
+      expect(policy.sql).toContain("'accepted'");
+    }
+  });
+  it("keeps the known private sample playlist available only to the demo owner", async () => {
+    configured.mockReturnValue(false);
+    const owner = await request("/playlists/playlist_after_hours", "GET", "user_demo_artist");
+    const stranger = await request("/playlists/playlist_after_hours", "GET", "other");
+    const unknown = await request("/playlists/arbitrary", "GET", "user_demo_artist");
+    expect(owner.status).toBe(200);
+    expect(stranger.status).toBe(404);
+    expect(unknown.status).toBe(404);
+    expect(select).not.toHaveBeenCalled();
+  });
+
 });
