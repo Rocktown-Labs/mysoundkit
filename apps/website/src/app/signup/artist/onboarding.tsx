@@ -125,17 +125,22 @@ function ArtistOnboardingPage() {
       nextStep: number,
       extra: Record<string, unknown> = {}
     ) => {
-      await fetch(`${API_V1_URL}/onboarding/state`, {
-        body: JSON.stringify({
-          currentStep: nextStep,
-          intendedAccountType: "artist",
-          selectedPlanCode,
-          ...extra,
-        }),
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
+      try {
+        await fetch(`${API_V1_URL}/onboarding/state`, {
+          body: JSON.stringify({
+            currentStep: nextStep,
+            intendedAccountType: "artist",
+            selectedPlanCode,
+            ...extra,
+          }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+      } catch {
+        // Best-effort onboarding intent persistence: navigation continues
+        // regardless, and the localStorage draft still applies on return.
+      }
     },
     goToStep = (nextStep: number) => {
       capture("onboarding_step_completed", {
@@ -369,41 +374,47 @@ function ArtistOnboardingPage() {
       }
       setIsDraftRestored(true);
       const hasLocalDraft = Boolean(
-          window.localStorage.getItem(ARTIST_ONBOARDING_DRAFT_KEY)
-        ),
-        response = await fetch(`${API_V1_URL}/onboarding/state`, {
+        window.localStorage.getItem(ARTIST_ONBOARDING_DRAFT_KEY)
+      );
+      try {
+        const response = await fetch(`${API_V1_URL}/onboarding/state`, {
           credentials: "include",
         });
-      if (!response.ok) {
+        if (!response.ok) {
+          capture("onboarding_started", { account_type: "artist" });
+          return;
+        }
+        const state = (await response.json().catch(() => null)) as {
+          creatorEligibility?: string | null;
+          currentStep?: number;
+          selectedPlanCode?: string | null;
+        } | null;
+        if (state?.currentStep && state.currentStep > 1 && !hasLocalDraft) {
+          setStep(Math.min(state.currentStep, totalSteps));
+          capture("onboarding_resumed", {
+            account_type: "artist",
+            step: state.currentStep,
+          });
+        } else {
+          capture("onboarding_started", { account_type: "artist" });
+        }
+        if (
+          state?.creatorEligibility === "independent" ||
+          state?.creatorEligibility === "major_label_affiliated"
+        ) {
+          setEligibility(
+            state.creatorEligibility === "major_label_affiliated"
+              ? "major"
+              : "independent"
+          );
+        }
+        if (state?.selectedPlanCode) {
+          setSelectedPlanCode(state.selectedPlanCode);
+        }
+      } catch {
+        // Transient network failures restore like a fresh start; the
+        // localStorage draft still applies on the next visit.
         capture("onboarding_started", { account_type: "artist" });
-        return;
-      }
-      const state = (await response.json().catch(() => null)) as {
-        creatorEligibility?: string | null;
-        currentStep?: number;
-        selectedPlanCode?: string | null;
-      } | null;
-      if (state?.currentStep && state.currentStep > 1 && !hasLocalDraft) {
-        setStep(Math.min(state.currentStep, totalSteps));
-        capture("onboarding_resumed", {
-          account_type: "artist",
-          step: state.currentStep,
-        });
-      } else {
-        capture("onboarding_started", { account_type: "artist" });
-      }
-      if (
-        state?.creatorEligibility === "independent" ||
-        state?.creatorEligibility === "major_label_affiliated"
-      ) {
-        setEligibility(
-          state.creatorEligibility === "major_label_affiliated"
-            ? "major"
-            : "independent"
-        );
-      }
-      if (state?.selectedPlanCode) {
-        setSelectedPlanCode(state.selectedPlanCode);
       }
     };
     void restoreProgress();
