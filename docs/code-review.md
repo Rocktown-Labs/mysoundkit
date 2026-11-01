@@ -43,9 +43,9 @@ Repository configuration:
 - Variable `OPEN_CODE_REVIEW_LLM_URL`: the account's OpenAI-compatible AI endpoint.
 - Variable `OPEN_CODE_REVIEW_LLM_MODEL`: `@cf/moonshotai/kimi-k2.7-code`.
 
-The upstream action and CLI are pinned. It checks out the trusted base, reads
-the PR through git objects, publishes inline comments and a summary, and uploads
-review artifacts. Fork PRs do not receive credentials. Jobs have bounded runtime
+The upstream action and CLI are pinned. It checks out the repository, reads
+the PR comparison through git objects, publishes inline comments and a summary,
+and uploads review artifacts. Fork PRs do not receive credentials. Jobs have bounded runtime
 and token usage; stale runs cancel when a newer commit arrives. Partial reviews
 or failed publication fail the completion gate. Findings still require triage;
 a successful job means the selected range was reviewed and published, not that

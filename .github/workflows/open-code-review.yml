@@ -19,6 +19,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  completion-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: node --test scripts/code-review-result.test.mjs
+
   review:
     if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft)
     runs-on: ubuntu-latest
@@ -49,8 +57,8 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `number=${pr.number}\nbase=${pr.base.ref}\nhead=${pr.head.sha}\n`);
           JS
 
-      # The official action checks out the trusted base and reads the PR through
-      # git objects. It does not execute code or local scripts from the PR.
+      # Only same-repository PRs receive credentials. The pinned action reads
+      # the comparison through git objects and publishes advisory findings.
       - name: Review with Kimi K2.7 Code
         id: ocr
         uses: alibaba/open-code-review@375f64cd6f67a48a135da83cfcf59c52669a09cb # v1.13.3
