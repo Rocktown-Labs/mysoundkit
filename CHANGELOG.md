@@ -2,6 +2,10 @@
 
 ## 0.0.1 (Unreleased security fixes)
 
+### Added
+
+- Added pinned Kimi Open Code Review for standalone use and trusted pull requests, with bounded usage, saved review artifacts, and completion gates (#493).
+
 ### Fixed
 
 - Kept regional discovery results tied to the selected region, collapsed empty rails, and labeled broader recommendations separately; stopped cross-region pagination substitutions (#481).
