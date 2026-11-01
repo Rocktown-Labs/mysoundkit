@@ -29,6 +29,7 @@
 - Matched website sign-in, signup, and password recovery forms to the native dark auth shell, compact fields, rounded card, white primary action, and dark security widget (#469).
 ### Fixed
 
+- Treated artist and fan onboarding progress persistence as best-effort so transient client network failures no longer surface as unhandled fetch rejections in Sentry, and made onboarding state restore fall back to a fresh start when the state fetch fails (#490).
 - Prevented the track action menu from retaining a page pointer lock after an edit dialog closes, while keeping dialogs modal and verifying focus containment (#479).
 - Added Google sign-in to Bio signup and the secure account handoff, verifying sessions before storing tokens and preserving bearer authentication through artist and fan onboarding; covered custom preview API domains for every mocked auth and onboarding request in browser tests (#478).
 - Used a spectator session for the public battle-chat smoke test so participant redirects cannot race its waiting-room assertion (#477).
