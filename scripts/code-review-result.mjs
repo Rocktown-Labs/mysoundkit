@@ -1,13 +1,17 @@
 export function assertCompleteReview(result) {
   const manifest = result?.manifest,
     reviewedItems = new Set(
-      manifest?.coverage?.completed?.map((item) => item.item_id)
+      [
+        ...(manifest?.coverage?.completed ?? []),
+        ...(manifest?.coverage?.reused ?? []),
+      ].map((item) => item.item_id)
     );
   if (
     result?.status !== "complete" ||
     manifest?.terminal_state !== "complete" ||
     !Array.isArray(manifest.coverage?.selected) ||
-    !Array.isArray(manifest.coverage?.completed)
+    !Array.isArray(manifest.coverage?.completed) ||
+    (manifest.coverage.failed?.length ?? 0) > 0
   ) {
     throw new Error(
       "Open Code Review did not complete; inspect the saved report."

@@ -30,3 +30,10 @@ test("rejects missing coverage and a falsely complete report", () => {
   result.manifest.coverage.completed = [];
   assert.throws(() => assertCompleteReview(result));
 });
+
+test("accepts files reused from a completed session", () => {
+  const result = complete();
+  result.manifest.coverage.reused = result.manifest.coverage.completed;
+  result.manifest.coverage.completed = [];
+  assert.doesNotThrow(() => assertCompleteReview(result));
+});
