@@ -50,7 +50,9 @@ describe("Checkout settlement", () => {
     { amount_total: 0, payment_status: "no_payment_required" },
   ])("fulfills settled or genuinely free sessions: %j", async (payment) => {
     const set = vi.fn(() => ({ where })),
-      where = vi.fn().mockResolvedValue([]);
+      where = vi.fn(() => ({
+        returning: () => Promise.resolve([{ id: "dummy" }]),
+      }));
     select
       .mockReturnValueOnce({
         from: () => ({
@@ -202,4 +204,62 @@ describe("Checkout settlement", () => {
       expect(update).not.toHaveBeenCalled();
     }
   );
+});
+
+it("ignores a late settled Checkout event after a full refund", async () => {
+  vi.resetAllMocks();
+  select.mockReturnValue({
+    from: () => ({
+      where: () => ({
+        limit: () => Promise.resolve([{ id: "dummy", status: "refunded" }]),
+      }),
+    }),
+  });
+  await processStripeEvent({
+    event: {
+      data: {
+        object: {
+          id: "cs_dummy",
+          metadata: { transactionId: "dummy" },
+          payment_status: "paid",
+        },
+      },
+      type: "checkout.session.completed",
+    },
+  });
+  expect(update).not.toHaveBeenCalled();
+});
+
+it("stops settlement when a concurrent refund wins the guarded update", async () => {
+  vi.resetAllMocks();
+  select.mockReturnValue({
+    from: () => ({
+      where: () => ({
+        limit: () => Promise.resolve([{ id: "dummy", status: "succeeded" }]),
+      }),
+    }),
+  });
+  const set = vi.fn(() => ({
+    where: (condition: SQL) => {
+      expect(new PgDialect().sqlToQuery(condition).params).toEqual([
+        "dummy",
+        "refunded",
+      ]);
+      return { returning: () => Promise.resolve([]) };
+    },
+  }));
+  update.mockReturnValue({ set });
+  await processStripeEvent({
+    event: {
+      data: {
+        object: {
+          id: "cs_dummy",
+          metadata: { tipDelivery: "transfers", transactionId: "dummy" },
+          payment_status: "paid",
+        },
+      },
+      type: "checkout.session.completed",
+    },
+  });
+  expect(set).toHaveBeenCalledOnce();
 });
