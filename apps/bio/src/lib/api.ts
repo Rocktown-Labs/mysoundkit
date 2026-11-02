@@ -1081,6 +1081,10 @@ export const getCurrentSessionUser = async (
   token = getBioAuthToken(),
   options?: { throwOnUnavailable: boolean }
 ): Promise<BioCurrentUser | null> => {
+  const controller = options?.throwOnUnavailable ? new AbortController() : null,
+    timeout = controller
+      ? globalThis.setTimeout(() => controller.abort(), 5000)
+      : undefined;
   try {
     const headers: Record<string, string> = { Accept: "application/json" };
     if (token) {
@@ -1090,9 +1094,7 @@ export const getCurrentSessionUser = async (
     const response = await fetch(`${API_V1_URL}/me`, {
       credentials: "include",
       headers,
-      signal: options?.throwOnUnavailable
-        ? AbortSignal.timeout(5000)
-        : undefined,
+      signal: controller?.signal,
     });
 
     if (!response.ok) {
@@ -1140,6 +1142,8 @@ export const getCurrentSessionUser = async (
   } catch (error) {
     if (options?.throwOnUnavailable) throw error;
     return null;
+  } finally {
+    if (timeout !== undefined) globalThis.clearTimeout(timeout);
   }
 };
 

@@ -47,3 +47,32 @@ test("persistent service failure remains distinct from an invalid session", asyn
   await vi.runAllTimersAsync();
   await rejection;
 });
+
+test("handoff verification works when AbortSignal.timeout is unavailable", async () => {
+  const response = Response.json({ id: "fixture-user", accountType: "fan" });
+  vi.stubGlobal("AbortSignal", {});
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+  await expect(verifyBioHandoffSession("fixture-token")).resolves.toMatchObject(
+    { id: "fixture-user" }
+  );
+});
+
+test("stalled verification attempts abort within the bounded retry window", async () => {
+  vi.useFakeTimers();
+  const transport = vi.fn(
+    (_url: string, init: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener(
+          "abort",
+          () => reject(new Error("verification timed out")),
+          { once: true }
+        );
+      })
+  );
+  vi.stubGlobal("fetch", transport);
+  const result = verifyBioHandoffSession("fixture-token"),
+    rejection = expect(result).rejects.toThrow("verification timed out");
+  await vi.runAllTimersAsync();
+  await rejection;
+  expect(transport).toHaveBeenCalledTimes(3);
+});

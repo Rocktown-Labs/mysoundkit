@@ -204,8 +204,12 @@ function BioProfilePage() {
     tipEligibilityRef.current = profile?.artist.canReceiveTips === true;
   }, [profile?.artist.canReceiveTips]);
   useEffect(() => {
-    if (profile && viewedProfileRef.current !== username) {
-      viewedProfileRef.current = username;
+    if (
+      profile &&
+      profile.artist.username.toLowerCase() === username.toLowerCase() &&
+      viewedProfileRef.current !== profile.artist.username
+    ) {
+      viewedProfileRef.current = profile.artist.username;
       captureAnalytics("bio_profile_viewed");
     }
   }, [profile, username]);
