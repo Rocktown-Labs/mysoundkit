@@ -23,6 +23,7 @@ import { API_BASE_URL, API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import {
+  clearNativePlayback,
   loadPendingPlayback,
   resolvePlaybackSource,
 } from "@/lib/playback-source";
@@ -265,7 +266,8 @@ export function AudioPlayerProvider({
   const status = useAudioPlayerStatus(player);
 
   const pendingTrackRef = useRef<PlayerTrack | null>(null),
-    prerollServedTrackRef = useRef<string | null>(null);
+    prerollServedTrackRef = useRef<string | null>(null),
+    lastAccountRef = useRef(session?.user?.id ?? null);
 
   const dismissPlayer = useCallback(() => {
     pendingTrackRef.current = null;
@@ -305,6 +307,7 @@ export function AudioPlayerProvider({
   const loadPendingContent = useCallback(async () => {
     await loadPendingPlayback({
       getPendingTrack: () => pendingTrackRef.current,
+      getAccountId: () => lastAccountRef.current,
       resolveSource: (track) =>
         resolvePlaybackSource({
           uri: track.src,
@@ -454,6 +457,32 @@ export function AudioPlayerProvider({
   const hasFinishedRef = useRef(false);
   // Tracks played before the current one, oldest first, for previousTrack().
   const historyRef = useRef<PlayerTrack[]>([]);
+  useEffect(() => {
+    const account = session?.user?.id ?? null;
+    if (lastAccountRef.current === account) {
+      return;
+    }
+    lastAccountRef.current = account;
+    // Invalidate deferred cookies/ad handoffs before clearing native playback.
+    pendingTrackRef.current = null;
+    prerollServedTrackRef.current = null;
+    historyRef.current = [];
+    hasFinishedRef.current = true;
+    clearNativePlayback(player);
+    setCurrentTrack(null);
+    setQueue([]);
+    setOriginalQueue([]);
+    setActiveAd(null);
+    setIsNowPlayingVisible(false);
+    setIsQueueVisible(false);
+    setIsLyricsVisible(false);
+  }, [player, session?.user?.id]);
+  useEffect(
+    () => () => {
+      pendingTrackRef.current = null;
+    },
+    []
+  );
   useEffect(() => {
     if (status.didJustFinish && !hasFinishedRef.current) {
       hasFinishedRef.current = true;

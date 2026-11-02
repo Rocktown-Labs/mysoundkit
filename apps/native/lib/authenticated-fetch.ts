@@ -1,26 +1,10 @@
+import { API_BASE_URL } from "./api";
 import { authClient } from "./auth-client";
+import { createAuthenticatedFetch } from "./authenticated-fetch-core";
 
-/**
- * Fetch wrapper that attaches the better-auth session cookie. The Expo auth
- * client persists the session in SecureStore rather than the native cookie
- * jar, so plain `credentials: "include"` requests stay unauthenticated.
- */
-export const authenticatedFetch: typeof fetch = async (input, init) => {
-  const [request, options] = await Promise.all([
-      Promise.resolve(input),
-      Promise.resolve(init),
-    ]),
-    headers = new Headers(options?.headers);
-  let cookie: string | null = null;
-  try {
-    cookie = await authClient.getCookie();
-  } catch {
-    cookie = null;
-  }
-
-  if (cookie && cookie.length > 0) {
-    headers.set("cookie", cookie);
-  }
-
-  return fetch(request, { ...options, headers });
-};
+// SecureStore-backed sessions do not live in the native fetch cookie jar.
+export const authenticatedFetch = createAuthenticatedFetch({
+  apiBaseUrl: API_BASE_URL,
+  fetchImpl: fetch,
+  getCookie: () => authClient.getCookie(),
+});

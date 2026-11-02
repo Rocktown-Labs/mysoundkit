@@ -13,6 +13,8 @@
 
 ### Fixed
 
+- Kept native discovery tied to the selected region, collapsed empty discovery rails with explicit global exploration, preserved authenticated Request inputs, cleared playback on account changes, and handled desktop cold-start deep links (#506).
+
 - Bound Bio sign-in tip actions to the initiating profile, prevented completed handoff replay and duplicate tab views, restored video retry telemetry, and loaded review publication helpers from the trusted base revision (#504).
 
 - Aggregated qualified artist playback counts once per discovery query, retaining ranking and cursor semantics without production schema changes (#497).

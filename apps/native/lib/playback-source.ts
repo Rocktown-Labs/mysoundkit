@@ -46,25 +46,46 @@ export async function resolvePlaybackSource({
 
 export async function loadPendingPlayback<Track>({
   getPendingTrack,
+  getAccountId = () => null,
   resolveSource,
   replaceSource,
   play,
 }: {
   getPendingTrack: () => Track | null;
+  getAccountId?: () => string | null;
   resolveSource: (track: Track) => Promise<NativePlaybackSource>;
   replaceSource: (source: NativePlaybackSource) => void;
   play: () => void;
 }): Promise<boolean> {
-  const capturedTrack = getPendingTrack(),
+  const capturedAccount = getAccountId(),
+    capturedTrack = getPendingTrack(),
     source = capturedTrack === null ? null : await resolveSource(capturedTrack);
   if (
     capturedTrack === null ||
     source === null ||
-    getPendingTrack() !== capturedTrack
+    getPendingTrack() !== capturedTrack ||
+    getAccountId() !== capturedAccount
   ) {
     return false;
   }
   replaceSource(source);
   play();
   return true;
+}
+
+/** Clear as much native state as possible even if one released handle throws. */
+export function clearNativePlayback(player: {
+  pause: () => void;
+  replace: (source: null) => void;
+}): void {
+  try {
+    player.pause();
+  } catch {
+    /* A disposed native handle may already be paused. */
+  }
+  try {
+    player.replace(null);
+  } catch {
+    /* React state cleanup must still proceed. */
+  }
 }
