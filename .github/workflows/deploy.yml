@@ -32,8 +32,25 @@ jobs:
     name: Verify
     if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg17
+        env:
+          POSTGRES_DB: soundkit_test
+          POSTGRES_PASSWORD: soundkit_test
+          POSTGRES_USER: soundkit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U soundkit_test -d soundkit_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     env:
       SOUNDKIT_CI_STATIC_CONFIG: "true"
+      DATABASE_URL: postgres://soundkit_test:soundkit_test@127.0.0.1:5432/soundkit_test?sslmode=disable
+      SOUNDKIT_TEST_DATABASE_URL: postgres://soundkit_test:soundkit_test@127.0.0.1:5432/soundkit_test?sslmode=disable
     permissions:
       contents: read
     steps:
@@ -53,6 +70,21 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Prepare isolated PostgreSQL fixture schema
+        working-directory: packages/db
+        run: |
+          node --input-type=module <<'NODE'
+          import { Client } from "pg";
+          const client = new Client({ connectionString: process.env.SOUNDKIT_TEST_DATABASE_URL });
+          await client.connect();
+          try {
+            await client.query("CREATE EXTENSION IF NOT EXISTS vector");
+          } finally {
+            await client.end();
+          }
+          NODE
+          pnpm exec drizzle-kit push --config drizzle.config.ts --force
 
       - name: Run verification suite (types, hooks, tests, build)
         run: pnpm run verify
