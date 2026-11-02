@@ -95,6 +95,8 @@ const sink = Cloudflare.Pipelines.Sink(
     return {
       config: {
         bucket: bucket.bucketName,
+        // R2 S3 credentials use token ID + SHA-256(token value).
+        // https://developers.cloudflare.com/r2/api/tokens/
         credentials: {
           accessKeyId: Output.map(token.tokenId, Redacted.make),
           secretAccessKey: Output.map(token.value, (value) =>

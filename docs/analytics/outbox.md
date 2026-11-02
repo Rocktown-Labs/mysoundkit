@@ -5,11 +5,13 @@
 Traks remains anonymous, cookieless product analytics. This pipeline is a separate,
 restricted internal dataset. It does not add browser cookies or fingerprinting.
 The operational payment ledger remains the financial source of truth.
-The existing charge-refunded producer uses a charge ID and charge total rather
-than individual Refund IDs/amounts. Those legacy-shaped rows are quarantined by
-this pipeline and excluded from refund revenue until that producer is corrected;
-nonzero rejects mean the archive must not be treated as a complete net-revenue
-report. This does not repair or rewrite historical payment records.
+The refund producer records confirmed individual Stripe Refund IDs/amounts (#509).
+Legacy rows using charge IDs/totals remain quarantined and excluded from refund
+revenue; nonzero rejects mean the archive must not be treated as a complete
+net-revenue report. Financial facts may have no subject when the operational
+buyer is absent or account linkage was erased; they still count toward revenue,
+but never toward identified account retention. This does not repair or rewrite
+historical payment records.
 
 PostgreSQL AFTER triggers insert a versioned outbox event in the **same transaction**
 as successful payments, individual partial refunds, paid orders, purchase access,

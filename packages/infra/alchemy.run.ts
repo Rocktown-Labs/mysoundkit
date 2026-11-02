@@ -514,10 +514,10 @@ export const server = Cloudflare.Worker(
 
     requireR2UploadCredentials(d.isProduction);
     let analyticsEnvironment = d.stage;
-    if (d.isProduction) {
-      analyticsEnvironment = "production";
-    } else if (d.isLocalDev) {
+    if (d.isLocalDev) {
       analyticsEnvironment = "test";
+    } else if (d.isProduction) {
+      analyticsEnvironment = "production";
     }
 
     return {
