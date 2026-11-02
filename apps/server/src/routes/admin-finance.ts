@@ -430,6 +430,10 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
             "customer.subscription.deleted",
             "charge.dispute.created",
             "charge.refunded",
+            "charge.refund.updated",
+            "refund.created",
+            "refund.updated",
+            "refund.failed",
           ],
           key: "commerce",
           secretConfigured: Boolean(
