@@ -146,6 +146,14 @@ Migration requires the existing application/migration role to create schemas,
 tables, functions and triggers; the owner is the same role used by Hyperdrive.
 If the role lacks those rights, installation fails without partially applying.
 
+The pinned Alchemy beta.79 sink provider has a narrow patch for incomplete
+write-only credentials saved after a failed create. Planning requests replacement
+instead of calling `Redacted.value(undefined)`; equal valid credentials still
+produce no replacement, and credential rotation still replaces the sink. The
+source and compiled provider are patched together and covered by executable
+provider tests. This does not bypass Cloudflare authentication or alter the
+production migration gate.
+
 ## Querying the archive
 
 Use a controlled internal analytical reader (for example DuckDB over downloaded
