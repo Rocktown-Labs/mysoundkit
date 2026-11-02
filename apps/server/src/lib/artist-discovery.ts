@@ -1,11 +1,18 @@
-import { playbackSessions, tracks } from "@soundkit/db/schema/app";
+import {
+  artistProfiles,
+  playbackSessions,
+  tracks,
+} from "@soundkit/db/schema/app";
 import { sql } from "drizzle-orm";
 
 import { playConditionSql } from "./analytics-helpers";
 
 // A single grouped relation supplies both counters. Reusing correlated COUNTs in
 // projection, ranking and cursor predicates otherwise rescans playback sessions.
-export const artistPlayCountsSql = sql`(
+export const artistPlayCountsJoin = sql`artist_play_counts.artist_id = ${artistProfiles.userId}`,
+  artistTotalPlays = sql<number>`coalesce(artist_play_counts.total_plays, 0)`,
+  artistWeeklyPlays = sql<number>`coalesce(artist_play_counts.weekly_plays, 0)`,
+  artistPlayCountsSql = sql`(
   select ${tracks.ownerUserId} as artist_id,
     count(*)::int as total_plays,
     (count(*) filter (where ${playbackSessions.startedAt} >= now() - interval '7 days'))::int as weekly_plays
