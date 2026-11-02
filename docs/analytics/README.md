@@ -105,3 +105,15 @@ artists. Do not apply them wholesale. Live `search_embeddings` indexes include t
 primary key, entity/model uniqueness and organization index, but no ANN index.
 Keep existing pgvector. Benchmark representative vectors and filter patterns
 before selecting an ANN index or changing recall/latency tradeoffs.
+
+## Review completion
+
+The CI Kimi review keeps a 700k token cap for up to 20 changed files and a 1.4m
+cap for larger PRs, with a 35-minute job timeout. A reached budget, skipped
+selection or unpublished finding still fails the existing completion gate.
+Standalone reviews can deliberately use `--max-tokens-budget 1400000` or review
+small groups through the CLI's exclude patterns; retain each report and inspect
+its coverage. A partial review is not approval.
+
+The server outbox/export rollout is tracked separately in
+[#500](https://github.com/Rocktown-Labs/mysoundkit/issues/500).

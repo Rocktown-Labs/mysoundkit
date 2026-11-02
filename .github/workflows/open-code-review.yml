@@ -32,7 +32,7 @@ jobs:
     needs: completion-tests
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     permissions:
       contents: read
       pull-requests: write
@@ -56,7 +56,9 @@ jobs:
           if (pr.state !== 'open' || pr.head.repo.full_name !== process.env.GITHUB_REPOSITORY || pr.base.ref !== 'master') {
             throw new Error('Review requires an open same-repository PR targeting master');
           }
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `number=${pr.number}\nbase=${pr.base.ref}\nhead=${pr.head.sha}\n`);
+          // Keep the ordinary cap; larger diffs have a bounded higher ceiling.
+          const budget = pr.changed_files > 20 ? 1400000 : 700000;
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `number=${pr.number}\nbase=${pr.base.ref}\nhead=${pr.head.sha}\nbudget=${budget}\n`);
           JS
 
       # Only same-repository PRs receive credentials. The pinned action reads
@@ -78,7 +80,7 @@ jobs:
           llm_extra_body: '{}'
           review_concurrency: '2'
           effort: low
-          max_tokens_budget: '700000'
+          max_tokens_budget: ${{ steps.target.outputs.budget }}
           review_task_timeout: '15'
           upload_artifacts: 'true'
           sticky_summary: 'true'
