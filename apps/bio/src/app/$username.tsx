@@ -61,7 +61,8 @@ import type {
   BioTrack,
   BioVideo,
 } from "@/lib/api";
-import { isBioAuthHandoffMessage } from "@/lib/auth-handoff";
+import { canCompleteBioTip, isBioAuthHandoffMessage } from "@/lib/auth-handoff";
+import type { BioTipTarget } from "@/lib/auth-handoff";
 
 const getSoundKitWebOrigin = () => {
   try {
@@ -197,12 +198,22 @@ function BioProfilePage() {
   const [mediaError, setMediaError] = useState<string | null>(null);
   const loadedSectionsRef = useRef(new Set<LoadableTab>());
   const authPopupRef = useRef<Window | null>(null);
-  const pendingAuthActionRef = useRef<"tip" | "follow">("tip");
+  const pendingAuthRef = useRef<{
+    action: "tip" | "follow";
+    target: BioTipTarget | null;
+  } | null>(null);
   const viewedProfileRef = useRef<string | null>(null);
-  const tipEligibilityRef = useRef(false);
+  const currentTipTargetRef = useRef<BioTipTarget | null>(null);
   useEffect(() => {
-    tipEligibilityRef.current = profile?.artist.canReceiveTips === true;
-  }, [profile?.artist.canReceiveTips]);
+    currentTipTargetRef.current =
+      profile?.artist.username.toLowerCase() === username.toLowerCase()
+        ? {
+            artistId: profile.artist.id,
+            canReceiveTips: profile.artist.canReceiveTips === true,
+            username,
+          }
+        : null;
+  }, [profile, username]);
   useEffect(() => {
     if (
       profile &&
@@ -218,7 +229,8 @@ function BioProfilePage() {
     useBioAudioPlayer();
 
   const beginAuthHandoff = (action: "tip" | "follow" = "tip") => {
-    pendingAuthActionRef.current = action;
+    const handoff = { action, target: currentTipTargetRef.current };
+    pendingAuthRef.current = handoff;
     captureAnalytics("bio_auth_handoff_started", { action });
     const returnOrigin = window.location.origin;
     const loginUrl = `${SOUNDKIT_WEB_URL}/auth/handoff?returnOrigin=${encodeURIComponent(returnOrigin)}`;
@@ -351,13 +363,21 @@ function BioProfilePage() {
       }
 
       const popup = authPopupRef.current,
-        action = pendingAuthActionRef.current;
+        handoff = pendingAuthRef.current;
+      if (!handoff) {
+        return;
+      }
+      const { action } = handoff;
       setAuthMessage("Checking your SoundKit sign-in…");
       let user;
       try {
         user = await verifyBioHandoffSession(event.data.token);
       } catch {
-        if (active && popup === authPopupRef.current) {
+        if (
+          active &&
+          popup === authPopupRef.current &&
+          handoff === pendingAuthRef.current
+        ) {
           captureAnalytics("bio_auth_handoff_failed", {
             action,
             reason: "network",
@@ -368,7 +388,11 @@ function BioProfilePage() {
         }
         return;
       }
-      if (!active || popup !== authPopupRef.current) {
+      if (
+        !active ||
+        popup !== authPopupRef.current ||
+        handoff !== pendingAuthRef.current
+      ) {
         return;
       }
       if (!user) {
@@ -382,9 +406,14 @@ function BioProfilePage() {
       captureAnalytics("bio_auth_handoff_completed", {
         action,
       });
+      authPopupRef.current = null;
+      pendingAuthRef.current = null;
       setAuthToken(event.data.token);
       setAuthMessage("Signed in successfully with SoundKit.");
-      if (action === "tip" && tipEligibilityRef.current) {
+      if (
+        action === "tip" &&
+        canCompleteBioTip(handoff.target, currentTipTargetRef.current)
+      ) {
         setIsTipOpen(true);
       }
     };
@@ -448,7 +477,7 @@ function BioProfilePage() {
       tabs.push({ id: "live", label: "Live" });
     }
     return tabs;
-  }, [media, tracks, profile?.live]);
+  }, [media, tracks, profile?.live, merchItems.length]);
 
   if (!profile || !artist || !media) {
     return <ProfileNotFound />;
@@ -460,9 +489,14 @@ function BioProfilePage() {
   );
 
   const handleTabChange = async (tab: TabType) => {
-    captureAnalytics("bio_section_viewed", {
-      section: tab === "tracks" ? "music" : tab === "live" ? "events" : tab,
-    });
+    if (tab === activeTab && !mediaError) {
+      return;
+    }
+    if (tab !== activeTab) {
+      captureAnalytics("bio_section_viewed", {
+        section: tab === "tracks" ? "music" : tab === "live" ? "events" : tab,
+      });
+    }
     setActiveTab(tab);
     if (
       tab === "feed" ||

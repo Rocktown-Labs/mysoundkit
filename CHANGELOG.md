@@ -11,6 +11,8 @@
 
 ### Fixed
 
+- Bound Bio sign-in tip actions to the initiating profile, prevented completed handoff replay and duplicate tab views, restored video retry telemetry, and loaded review publication helpers from the trusted base revision (#504).
+
 - Aggregated qualified artist playback counts once per discovery query, retaining ranking and cursor semantics without production schema changes (#497).
 
 - Reclaimed Hyperdrive configurations leaked by closed preview PRs, preventing account quota exhaustion from blocking server uploads and causing downstream queue-handler errors (#492).

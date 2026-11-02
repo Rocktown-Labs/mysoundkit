@@ -58,7 +58,7 @@ jobs:
           }
           // Keep the ordinary cap; larger diffs have a bounded higher ceiling.
           const budget = pr.changed_files > 20 ? 1400000 : 700000;
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `number=${pr.number}\nbase=${pr.base.ref}\nhead=${pr.head.sha}\nbudget=${budget}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `number=${pr.number}\nbase=${pr.base.ref}\nhead=${pr.head.sha}\nbase_sha=${pr.base.sha}\nbudget=${budget}\n`);
           JS
 
       # Only same-repository PRs receive credentials. The pinned action reads
@@ -87,6 +87,15 @@ jobs:
           checkpoint_range: 'true'
           resolve_outdated: 'false'
 
+      # Never execute a helper from the PR under the comment-writing token.
+      - name: Load trusted publication helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.target.outputs.base_sha }}
+          path: trusted-review
+          sparse-checkout: scripts
+          persist-credentials: false
+
       - name: Publish findings rejected by inline diff validation
         id: fallback
         if: ${{ steps.ocr.outputs.comments_failed != '' && steps.ocr.outputs.comments_failed != '0' }}
@@ -99,10 +108,12 @@ jobs:
           node --input-type=module <<'JS'
           import fs from 'node:fs';
           import { execFileSync } from 'node:child_process';
-          import { fallbackReviewBodies } from './scripts/code-review-result.mjs';
+          import { setTimeout } from 'node:timers/promises';
+          import { fallbackReviewBodies } from './trusted-review/scripts/code-review-result.mjs';
           const result = JSON.parse(fs.readFileSync('/tmp/ocr-result.json', 'utf8'));
           const bodies = fallbackReviewBodies(result, process.env.TARGET_HEAD);
           for (const [index, body] of bodies.entries()) {
+            if (index > 0) await setTimeout(1000);
             const input = `/tmp/ocr-fallback-${index}.json`;
             fs.writeFileSync(input, JSON.stringify({ body }), { mode: 0o600 });
             const response = JSON.parse(execFileSync('gh', [
@@ -125,7 +136,7 @@ jobs:
           set -euo pipefail
           node --input-type=module <<'JS'
           import fs from 'node:fs';
-          import { assertReviewPublication } from './scripts/code-review-result.mjs';
+          import { assertReviewPublication } from './trusted-review/scripts/code-review-result.mjs';
           const result = JSON.parse(fs.readFileSync('/tmp/ocr-result.json', 'utf8'));
           assertReviewPublication({
             result,

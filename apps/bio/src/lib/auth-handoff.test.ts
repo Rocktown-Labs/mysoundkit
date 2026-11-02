@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isBioAuthHandoffMessage } from "./auth-handoff";
+import { canCompleteBioTip, isBioAuthHandoffMessage } from "./auth-handoff";
 
 const origin = "https://mysoundkit.com",
   popup = {} as Window,
@@ -31,5 +31,32 @@ describe("Bio session handoff boundary", () => {
     expect(
       isBioAuthHandoffMessage({ ...valid, source: null }, origin, null)
     ).toBe(false);
+  });
+});
+
+describe("Bio pending tip destination", () => {
+  const requested = {
+    artistId: "artist-one",
+    canReceiveTips: true,
+    username: "one",
+  };
+  it("allows the initiating artist after verified sign-in", () => {
+    expect(
+      canCompleteBioTip(requested, { ...requested, username: "ONE" })
+    ).toBe(true);
+  });
+  it.each([
+    null,
+    { ...requested, artistId: "artist-two", username: "two" },
+    { ...requested, username: "two" },
+    { ...requested, canReceiveTips: false },
+  ])(
+    "does not redirect a pending tip after navigation or eligibility changes %#",
+    (current) => {
+      expect(canCompleteBioTip(requested, current)).toBe(false);
+    }
+  );
+  it("requires an initiating target", () => {
+    expect(canCompleteBioTip(null, requested)).toBe(false);
   });
 });

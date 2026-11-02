@@ -19,3 +19,22 @@ export const isBioAuthHandoffMessage = (
     data.token.length > 0
   );
 };
+
+export interface BioTipTarget {
+  artistId: string;
+  username: string;
+  canReceiveTips: boolean;
+}
+
+export function canCompleteBioTip(
+  requested: BioTipTarget | null,
+  current: BioTipTarget | null
+): boolean {
+  return (
+    requested !== null &&
+    current !== null &&
+    current.canReceiveTips &&
+    requested.artistId === current.artistId &&
+    requested.username.toLowerCase() === current.username.toLowerCase()
+  );
+}
