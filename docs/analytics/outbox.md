@@ -178,3 +178,7 @@ known Pipeline permission names and a target-account-match flag; no token values
 account IDs, arbitrary API messages or response payloads are printed. Failure to
 read token metadata does not prove a missing permission; compare the direct API
 probes first. This task does not deploy resources or change token policies.
+
+The optional `show_token_name` workflow input includes the Cloudflare token label
+for identifying the credential in the dashboard. It defaults off; even when
+enabled, the token value is excluded and redacted if repeated in its label.

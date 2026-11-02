@@ -8,7 +8,27 @@ const pipelinePermissions = new Set([
   "Workers Pipelines Edit",
 ]);
 
-export async function diagnosePipelinesAuth(env, fetchImpl = fetch) {
+function tokenLabel(details, token, enabled) {
+  if (
+    !enabled ||
+    !details?.success ||
+    typeof details.result?.name !== "string"
+  ) {
+    return [];
+  }
+  return [
+    {
+      name: details.result.name.replaceAll(token, "[redacted]").slice(0, 120),
+      probe: "ci_token_label",
+    },
+  ];
+}
+
+export async function diagnosePipelinesAuth(
+  env,
+  fetchImpl = fetch,
+  { includeTokenName = false } = {}
+) {
   const account = env.CLOUDFLARE_ACCOUNT_ID,
     token = env.CLOUDFLARE_API_TOKEN;
   if (!/^[a-f\d]{32}$/iu.test(account ?? "") || !token?.trim()) {
@@ -64,6 +84,7 @@ export async function diagnosePipelinesAuth(env, fetchImpl = fetch) {
       `${label}_details`,
       `${prefix}/tokens/${verified.result.id}`
     );
+    reports.push(...tokenLabel(details, token, includeTokenName));
     if (details?.success && Array.isArray(details.result?.policies)) {
       const policies = details.result.policies.flatMap((policy) => {
         const permissions = (policy.permission_groups ?? [])
@@ -97,7 +118,9 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   try {
-    const reports = await diagnosePipelinesAuth(process.env);
+    const reports = await diagnosePipelinesAuth(process.env, fetch, {
+      includeTokenName: process.env.SOUNDKIT_DIAGNOSTIC_TOKEN_NAME === "true",
+    });
     for (const report of reports) {
       console.info(JSON.stringify(report));
     }

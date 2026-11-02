@@ -13,6 +13,12 @@ on:
           - set-r2-secrets
           - diagnose-pipelines-auth
 
+      show_token_name:
+        description: "Include the token label (never its value) in auth diagnostics"
+        required: false
+        default: false
+        type: boolean
+
 concurrency:
   group: infra-maintenance
   cancel-in-progress: false
@@ -89,6 +95,7 @@ jobs:
     permissions:
       contents: read
     env:
+      SOUNDKIT_DIAGNOSTIC_TOKEN_NAME: ${{ inputs.show_token_name }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:

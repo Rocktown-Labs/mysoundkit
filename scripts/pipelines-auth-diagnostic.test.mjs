@@ -146,3 +146,26 @@ test("missing credentials fail before making any request", async () => {
   );
   assert.equal(calls, 0);
 });
+
+test("token labels are opt-in and never expose the token value", async () => {
+  const fixtureRoutes = {
+      "user/tokens/verify": [200, { result: { id: tokenId }, success: true }],
+      [`user/tokens/${tokenId}`]: [
+        200,
+        {
+          result: { name: "Alchemy fixture-secret", policies: [] },
+          success: true,
+        },
+      ],
+    },
+    hidden = await diagnosePipelinesAuth(env, mockApi(fixtureRoutes)),
+    shown = await diagnosePipelinesAuth(env, mockApi(fixtureRoutes), {
+      includeTokenName: true,
+    });
+  assert.ok(!hidden.some((report) => report.probe === "ci_token_label"));
+  assert.deepEqual(
+    shown.find((report) => report.probe === "ci_token_label"),
+    { name: "Alchemy [redacted]", probe: "ci_token_label" }
+  );
+  assert.doesNotMatch(JSON.stringify(shown), /fixture-secret/u);
+});
