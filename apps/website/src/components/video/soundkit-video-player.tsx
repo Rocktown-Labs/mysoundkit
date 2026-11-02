@@ -29,9 +29,12 @@ function videoAnalyticsProvider(
   muxPlaybackId?: string | null,
   externalPlaybackUrl?: string | null
 ): "mux" | "youtube" | "soundkit" {
-  if (muxPlaybackId) return "mux";
-  if (externalPlaybackUrl && getYouTubeVideoId(externalPlaybackUrl))
+  if (muxPlaybackId) {
+    return "mux";
+  }
+  if (externalPlaybackUrl && getYouTubeVideoId(externalPlaybackUrl)) {
     return "youtube";
+  }
   return "soundkit";
 }
 
@@ -145,6 +148,7 @@ export function SoundKitVideoPlayer({
       onEnded?.();
     },
     handleAnalyticsError = (message: string) => {
+      analyticsStartedRef.current = null;
       capture("playback_failed", {
         media_type: "video",
         provider: analyticsProvider,
@@ -215,12 +219,6 @@ export function SoundKitVideoPlayer({
   useImperativeHandle(
     playerRef,
     () => ({
-      toggleMute: () => {
-        if (muxRef.current) muxRef.current.muted = !muxRef.current.muted;
-        else if (nativeRef.current)
-          nativeRef.current.muted = !nativeRef.current.muted;
-        else youtubeRef.current?.toggleMute();
-      },
       pause: () => {
         muxRef.current?.pause();
         nativeRef.current?.pause();
@@ -309,6 +307,15 @@ export function SoundKitVideoPlayer({
           nativeRef.current.currentTime = Math.max(0, seconds);
         } else {
           youtubeRef.current?.seek(seconds);
+        }
+      },
+      toggleMute: () => {
+        if (muxRef.current) {
+          muxRef.current.muted = !muxRef.current.muted;
+        } else if (nativeRef.current) {
+          nativeRef.current.muted = !nativeRef.current.muted;
+        } else {
+          youtubeRef.current?.toggleMute();
         }
       },
     }),
