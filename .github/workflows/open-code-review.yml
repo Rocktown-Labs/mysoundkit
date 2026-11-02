@@ -33,6 +33,13 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
+    # The launcher self-updates in a detached background process on its first
+    # invocation. That `npm i -g` briefly relinks the global `ocr` binary
+    # while the Configure step is still calling it, which fails the job with
+    # "Cannot find module '/usr/local/bin/ocr'". The version is pinned below,
+    # so the updater must stay off.
+    env:
+      OCR_NO_UPDATE: '1'
     permissions:
       contents: read
       pull-requests: write
