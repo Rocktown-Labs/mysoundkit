@@ -109,7 +109,7 @@ before selecting an ANN index or changing recall/latency tradeoffs.
 ## Review completion
 
 The CI Kimi review keeps a 700k token cap for up to 20 changed files and a 1.4m
-cap for larger PRs, with a 35-minute job timeout. Unfinished selected files or
+cap for larger PRs, with a 50-minute job timeout and 25-minute per-task deadline. Unfinished selected files or
 unpublished findings still fail the existing completion gate.
 If GitHub rejects an inline location, CI publishes the complete report in bounded
 PR comments and confirms those responses before marking findings published.
