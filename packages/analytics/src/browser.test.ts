@@ -19,6 +19,22 @@ const secret = "private-person@example.test",
   };
 
 describe("anonymous analytics privacy contract", () => {
+  it("preserves the existing numeric onboarding steps as bounded step numbers", () => {
+    expect(
+      sanitizeAnalyticsProperties("onboarding_step_viewed", {
+        account_type: "artist",
+        step: 3,
+      })
+    ).toEqual({ account_type: "artist", step_number: 3 });
+    expect(
+      sanitizeAnalyticsProperties("onboarding_step_viewed", { step: 99 })
+    ).toEqual({});
+    expect(
+      sanitizeAnalyticsProperties("creator_eligibility_declared", {
+        eligibility: "independent",
+      })
+    ).toEqual({ eligibility: "independent" });
+  });
   it("normalizes adversarial slash sequences without a backtracking pattern", () => {
     expect(analyticsRoute(`${"/".repeat(100_000)}x`, "web")).toBe("/other");
     expect(analyticsRoute(`/login${"/".repeat(100_000)}`, "web")).toBe(

@@ -22,7 +22,7 @@ const propertyEnums: Record<string, readonly string[]> = {
       "other",
     ],
     duration_tier: ["preview", "full"],
-    eligibility: ["eligible", "ineligible", "unknown"],
+    eligibility: ["eligible", "ineligible", "unknown", "independent", "major"],
     kind: [
       "track",
       "project",
@@ -193,7 +193,18 @@ export function sanitizeAnalyticsProperties(
   const output: AnalyticsProperties = {};
   for (const key of eventCatalog[event]) {
     const value = input[key];
-    if (typeof value === "string" && propertyEnums[key]?.includes(value)) {
+    if (
+      key === "step" &&
+      typeof value === "number" &&
+      Number.isInteger(value) &&
+      value >= 1 &&
+      value <= 16
+    ) {
+      output.step_number = value;
+    } else if (
+      typeof value === "string" &&
+      propertyEnums[key]?.includes(value)
+    ) {
       output[key] = value;
     } else if (booleanProperties.has(key) && typeof value === "boolean") {
       output[key] = value;
@@ -202,7 +213,7 @@ export function sanitizeAnalyticsProperties(
       typeof value === "number" &&
       Number.isInteger(value) &&
       value >= 0 &&
-      value <= 100_000
+      value <= (key === "step_number" ? 16 : 100_000)
     ) {
       output[key] = value;
     }

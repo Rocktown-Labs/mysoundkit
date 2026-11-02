@@ -3242,6 +3242,11 @@ export const useSellerAccountLinkMutation = () =>
       body: SellerAccountLinkBody
     ): Promise<SellerAccountLinkResponse> =>
       rpcJson(await sellerAccountLinkPost({ json: body })),
+    onSuccess: (result) => {
+      if (result.accountLinkUrl) {
+        capture("stripe_connect_started");
+      }
+    },
   });
 
 export const useArtistSetupGuideQuery = (enabled = true) =>
