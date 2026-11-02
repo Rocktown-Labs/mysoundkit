@@ -11,6 +11,8 @@
 
 ### Fixed
 
+- Aggregated qualified artist playback counts once per discovery query, retaining ranking and cursor semantics without production schema changes (#497).
+
 - Reclaimed Hyperdrive configurations leaked by closed preview PRs, preventing account quota exhaustion from blocking server uploads and causing downstream queue-handler errors (#492).
 - Covered native playback handoff races during deferred credential reads, including track switches, clearing playback, and reselecting the same track (#487).
 
@@ -30,6 +32,7 @@
 - Prevented unsettled Checkout sessions from marking orders paid or initiating fulfillment and tip transfers (#461).
 - Disabled persisted video drafts and removed legacy drafts when persistence is disabled (#461).
 - Enforced playlist owner authorization and current track visibility throughout library reads and mutations, retaining buyer-scoped purchase access (#485).
+- Fixed malformed purchase/collaboration visibility subqueries that made recent-library queries fail, and added isolated PostgreSQL/pgvector coverage to CI (#501).
 
 ## Unreleased
 

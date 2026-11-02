@@ -34,6 +34,12 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { playConditionSql } from "@/lib/analytics-helpers";
+import {
+  artistPlayCountsJoin,
+  artistPlayCountsSql,
+  artistTotalPlays,
+  artistWeeklyPlays,
+} from "@/lib/artist-discovery";
 import { publicProfileAssetUrl } from "@/lib/asset-urls";
 import {
   buildProjectSummaries,
@@ -134,24 +140,9 @@ export const capitalizeWords = (input?: string | null) => {
   return input.trim();
 };
 
-const artistWeeklyPlays = sql<number>`coalesce((
-    select count(${playbackSessions.id})::int
-    from ${playbackSessions}
-    inner join ${tracks} on ${tracks.id} = ${playbackSessions.trackId}
-    where ${tracks.ownerUserId} = ${artistProfiles.userId}
-      and ${playbackSessions.startedAt} >= now() - interval '7 days'
-      and ${playConditionSql}
-  ), 0)`,
-  artistTotalPlays = sql<number>`coalesce((
-    select count(${playbackSessions.id})::int
-    from ${playbackSessions}
-    inner join ${tracks} on ${tracks.id} = ${playbackSessions.trackId}
-    where ${tracks.ownerUserId} = ${artistProfiles.userId}
-      and ${playConditionSql}
-  ), 0)`,
-  // Recent qualified plays drive discovery while lifetime plays and followers
-  // provide durable signal. Stable username/id tie-breakers keep pages repeatable.
-  artistDiscoveryScore = sql<number>`coalesce(${artistWeeklyPlays}, 0) * 20 + coalesce(${artistProfiles.followerCount}, 0) * 5 + coalesce(${artistTotalPlays}, 0) * 2`,
+// Recent qualified plays drive discovery while lifetime plays and followers
+// provide durable signal. Stable username/id tie-breakers keep pages repeatable.
+const artistDiscoveryScore = sql<number>`coalesce(${artistWeeklyPlays}, 0) * 20 + coalesce(${artistProfiles.followerCount}, 0) * 5 + coalesce(${artistTotalPlays}, 0) * 2`,
   artistOrderBy = (query: {
     category?: "rising" | "new" | "top";
     sort?: string;
@@ -304,8 +295,11 @@ app.openapi(
         .innerJoin(authUser, eq(authUser.id, artistProfiles.userId))
         .leftJoin(genres, eq(genres.id, artistProfiles.primaryGenreId))
         .leftJoin(tracks, eq(tracks.ownerUserId, artistProfiles.userId))
+        .leftJoin(artistPlayCountsSql, artistPlayCountsJoin)
         .where(and(...publicArtistConditions))
         .groupBy(
+          artistWeeklyPlays,
+          artistTotalPlays,
           artistProfiles.followerCount,
           artistProfiles.isVerified,
           artistProfiles.stageName,
@@ -502,8 +496,11 @@ app.openapi(
       .innerJoin(authUser, eq(authUser.id, artistProfiles.userId))
       .leftJoin(genres, eq(genres.id, artistProfiles.primaryGenreId))
       .leftJoin(tracks, eq(tracks.ownerUserId, artistProfiles.userId))
+      .leftJoin(artistPlayCountsSql, artistPlayCountsJoin)
       .where(and(...publicArtistConditions))
       .groupBy(
+        artistWeeklyPlays,
+        artistTotalPlays,
         artistProfiles.followerCount,
         artistProfiles.isVerified,
         artistProfiles.stageName,

@@ -130,12 +130,15 @@ describe.skipIf(!dbConnected)("live query routes", () => {
       status: "queued",
       userId: USER_ID,
     });
-    await db.execute(sql`
-      insert into live_experiences
-        (created_by_user_id, id, kind, meeting_id, starts_at, status, title)
-      values
-        (${USER_ID}, ${EXPERIENCE_ID}, 'party', 'db-test-live-meeting', ${startsAt}, 'scheduled', 'Public Test Experience')
-    `);
+    await db.insert(liveExperiences).values({
+      createdByUserId: USER_ID,
+      id: EXPERIENCE_ID,
+      kind: "party",
+      meetingId: "db-test-live-meeting",
+      startsAt,
+      status: "scheduled",
+      title: "Public Test Experience",
+    });
   });
 
   afterAll(async () => {
