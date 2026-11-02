@@ -183,10 +183,14 @@ it.each([
   (pauseThrows, replaceThrows) => {
     const player = {
       pause: vi.fn(() => {
-        if (pauseThrows) {throw new Error("released");}
+        if (pauseThrows) {
+          throw new Error("released");
+        }
       }),
       replace: vi.fn((_source: null) => {
-        if (replaceThrows) {throw new Error("released");}
+        if (replaceThrows) {
+          throw new Error("released");
+        }
       }),
     };
     expect(() => clearNativePlayback(player)).not.toThrow();
