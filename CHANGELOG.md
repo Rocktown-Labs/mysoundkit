@@ -8,6 +8,8 @@
 
 ### Fixed
 
+- Fixed malformed purchase/collaboration visibility subqueries that made recent-library queries fail, and added isolated PostgreSQL/pgvector coverage to CI (#501).
+
 - Reclaimed Hyperdrive configurations leaked by closed preview PRs, preventing account quota exhaustion from blocking server uploads and causing downstream queue-handler errors (#492).
 - Covered native playback handoff races during deferred credential reads, including track switches, clearing playback, and reselecting the same track (#487).
 
