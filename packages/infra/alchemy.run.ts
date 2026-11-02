@@ -513,6 +513,12 @@ export const server = Cloudflare.Worker(
     const d = yield* deployment;
 
     requireR2UploadCredentials(d.isProduction);
+    let analyticsEnvironment = d.stage;
+    if (d.isProduction) {
+      analyticsEnvironment = "production";
+    } else if (d.isLocalDev) {
+      analyticsEnvironment = "test";
+    }
 
     return {
       compatibility: { flags: ["nodejs_compat"] },
@@ -529,7 +535,7 @@ export const server = Cloudflare.Worker(
       env: {
         AI: workersAi,
         ANALYTICS_STREAM: analyticsStream,
-        SOUNDKIT_ANALYTICS_ENV: d.isProduction ? "production" : d.isLocalDev ? "test" : d.stage,
+        SOUNDKIT_ANALYTICS_ENV: analyticsEnvironment,
         ...optionalEnvBinding("BATTLE_BOT_SECRET"),
         AUDIO_EMBEDDINGS_ENABLED: "true",
         BATTLE_DIRECTORY: battleDirectory,

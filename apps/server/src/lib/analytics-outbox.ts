@@ -118,9 +118,13 @@ export async function recordAccountActivity(
   userId: string,
   options: { environment: string; origin: string; cache?: ActivityCache }
 ): Promise<void> {
-  if (!isDatabaseConfigured()) {return;}
+  if (!isDatabaseConfigured()) {
+    return;
+  }
   await recordDailyActivity({
     ...options,
+    onCacheError: (phase) =>
+      logWarn({ event: "analytics_activity_cache_failed", phase }),
     record: async () => {
       await createDb().execute(
         sql`SELECT soundkit_analytics.record_activity(${userId})`
@@ -159,28 +163,28 @@ export async function dispatchAnalyticsOutbox({
     `);
   const valid: { id: string; record: Record<string, unknown> }[] = [];
   let rejected = 0;
-  const rows = z
-    .array(
-      z.object({
-        cohort_day: z.string().nullable(),
-        environment: z.string(),
-        event_type: z.string(),
-        id: z.string(),
-        occurred_at: z.union([z.date(), z.string()]),
-        properties: z.unknown(),
-        subject_id: z.string().nullable(),
-      })
-    )
-    .safeParse(claimed.rows);
-  if (!rows.success) {
+  const rowSchema = z.object({
+    cohort_day: z.string().nullable(),
+    environment: z.string(),
+    event_type: z.string(),
+    id: z.string().uuid(),
+    occurred_at: z.union([z.date(), z.string()]),
+    properties: z.unknown(),
+    subject_id: z.string().nullable(),
+  });
+  const rows = claimed.rows.map((row) => rowSchema.safeParse(row));
+  const parsed = rows.flatMap((row) => (row.success ? [row.data] : []));
+  if (parsed.length !== rows.length) {
+    const keep = parsed.map((row) => sql`${row.id}::uuid`);
     const invalid =
       await database.execute(sql`UPDATE soundkit_analytics.events SET
       quarantined_at=now(),failure_code='invalid_event',lease_id=NULL,leased_until=NULL
-      WHERE lease_id=${lease}::uuid RETURNING id`);
-    logWarn({ event: "analytics_outbox_parse_failed" });
-    return { delivered: 0, rejected: invalid.rowCount ?? 0, skipped: false };
+      WHERE lease_id=${lease}::uuid ${keep.length > 0 ? sql`AND id NOT IN (${sql.join(keep, sql`,`)})` : sql``}
+      RETURNING id`);
+    rejected = invalid.rowCount ?? 0;
+    logWarn({ event: "analytics_outbox_parse_failed", rejected });
   }
-  for (const row of rows.data) {
+  for (const row of parsed) {
     let record: Record<string, unknown>;
     try {
       record = serializeOutboxEvent(row);

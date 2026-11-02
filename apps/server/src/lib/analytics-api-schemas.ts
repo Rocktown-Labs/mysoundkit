@@ -16,7 +16,7 @@ export const analyticsFailuresSchema = z.object({
       event_type: z.string(),
       failure_code: z.string().nullable(),
       id: z.string().uuid(),
-      occurred_at: z.string().datetime(),
+      occurred_at: z.string().datetime().nullable(),
       quarantined_at: z.string().datetime(),
     })
   ),

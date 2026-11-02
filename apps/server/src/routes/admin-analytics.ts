@@ -31,8 +31,9 @@ import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>({
     defaultHook: (result, c) => {
-      if (!result.success)
-        {return c.json({ message: "Invalid analytics request." }, 400);}
+      if (!result.success) {
+        return c.json({ message: "Invalid analytics request." }, 400);
+      }
     },
   }),
   errorSchema = z.object({ message: z.string() }),
@@ -50,6 +51,26 @@ app.use("*", async (c, next) => {
   }
   return await next();
 });
+// Erasure is deliberately independent of the deployment/export environment.
+for (const path of [
+  "/health",
+  "/failures",
+  "/retention",
+  "/reconciliation",
+  "/replay/*",
+]) {
+  app.use(path, async (c, next) => {
+    if (
+      !/^(?:production|pr-\d+|test)$/u.test(c.env.SOUNDKIT_ANALYTICS_ENV ?? "")
+    ) {
+      return c.json(
+        { message: "Analytics environment is not configured." },
+        503
+      );
+    }
+    return await next();
+  });
+}
 app.openapi(
   createRoute({
     method: "get",

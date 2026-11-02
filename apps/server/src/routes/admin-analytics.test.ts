@@ -63,6 +63,20 @@ describe("internal analytics operational controls", () => {
       ).status
     ).toBe(503);
   });
+  it.each([
+    "health",
+    "failures",
+    "retention",
+    "reconciliation",
+    "replay/00000000-0000-4000-8000-000000000000",
+  ])("requires environment scope for %s", async (path) => {
+    const response = await appFor({ id: "admin", role: "admin" }).request(
+      `/analytics/${path}`,
+      path.startsWith("replay") ? { method: "POST" } : undefined,
+      {}
+    );
+    expect(response.status).toBe(503);
+  });
   it("can erase account analytics without any export binding", async () => {
     const response = await appFor({ id: "admin", role: "admin" }).request(
       "/analytics/erase/fixture-user",

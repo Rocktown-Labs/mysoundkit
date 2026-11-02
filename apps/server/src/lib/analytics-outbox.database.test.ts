@@ -472,19 +472,27 @@ describe.skipIf(!url || process.env.SOUNDKIT_DISABLE_DB_TESTS === "true")(
     });
 
     it("quarantines leased rows after unexpected schema drift", async () => {
+      const id = await payment();
+      await client.query(
+        "UPDATE public.transactions SET status='succeeded' WHERE id=$1",
+        [id]
+      );
       // This entire fixture transaction rolls back, including the DDL.
       await client.query(
         "ALTER TABLE soundkit_analytics.events ALTER COLUMN occurred_at DROP NOT NULL"
       );
       await client.query(
-        "UPDATE soundkit_analytics.events SET occurred_at=NULL WHERE environment=$1",
+        "UPDATE soundkit_analytics.events SET occurred_at=NULL WHERE environment=$1 AND event_type='account_created'",
         [environment]
       );
       const send = vi.fn(async (_records: Record<string, unknown>[]) => {});
       expect(
         await dispatchAnalyticsOutbox({ db, environment, stream: { send } })
-      ).toMatchObject({ delivered: 0, rejected: 1 });
-      expect(send).not.toHaveBeenCalled();
+      ).toMatchObject({ delivered: 1, rejected: 1 });
+      expect(send).toHaveBeenCalledOnce();
+      expect(send.mock.calls[0]?.[0].map((event) => event.event_type)).toEqual([
+        "payment_succeeded",
+      ]);
       expect((await analyticsOutboxHealth(environment, db))?.quarantined).toBe(
         1
       );

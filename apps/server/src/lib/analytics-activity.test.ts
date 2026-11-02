@@ -67,7 +67,9 @@ describe("authenticated activity throttle", () => {
           throw new Error("cache unavailable");
         }),
       };
-    await recordDailyActivity({ ...base, cache, record });
+    const onCacheError = vi.fn();
+    await recordDailyActivity({ ...base, cache, onCacheError, record });
+    expect(onCacheError.mock.calls).toEqual([["match"], ["put"]]);
     expect(record).toHaveBeenCalledOnce();
   });
   it("does not cache an activity record that failed to commit", async () => {
