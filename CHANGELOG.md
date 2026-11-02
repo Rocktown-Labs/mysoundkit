@@ -4,7 +4,7 @@
 
 ### Added
 
-- Kept strict Kimi completion gates while allowing a bounded higher review budget for larger PRs (#503).
+- Kept strict Kimi completion gates, allowed a bounded higher review budget for larger PRs, and published findings as PR comments when GitHub rejects inline locations (#503).
 - Added shared cookieless, memory-only Traks tracking for SoundKit and Bio, with redacted routes, strict event properties, real playback and onboarding outcomes, and repeatable goals/funnel configuration (#496).
 
 - Added pinned Kimi Open Code Review for standalone use and trusted pull requests, with bounded usage, saved review artifacts, and completion gates (#493).

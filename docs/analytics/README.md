@@ -111,6 +111,9 @@ before selecting an ANN index or changing recall/latency tradeoffs.
 The CI Kimi review keeps a 700k token cap for up to 20 changed files and a 1.4m
 cap for larger PRs, with a 35-minute job timeout. Unfinished selected files or
 unpublished findings still fail the existing completion gate.
+If GitHub rejects an inline location, CI publishes the complete report in bounded
+PR comments and confirms those responses before marking findings published.
+Coverage and exact-head checks remain mandatory.
 Standalone reviews can deliberately use `--max-tokens-budget 1400000` or review
 small groups through the CLI's exclude patterns; retain each report and inspect
 its coverage. A partial review is not approval.

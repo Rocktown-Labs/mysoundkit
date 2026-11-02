@@ -121,6 +121,7 @@ export function SoundKitVideoPlayer({
     muxRef = useRef<MuxPlayerRefAttributes>(null),
     nativeRef = useRef<HTMLVideoElement>(null),
     youtubeRef = useRef<VideoPlaybackHandle>(null),
+    pipObserverRef = useRef<AbortController | null>(null),
     telemetryRef = useRef<VideoViewTelemetry | null>(null),
     analyticsStartedRef = useRef<string | null>(null),
     analyticsIdentity =
@@ -263,11 +264,40 @@ export function SoundKitVideoPlayer({
           return true;
         }
         const safari = native as HTMLVideoElement & {
+          webkitPresentationMode?: string;
           webkitSetPresentationMode?: (mode: string) => void;
           webkitSupportsPresentationMode?: (mode: string) => boolean;
         };
-        if (safari.webkitSupportsPresentationMode?.("picture-in-picture")) {
-          safari.webkitSetPresentationMode?.("picture-in-picture");
+        if (
+          typeof safari.webkitSetPresentationMode === "function" &&
+          safari.webkitSupportsPresentationMode?.("picture-in-picture")
+        ) {
+          pipObserverRef.current?.abort();
+          if (safari.webkitPresentationMode === "picture-in-picture") {
+            safari.webkitSetPresentationMode("inline");
+            return true;
+          }
+          const observation = new AbortController();
+          pipObserverRef.current = observation;
+          native.addEventListener(
+            "webkitpresentationmodechanged",
+            () => {
+              observation.abort();
+              if (safari.webkitPresentationMode === "picture-in-picture") {
+                capture("pip_entered", {
+                  media_type: "video",
+                  provider: analyticsProvider,
+                });
+              }
+            },
+            { once: true, signal: observation.signal }
+          );
+          try {
+            safari.webkitSetPresentationMode("picture-in-picture");
+          } catch (error) {
+            observation.abort();
+            throw error;
+          }
           return true;
         }
         return false;
@@ -284,6 +314,8 @@ export function SoundKitVideoPlayer({
     }),
     [onPaused, analyticsProvider]
   );
+
+  useEffect(() => () => pipObserverRef.current?.abort(), []);
 
   useEffect(
     () => () => {

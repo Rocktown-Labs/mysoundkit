@@ -247,7 +247,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       // Queue early events until the cookieless, schema-filtered client mounts.
       {
         children:
-          "window.traks=window.traks||function(){var q=window.traks.q=window.traks.q||[];if(q.length<100)q.push(Array.from(arguments))}",
+          "window.traks=window.traks||function(){const q=window.traks.q=window.traks.q||[];if(q.length<100)q.push(Array.from(arguments))}",
       },
     ],
     // Inlined instead of a render-blocking stylesheet link (~420ms on mobile

@@ -87,13 +87,40 @@ jobs:
           checkpoint_range: 'true'
           resolve_outdated: 'false'
 
+      - name: Publish findings rejected by inline diff validation
+        id: fallback
+        if: ${{ steps.ocr.outputs.comments_failed != '' && steps.ocr.outputs.comments_failed != '0' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.target.outputs.number }}
+          TARGET_HEAD: ${{ steps.target.outputs.head }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          import { fallbackReviewBodies } from './scripts/code-review-result.mjs';
+          const result = JSON.parse(fs.readFileSync('/tmp/ocr-result.json', 'utf8'));
+          const bodies = fallbackReviewBodies(result, process.env.TARGET_HEAD);
+          for (const [index, body] of bodies.entries()) {
+            const input = `/tmp/ocr-fallback-${index}.json`;
+            fs.writeFileSync(input, JSON.stringify({ body }), { mode: 0o600 });
+            const response = JSON.parse(execFileSync('gh', [
+              'api', `repos/${process.env.GITHUB_REPOSITORY}/issues/${process.env.PR_NUMBER}/comments`,
+              '--method', 'POST', '--input', input,
+            ], { encoding: 'utf8' }));
+            if (!response.id || response.body !== body) throw new Error('Fallback finding publication was not confirmed.');
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'comments_failed=0\n');
+          JS
+
       # The pinned v1.13.3 action writes /tmp/ocr-result.json. Recheck on upgrades.
       - name: Require complete review and published findings
         env:
           REVIEWED_HEAD: ${{ steps.ocr.outputs.checkpoint_after }}
           TARGET_HEAD: ${{ steps.target.outputs.head }}
           RANGE_REASON: ${{ steps.ocr.outputs.range_reason }}
-          FAILED_COMMENTS: ${{ steps.ocr.outputs.comments_failed }}
+          FAILED_COMMENTS: ${{ steps.fallback.outputs.comments_failed || steps.ocr.outputs.comments_failed }}
         run: |
           set -euo pipefail
           node --input-type=module <<'JS'

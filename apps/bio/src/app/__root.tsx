@@ -79,7 +79,7 @@ export const Route = createRootRoute({
     scripts: [
       {
         children:
-          "window.traks=window.traks||function(){var q=window.traks.q=window.traks.q||[];if(q.length<100)q.push(Array.from(arguments))}",
+          "window.traks=window.traks||function(){const q=window.traks.q=window.traks.q||[];if(q.length<100)q.push(Array.from(arguments))}",
       },
     ],
     // Inlined instead of a render-blocking stylesheet link (the same

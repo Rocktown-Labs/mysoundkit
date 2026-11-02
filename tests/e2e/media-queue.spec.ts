@@ -181,80 +181,133 @@ for (const first of ["audio", "video"] as const) {
   });
 }
 
-test("hosted video PiP uses the persistent media element and music replaces it", async ({
-  page,
-}) => {
-  test.setTimeout(90_000);
-  const hosted = {
-    ...youtube,
-    id: "video:video_battle_replay",
-    src: "/media/test-video.mp4",
-    title: "Hosted queue video",
-    video: {
-      externalPlaybackUrl: "/media/test-video.mp4",
-      verifiedOnPlatform: true,
-      videoId: "video_battle_replay",
-    },
-  };
-  await page.addInitScript(
-    ({ current, next }) =>
-      localStorage.setItem(
-        "soundkit.audio-player.v1:anonymous",
-        JSON.stringify({
-          currentTrack: current,
-          queue: [current, next],
-          recentlyPlayed: [],
-          visible: true,
-        })
-      ),
-    { current: hosted, next: nextSong }
-  );
-  await page.route("**/media/test-video.mp4", (route) =>
-    route.fulfill({ body: "", contentType: "video/mp4" })
-  );
-  await page.goto("/videos/video_battle_replay", {
-    waitUntil: "domcontentloaded",
-  });
-  const player = page.getByTestId("video-queue-player");
-  await expect(player.locator("video")).toBeVisible({ timeout: 60_000 });
-  await expect(player.locator("video")).toHaveAttribute(
-    "src",
-    `${new URL(page.url()).origin}/media/test-video.mp4`
-  );
-  await player.locator("video").evaluate((video) => {
-    video.dataset.queueIdentity = "hosted-original";
-    Object.defineProperty(document, "pictureInPictureEnabled", {
-      configurable: true,
-      value: true,
-    });
-    Object.defineProperty(document, "pictureInPictureElement", {
-      configurable: true,
-      value: null,
-    });
-    video.requestPictureInPicture = () => {
-      video.dataset.pipRequested = "true";
-      return Promise.resolve({} as PictureInPictureWindow);
+for (const pipKind of ["standard", "webkit"] as const) {
+  test(`hosted video ${pipKind} PiP uses the persistent media element and music replaces it`, async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const hosted = {
+      ...youtube,
+      id: "video:video_battle_replay",
+      src: "/media/test-video.mp4",
+      title: "Hosted queue video",
+      video: {
+        externalPlaybackUrl: "/media/test-video.mp4",
+        verifiedOnPlatform: true,
+        videoId: "video_battle_replay",
+      },
     };
+    await page.addInitScript(
+      ({ current, next }) =>
+        localStorage.setItem(
+          "soundkit.audio-player.v1:anonymous",
+          JSON.stringify({
+            currentTrack: current,
+            queue: [current, next],
+            recentlyPlayed: [],
+            visible: true,
+          })
+        ),
+      { current: hosted, next: nextSong }
+    );
+    await page.route("**/media/test-video.mp4", (route) =>
+      route.fulfill({ body: "", contentType: "video/mp4" })
+    );
+    await page.goto("/videos/video_battle_replay", {
+      waitUntil: "domcontentloaded",
+    });
+    const player = page.getByTestId("video-queue-player");
+    await expect(player.locator("video")).toBeVisible({ timeout: 60_000 });
+    await expect(player.locator("video")).toHaveAttribute(
+      "src",
+      `${new URL(page.url()).origin}/media/test-video.mp4`
+    );
+    await player.locator("video").evaluate((video, provider) => {
+      video.dataset.queueIdentity = "hosted-original";
+      const observedWindow = window as Window & {
+        __queuePipEvents?: number;
+        traks?: (name: string) => void;
+      };
+      observedWindow.__queuePipEvents = 0;
+      observedWindow.traks = (name) => {
+        if (name === "pip_entered")
+          observedWindow.__queuePipEvents =
+            (observedWindow.__queuePipEvents ?? 0) + 1;
+      };
+      Object.defineProperty(document, "pictureInPictureEnabled", {
+        configurable: true,
+        value: provider === "standard",
+      });
+      Object.defineProperty(document, "pictureInPictureElement", {
+        configurable: true,
+        value: null,
+      });
+      if (provider === "standard") {
+        video.requestPictureInPicture = () => {
+          video.dataset.pipRequested = "true";
+          return Promise.resolve({} as PictureInPictureWindow);
+        };
+      } else {
+        const safari = video as HTMLVideoElement & {
+          webkitPresentationMode?: string;
+          webkitSupportsPresentationMode?: (mode: string) => boolean;
+          webkitSetPresentationMode?: (mode: string) => void;
+        };
+        safari.webkitPresentationMode = "inline";
+        safari.webkitSupportsPresentationMode = () => true;
+        safari.webkitSetPresentationMode = (mode) => {
+          safari.webkitPresentationMode = mode;
+          video.dataset.pipRequested = "true";
+          video.dataset.presentationMode = mode;
+          video.dispatchEvent(new Event("webkitpresentationmodechanged"));
+        };
+      }
+    }, pipKind);
+    await player
+      .getByRole("button", { exact: true, name: "Picture-in-picture" })
+      .click();
+    await expect(player.locator("video")).toHaveAttribute(
+      "data-pip-requested",
+      "true"
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (window as Window & { __queuePipEvents?: number }).__queuePipEvents
+        )
+      )
+      .toBe(1);
+    if (pipKind === "webkit") {
+      await player
+        .getByRole("button", { exact: true, name: "Picture-in-picture" })
+        .click();
+      await expect(player.locator("video")).toHaveAttribute(
+        "data-presentation-mode",
+        "inline"
+      );
+      expect(
+        await page.evaluate(
+          () =>
+            (window as Window & { __queuePipEvents?: number }).__queuePipEvents
+        )
+      ).toBe(1);
+    }
+    await page.locator('a[href="/"]').filter({ visible: true }).first().click();
+    await expect(player.locator("video")).toHaveAttribute(
+      "data-queue-identity",
+      "hosted-original"
+    );
+    await player
+      .getByRole("button", { exact: true, name: "Next media" })
+      .click();
+    await expect(player).toHaveCount(0);
+    await expect(page.locator("audio")).toHaveAttribute(
+      "src",
+      /fixture-audio\.wav/u
+    );
   });
-  await player
-    .getByRole("button", { exact: true, name: "Picture-in-picture" })
-    .click();
-  await expect(player.locator("video")).toHaveAttribute(
-    "data-pip-requested",
-    "true"
-  );
-  await page.locator('a[href="/"]').filter({ visible: true }).first().click();
-  await expect(player.locator("video")).toHaveAttribute(
-    "data-queue-identity",
-    "hosted-original"
-  );
-  await player.getByRole("button", { exact: true, name: "Next media" }).click();
-  await expect(player).toHaveCount(0);
-  await expect(page.locator("audio")).toHaveAttribute(
-    "src",
-    /fixture-audio\.wav/u
-  );
-});
+}
 
 test("anonymous player never restores another account or legacy private queue", async ({
   page,
