@@ -9,6 +9,19 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { playConditionSql } from "./analytics-helpers";
 import { artistPlayCountsSql } from "./artist-discovery";
 
+interface PlanNode {
+  "Group Key"?: string[];
+  "Parent Relationship"?: string;
+  Plans?: PlanNode[];
+}
+
+function playbackAggregates(node: PlanNode): PlanNode[] {
+  const children = node.Plans?.flatMap(playbackAggregates) ?? [];
+  return node["Group Key"]?.some((key) => key.includes("tracks.owner_user_id"))
+    ? [node, ...children]
+    : children;
+}
+
 const url = process.env.SOUNDKIT_TEST_DATABASE_URL,
   dialect = new PgDialect();
 
@@ -118,11 +131,17 @@ describe.skipIf(!url || process.env.SOUNDKIT_DISABLE_DB_TESTS === "true")(
         tied = tiedResult.rows,
         afterTie = await execute(query(tied[1]));
       expect(afterTie.rows).toEqual(tied.slice(2));
-      // The grouped relation has no outer reference: it can be evaluated once.
-      const plan = await execute(sql`EXPLAIN (FORMAT JSON) ${query()}`);
+      // A parallel plan may split an aggregate across workers. Inspect its
+      // grouping relation rather than assuming a display name or node count.
+      const plan = await execute(sql`EXPLAIN (FORMAT JSON) ${query()}`),
+        root = (plan.rows[0]["QUERY PLAN"] as { Plan: PlanNode }[])[0]
+          ?.Plan;
+      expect(root).toBeDefined();
+      const aggregates = root ? playbackAggregates(root) : [];
+      expect(aggregates.length).toBeGreaterThan(0);
       expect(
-        JSON.stringify(plan.rows).match(/"Node Type":"Aggregate"/gu)
-      ).toHaveLength(1);
+        aggregates.every((node) => node["Parent Relationship"] !== "SubPlan")
+      ).toBe(true);
     });
   }
 );

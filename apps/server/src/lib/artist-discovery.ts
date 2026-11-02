@@ -10,8 +10,6 @@ import { playConditionSql } from "./analytics-helpers";
 // A single grouped relation supplies both counters. Reusing correlated COUNTs in
 // projection, ranking and cursor predicates otherwise rescans playback sessions.
 export const artistPlayCountsJoin = sql`artist_play_counts.artist_id = ${artistProfiles.userId}`,
-  artistTotalPlays = sql<number>`coalesce(artist_play_counts.total_plays, 0)`,
-  artistWeeklyPlays = sql<number>`coalesce(artist_play_counts.weekly_plays, 0)`,
   artistPlayCountsSql = sql`(
   select ${tracks.ownerUserId} as artist_id,
     count(*)::int as total_plays,
@@ -20,4 +18,6 @@ export const artistPlayCountsJoin = sql`artist_play_counts.artist_id = ${artistP
   inner join ${tracks} on ${tracks.id} = ${playbackSessions.trackId}
   where ${playConditionSql}
   group by ${tracks.ownerUserId}
-) as artist_play_counts`;
+) as artist_play_counts`,
+  artistTotalPlays = sql<number>`coalesce(artist_play_counts.total_plays, 0)`,
+  artistWeeklyPlays = sql<number>`coalesce(artist_play_counts.weekly_plays, 0)`;
