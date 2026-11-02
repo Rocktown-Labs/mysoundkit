@@ -12,6 +12,9 @@ export async function reconcileAnalytics(
   db: AnalyticsDatabase = createDb(),
   cursor?: { createdAt: string; id: string }
 ) {
+  // capture() v1 emits orders:<id>:order_paid and purchases:<id>:access_granted.
+  // Strip only the known prefix/suffix; IDs may themselves contain colons.
+  // These immutable source-key formats must change with a versioned producer.
   const result = await db.execute(sql`
     WITH captured AS (
       SELECT source_key,event_type FROM soundkit_analytics.events

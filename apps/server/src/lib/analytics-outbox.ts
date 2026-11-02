@@ -65,6 +65,18 @@ function isValidCohort(value: string | null): boolean {
   return value === null || /^\d{4}-\d{2}-\d{2}$/u.test(value);
 }
 
+function validationReason(error: unknown): string {
+  const reasons = new Map([
+    ["Invalid analytics dimensions", "dimensions"],
+    ["Invalid analytics envelope", "envelope"],
+    ["Invalid analytics properties", "properties"],
+    ["Invalid analytics time", "time"],
+  ]);
+  return error instanceof Error
+    ? (reasons.get(error.message) ?? "unknown")
+    : "unknown";
+}
+
 export function serializeOutboxEvent(row: OutboxRow): Record<string, unknown> {
   if (!isValidEnvelope(row)) {
     throw new Error("Invalid analytics envelope");
@@ -188,9 +200,13 @@ export async function dispatchAnalyticsOutbox({
     let record: Record<string, unknown>;
     try {
       record = serializeOutboxEvent(row);
-    } catch {
+    } catch (error) {
       await database.execute(sql`UPDATE soundkit_analytics.events SET quarantined_at=now(),
         failure_code='invalid_event',lease_id=NULL,leased_until=NULL WHERE id=${row.id}::uuid AND lease_id=${lease}::uuid`);
+      logWarn({
+        event: "analytics_outbox_validation_failed",
+        reason: validationReason(error),
+      });
       rejected += 1;
       continue;
     }

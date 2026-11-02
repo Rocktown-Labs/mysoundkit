@@ -99,7 +99,9 @@ try {
       ]
     );
     if (triggers.rows[0].n !== 10) {
-      throw new Error("Analytics capture triggers missing or disabled");
+      throw new Error(
+        "Analytics capture triggers missing or disabled. Use a new reviewed migration; see docs/analytics/outbox.md."
+      );
     }
     console.info(
       "Analytics migration v1 fingerprint and capture triggers verified."

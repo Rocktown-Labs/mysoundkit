@@ -182,3 +182,17 @@ probes first. This task does not deploy resources or change token policies.
 The optional `show_token_name` workflow input includes the Cloudflare token label
 for identifying the credential in the dashboard. It defaults off; even when
 enabled, the token value is excluded and redacted if repeated in its label.
+
+Sink credentials are write-only and the Cloudflare sink API has no update
+operation. Rotating them replaces the sink and pipeline; ingestion can pause
+until the replacement is ready. Stable outbox IDs, leases and retries retain
+undelivered facts during that interval. Do not rotate a production sink without
+monitoring backlog and confirming ingestion resumes.
+
+The installer target `rocktownlabs/soundkit/main` names the PlanetScale database,
+not the GitHub repository/default branch. This deliberate fixed allowlist cannot
+be overridden by an arbitrary environment variable. If installation hits the
+three-second lock timeout, the complete transaction rolls back and the old app
+continues serving. Inspect long-running transactions, database write latency and
+errors before scheduling another approved attempt. Never remove the timeout or
+force drift to make a deployment proceed.

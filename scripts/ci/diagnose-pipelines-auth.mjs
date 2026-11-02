@@ -8,6 +8,16 @@ const pipelinePermissions = new Set([
   "Workers Pipelines Edit",
 ]);
 
+function failureKind(error) {
+  if (error instanceof SyntaxError) {
+    return "invalid_json";
+  }
+  if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+    return "timeout";
+  }
+  return "network";
+}
+
 function tokenLabel(details, token, enabled) {
   if (
     !enabled ||
@@ -56,19 +66,25 @@ export async function diagnosePipelinesAuth(
         success: body.success === true,
       });
       return body;
-    } catch {
-      reports.push({ probe: label, transportFailed: true });
+    } catch (error) {
+      reports.push({
+        failureKind: failureKind(error),
+        probe: label,
+        transportFailed: true,
+      });
     }
   }
-  await probe("workers_control", `accounts/${account}/workers/scripts`);
-  await probe(
-    "pipeline_streams",
-    `accounts/${account}/pipelines/v1/streams?per_page=1`
-  );
-  await probe(
-    "pipeline_sinks",
-    `accounts/${account}/pipelines/v1/sinks?per_page=1`
-  );
+  await Promise.all([
+    probe("workers_control", `accounts/${account}/workers/scripts`),
+    probe(
+      "pipeline_streams",
+      `accounts/${account}/pipelines/v1/streams?per_page=1`
+    ),
+    probe(
+      "pipeline_sinks",
+      `accounts/${account}/pipelines/v1/sinks?per_page=1`
+    ),
+  ]);
   for (const [label, prefix] of [
     ["user_token", "user"],
     ["account_token", `accounts/${account}`],

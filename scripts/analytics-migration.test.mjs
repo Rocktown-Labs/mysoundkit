@@ -4,9 +4,11 @@ import { execFileSync, spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-const script = fileURLToPath(
-  new URL("analytics-migration.mjs", import.meta.url)
-);
+const fixtureUrl = process.env.SOUNDKIT_TEST_DATABASE_URL,
+  localFixture =
+    fixtureUrl &&
+    ["127.0.0.1", "localhost", "[::1]"].includes(new URL(fixtureUrl).hostname),
+  script = fileURLToPath(new URL("analytics-migration.mjs", import.meta.url));
 test("analytics migration fingerprint is stable without database credentials", () => {
   const env = {
       ...process.env,
@@ -51,3 +53,18 @@ test("production apply refuses an unapproved hash before opening a database conn
   assert.notStrictEqual(result.status, 0);
   assert.match(result.stderr, /exact approved migration fingerprint/u);
 });
+
+test(
+  "installed fixture passes real CLI check and idempotent test apply",
+  { skip: !localFixture },
+  () => {
+    for (const mode of ["--check", "--test-apply", "--check"]) {
+      const result = spawnSync(process.execPath, [script, mode], {
+        encoding: "utf-8",
+        env: { ...process.env, DATABASE_URL: fixtureUrl },
+      });
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /fingerprint and capture triggers verified/u);
+    }
+  }
+);

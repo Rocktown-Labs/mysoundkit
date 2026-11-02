@@ -38,21 +38,30 @@ test("distinguishes working Workers from rejected Pipelines without exposing cre
       ],
     })
   );
-  assert.deepEqual(reports[0], {
-    codes: [],
-    probe: "workers_control",
-    status: 200,
-    success: true,
-  });
-  assert.deepEqual(reports[1], {
-    codes: [10_000],
-    probe: "pipeline_streams",
-    status: 403,
-    success: false,
-  });
+  assert.deepEqual(
+    reports.find((report) => report.probe === "workers_control"),
+    {
+      codes: [],
+      probe: "workers_control",
+      status: 200,
+      success: true,
+    }
+  );
+  assert.deepEqual(
+    reports.find((report) => report.probe === "pipeline_streams"),
+    {
+      codes: [10_000],
+      probe: "pipeline_streams",
+      status: 403,
+      success: false,
+    }
+  );
   assert.doesNotMatch(
     JSON.stringify(reports),
-    /fixture-secret|private-worker|aaaa/u
+    new RegExp(
+      [env.CLOUDFLARE_API_TOKEN, "private-worker", account].join("|"),
+      "u"
+    )
   );
 });
 
@@ -94,7 +103,10 @@ test("reports only Pipeline policy names and whether the target account is inclu
   });
   assert.doesNotMatch(
     JSON.stringify(reports),
-    /private-|fixture-secret|aaaa|bbbb/u
+    new RegExp(
+      ["private-", env.CLOUDFLARE_API_TOKEN, account, tokenId].join("|"),
+      "u"
+    )
   );
 });
 
@@ -169,3 +181,16 @@ test("token labels are opt-in and never expose the token value", async () => {
   );
   assert.doesNotMatch(JSON.stringify(shown), /fixture-secret/u);
 });
+
+for (const [failure, error] of [
+  ["invalid_json", new SyntaxError("fixture-secret")],
+  ["timeout", new DOMException("fixture-secret", "TimeoutError")],
+]) {
+  test(`classifies ${failure} without disclosing exception text`, async () => {
+    const reports = await diagnosePipelinesAuth(env, () =>
+      Promise.reject(error)
+    );
+    assert.ok(reports.every((report) => report.failureKind === failure));
+    assert.doesNotMatch(JSON.stringify(reports), /fixture-secret/u);
+  });
+}
