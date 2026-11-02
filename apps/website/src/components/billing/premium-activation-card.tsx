@@ -29,11 +29,11 @@ export function PremiumActivationCard({
   useEffect(() => {
     if (isPremium && !completionCaptured.current) {
       completionCaptured.current = true;
-      capture("premium_checkout_completed", {
+      capture("premium_access_confirmed", {
         account_type: accountType,
       });
     }
-  }, [accountType]);
+  }, [accountType, isPremium]);
 
   useEffect(() => {
     if (isSettled) {
@@ -49,7 +49,7 @@ export function PremiumActivationCard({
     );
 
     return () => window.clearTimeout(timeout);
-  }, [attempt, isSettled]);
+  }, [attempt, isSettled, refetch]);
 
   if (isPremium) {
     return (

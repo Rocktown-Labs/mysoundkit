@@ -1,19 +1,8 @@
 "use client";
+import { captureAnalytics } from "@soundkit/analytics/browser";
 import type posthogJs from "posthog-js";
 
-/**
- * Lazy PostHog client. posthog-js is ~210KB raw and the app only uses
- * `capture`, `captureException`, and `identify` — none of which belong on the
- * critical path — so the SDK loads on idle after first paint instead of being
- * statically imported into the entry chunk. Events fired before it finishes
- * loading are queued (bounded) and replayed in order.
- */
-
 type PostHogClient = typeof posthogJs;
-
-const MAX_QUEUED_OPERATIONS = 100,
-  token = import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN;
-
 type QueuedOperation =
   | { kind: "capture"; event: string; properties?: Record<string, unknown> }
   | { kind: "captureException"; error: Error }
@@ -23,142 +12,123 @@ type QueuedOperation =
       properties?: Record<string, unknown>;
     };
 
+const MAX_QUEUED_OPERATIONS = 100,
+  queue: QueuedOperation[] = [],
+  token = import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN;
 let client: PostHogClient | null = null,
   loadScheduled = false;
-const queue: QueuedOperation[] = [],
-  replayQueue = (loadedClient: PostHogClient) => {
-    for (const operation of queue.splice(0)) {
-      applyOperation(loadedClient, operation);
-    }
-  },
-  applyOperation = (
-    loadedClient: PostHogClient,
-    operation: QueuedOperation
-  ) => {
-    switch (operation.kind) {
-      case "capture": {
-        loadedClient.capture(operation.event, operation.properties);
-        return;
-      }
-      case "captureException": {
-        loadedClient.captureException(operation.error);
-        return;
-      }
-      case "identify": {
-        loadedClient.identify(operation.distinctId, operation.properties);
-        return;
-      }
-    }
-  },
-  enqueueOperation = (operation: QueuedOperation) => {
-    queue.push(operation);
-    if (queue.length > MAX_QUEUED_OPERATIONS) {
-      queue.shift();
-    }
-  };
 
-/**
- * Schedules the SDK import on idle. Safe to call from every boot path —
- * only the first call schedules a load, and pages without a configured
- * project token never load anything.
- */
-export const loadAnalytics = () => {
+function applyOperation(
+  loaded: PostHogClient,
+  operation: QueuedOperation
+): void {
+  if (operation.kind === "capture") {
+    loaded.capture(operation.event, operation.properties);
+  } else if (operation.kind === "captureException") {
+    loaded.captureException(operation.error);
+  } else {
+    loaded.identify(operation.distinctId, operation.properties);
+  }
+}
+
+function enqueue(operation: QueuedOperation): void {
+  if (!token) {
+    return;
+  }
+  queue.push(operation);
+  if (queue.length > MAX_QUEUED_OPERATIONS) {
+    queue.shift();
+  }
+}
+
+async function loadClient(): Promise<void> {
+  try {
+    const { default: posthog } = await import("posthog-js");
+    posthog.init(token, {
+      api_host: "/ingest",
+      autocapture: false,
+      capture_exceptions: true,
+      capture_pageview: false,
+      defaults: "2025-05-24",
+      disable_persistence: true,
+      disable_session_recording: true,
+      persistence: "memory",
+      ui_host:
+        import.meta.env.VITE_PUBLIC_POSTHOG_HOST || "https://us.posthog.com",
+    });
+    client = posthog;
+    for (const operation of queue.splice(0)) {
+      applyOperation(posthog, operation);
+    }
+  } catch {
+    // A blocked optional SDK must not create an unhandled network rejection.
+    loadScheduled = false;
+  }
+}
+
+function scheduleClientLoad(): void {
+  void loadClient();
+}
+
+/** The optional diagnostic SDK loads after paint and uses memory persistence. */
+export function loadAnalytics(): void {
   if (loadScheduled || !token || typeof window === "undefined") {
     return;
   }
   loadScheduled = true;
-
-  const idle =
-    window.requestIdleCallback ??
-    ((callback: () => void) => window.setTimeout(callback, 1500));
-  idle(() => {
-    void import("posthog-js").then(({ default: posthog }) => {
-      posthog.init(token, {
-        api_host: "/ingest",
-        capture_exceptions: true,
-        defaults: "2025-05-24",
-        ui_host:
-          import.meta.env.VITE_PUBLIC_POSTHOG_HOST || "https://us.posthog.com",
-      });
-      client = posthog;
-      replayQueue(posthog);
-    });
-  });
-};
-
-declare global {
-  interface Window {
-    traks?: (
-      name: string,
-      props?: Record<string, string | number | boolean>,
-      value?: number
-    ) => void;
+  if (window.requestIdleCallback) {
+    window.requestIdleCallback(scheduleClientLoad);
+  } else {
+    window.setTimeout(scheduleClientLoad, 1500);
   }
 }
 
-export const capture = (
+export function capture(
   event: string,
   properties?: Record<string, unknown>,
   value?: number
-) => {
+): void {
   if (client) {
-    client.capture(event, properties);
-  } else {
-    enqueueOperation({ event, kind: "capture", properties });
-  }
-
-  // Traks analytics: privacy-first, cookieless, flat scalar props
-  if (typeof window !== "undefined" && typeof window.traks === "function") {
-    const flatProps: Record<string, string | number | boolean> = {};
-    let numericValue = value;
-    if (properties) {
-      for (const [key, propVal] of Object.entries(properties)) {
-        if (
-          key === "value" &&
-          typeof propVal === "number" &&
-          Number.isFinite(propVal) &&
-          numericValue === undefined
-        ) {
-          numericValue = propVal;
-        } else if (
-          typeof propVal === "string" ||
-          (typeof propVal === "number" && Number.isFinite(propVal)) ||
-          typeof propVal === "boolean"
-        ) {
-          flatProps[key] = propVal;
-        }
-      }
-    }
     try {
-      window.traks(
-        event,
-        flatProps,
-        typeof numericValue === "number" && Number.isFinite(numericValue)
-          ? numericValue
-          : undefined
-      );
+      client.capture(event, properties);
     } catch {
-      // Optional telemetry must never interrupt the action being measured.
+      /* Diagnostics are optional. */
     }
+  } else {
+    enqueue({ event, kind: "capture", properties });
   }
-};
+  captureAnalytics(
+    event,
+    properties,
+    value ??
+      (typeof properties?.value === "number" ? properties.value : undefined)
+  );
+}
 
-export const captureAnalyticsException = (error: unknown) => {
+export function captureAnalyticsException(error: unknown): void {
   const normalized = error instanceof Error ? error : new Error(String(error));
   if (client) {
-    client.captureException(normalized);
-    return;
+    try {
+      client.captureException(normalized);
+    } catch {
+      /* Diagnostics are optional. */
+    }
+  } else {
+    enqueue({ error: normalized, kind: "captureException" });
   }
-  enqueueOperation({ error: normalized, kind: "captureException" });
-};
+}
 
-export const identify = (
+export function identify(
   distinctId: string,
   properties?: Record<string, unknown>
-) => {
+): void {
   if (client) {
-    client.identify(distinctId, properties);
-    return;
+    try {
+      client.identify(distinctId, properties);
+    } catch {
+      /* Diagnostics are optional. */
+    }
+  } else {
+    enqueue({ distinctId, kind: "identify", properties });
   }
-  enqueueOperation({ distinctId, kind: "identify", properties });
-};
+}

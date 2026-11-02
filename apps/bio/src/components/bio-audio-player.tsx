@@ -1,6 +1,7 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo, react/memo-dependencies, react/preserve-manual-memoization, react/immutability, react/exhaustive-effect-dependencies, promise/prefer-await-to-then */
 "use client";
 
+import { captureAnalytics } from "@soundkit/analytics/browser";
 import { Link } from "@tanstack/react-router";
 import {
   ExternalLink,
@@ -122,6 +123,7 @@ const readStoredPlayerState = () => {
 };
 
 export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
+  const analyticsStartedRef = useRef<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null),
     playbackTelemetryRef = useRef<BioPlaybackTelemetry | null>(null),
     [currentTrack, setCurrentTrack] = useState<BioTrack | null>(null),
@@ -543,13 +545,31 @@ export function BioAudioPlayerProvider({ children }: { children: ReactNode }) {
         <audio
           onDurationChange={(e) => setDuration(e.currentTarget.duration || 0)}
           onEnded={() => {
+            captureAnalytics("track_play_completed", { source: "bio" });
+            analyticsStartedRef.current = null;
             sendPlaybackProgress({ ended: true });
             nextTrack();
           }}
-          onError={() => setIsPlaying(false)}
+          onError={() => {
+            setIsPlaying(false);
+            captureAnalytics("playback_failed", {
+              media_type: "audio",
+              provider: "soundkit",
+              reason: "provider",
+            });
+          }}
           onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
           onPause={() => setIsPlaying(false)}
           onPlay={() => setIsPlaying(true)}
+          onPlaying={() => {
+            if (
+              currentTrack &&
+              analyticsStartedRef.current !== currentTrack.id
+            ) {
+              analyticsStartedRef.current = currentTrack.id;
+              captureAnalytics("track_play_started", { source: "bio" });
+            }
+          }}
           onTimeUpdate={(e) => {
             setProgress(e.currentTarget.currentTime || 0);
             sendPlaybackProgress();

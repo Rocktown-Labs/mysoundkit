@@ -1,5 +1,5 @@
+import { useTraksAnalytics } from "@soundkit/analytics/react";
 /* eslint-disable one-var, sort-vars */
-
 import {
   HeadContent,
   Outlet,
@@ -76,6 +76,12 @@ export const Route = createRootRoute({
       },
       { content: "#0e0e10", name: "theme-color" },
     ],
+    scripts: [
+      {
+        children:
+          "window.traks=window.traks||function(){var q=window.traks.q=window.traks.q||[];if(q.length<100)q.push(Array.from(arguments))}",
+      },
+    ],
     // Inlined instead of a render-blocking stylesheet link (the same
     // treatment as the main app). The CSS ships with every SSR'd payload
     // from our own build, so there is no untrusted content in this style
@@ -87,6 +93,7 @@ export const Route = createRootRoute({
 function RootComponent() {
   const { pathname } = useLocation(),
     isDashboard = pathname.startsWith("/dashboard");
+  useTraksAnalytics("bio", pathname);
 
   return (
     <html lang="en" className="dark">

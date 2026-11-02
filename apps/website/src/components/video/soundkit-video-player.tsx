@@ -1,6 +1,5 @@
 "use client";
 
-/* eslint-disable no-useless-return, one-var, sort-vars, react/iframe-missing-sandbox */
 import MuxPlayer from "@mux/mux-player-react";
 import type { MuxPlayerRefAttributes } from "@mux/mux-player-react";
 import {
@@ -18,6 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { VideoPlaybackHandle } from "@/components/video/video-playback-handle";
 import { YouTubePlayerView } from "@/components/video/youtube-player";
+/* eslint-disable no-useless-return, one-var, sort-vars, react/iframe-missing-sandbox */
+import { capture } from "@/lib/analytics";
 import { directVideoUrl, getYouTubeVideoId, httpUrl } from "@/lib/player-media";
 import {
   createVideoViewSession,
@@ -111,6 +112,36 @@ export function SoundKitVideoPlayer({
     nativeRef = useRef<HTMLVideoElement>(null),
     youtubeRef = useRef<VideoPlaybackHandle>(null),
     telemetryRef = useRef<VideoViewTelemetry | null>(null),
+    analyticsStartedRef = useRef<string | null>(null),
+    analyticsIdentity =
+      videoId ?? muxPlaybackId ?? externalPlaybackUrl ?? "video",
+    analyticsProvider = muxPlaybackId
+      ? "mux"
+      : externalPlaybackUrl && getYouTubeVideoId(externalPlaybackUrl)
+        ? "youtube"
+        : "soundkit",
+    handleAnalyticsPlaying = () => {
+      if (analyticsStartedRef.current !== analyticsIdentity) {
+        analyticsStartedRef.current = analyticsIdentity;
+        capture("video_play_started", { provider: analyticsProvider });
+      }
+      onPlaying?.();
+    },
+    handleAnalyticsEnded = () => {
+      if (analyticsStartedRef.current === analyticsIdentity) {
+        capture("video_play_completed", { provider: analyticsProvider });
+        analyticsStartedRef.current = null;
+      }
+      onEnded?.();
+    },
+    handleAnalyticsError = (message: string) => {
+      capture("playback_failed", {
+        media_type: "video",
+        provider: analyticsProvider,
+        reason: "provider",
+      });
+      onError?.(message);
+    },
     startViewSession = async (event: { currentTarget: EventTarget | null }) => {
       if (telemetryRef.current || !videoId) {
         return;
@@ -216,6 +247,10 @@ export function SoundKitVideoPlayer({
           typeof media.requestPictureInPicture === "function"
         ) {
           await media.requestPictureInPicture();
+          capture("pip_entered", {
+            media_type: "video",
+            provider: analyticsProvider,
+          });
           return true;
         }
         const safari = native as HTMLVideoElement & {
@@ -238,7 +273,7 @@ export function SoundKitVideoPlayer({
         }
       },
     }),
-    [onPaused]
+    [onPaused, analyticsProvider]
   );
 
   useEffect(
@@ -282,10 +317,10 @@ export function SoundKitVideoPlayer({
           }}
           onEnded={(event) => {
             sendProgress(event, true, true);
-            onEnded?.();
+            handleAnalyticsEnded();
           }}
           onError={() =>
-            onError?.(
+            handleAnalyticsError(
               "This video could not play. Try again or choose another item."
             )
           }
@@ -294,7 +329,7 @@ export function SoundKitVideoPlayer({
             onPaused?.();
           }}
           onPlay={startViewSession}
-          onPlaying={() => onPlaying?.()}
+          onPlaying={handleAnalyticsPlaying}
           onTimeUpdate={(event) => {
             sendProgress(event);
             const position = playbackPositionFromEvent(event);
@@ -350,10 +385,10 @@ export function SoundKitVideoPlayer({
         src={directSource.href}
         onEnded={(event) => {
           sendProgress(event, true, true);
-          onEnded?.();
+          handleAnalyticsEnded();
         }}
         onError={() =>
-          onError?.(
+          handleAnalyticsError(
             "This video could not play. Try again or choose another item."
           )
         }
@@ -362,7 +397,7 @@ export function SoundKitVideoPlayer({
           onPaused?.();
         }}
         onPlay={startViewSession}
-        onPlaying={() => onPlaying?.()}
+        onPlaying={handleAnalyticsPlaying}
         onTimeUpdate={(event) => {
           sendProgress(event);
           const position = playbackPositionFromEvent(event);
@@ -379,10 +414,10 @@ export function SoundKitVideoPlayer({
       <div className="overflow-hidden rounded-2xl border border-border/50 bg-black">
         <YouTubePlayerView
           autoPlay={autoPlay}
-          onEnded={onEnded}
-          onError={onError}
+          onEnded={handleAnalyticsEnded}
+          onError={handleAnalyticsError}
           onPaused={onPaused}
-          onPlaying={onPlaying}
+          onPlaying={handleAnalyticsPlaying}
           onProgress={onProgress}
           playerRef={youtubeRef}
           title={title}

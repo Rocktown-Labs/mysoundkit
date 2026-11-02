@@ -13,6 +13,7 @@
     "@fontsource-variable/geist": "^5.2.8",
     "@fontsource-variable/playfair-display": "^5.2.8",
     "@fontsource/notable": "^5.2.8",
+    "@soundkit/analytics": "workspace:*",
     "@stripe/react-stripe-js": "^6.8.2",
     "@stripe/stripe-js": "^9.14.0",
     "@tanstack/react-router": "^1.141.1",

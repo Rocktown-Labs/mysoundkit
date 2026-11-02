@@ -24,6 +24,7 @@ export default defineConfig({
       "apps/server/src/**/*.test.ts",
       "apps/website/src/**/*.test.ts",
       "packages/db/src/**/*.test.ts",
+      "packages/analytics/src/**/*.test.ts",
     ],
   },
 });

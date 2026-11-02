@@ -17,18 +17,21 @@ test("Traks receives flat finite properties and a separate monetary value", () =
   vi.stubGlobal("window", { traks });
   capture("checkout_completed", {
     amount: 12,
+    artist_name: "Private name",
     details: { private: true },
     invalid: Number.NaN,
+    kind: "track",
     missing: null,
     optional: undefined,
     paid: true,
     tags: ["track"],
     type: "track",
+    user_id: "private-id",
     value: 19.99,
   });
   expect(traks).toHaveBeenCalledExactlyOnceWith(
     "checkout_completed",
-    { amount: 12, paid: true, type: "track" },
+    { kind: "track" },
     19.99
   );
 });

@@ -8,6 +8,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { useEffect } from "react";
 
+import { capture } from "./analytics";
 import { API_V1_URL, SoundKitApiError, apiClient, rpcJson } from "./api";
 import { authClient } from "./auth-client";
 import { liveRoomKey } from "./live-room";
@@ -622,6 +623,10 @@ export const useTipCheckoutMutation = () =>
         body: JSON.stringify(body),
         method: "POST",
       }),
+    onSuccess: (result) => {
+      if (result.checkoutUrl || result.clientSecret)
+        capture("checkout_started", { kind: "tip" });
+    },
   });
 
 export const useAdWalletQuery = () =>
@@ -1319,10 +1324,13 @@ export const useBillingCheckoutMutation = () => {
       body: BillingCheckoutBody
     ): Promise<BillingCheckoutResponse> =>
       rpcJson(await billingCheckoutPost({ json: body })),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
+    onSuccess: (result) => {
+      if (result.checkoutUrl)
+        capture("checkout_started", { kind: "subscription" });
+      return queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.meEntitlements,
-      }),
+      });
+    },
   });
 };
 
@@ -1670,8 +1678,11 @@ export const useFollowArtistMutation = (username: string) => {
   return useMutation({
     mutationFn: async (): Promise<ArtistFollowResponse> =>
       rpcJson(await artistFollowPost({ param: { username } })),
-    onSuccess: () =>
-      Promise.all([
+    onSuccess: (result) => {
+      if (result.followed) {
+        capture("artist_followed", { source: "artist_profile" });
+      }
+      return Promise.all([
         queryClient.invalidateQueries({
           queryKey: soundkitQueryKeys.artist(username),
         }),
@@ -1682,7 +1693,8 @@ export const useFollowArtistMutation = (username: string) => {
           queryKey: soundkitQueryKeys.notifications,
         }),
         queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network }),
-      ]),
+      ]);
+    },
   });
 };
 
@@ -2542,6 +2554,9 @@ export const useToggleSaveTrackMutation = () => {
       return { trackId };
     },
     onSuccess: (result) => {
+      if (result.saved) {
+        capture("track_saved");
+      }
       queryClient.setQueryData<LibrarySavedTrack[]>(
         soundkitQueryKeys.librarySaved,
         (savedTracks = []) =>

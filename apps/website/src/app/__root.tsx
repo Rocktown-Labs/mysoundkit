@@ -1,3 +1,4 @@
+import { useTraksAnalytics } from "@soundkit/analytics/react";
 import {
   HeadContent,
   Link,
@@ -5,6 +6,7 @@ import {
   Scripts,
   createRootRouteWithContext,
   useRouter,
+  useLocation,
 } from "@tanstack/react-router";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
@@ -25,13 +27,15 @@ import appCss from "./globals.css?inline";
 export type RouterAppContext = Record<string, never>;
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
-  const app = (
-    <AppProviders>
-      {children}
-      <Scripts />
-    </AppProviders>
-  );
+  const { pathname } = useLocation(),
+    app = (
+      <AppProviders>
+        {children}
+        <Scripts />
+      </AppProviders>
+    );
 
+  useTraksAnalytics("web", pathname);
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
@@ -240,16 +244,10 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         }),
         type: "application/ld+json",
       },
-      // Traks analytics: the loader hooks history.pushState, so SPA route
-      // changes are tracked as pageviews with no extra wiring.
+      // Queue early events until the cookieless, schema-filtered client mounts.
       {
         children:
-          "window.traks=window.traks||function(){(window.traks.q=window.traks.q||[]).push(arguments)}",
-      },
-      {
-        "data-site": "pb_live_e8d5aowqd1aplxgnwqgm7r79",
-        defer: true,
-        src: "https://traks-collect.rocktown-labs.workers.dev/t.js",
+          "window.traks=window.traks||function(){var q=window.traks.q=window.traks.q||[];if(q.length<100)q.push(Array.from(arguments))}",
       },
     ],
     // Inlined instead of a render-blocking stylesheet link (~420ms on mobile

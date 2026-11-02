@@ -1,0 +1,22 @@
+{
+  "name": "@soundkit/analytics",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./browser": "./src/browser.ts",
+    "./contracts": "./src/contracts.ts",
+    "./react": "./src/react.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@soundkit/config": "workspace:*",
+    "@types/react": "^19.2.10",
+    "typescript": "^5"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}
