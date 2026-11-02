@@ -8,6 +8,8 @@
 
 ### Fixed
 
+- Aggregated qualified artist playback counts once per discovery query, retaining ranking and cursor semantics without production schema changes (#497).
+
 - Reclaimed Hyperdrive configurations leaked by closed preview PRs, preventing account quota exhaustion from blocking server uploads and causing downstream queue-handler errors (#492).
 - Covered native playback handoff races during deferred credential reads, including track switches, clearing playback, and reselecting the same track (#487).
 
