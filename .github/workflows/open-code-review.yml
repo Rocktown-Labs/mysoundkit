@@ -32,7 +32,7 @@ jobs:
     needs: completion-tests
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 50
     permissions:
       contents: read
       pull-requests: write
@@ -81,7 +81,7 @@ jobs:
           review_concurrency: '2'
           effort: low
           max_tokens_budget: ${{ steps.target.outputs.budget }}
-          review_task_timeout: '15'
+          review_task_timeout: '25'
           upload_artifacts: 'true'
           sticky_summary: 'true'
           checkpoint_range: 'true'
