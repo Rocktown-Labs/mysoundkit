@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { expect, it } from "vitest";
 
-import { readableTrack } from "./library";
+import { readableTrack } from "@/lib/library-track-visibility";
 
 it("parenthesizes raw EXISTS subqueries and binds the viewer identity", () => {
   const query = new PgDialect().sqlToQuery(
