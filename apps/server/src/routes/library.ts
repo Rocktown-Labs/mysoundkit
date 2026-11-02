@@ -4,13 +4,10 @@ import {
   librarySaves,
   orderItems,
   playbackSessions,
-  projectCollaborators,
-  projectTracks,
   playlists,
   playlistTracks,
   purchases,
   trackAssets,
-  trackCollaborators,
   tracks,
 } from "@soundkit/db/schema/app";
 import {
@@ -18,10 +15,8 @@ import {
   count,
   desc,
   eq,
-  exists,
   gte,
   inArray,
-  isNull,
   or,
   sql,
 } from "drizzle-orm";

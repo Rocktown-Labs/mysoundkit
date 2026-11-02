@@ -55,18 +55,18 @@ const probeDatabase = async (url: string) => {
     }
   },
   dbConnected = await probeDatabase(DATABASE_URL),
-  ARTIST_ID = "db-test-artist",
-  LISTENER_A = "db-test-listener-a",
-  LISTENER_B = "db-test-listener-b",
-  PERIOD_CURRENT = "db-test-period-current",
-  PERIOD_PREV = "db-test-period-prev",
-  TRACK_LONG = "db-test-track-long",
-  TRACK_NO_ASSETS = "db-test-track-no-assets",
-  TRACK_SHORT = "db-test-track-short";
+  ARTIST_ID = "db-test-analytics-artist",
+  LISTENER_A = "db-test-analytics-listener-a",
+  LISTENER_B = "db-test-analytics-listener-b",
+  PERIOD_CURRENT = "db-test-analytics-period-current",
+  PERIOD_PREV = "db-test-analytics-period-prev",
+  TRACK_LONG = "db-test-analytics-track-long",
+  TRACK_NO_ASSETS = "db-test-analytics-track-no-assets",
+  TRACK_SHORT = "db-test-analytics-track-short";
 
 let db: ReturnType<typeof createDb>;
 
-const makeApp = (userId: string, sessionId = "db-test-session") => {
+const makeApp = (userId: string, sessionId = "db-test-analytics-session") => {
     const app = new Hono<AppEnv>();
     app.use("*", async (c, next) => {
       c.set("user", {
@@ -96,27 +96,27 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
       prevStart = new Date(
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)
       ),
-      seedUserId = "db-test-seed-user";
+      seedUserId = "db-test-analytics-seed-user";
 
     await db.insert(user).values([
       {
-        email: "db-test-artist@test.dev",
+        email: "db-test-analytics-artist@test.dev",
         id: ARTIST_ID,
         name: "Test Artist",
         role: "artist",
       },
       {
-        email: "db-test-listener-a@test.dev",
+        email: "db-test-analytics-listener-a@test.dev",
         id: LISTENER_A,
         name: "Listener A",
       },
       {
-        email: "db-test-listener-b@test.dev",
+        email: "db-test-analytics-listener-b@test.dev",
         id: LISTENER_B,
         name: "Listener B",
       },
       {
-        email: "db-test-seed-user@test.dev",
+        email: "db-test-analytics-seed-user@test.dev",
         id: seedUserId,
         name: "Seed User",
       },
@@ -132,19 +132,19 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
       {
         id: TRACK_LONG,
         ownerUserId: ARTIST_ID,
-        slug: "db-test-track-long",
+        slug: "db-test-analytics-track-long",
         title: "Long Track",
       },
       {
         id: TRACK_SHORT,
         ownerUserId: ARTIST_ID,
-        slug: "db-test-track-short",
+        slug: "db-test-analytics-track-short",
         title: "Short Track",
       },
       {
         id: TRACK_NO_ASSETS,
         ownerUserId: ARTIST_ID,
-        slug: "db-test-track-no-assets",
+        slug: "db-test-analytics-track-no-assets",
         title: "No Assets",
       },
     ]);
@@ -153,13 +153,13 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
       {
         assetKind: "master",
         durationMs: 180_000,
-        id: "db-test-master-long",
+        id: "db-test-analytics-master-long",
         storageProvider: "r2",
         trackId: TRACK_LONG,
       },
       {
         assetKind: "cover_art",
-        id: "db-test-cover-long",
+        id: "db-test-analytics-cover-long",
         metadata: { url: "https://cdn.example.test/long-cover.png" },
         objectKey: "long-cover.png",
         storageProvider: "r2",
@@ -168,13 +168,13 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
       {
         assetKind: "master",
         durationMs: 20_000,
-        id: "db-test-master-short",
+        id: "db-test-analytics-master-short",
         storageProvider: "r2",
         trackId: TRACK_SHORT,
       },
       {
         assetKind: "artwork",
-        id: "db-test-artwork-long",
+        id: "db-test-analytics-artwork-long",
         metadata: { url: "https://cdn.example.test/long-artwork.png" },
         objectKey: "long-artwork.png",
         storageProvider: "r2",
@@ -202,14 +202,14 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
 
     await db.insert(playbackSessions).values([
       sessionValues(
-        "db-test-sess-long-a29",
+        "db-test-analytics-sess-long-a29",
         TRACK_LONG,
         LISTENER_A,
         29,
         monthStart
       ),
       sessionValues(
-        "db-test-sess-long-a30",
+        "db-test-analytics-sess-long-a30",
         TRACK_LONG,
         LISTENER_A,
         30,
@@ -217,7 +217,7 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
         { sourceId: "bio:testartist", sourceType: "artist_profile" }
       ),
       sessionValues(
-        "db-test-sess-long-b30",
+        "db-test-analytics-sess-long-b30",
         TRACK_LONG,
         LISTENER_B,
         30,
@@ -225,7 +225,7 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
         { sourceId: "bio:testartist", sourceType: "artist_profile" }
       ),
       sessionValues(
-        "db-test-sess-long-rejected",
+        "db-test-analytics-sess-long-rejected",
         TRACK_LONG,
         LISTENER_B,
         40,
@@ -235,14 +235,14 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
         }
       ),
       sessionValues(
-        "db-test-sess-short-a18",
+        "db-test-analytics-sess-short-a18",
         TRACK_SHORT,
         LISTENER_A,
         18,
         monthStart
       ),
       sessionValues(
-        "db-test-sess-short-a19",
+        "db-test-analytics-sess-short-a19",
         TRACK_SHORT,
         LISTENER_A,
         19,
@@ -274,7 +274,7 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
     await db.insert(qualifiedStreams).values([
       {
         accountingPeriodId: PERIOD_CURRENT,
-        id: "db-test-qual-current-a",
+        id: "db-test-analytics-qual-current-a",
         qualificationWindowKey: "w-1",
         qualifiedAt: monthStart,
         ruleVersion: 1,
@@ -286,7 +286,7 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
       },
       {
         accountingPeriodId: PERIOD_CURRENT,
-        id: "db-test-qual-current-b",
+        id: "db-test-analytics-qual-current-b",
         qualificationWindowKey: "w-1",
         qualifiedAt: monthStart,
         ruleVersion: 1,
@@ -298,7 +298,7 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
       },
       {
         accountingPeriodId: PERIOD_CURRENT,
-        id: "db-test-qual-held",
+        id: "db-test-analytics-qual-held",
         qualificationWindowKey: "w-1-held",
         qualifiedAt: monthStart,
         ruleVersion: 1,
@@ -309,7 +309,7 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
       },
       {
         accountingPeriodId: PERIOD_PREV,
-        id: "db-test-qual-prev-a",
+        id: "db-test-analytics-qual-prev-a",
         qualificationWindowKey: "w-1-prev",
         qualifiedAt: prevStart,
         ruleVersion: 1,
@@ -326,7 +326,7 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
         allocationStatus: "funded",
         creatorAllocationCents: 500,
         grossSubscriptionAmountCents: 1000,
-        id: "db-test-alloc-current-a",
+        id: "db-test-analytics-alloc-current-a",
         subscriptionPeriodStart: monthStart,
         userId: LISTENER_A,
       },
@@ -335,7 +335,7 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
         allocationStatus: "funded",
         creatorAllocationCents: 500,
         grossSubscriptionAmountCents: 1000,
-        id: "db-test-alloc-prev-b",
+        id: "db-test-analytics-alloc-prev-b",
         subscriptionPeriodStart: prevStart,
         userId: LISTENER_B,
       },
@@ -348,7 +348,7 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
         currency: "USD",
         earningType: "premium_stream_reward",
         grossAmountCents: 1000,
-        id: "db-test-earn-current-est",
+        id: "db-test-analytics-earn-current-est",
         status: "estimated",
         trackId: TRACK_LONG,
       },
@@ -358,7 +358,7 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
         currency: "USD",
         earningType: "premium_stream_reward",
         grossAmountCents: 500,
-        id: "db-test-earn-prev-est",
+        id: "db-test-analytics-earn-prev-est",
         status: "estimated",
         trackId: TRACK_LONG,
       },
@@ -368,7 +368,7 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
         currency: "USD",
         earningType: "premium_stream_reward",
         grossAmountCents: 3000,
-        id: "db-test-earn-payable",
+        id: "db-test-analytics-earn-payable",
         payableAmountCents: 3000,
         status: "payable",
         trackId: TRACK_LONG,
@@ -379,14 +379,14 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
         currency: "USD",
         earningType: "tip",
         grossAmountCents: 900,
-        id: "db-test-earn-paid",
+        id: "db-test-analytics-earn-paid",
         status: "paid",
         trackId: TRACK_LONG,
       },
     ]);
   },
   cleanupBaseline = async () => {
-    const testIds = sql`id like 'db-test-%'`;
+    const testIds = sql`id like 'db-test-analytics-%'`;
     for (const table of [
       creatorEarnings,
       subscriptionRewardAllocations,
@@ -398,8 +398,8 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
     ]) {
       await db.delete(table).where(testIds);
     }
-    await db.delete(userProfiles).where(sql`user_id like 'db-test-%'`);
-    await db.delete(user).where(sql`id like 'db-test-%'`);
+    await db.delete(userProfiles).where(sql`user_id like 'db-test-analytics-%'`);
+    await db.delete(user).where(sql`id like 'db-test-analytics-%'`);
   };
 
 beforeAll(async () => {
