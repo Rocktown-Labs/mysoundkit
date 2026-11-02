@@ -12,9 +12,16 @@ on:
           - audit-v1-workflows
           - set-r2-secrets
           - stripe-refund-events
+          - diagnose-pipelines-auth
 
       apply_refund_events:
         description: "Apply only missing refund lifecycle subscriptions to existing SoundKit webhooks"
+        required: false
+        default: false
+        type: boolean
+
+      show_token_name:
+        description: "Include the token label (never its value) in auth diagnostics"
         required: false
         default: false
         type: boolean
@@ -102,3 +109,22 @@ jobs:
         with:
           persist-credentials: false
       - run: node scripts/ci/stripe-refund-events.mjs
+
+  diagnose-pipelines-auth:
+    name: Diagnose Pipeline authentication (read only)
+    if: ${{ inputs.task == 'diagnose-pipelines-auth' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    environment: preview
+    permissions:
+      contents: read
+    env:
+      SOUNDKIT_DIAGNOSTIC_TOKEN_NAME: ${{ inputs.show_token_name }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Probe CI token without exposing credentials
+        run: node scripts/ci/diagnose-pipelines-auth.mjs

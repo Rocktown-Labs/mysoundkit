@@ -32,7 +32,14 @@ jobs:
     needs: completion-tests
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 75
+    # The launcher self-updates in a detached background process on its first
+    # invocation. That `npm i -g` briefly relinks the global `ocr` binary
+    # while the Configure step is still calling it, which fails the job with
+    # "Cannot find module '/usr/local/bin/ocr'". The version is pinned below,
+    # so the updater must stay off.
+    env:
+      OCR_NO_UPDATE: '1'
     permissions:
       contents: read
       pull-requests: write
@@ -57,7 +64,9 @@ jobs:
             throw new Error('Review requires an open same-repository PR targeting master');
           }
           // Keep the ordinary cap; larger diffs have a bounded higher ceiling.
-          const budget = pr.changed_files > 20 ? 1400000 : 700000;
+          // A 35-file review completed 22/27 selected items at 2M;
+          // reserve bounded headroom for the remaining groups and retries.
+          const budget = pr.changed_files > 20 ? 3500000 : 700000;
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `number=${pr.number}\nbase=${pr.base.ref}\nhead=${pr.head.sha}\nbase_sha=${pr.base.sha}\nbudget=${budget}\n`);
           JS
 

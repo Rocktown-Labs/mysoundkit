@@ -63,6 +63,7 @@ const createPool = () => {
     }
 
     return new Pool({
+      application_name: `soundkit/${env.SOUNDKIT_ANALYTICS_ENV ?? "test"}`,
       connectionString,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 5000,

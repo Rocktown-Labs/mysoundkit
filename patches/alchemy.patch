@@ -1,0 +1,42 @@
+diff --git a/lib/Cloudflare/Pipelines/Sink.js b/lib/Cloudflare/Pipelines/Sink.js
+index 3337149c9b3fd95e6f80af7be6a6e6c8ea61ee61..73b4392042667f9056af2b2986d2e6cfa0819174 100644
+--- a/lib/Cloudflare/Pipelines/Sink.js
++++ b/lib/Cloudflare/Pipelines/Sink.js
+@@ -91,6 +91,16 @@ export const SinkProvider = () => Provider.succeed(Sink, {
+         const o = olds;
+         if (o === undefined)
+             return undefined;
++        // Failed creates may persist unresolved write-only credentials. They
++        // cannot be compared with Redacted.value; reconcile a replacement
++        // using the resolved desired credentials instead of crashing the plan.
++        if (
++          o.type === "r2" &&
++          (!Redacted.isRedacted(o.config?.credentials?.accessKeyId) ||
++            !Redacted.isRedacted(o.config?.credentials?.secretAccessKey))
++        ) {
++          return { action: "replace" };
++        }
+         // Sinks have no update API — any change is a replacement.
+         const newName = yield* sinkName(id, news.name);
+         const oldName = output?.name ?? (yield* sinkName(id, o.name));
+diff --git a/src/Cloudflare/Pipelines/Sink.ts b/src/Cloudflare/Pipelines/Sink.ts
+index 2fde7599b0dea272c13585984faae3c4b43d0919..0a2fa707ff3dd5a414ff64b48631fc49cd1235de 100644
+--- a/src/Cloudflare/Pipelines/Sink.ts
++++ b/src/Cloudflare/Pipelines/Sink.ts
+@@ -293,6 +293,16 @@ export const SinkProvider = () =>
+       }
+       const o = olds as SinkProps | undefined;
+       if (o === undefined) return undefined;
++      // Failed creates may persist unresolved write-only credentials. They
++      // cannot be compared with Redacted.value; reconcile a replacement
++      // using the resolved desired credentials instead of crashing the plan.
++      if (
++        o.type === "r2" &&
++        (!Redacted.isRedacted(o.config?.credentials?.accessKeyId) ||
++          !Redacted.isRedacted(o.config?.credentials?.secretAccessKey))
++      ) {
++        return { action: "replace" } as const;
++      }
+       // Sinks have no update API — any change is a replacement.
+       const newName = yield* sinkName(id, news.name);
+       const oldName = output?.name ?? (yield* sinkName(id, o.name));

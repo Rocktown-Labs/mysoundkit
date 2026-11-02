@@ -3,6 +3,15 @@ import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { z } from "zod";
 
+import type {
+  analyticsErasureSchema,
+  analyticsFailuresSchema,
+  analyticsHealthSchema,
+  analyticsReconciliationSchema,
+  analyticsReplaySchema,
+  analyticsRetentionSchema,
+} from "./lib/analytics-api-schemas";
+import { analyticsReconciliationQuerySchema } from "./lib/analytics-api-schemas";
 import {
   analyticsTimeseriesQuerySchema,
   battleEligibilityBodySchema,
@@ -1298,6 +1307,31 @@ export const rpcContract = new Hono()
     c.json({} as Record<string, unknown>)
   )
   .get("/v1/ads/wallet", (c) => c.json({} as Record<string, unknown>))
+  .delete("/v1/analytics/account-data", (c) =>
+    c.json({} as z.infer<typeof analyticsErasureSchema>)
+  )
+  .get("/v1/admin/analytics/health", (c) =>
+    c.json({} as z.infer<typeof analyticsHealthSchema>)
+  )
+  .get("/v1/admin/analytics/failures", (c) =>
+    c.json({} as z.infer<typeof analyticsFailuresSchema>)
+  )
+  .get("/v1/admin/analytics/retention", (c) =>
+    c.json({} as z.infer<typeof analyticsRetentionSchema>)
+  )
+  .get(
+    "/v1/admin/analytics/reconciliation",
+    validator("query", (value) =>
+      analyticsReconciliationQuerySchema.parse(value)
+    ),
+    (c) => c.json({} as z.infer<typeof analyticsReconciliationSchema>)
+  )
+  .post("/v1/admin/analytics/replay/:id", (c) =>
+    c.json({} as z.infer<typeof analyticsReplaySchema>)
+  )
+  .post("/v1/admin/analytics/erase/:userId", (c) =>
+    c.json({} as z.infer<typeof analyticsErasureSchema>)
+  )
   .get(
     "/v1/analytics/timeseries",
     validator("query", (value) => analyticsTimeseriesQuerySchema.parse(value)),

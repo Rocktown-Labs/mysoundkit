@@ -14,6 +14,7 @@ import { cors } from "hono/cors";
 import notFound from "stoker/middlewares/not-found";
 import defaultHook from "stoker/openapi/default-hook";
 
+import { runAnalyticsSweep } from "@/lib/analytics-outbox";
 import {
   isDigestSendDay,
   runArtistDigest,
@@ -29,6 +30,7 @@ import {
 } from "@/lib/email-delivery";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { jsonError } from "@/lib/errors";
+import { runMockupPollSweep } from "@/lib/fulfillment-printful";
 import { publishDueLiveRecordings } from "@/lib/live-experience-events";
 import {
   handleLiveNotificationQueue,
@@ -48,7 +50,6 @@ import { sendDueOnboardingReminders } from "@/lib/onboarding-reminders";
 import { runOpenVerseSweep } from "@/lib/open-verse-sweep";
 import { runOrphanedUploadSweep } from "@/lib/orphan-sweep";
 import { runPrintfulCatalogSweep } from "@/lib/printful-catalog";
-import { runMockupPollSweep } from "@/lib/fulfillment-printful";
 import { publishDueTrackReleases } from "@/lib/release-notifications";
 import { withRetry } from "@/lib/retry";
 import { isScheduledJobsEnabled } from "@/lib/scheduled-jobs";
@@ -62,10 +63,10 @@ import {
   structuredLoggingMiddleware,
 } from "@/middleware/structured-logging";
 import adminRoutes from "@/routes/admin";
+import adminAnalyticsRoutes from "@/routes/admin-analytics";
 import adminAudioDiagnosticsRoutes from "@/routes/admin-audio-diagnostics";
 import adminFinanceRoutes from "@/routes/admin-finance";
 import adminMerchRoutes from "@/routes/admin-merch";
-import printfulWebhookRoutes from "@/routes/webhooks-printful";
 import adsRoutes from "@/routes/ads";
 import analyticsRoutes from "@/routes/analytics";
 import artistSetupGuideRoutes from "@/routes/artist-setup-guide";
@@ -99,6 +100,7 @@ import tracksRoutes from "@/routes/tracks";
 import uploadsRoutes from "@/routes/uploads";
 import videosRoutes from "@/routes/videos";
 import webhookRoutes from "@/routes/webhooks";
+import printfulWebhookRoutes from "@/routes/webhooks-printful";
 import stripeWebhookRoutes from "@/routes/webhooks-stripe";
 import { scheduleDuePayoutRuns } from "@/workflows/payout-run";
 
@@ -275,6 +277,7 @@ app
   .route("/v1/admin", adminRoutes)
   .route("/v1/admin", adminAudioDiagnosticsRoutes)
   .route("/v1/admin/finance", adminFinanceRoutes)
+  .route("/v1/admin/analytics", adminAnalyticsRoutes)
   .route("/v1/admin/merch", adminMerchRoutes)
   .route("/v1/ads", adsRoutes)
   .route("/v1/analytics", analyticsRoutes)
@@ -416,6 +419,10 @@ export default {
           ...buildWeeklyDigestJobs(workerEnv, now),
           ...buildMonthlyDigestJobs(workerEnv, now),
           runCheckoutReconciliation(),
+          runAnalyticsSweep({
+            environment: workerEnv.SOUNDKIT_ANALYTICS_ENV,
+            stream: workerEnv.ANALYTICS_STREAM,
+          }),
           runPrintfulCatalogSweep(),
           runMockupPollSweep(),
           runOrphanedUploadSweep({ bucket: workerEnv.MEDIA_BUCKET }),

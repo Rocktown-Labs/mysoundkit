@@ -1,0 +1,36 @@
+name: Apply approved analytics migration
+on:
+  workflow_dispatch:
+    inputs:
+      migration_sha256:
+        description: Exact reviewed SHA-256 of packages/db/analytics/001_outbox.sql
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: analytics-production-migration
+  cancel-in-progress: false
+jobs:
+  apply:
+    name: Apply explicitly approved analytics v1
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-node-pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Apply exact approved migration to SoundKit main
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SOUNDKIT_ANALYTICS_TARGET: rocktownlabs/soundkit/main
+          APPROVED_SHA: ${{ inputs.migration_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$APPROVED_SHA" =~ ^[a-f0-9]{64}$ ]] || exit 1
+          node scripts/analytics-migration.mjs --apply --sha256 "$APPROVED_SHA"
+          node scripts/analytics-migration.mjs --check

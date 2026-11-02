@@ -6,8 +6,9 @@ import { createMiddleware } from "hono/factory";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 
 import { isConfiguredAdminEmail } from "@/lib/admin";
+import { recordAccountActivity } from "@/lib/analytics-outbox";
 import type { AppEnv } from "@/lib/types";
-import { logError } from "@/middleware/structured-logging";
+import { logWarn, logError } from "@/middleware/structured-logging";
 
 export const sessionMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   try {
@@ -71,4 +72,39 @@ export const sessionMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   }
 
   await next();
+  const userId = c.get("user")?.id;
+  if (
+    userId &&
+    isDatabaseConfigured() &&
+    c.res.status < 400 &&
+    c.req.path.startsWith("/v1/") &&
+    !["HEAD", "OPTIONS"].includes(c.req.method) &&
+    c.env.ANALYTICS_STREAM &&
+    c.env.SOUNDKIT_ANALYTICS_ENV
+  ) {
+    c.executionCtx.waitUntil(
+      (async () => {
+        try {
+          let cache: Cache | undefined;
+          if ("caches" in globalThis) {
+            try {
+              cache = await caches.open("soundkit-internal-activity-v1");
+            } catch {
+              logWarn({
+                event: "analytics_activity_cache_failed",
+                phase: "open",
+              });
+            }
+          }
+          await recordAccountActivity(userId, {
+            cache,
+            environment: c.env.SOUNDKIT_ANALYTICS_ENV ?? "test",
+            origin: new URL(c.req.url).origin,
+          });
+        } catch {
+          logWarn({ event: "analytics_activity_record_failed" });
+        }
+      })()
+    );
+  }
 });
