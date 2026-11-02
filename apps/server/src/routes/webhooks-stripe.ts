@@ -11,13 +11,12 @@ import {
   communitySubscriptions,
 } from "@soundkit/db/schema/communities";
 import {
-  paymentRefunds,
   stripeWebhookEvents,
   tips,
   transactions,
 } from "@soundkit/db/schema/payments";
 import { env } from "@soundkit/env/server";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, ne, or } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
@@ -33,6 +32,10 @@ import {
   reverseStripeTransfer,
   verifyStripeSignatureWithSecrets,
 } from "@/lib/stripe";
+import {
+  isStripeRefundEvent,
+  syncConfirmedStripeRefunds,
+} from "@/lib/stripe-refunds";
 import type { AppEnv } from "@/lib/types";
 import { logWarn } from "@/middleware/structured-logging";
 import { ensurePurchaseFulfillmentWorkflow } from "@/workflows/purchase-fulfillment";
@@ -388,7 +391,7 @@ const processConnectAccountEvent = async ({
       }
       if (transactionId && object.id) {
         const [checkoutTransaction] = await db
-          .select({ id: transactions.id })
+          .select({ id: transactions.id, status: transactions.status })
           .from(transactions)
           .where(
             and(
@@ -407,20 +410,32 @@ const processConnectAccountEvent = async ({
             "Checkout transaction session could not be verified."
           );
         }
+        if (checkoutTransaction.status === "refunded") {
+          return;
+        }
         const [order] = await db
           .select()
           .from(orders)
           .where(eq(orders.transactionId, transactionId))
           .limit(1);
 
-        await db
+        const settled = await db
           .update(transactions)
           .set({
             status: "succeeded",
             stripePaymentIntentId: object.payment_intent,
             stripeSubscriptionId: object.subscription,
           })
-          .where(eq(transactions.id, transactionId));
+          .where(
+            and(
+              eq(transactions.id, transactionId),
+              ne(transactions.status, "refunded")
+            )
+          )
+          .returning({ id: transactions.id });
+        if (settled.length === 0) {
+          return;
+        }
 
         if (object.metadata?.tipDelivery === "transfers") {
           await settleTipTransfers({ db, transactionId });
@@ -467,7 +482,12 @@ const processConnectAccountEvent = async ({
             status: "paid",
             stripePaymentIntentId: object.payment_intent,
           })
-          .where(eq(orders.transactionId, transactionId));
+          .where(
+            and(
+              eq(orders.transactionId, transactionId),
+              ne(orders.status, "refunded")
+            )
+          );
 
         // Purchases, delivery emails, and notifications run in the durable
         // fulfillment workflow so a failure retries without depending on
@@ -587,29 +607,13 @@ const processConnectAccountEvent = async ({
       return;
     }
 
-    if (eventType === "charge.refunded" && object.id) {
-      const [transaction] = object.payment_intent
-        ? await db
-            .select()
-            .from(transactions)
-            .where(
-              eq(transactions.stripePaymentIntentId, object.payment_intent)
-            )
-            .limit(1)
-        : [];
-
-      if (transaction) {
-        await db.insert(paymentRefunds).values({
-          amountCents: object.amount ?? transaction.amountCents,
-          id: crypto.randomUUID(),
-          stripeRefundId: object.id,
-          transactionId: transaction.id,
-        });
-        await db
-          .update(transactions)
-          .set({ status: "refunded" })
-          .where(eq(transactions.id, transaction.id));
-      }
+    if (isStripeRefundEvent(eventType) && object.id) {
+      await syncConfirmedStripeRefunds({
+        connectedAccountId: event.account,
+        db,
+        eventType,
+        id: object.id,
+      });
     }
   };
 

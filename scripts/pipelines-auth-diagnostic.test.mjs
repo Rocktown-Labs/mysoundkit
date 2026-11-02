@@ -186,7 +186,7 @@ for (const [failure, error] of [
   ["timeout", new DOMException("fixture-secret", "AbortError")],
   ["network", new TypeError("fixture-secret")],
 ]) {
-  test(`classifies ${failure} without disclosing exception text`, async () => {
+  test(`classifies ${error.name} as ${failure} without disclosing exception text`, async () => {
     const reports = await diagnosePipelinesAuth(env, () =>
       Promise.reject(error)
     );

@@ -11,7 +11,14 @@ on:
         options:
           - audit-v1-workflows
           - set-r2-secrets
+          - stripe-refund-events
           - diagnose-pipelines-auth
+
+      apply_refund_events:
+        description: "Apply only missing refund lifecycle subscriptions to existing SoundKit webhooks"
+        required: false
+        default: false
+        type: boolean
 
       show_token_name:
         description: "Include the token label (never its value) in auth diagnostics"
@@ -85,6 +92,23 @@ jobs:
           echo '{"name":"seed","private":true}' > package.json
           pnpm add alchemy@0.90.1 --ignore-scripts
           node seed-v2-r2-secrets.mjs /dev/null
+
+  stripe-refund-events:
+    name: Verify or add SoundKit refund event subscriptions
+    if: ${{ inputs.task == 'stripe-refund-events' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    environment: production
+    permissions:
+      contents: read
+    env:
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      APPLY_REFUND_EVENTS: ${{ inputs.apply_refund_events }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: node scripts/ci/stripe-refund-events.mjs
 
   diagnose-pipelines-auth:
     name: Diagnose Pipeline authentication (read only)
