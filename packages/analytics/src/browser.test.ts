@@ -19,6 +19,13 @@ const secret = "private-person@example.test",
   };
 
 describe("anonymous analytics privacy contract", () => {
+  it("normalizes adversarial slash sequences without a backtracking pattern", () => {
+    expect(analyticsRoute(`${"/".repeat(100_000)}x`, "web")).toBe("/other");
+    expect(analyticsRoute(`/login${"/".repeat(100_000)}`, "web")).toBe(
+      "/login"
+    );
+    expect(analyticsRoute("///", "web")).toBe("/");
+  });
   it.each([
     ["bio", `/${secret}?token=secret`, "/artist"],
     ["web", `/artist/${secret}`, "/artist/:artist"],

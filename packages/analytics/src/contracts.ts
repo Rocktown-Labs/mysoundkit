@@ -270,7 +270,12 @@ export function analyticsRoute(
   pathname: string,
   surface: AnalyticsSurface
 ): string {
-  const path = pathname.split(/[?#]/u)[0]?.replace(/\/+$/u, "") || "/";
+  const rawPath = pathname.split(/[?#]/u)[0] ?? "";
+  let end = rawPath.length;
+  while (end > 0 && rawPath[end - 1] === "/") {
+    end -= 1;
+  }
+  const path = rawPath.slice(0, end) || "/";
   if (staticRoutes.has(path)) {
     return path;
   }
