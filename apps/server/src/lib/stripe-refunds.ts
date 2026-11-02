@@ -179,11 +179,21 @@ async function findTransaction(
   db: RefundDatabase,
   connectedAccountId?: string
 ) {
-  const matches = await db
-    .select()
-    .from(transactions)
-    .where(eq(transactions.stripePaymentIntentId, charge.payment_intent ?? ""))
-    .limit(2);
+  const intent = charge.payment_intent;
+  if (!intent) {
+    return;
+  }
+  // Short locking reads require fresh rows rather than cached results. All
+  // provider requests remain outside these transactions and row locks.
+  const matches = await db.transaction(
+    async (tx) =>
+      await tx
+        .select()
+        .from(transactions)
+        .where(eq(transactions.stripePaymentIntentId, intent))
+        .limit(2)
+        .for("update")
+  );
   if (matches.length > 1) {
     throw new Error("Stripe refund payment intent is ambiguously bound");
   }
@@ -198,7 +208,7 @@ async function findTransaction(
       method: "GET",
       params: new URLSearchParams({
         limit: "2",
-        payment_intent: charge.payment_intent ?? "",
+        payment_intent: intent,
       }),
       path: "/checkout/sessions",
     })
@@ -208,6 +218,8 @@ async function findTransaction(
   }
   const [session] = sessions.data;
   if (!session) {
+    // Metadata is only a retry hint for possibly delayed SoundKit bindings;
+    // it never authorizes a match. Untracked billing payments are ignored.
     if (charge.metadata?.transactionId) {
       throw new Error("Refund Checkout Session is not yet discoverable");
     }
@@ -216,11 +228,15 @@ async function findTransaction(
   if (session.payment_intent !== charge.payment_intent) {
     throw new Error("Refund Checkout Session does not own the payment intent");
   }
-  const [candidate] = await db
-    .select()
-    .from(transactions)
-    .where(eq(transactions.stripeCheckoutSessionId, session.id))
-    .limit(1);
+  const [candidate] = await db.transaction(
+    async (tx) =>
+      await tx
+        .select()
+        .from(transactions)
+        .where(eq(transactions.stripeCheckoutSessionId, session.id))
+        .limit(1)
+        .for("update")
+  );
   if (!candidate && charge.metadata?.transactionId) {
     throw new Error("Refund arrived before the Checkout binding was saved");
   }
@@ -327,7 +343,7 @@ export async function syncConfirmedStripeRefunds({
       recorded += inserted.length;
     }
     const fullRefund = total === current.amountCents && total > 0;
-    if (fullRefund) {
+    if (fullRefund && current.status !== "refunded") {
       await tx
         .update(transactions)
         .set({

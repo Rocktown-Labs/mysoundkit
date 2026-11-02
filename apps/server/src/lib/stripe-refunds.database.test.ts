@@ -172,6 +172,7 @@ describe.skipIf(!local)("confirmed Stripe refund persistence", () => {
       expect(await sync(db)).toEqual({ fullRefund: true, recorded: 2 });
       expect(await facts(db, id)).toHaveLength(2);
       expect(await statusOf(db, id)).toBe("refunded");
+      expect(await sync(db)).toEqual({ fullRefund: true, recorded: 0 });
       expect(
         request.mock.calls.some(
           ([input]) => input.params?.get("starting_after") === "re_first"
@@ -306,6 +307,30 @@ describe.skipIf(!local)("confirmed Stripe refund persistence", () => {
       );
       await expect(sync(db)).rejects.toThrow(/pagination/u);
       expect(await facts(db, id)).toHaveLength(0);
+    });
+  });
+  it("an older partial snapshot cannot downgrade a recorded full refund", async () => {
+    await fixture(async (db, id, intent) => {
+      provider(intent, [
+        refund(intent, "re_first", 300),
+        refund(intent, "re_last", 700),
+      ]);
+      await sync(db);
+      provider(intent, [refund(intent, "re_first", 300)]);
+      expect(await sync(db)).toEqual({ fullRefund: false, recorded: 0 });
+      expect(await statusOf(db, id)).toBe("refunded");
+      expect(await facts(db, id)).toHaveLength(2);
+    });
+  });
+  it("records a provider-confirmed refund even if local failure state is stale", async () => {
+    await fixture(async (db, id, intent) => {
+      await db
+        .update(transactions)
+        .set({ status: "failed" })
+        .where(eq(transactions.id, id));
+      provider(intent, [refund(intent, "re_true", 1000)]);
+      expect(await sync(db)).toEqual({ fullRefund: true, recorded: 1 });
+      expect(await statusOf(db, id)).toBe("refunded");
     });
   });
   it("does not change database state when the provider read fails", async () => {

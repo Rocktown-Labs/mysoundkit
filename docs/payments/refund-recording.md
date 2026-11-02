@@ -43,3 +43,22 @@ settlement ledger. No full historical net-revenue completeness claim is made.
 References: https://docs.stripe.com/api/refunds/object,
 https://docs.stripe.com/api/refunds/list, https://docs.stripe.com/refunds,
 https://docs.stripe.com/webhooks#event-ordering.
+
+## Consistency and operational boundaries
+
+Stripe and PostgreSQL cannot share a transaction. Stripe snapshots are read
+before database row locks so a slow provider cannot hold production locks or
+exhaust the connection pool. Binding reads use short locking transactions;
+refund persistence revalidates current local identity, money and currency.
+Duplicate facts are immutable and a stale smaller snapshot never restores a
+fully refunded transaction. New lifecycle callbacks converge newly completed
+refunds; a later failed refund that contradicts recorded facts requires explicit
+reconciliation. Holding a database lock during Stripe I/O cannot make those two
+systems atomic and is deliberately avoided.
+
+A local failed state can be stale while Stripe proves a captured payment and
+successful refund; recording that real refund is allowed. An already refunded
+transaction must accept duplicate callbacks without repeating state changes.
+The maintenance script deliberately targets the named production SoundKit URL;
+a domain/environment migration requires a reviewed target change rather than an
+arbitrary runtime override of this production-only operation.
