@@ -11,6 +11,7 @@ on:
         options:
           - audit-v1-workflows
           - set-r2-secrets
+          - diagnose-pipelines-auth
 
 concurrency:
   group: infra-maintenance
@@ -78,3 +79,28 @@ jobs:
           echo '{"name":"seed","private":true}' > package.json
           pnpm add alchemy@0.90.1 --ignore-scripts
           node seed-v2-r2-secrets.mjs /dev/null
+
+  diagnose-pipelines-auth:
+    name: Diagnose Pipeline authentication (read only)
+    if: ${{ inputs.task == 'diagnose-pipelines-auth' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    environment: preview
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Bootstrap repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
+      - name: Probe CI token without exposing credentials
+        run: node scripts/ci/diagnose-pipelines-auth.mjs

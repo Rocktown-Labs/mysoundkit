@@ -166,3 +166,15 @@ for the operational ledger or use replay to execute business effects.
 References: [Basin Worker ingestion](https://developers.cloudflare.com/basin-pipelines/streams/writing-to-streams/),
 [R2 sink](https://developers.cloudflare.com/basin-pipelines/sinks/available-sinks/r2/),
 [Hyperdrive connection identification](https://developers.cloudflare.com/hyperdrive/examples/connect-to-postgres/).
+
+## Read-only deployment authentication diagnostics
+
+The GitHub preview deploy uses the `CLOUDFLARE_API_TOKEN` secret, which overrides
+a local Alchemy OAuth profile. The Infra Maintenance workflow task
+`diagnose-pipelines-auth` uses the same preview environment and account/token
+secrets. It only performs GET requests against Workers, Pipeline streams/sinks,
+and the token verification/details endpoints. Logs contain status/error codes,
+known Pipeline permission names and a target-account-match flag; no token values,
+account IDs, arbitrary API messages or response payloads are printed. Failure to
+read token metadata does not prove a missing permission; compare the direct API
+probes first. This task does not deploy resources or change token policies.
