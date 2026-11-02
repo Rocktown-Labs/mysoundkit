@@ -23,6 +23,7 @@ import { API_BASE_URL, API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import {
+  clearNativePlayback,
   loadPendingPlayback,
   resolvePlaybackSource,
 } from "@/lib/playback-source";
@@ -458,15 +459,16 @@ export function AudioPlayerProvider({
   const historyRef = useRef<PlayerTrack[]>([]);
   useEffect(() => {
     const account = session?.user?.id ?? null;
-    if (lastAccountRef.current === account) {return;}
+    if (lastAccountRef.current === account) {
+      return;
+    }
     lastAccountRef.current = account;
     // Invalidate deferred cookies/ad handoffs before clearing native playback.
     pendingTrackRef.current = null;
     prerollServedTrackRef.current = null;
     historyRef.current = [];
     hasFinishedRef.current = true;
-    player.pause();
-    player.replace(null);
+    clearNativePlayback(player);
     setCurrentTrack(null);
     setQueue([]);
     setOriginalQueue([]);

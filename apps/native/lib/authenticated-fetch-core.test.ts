@@ -79,6 +79,7 @@ describe("native authenticated request transport", () => {
       transport = vi.fn(
         async (_input: RequestInfo | URL, init?: RequestInit) => {
           expect(new Headers(init?.headers).has("cookie")).toBe(false);
+          expect(init?.credentials).toBe("omit");
           return new Response("ok");
         }
       );
@@ -86,7 +87,12 @@ describe("native authenticated request transport", () => {
       apiBaseUrl,
       fetchImpl: transport,
       getCookie: cookie,
-    })(new Request(url, { headers: { cookie: "session=private" } }));
+    })(
+      new Request(url, {
+        credentials: "include",
+        headers: { cookie: "session=private" },
+      })
+    );
     expect(cookie).not.toHaveBeenCalled();
   });
   it("lets the server return its normal response when credential storage fails", async () => {

@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  clearNativePlayback,
   isCredentialedPlaybackUrl,
   loadPendingPlayback,
   resolvePlaybackSource,
@@ -171,3 +172,25 @@ it("discards a resolved source when the account changes even if the track object
   expect(replace).not.toHaveBeenCalled();
   expect(play).not.toHaveBeenCalled();
 });
+
+it.each([
+  [true, false],
+  [false, true],
+  [true, true],
+  [false, false],
+])(
+  "attempts both native cleanup steps when pause throws=%s and replace throws=%s",
+  (pauseThrows, replaceThrows) => {
+    const player = {
+      pause: vi.fn(() => {
+        if (pauseThrows) {throw new Error("released");}
+      }),
+      replace: vi.fn((_source: null) => {
+        if (replaceThrows) {throw new Error("released");}
+      }),
+    };
+    expect(() => clearNativePlayback(player)).not.toThrow();
+    expect(player.pause).toHaveBeenCalledOnce();
+    expect(player.replace).toHaveBeenCalledWith(null);
+  }
+);

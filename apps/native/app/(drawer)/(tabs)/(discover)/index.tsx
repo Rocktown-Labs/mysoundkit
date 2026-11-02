@@ -63,6 +63,9 @@ const SECTION_EMPTY = "Nothing here yet — check back soon.",
       flexDirection: "row",
       gap: 12,
     },
+    stateAction: { paddingVertical: 12 },
+    stateBox: { gap: 8 },
+    stateCopy: { fontSize: 14, lineHeight: 20 },
     tagline: { fontSize: 14, lineHeight: 20, marginTop: -14 },
     title: {
       fontSize: 32,
@@ -188,6 +191,8 @@ export default function DiscoverScreen() {
     };
   }, []);
 
+  const [isRetrying, setIsRetrying] = useState(false);
+  const retryInFlightRef = useRef(false);
   const discoveryQueries = [
     topSongs,
     newReleases,
@@ -203,6 +208,22 @@ export default function DiscoverScreen() {
   );
   const settled = discoveryQueries.every((query) => !query.isPending);
   const hasError = discoveryQueries.some((query) => query.isError);
+  const retryDiscovery = async () => {
+    if (retryInFlightRef.current) {
+      return;
+    }
+    retryInFlightRef.current = true;
+    setIsRetrying(true);
+    try {
+      await Promise.allSettled(
+        discoveryQueries.map((query) => query.refetch({ cancelRefetch: false }))
+      );
+    } catch {
+      // Keep the current error message if creating a retry itself fails.
+    }
+    retryInFlightRef.current = false;
+    setIsRetrying(false);
+  };
 
   return (
     <Container>
@@ -230,32 +251,36 @@ export default function DiscoverScreen() {
           scope={activeScope}
         />
         {hasError ? (
-          <View>
-            <Text style={{ color: theme.text }}>
+          <View style={styles.stateBox}>
+            <Text style={[styles.stateCopy, { color: theme.text }]}>
               Some discovery results couldn’t load.
             </Text>
             <Pressable
+              accessibilityLabel="Retry loading discovery results"
               accessibilityRole="button"
-              style={{ paddingVertical: 12 }}
+              accessibilityState={{ busy: isRetrying, disabled: isRetrying }}
+              disabled={isRetrying}
+              style={styles.stateAction}
               onPress={() => {
-                void Promise.allSettled(
-                  discoveryQueries.map((query) => query.refetch())
-                );
+                void retryDiscovery();
               }}
             >
-              <Text style={{ color: theme.primary }}>Try again</Text>
+              <Text style={{ color: theme.primary }}>
+                {isRetrying ? "Retrying…" : "Try again"}
+              </Text>
             </Pressable>
           </View>
         ) : null}
         {settled && !hasResults && !hasError ? (
-          <View>
-            <Text style={{ color: theme.text }}>
+          <View style={styles.stateBox}>
+            <Text style={[styles.stateCopy, { color: theme.text }]}>
               No releases or live activity in this region yet.
             </Text>
             {activeScope !== "global" || selectedRegion ? (
               <Pressable
+                accessibilityLabel="Explore all SoundKit"
                 accessibilityRole="button"
-                style={{ paddingVertical: 12 }}
+                style={styles.stateAction}
                 onPress={() => {
                   setActiveScope("global");
                   setSelectedRegion(null);

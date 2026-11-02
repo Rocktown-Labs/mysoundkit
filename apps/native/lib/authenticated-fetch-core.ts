@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars */
 export function createAuthenticatedFetch({
   apiBaseUrl,
   getCookie,
@@ -14,9 +15,11 @@ export function createAuthenticatedFetch({
   const apiOrigin = new URL(apiBaseUrl).origin;
   return async (input, init) => {
     const request =
-      typeof Request !== "undefined" && input instanceof Request ? input : null,
-     headers = new Headers(init?.headers ?? request?.headers),
-     url = request?.url ?? String(input);
+        typeof Request !== "undefined" && input instanceof Request
+          ? input
+          : null,
+      headers = new Headers(init?.headers ?? request?.headers),
+      url = request?.url ?? String(input);
     let isApi = false;
     try {
       isApi = new URL(url, apiBaseUrl).origin === apiOrigin;
@@ -26,13 +29,19 @@ export function createAuthenticatedFetch({
     if (isApi) {
       try {
         const cookie = await getCookie();
-        if (cookie) {headers.set("cookie", cookie);}
+        if (cookie) {
+          headers.set("cookie", cookie);
+        }
       } catch {
         /* The API can return its normal unauthenticated response. */
       }
     } else {
       headers.delete("cookie");
     }
-    return await fetchImpl(input, { ...init, headers });
+    return await fetchImpl(input, {
+      ...init,
+      credentials: isApi ? (init?.credentials ?? request?.credentials) : "omit",
+      headers,
+    });
   };
 }

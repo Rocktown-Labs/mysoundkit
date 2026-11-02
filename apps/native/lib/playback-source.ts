@@ -72,3 +72,20 @@ export async function loadPendingPlayback<Track>({
   play();
   return true;
 }
+
+/** Clear as much native state as possible even if one released handle throws. */
+export function clearNativePlayback(player: {
+  pause: () => void;
+  replace: (source: null) => void;
+}): void {
+  try {
+    player.pause();
+  } catch {
+    /* A disposed native handle may already be paused. */
+  }
+  try {
+    player.replace(null);
+  } catch {
+    /* React state cleanup must still proceed. */
+  }
+}

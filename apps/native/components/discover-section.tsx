@@ -192,7 +192,9 @@ export function DiscoverSection({
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
-  if (hideWhenEmpty && !isLoading && data.length === 0) {return null;}
+  if (hideWhenEmpty && !isLoading && data.length === 0) {
+    return null;
+  }
 
   return (
     <View style={styles.section}>
