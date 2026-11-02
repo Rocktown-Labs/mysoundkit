@@ -1,7 +1,7 @@
 /* oxlint-disable one-var, sort-vars, no-nested-ternary, require-unicode-regexp */
 /* eslint-disable one-var, sort-vars, no-nested-ternary, require-unicode-regexp */
 import { useEffect, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AvatarHeaderButton } from "@/components/avatar-header-button";
 import { CartHeaderButton } from "@/components/cart/cart-header-button";
@@ -188,6 +188,22 @@ export default function DiscoverScreen() {
     };
   }, []);
 
+  const discoveryQueries = [
+    topSongs,
+    newReleases,
+    liveBattles,
+    topArtists,
+    videos,
+    liveStreams,
+    projects,
+    liveParties,
+  ];
+  const hasResults = discoveryQueries.some(
+    (query) => (query.data?.length ?? 0) > 0
+  );
+  const settled = discoveryQueries.every((query) => !query.isPending);
+  const hasError = discoveryQueries.some((query) => query.isError);
+
   return (
     <Container>
       <ScrollView contentContainerStyle={styles.content}>
@@ -213,7 +229,51 @@ export default function DiscoverScreen() {
           regionName={selectedRegion}
           scope={activeScope}
         />
+        {hasError ? (
+          <View>
+            <Text style={{ color: theme.text }}>
+              Some discovery results couldn’t load.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              style={{ paddingVertical: 12 }}
+              onPress={() => {
+                void Promise.allSettled(
+                  discoveryQueries.map((query) => query.refetch())
+                );
+              }}
+            >
+              <Text style={{ color: theme.primary }}>Try again</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {settled && !hasResults && !hasError ? (
+          <View>
+            <Text style={{ color: theme.text }}>
+              No releases or live activity in this region yet.
+            </Text>
+            {activeScope !== "global" || selectedRegion ? (
+              <Pressable
+                accessibilityRole="button"
+                style={{ paddingVertical: 12 }}
+                onPress={() => {
+                  setActiveScope("global");
+                  setSelectedRegion(null);
+                  void saveRegionSelection({
+                    mapScope: "global",
+                    regionName: null,
+                  });
+                }}
+              >
+                <Text style={{ color: theme.primary }}>
+                  Explore all SoundKit
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
         <DiscoverSection
+          hideWhenEmpty
           data={toTrackCards(topSongs.data)}
           emptyMessage={SECTION_EMPTY}
           isLoading={topSongs.isLoading}
@@ -221,6 +281,7 @@ export default function DiscoverScreen() {
           title="Top Songs"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toTrackCards(newReleases.data)}
           emptyMessage={SECTION_EMPTY}
           isLoading={newReleases.isLoading}
@@ -228,6 +289,7 @@ export default function DiscoverScreen() {
           title="New Releases"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toBattleCards(liveBattles.data)}
           emptyMessage="No battles scheduled in this region yet."
           isLoading={liveBattles.isLoading}
@@ -235,6 +297,7 @@ export default function DiscoverScreen() {
           title="Live Battles"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toArtistCards(topArtists.data)}
           emptyMessage={SECTION_EMPTY}
           isLoading={topArtists.isLoading}
@@ -242,6 +305,7 @@ export default function DiscoverScreen() {
           title="Top Artists"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toVideoCards(videos.data)}
           emptyMessage={SECTION_EMPTY}
           isLoading={videos.isLoading}
@@ -249,6 +313,7 @@ export default function DiscoverScreen() {
           title="Featured Videos"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toStreamCards(liveStreams.data)}
           emptyMessage="No creator streams happening right now."
           isLoading={liveStreams.isLoading}
@@ -256,6 +321,7 @@ export default function DiscoverScreen() {
           title="Live Streams"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toProjectCards(projects.data)}
           emptyMessage={SECTION_EMPTY}
           isLoading={projects.isLoading}
@@ -263,6 +329,7 @@ export default function DiscoverScreen() {
           title="Featured Projects"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toPartyCards(liveParties.data)}
           emptyMessage="No listening parties scheduled yet."
           isLoading={liveParties.isLoading}

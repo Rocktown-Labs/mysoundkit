@@ -1,3 +1,4 @@
+/* eslint-disable require-await, one-var */
 /* eslint-disable one-var, sort-vars */
 import { describe, expect, it, vi } from "vitest";
 
@@ -146,4 +147,27 @@ describe("pending native playback handoff", () => {
     expect(replaceSource).not.toHaveBeenCalled();
     expect(play).not.toHaveBeenCalled();
   });
+});
+
+it("discards a resolved source when the account changes even if the track object is reused", async () => {
+  const track = {
+    id: "same-track",
+    src: "https://api.example.test/v1/tracks/same/playback",
+  };
+  let account = "account-a";
+  const replace = vi.fn(),
+    play = vi.fn();
+  const applied = await loadPendingPlayback({
+    getAccountId: () => account,
+    getPendingTrack: () => track,
+    play,
+    replaceSource: replace,
+    resolveSource: async () => {
+      account = "account-b";
+      return { headers: { cookie: "account-a-cookie" }, uri: track.src };
+    },
+  });
+  expect(applied).toBe(false);
+  expect(replace).not.toHaveBeenCalled();
+  expect(play).not.toHaveBeenCalled();
 });

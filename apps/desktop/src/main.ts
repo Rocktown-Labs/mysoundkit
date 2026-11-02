@@ -80,7 +80,10 @@ const appUrl = resolveAppUrl(process.env.SOUNDKIT_APP_URL ?? DEFAULT_APP_URL),
   ERR_ABORTED_CODE = -3;
 
 let mainWindow: BrowserWindow | null = null,
-  pendingDeepLinkUrl: string | null = null;
+  pendingDeepLinkUrl: string | null =
+    process.argv.find((argument) =>
+      argument.startsWith(`${DEEP_LINK_SCHEME}://`)
+    ) ?? null;
 
 const isErrorPageUrl = (url: string): boolean => url.startsWith(errorPageUrl),
   windowStateFilePath = (): string =>

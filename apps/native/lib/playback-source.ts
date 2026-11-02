@@ -46,21 +46,25 @@ export async function resolvePlaybackSource({
 
 export async function loadPendingPlayback<Track>({
   getPendingTrack,
+  getAccountId = () => null,
   resolveSource,
   replaceSource,
   play,
 }: {
   getPendingTrack: () => Track | null;
+  getAccountId?: () => string | null;
   resolveSource: (track: Track) => Promise<NativePlaybackSource>;
   replaceSource: (source: NativePlaybackSource) => void;
   play: () => void;
 }): Promise<boolean> {
-  const capturedTrack = getPendingTrack(),
+  const capturedAccount = getAccountId(),
+    capturedTrack = getPendingTrack(),
     source = capturedTrack === null ? null : await resolveSource(capturedTrack);
   if (
     capturedTrack === null ||
     source === null ||
-    getPendingTrack() !== capturedTrack
+    getPendingTrack() !== capturedTrack ||
+    getAccountId() !== capturedAccount
   ) {
     return false;
   }
