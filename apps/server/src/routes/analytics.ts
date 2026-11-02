@@ -39,6 +39,7 @@ import {
   playConditionSql,
   resolveRegionName,
 } from "@/lib/analytics-helpers";
+import { eraseAccountAnalytics } from "@/lib/analytics-outbox";
 import { publicAssetUrl } from "@/lib/asset-urls";
 import {
   isAuthenticatedSession,
@@ -1540,5 +1541,17 @@ app.openapi(
     );
   }
 );
+
+app.delete("/account-data", async (c) => {
+  const user = c.get("user");
+  if (!user) {
+    return c.json({ message: "Sign-in required." }, 401);
+  }
+  if (!c.env.ANALYTICS_STREAM) {
+    return c.json({ message: "Internal analytics is not configured." }, 503);
+  }
+  await eraseAccountAnalytics(user.id);
+  return c.json({ erased: true });
+});
 
 export default app;

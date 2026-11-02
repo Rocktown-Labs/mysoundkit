@@ -21,4 +21,6 @@ export default defineConfig({
     "./src/schema/plans.ts",
     "./src/schema/referrals.ts",
   ],
+  // Issue #500: separately approved analytics DDL is outside automatic schema push.
+  schemaFilter: ["public"],
 });

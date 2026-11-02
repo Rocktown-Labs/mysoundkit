@@ -8,6 +8,8 @@ import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 
+import { analyticsPipeline, analyticsStream } from "./analytics-lake";
+
 config({ path: "./.env" });
 config({ path: "../../apps/website/.env" });
 config({ path: "../../apps/server/.env" });
@@ -224,14 +226,12 @@ export const recordings = Cloudflare.R2.Bucket(
   })
 );
 
-// NOTE (v2 migration): v1 managed the R2 S3 upload tokens as
-// `AccountApiToken` resources. v2 account tokens do not expose S3
-// accessKeyId/secretAccessKey pairs, so the pre-existing token pairs are
-// managed outside Alchemy now. Create (or reuse) them once in the
-// Cloudflare dashboard (R2 > API Tokens) and provide the values at deploy
-// time via CLOUDFLARE_ACCESS_KEY_ID / CLOUDFLARE_SECRET_ACCESS_KEY and
-// RECORDINGS_ACCESS_KEY_ID / RECORDINGS_SECRET_ACCESS_KEY. The old tokens
-// stay valid until deleted, so rotation is zero-downtime.
+// Existing media/recording S3 token pairs remain externally managed to avoid
+// rotating upload credentials during this rollout. The new analytics lake
+// derives its own stage-scoped S3 pair from an Alchemy-managed account token.
+// Existing pairs still arrive through CLOUDFLARE_ACCESS_KEY_ID /
+// CLOUDFLARE_SECRET_ACCESS_KEY and RECORDINGS_ACCESS_KEY_ID /
+// RECORDINGS_SECRET_ACCESS_KEY at deployment time.
 const emailDeliveryDeadLetterQueue = Cloudflare.Queues.Queue(
     "email-delivery-dlq",
     Effect.gen(function* () {
@@ -528,6 +528,8 @@ export const server = Cloudflare.Worker(
         : { aliases: [d.MEDIA_HOST], name: d.API_HOST },
       env: {
         AI: workersAi,
+        ANALYTICS_STREAM: analyticsStream,
+        SOUNDKIT_ANALYTICS_ENV: d.isProduction ? "production" : d.stage,
         ...optionalEnvBinding("BATTLE_BOT_SECRET"),
         AUDIO_EMBEDDINGS_ENABLED: "true",
         BATTLE_DIRECTORY: battleDirectory,
@@ -748,6 +750,7 @@ export default Alchemy.Stack(
     state: Cloudflare.state(),
   },
   Effect.gen(function* () {
+    yield* analyticsPipeline;
     yield* media;
     yield* recordings;
     yield* emailDeliveryDeadLetterQueue;

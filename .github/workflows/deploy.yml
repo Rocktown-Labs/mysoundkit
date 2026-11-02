@@ -86,6 +86,9 @@ jobs:
           NODE
           pnpm exec drizzle-kit push --config drizzle.config.ts --force
 
+      - name: Prepare isolated analytics migration
+        run: node scripts/analytics-migration.mjs --test-apply
+
       - name: Run verification suite (types, hooks, tests, build)
         run: pnpm run verify
 
@@ -153,6 +156,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Verify explicitly approved analytics migration
+        run: node scripts/analytics-migration.mjs --check
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Apply production database schema
         working-directory: packages/db

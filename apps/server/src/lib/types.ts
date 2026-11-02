@@ -1,3 +1,4 @@
+import type { AnalyticsStream } from "@/lib/analytics-outbox";
 import type { MediaProcessorContainer } from "@/containers/media-processor";
 import type { StemSeparatorContainer } from "@/containers/stem-separator";
 import type { BattleDirectoryDurableObject } from "@/durable-objects/battle-directory";
@@ -38,6 +39,8 @@ export interface AppVariables {
 export interface AppEnv {
   Bindings: {
     AI?: Ai;
+    ANALYTICS_STREAM?: AnalyticsStream;
+    SOUNDKIT_ANALYTICS_ENV?: string;
     BATTLE_ADMISSION_BATCH_SIZE?: string;
     BATTLE_BOT_SECRET?: string;
     BETTER_AUTH_SECRET?: string;
