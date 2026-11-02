@@ -60,6 +60,7 @@ export function createTraksClient({
         await transport(traksCollectorUrl, {
           body: JSON.stringify(payload),
           credentials: "omit",
+          // This matches the collector t.js protocol: JSON in a simple CORS request.
           headers: { "Content-Type": "text/plain" },
           keepalive: true,
           method: "POST",
@@ -105,7 +106,14 @@ export function createTraksClient({
         if (previousMediaType && previousMediaType !== mediaType) {
           void send({
             en: "media_transition_completed",
-            ep: JSON.stringify({ media_type: mediaType, surface }),
+            ep: JSON.stringify({
+              ...sanitizeAnalyticsProperties("media_transition_completed", {
+                media_type: mediaType,
+                provider:
+                  mediaType === "audio" ? "soundkit" : properties?.provider,
+              }),
+              surface,
+            }),
             t: "event",
           });
         }

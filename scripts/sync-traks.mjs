@@ -60,7 +60,7 @@ async function main() {
       signal: AbortSignal.timeout(60_000),
     });
     if (!response.ok) {
-      throw new Error(`Traks MCP HTTP ${response.status}`);
+      throw new Error(`Traks MCP HTTP ${response.status} during ${method}`);
     }
     const session = response.headers.get("mcp-session-id");
     if (session) {
@@ -81,7 +81,7 @@ async function main() {
     }
     const message = JSON.parse(payload);
     if (message.error || message.result?.isError) {
-      throw new Error("Traks MCP rejected the request.");
+      throw new Error(`Traks MCP rejected ${method}.`);
     }
     return message.result;
   }

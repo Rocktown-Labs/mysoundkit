@@ -11,9 +11,11 @@ const googleCapabilityQueryKey = ["auth", "capabilities"] as const;
 export function GoogleAuthButton({
   accountType,
   callbackURL,
+  mode = "login",
 }: {
   accountType?: "artist" | "fan";
   callbackURL: string;
+  mode?: "login" | "signup";
 }) {
   const capabilityQuery = useQuery({
     queryFn: async () => {
@@ -50,10 +52,15 @@ export function GoogleAuthButton({
     <Button
       className="h-[46px] w-full rounded-[10px] border-[#27272A] bg-[#050507] dark:border-[#27272A] dark:bg-[#050507] text-sm font-semibold text-[#FAFAFA] hover:bg-[#18181B] hover:text-[#FAFAFA] dark:hover:text-[#FAFAFA] dark:hover:bg-[#18181B]"
       onClick={() => {
-        capture("signup_method_selected", {
-          account_type: accountType,
-          auth_method: "google",
-        });
+        capture(
+          mode === "signup"
+            ? "signup_method_selected"
+            : "login_method_selected",
+          {
+            account_type: accountType,
+            auth_method: "google",
+          }
+        );
         void authClient.signIn.social({
           callbackURL,
           newUserCallbackURL: callbackURL,

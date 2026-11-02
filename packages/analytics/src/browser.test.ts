@@ -19,6 +19,26 @@ const secret = "private-person@example.test",
   };
 
 describe("anonymous analytics privacy contract", () => {
+  it("measures media transitions using the observed provider, without inventing dimensions", () => {
+    const { client, transport } = makeClient();
+    client.capture("track_play_started", { source: "bio" });
+    client.capture("video_play_started", {
+      provider: "youtube",
+      user_id: "private",
+    });
+    client.capture("video_play_started", { provider: "youtube" });
+    const transitions = transport.mock.calls
+      .map((call) => JSON.parse(String(call[1]?.body)))
+      .filter((event) => event.en === "media_transition_completed");
+    expect(transitions).toHaveLength(1);
+    expect(JSON.parse(transitions[0].ep)).toEqual({
+      media_type: "video",
+      provider: "youtube",
+      surface: "bio",
+    });
+    expect(analyticsRoute("/artists", "web")).toBe("/artists");
+    expect(analyticsRoute("/artists/missing", "web")).toBe("/other");
+  });
   it("retains bounded legacy dimensions without retaining private identifiers", () => {
     expect(
       sanitizeAnalyticsProperties("account_created", {
@@ -45,6 +65,18 @@ describe("anonymous analytics privacy contract", () => {
       })
     ).toEqual({ selected_plan: "soundkit_premium_artist" });
     expect(analyticsRoute("/library", "bio")).toBe("/library");
+    expect(
+      sanitizeAnalyticsProperties("cart_item_added", {
+        media_format: "vinyl_12",
+        product_type: "physical_merch",
+        purchase_mode: "physical_merch",
+        title: "private",
+      })
+    ).toEqual({
+      media_format: "vinyl_12",
+      product_type: "physical_merch",
+      purchase_mode: "physical_merch",
+    });
   });
   it("preserves the existing numeric onboarding steps as bounded step numbers", () => {
     expect(

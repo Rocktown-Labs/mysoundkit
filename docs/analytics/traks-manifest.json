@@ -179,6 +179,11 @@
           "name": "Stripe Connect started",
           "type": "event",
           "target": "stripe_connect_started"
+        },
+        {
+          "name": "Login method selected",
+          "type": "event",
+          "target": "login_method_selected"
         }
       ],
       "funnels": [
