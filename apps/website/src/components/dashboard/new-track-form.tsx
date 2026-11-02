@@ -1070,9 +1070,15 @@ export function NewTrackForm({
         clearTrackMediaState();
         allowNavigation();
         pendingMasterTrackRef.current = null;
+        capture("track_upload_completed", {
+          kind: "track",
+          outcome: "success",
+        });
         capture("track_upload_settled", {
           genre: values.genre,
           isPublic: values.status === "ready",
+          kind: "track",
+          outcome: "success",
           status: values.status,
           trackId: trackIdToUse,
         });

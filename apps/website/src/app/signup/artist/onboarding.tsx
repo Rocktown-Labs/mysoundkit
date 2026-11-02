@@ -183,7 +183,7 @@ function ArtistOnboardingPage() {
         }
         setEligibility(value);
         capture("creator_eligibility_declared", {
-          account_type: value === "major" ? "fan" : "artist",
+          account_type: "artist",
           eligibility: value,
         });
       } catch {
@@ -321,6 +321,7 @@ function ArtistOnboardingPage() {
           return;
         }
         window.localStorage.removeItem(ARTIST_ONBOARDING_DRAFT_KEY);
+        capture("artist_profile_saved", { account_type: "artist" });
         capture("onboarding_completed", {
           account_type: "artist",
           selected_plan: selectedPlanCode,

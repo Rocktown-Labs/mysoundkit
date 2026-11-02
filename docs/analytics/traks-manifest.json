@@ -1,0 +1,346 @@
+{
+  "sites": [
+    {
+      "surface": "web",
+      "siteId": "w8wd3ni1xlpvyy02v6mw44cn",
+      "domain": "mysoundkit.com",
+      "goals": [
+        {
+          "name": "Account created",
+          "type": "event",
+          "target": "account_created"
+        },
+        {
+          "name": "Artist followed",
+          "type": "event",
+          "target": "artist_followed"
+        },
+        {
+          "name": "Artist profile saved",
+          "type": "event",
+          "target": "artist_profile_saved"
+        },
+        {
+          "name": "Cart item added",
+          "type": "event",
+          "target": "cart_item_added"
+        },
+        {
+          "name": "Cart item removed",
+          "type": "event",
+          "target": "cart_item_removed"
+        },
+        {
+          "name": "Cart cleared",
+          "type": "event",
+          "target": "cart_cleared"
+        },
+        {
+          "name": "Checkout started",
+          "type": "event",
+          "target": "checkout_started"
+        },
+        {
+          "name": "Creator eligibility declared",
+          "type": "event",
+          "target": "creator_eligibility_declared"
+        },
+        {
+          "name": "Onboarding completed",
+          "type": "event",
+          "target": "onboarding_completed"
+        },
+        {
+          "name": "Onboarding exited",
+          "type": "event",
+          "target": "onboarding_exited"
+        },
+        {
+          "name": "Onboarding resumed",
+          "type": "event",
+          "target": "onboarding_resumed"
+        },
+        {
+          "name": "Onboarding started",
+          "type": "event",
+          "target": "onboarding_started"
+        },
+        {
+          "name": "Onboarding step completed",
+          "type": "event",
+          "target": "onboarding_step_completed"
+        },
+        {
+          "name": "Onboarding step viewed",
+          "type": "event",
+          "target": "onboarding_step_viewed"
+        },
+        {
+          "name": "Premium access confirmed",
+          "type": "event",
+          "target": "premium_access_confirmed"
+        },
+        {
+          "name": "Premium checkout started",
+          "type": "event",
+          "target": "premium_checkout_started"
+        },
+        {
+          "name": "Project created",
+          "type": "event",
+          "target": "project_created"
+        },
+        {
+          "name": "Project updated",
+          "type": "event",
+          "target": "project_updated"
+        },
+        {
+          "name": "Region selected",
+          "type": "event",
+          "target": "region_selected"
+        },
+        {
+          "name": "Signup method selected",
+          "type": "event",
+          "target": "signup_method_selected"
+        },
+        {
+          "name": "Signup type selected",
+          "type": "event",
+          "target": "signup_type_selected"
+        },
+        {
+          "name": "Track play completed",
+          "type": "event",
+          "target": "track_play_completed"
+        },
+        {
+          "name": "Track play started",
+          "type": "event",
+          "target": "track_play_started"
+        },
+        {
+          "name": "Track saved",
+          "type": "event",
+          "target": "track_saved"
+        },
+        {
+          "name": "Track upload completed",
+          "type": "event",
+          "target": "track_upload_completed"
+        },
+        {
+          "name": "Track upload settled",
+          "type": "event",
+          "target": "track_upload_settled"
+        },
+        {
+          "name": "User signed in",
+          "type": "event",
+          "target": "user_signed_in"
+        },
+        {
+          "name": "Video play completed",
+          "type": "event",
+          "target": "video_play_completed"
+        },
+        {
+          "name": "Video play started",
+          "type": "event",
+          "target": "video_play_started"
+        },
+        {
+          "name": "Pip entered",
+          "type": "event",
+          "target": "pip_entered"
+        },
+        {
+          "name": "Playback failed",
+          "type": "event",
+          "target": "playback_failed"
+        },
+        {
+          "name": "Media transition completed",
+          "type": "event",
+          "target": "media_transition_completed"
+        },
+        {
+          "name": "Outbound link clicked",
+          "type": "event",
+          "target": "outbound_link_clicked"
+        },
+        {
+          "name": "File downloaded",
+          "type": "event",
+          "target": "file_downloaded"
+        },
+        {
+          "name": "Stripe Connect started",
+          "type": "event",
+          "target": "stripe_connect_started"
+        },
+        {
+          "name": "Login method selected",
+          "type": "event",
+          "target": "login_method_selected"
+        }
+      ],
+      "funnels": [
+        {
+          "name": "Artist activation",
+          "steps": [
+            {
+              "type": "event",
+              "target": "onboarding_started",
+              "propKey": "account_type",
+              "propValue": "artist"
+            },
+            {
+              "type": "event",
+              "target": "artist_profile_saved"
+            },
+            {
+              "type": "event",
+              "target": "track_upload_completed"
+            }
+          ]
+        },
+        {
+          "name": "Fan listening engagement",
+          "steps": [
+            {
+              "type": "event",
+              "target": "track_play_started"
+            },
+            {
+              "type": "event",
+              "target": "track_play_completed"
+            },
+            {
+              "type": "event",
+              "target": "track_saved"
+            }
+          ]
+        },
+        {
+          "name": "Video playback",
+          "steps": [
+            {
+              "type": "event",
+              "target": "video_play_started"
+            },
+            {
+              "type": "event",
+              "target": "video_play_completed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "bio",
+      "siteId": "kvawikvhgtikl1h0n8b8q0yb",
+      "domain": "soundkit.bio",
+      "goals": [
+        {
+          "name": "Bio auth handoff completed",
+          "type": "event",
+          "target": "bio_auth_handoff_completed"
+        },
+        {
+          "name": "Bio auth handoff failed",
+          "type": "event",
+          "target": "bio_auth_handoff_failed"
+        },
+        {
+          "name": "Bio auth handoff started",
+          "type": "event",
+          "target": "bio_auth_handoff_started"
+        },
+        {
+          "name": "Bio cta clicked",
+          "type": "event",
+          "target": "bio_cta_clicked"
+        },
+        {
+          "name": "Bio profile viewed",
+          "type": "event",
+          "target": "bio_profile_viewed"
+        },
+        {
+          "name": "Bio section viewed",
+          "type": "event",
+          "target": "bio_section_viewed"
+        },
+        {
+          "name": "Checkout started",
+          "type": "event",
+          "target": "checkout_started"
+        },
+        {
+          "name": "Track play completed",
+          "type": "event",
+          "target": "track_play_completed"
+        },
+        {
+          "name": "Track play started",
+          "type": "event",
+          "target": "track_play_started"
+        },
+        {
+          "name": "Playback failed",
+          "type": "event",
+          "target": "playback_failed"
+        },
+        {
+          "name": "Share action completed",
+          "type": "event",
+          "target": "share_action_completed"
+        },
+        {
+          "name": "Outbound link clicked",
+          "type": "event",
+          "target": "outbound_link_clicked"
+        },
+        {
+          "name": "File downloaded",
+          "type": "event",
+          "target": "file_downloaded"
+        }
+      ],
+      "funnels": [
+        {
+          "name": "Bio discovery to listening",
+          "steps": [
+            {
+              "type": "event",
+              "target": "bio_profile_viewed"
+            },
+            {
+              "type": "event",
+              "target": "track_play_started"
+            },
+            {
+              "type": "event",
+              "target": "track_play_completed"
+            }
+          ]
+        },
+        {
+          "name": "Bio sign-in handoff",
+          "steps": [
+            {
+              "type": "event",
+              "target": "bio_auth_handoff_started"
+            },
+            {
+              "type": "event",
+              "target": "bio_auth_handoff_completed"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

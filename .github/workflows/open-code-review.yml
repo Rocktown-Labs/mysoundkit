@@ -32,7 +32,7 @@ jobs:
     needs: completion-tests
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 50
     permissions:
       contents: read
       pull-requests: write
@@ -56,7 +56,9 @@ jobs:
           if (pr.state !== 'open' || pr.head.repo.full_name !== process.env.GITHUB_REPOSITORY || pr.base.ref !== 'master') {
             throw new Error('Review requires an open same-repository PR targeting master');
           }
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `number=${pr.number}\nbase=${pr.base.ref}\nhead=${pr.head.sha}\n`);
+          // Keep the ordinary cap; larger diffs have a bounded higher ceiling.
+          const budget = pr.changed_files > 20 ? 1400000 : 700000;
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `number=${pr.number}\nbase=${pr.base.ref}\nhead=${pr.head.sha}\nbudget=${budget}\n`);
           JS
 
       # Only same-repository PRs receive credentials. The pinned action reads
@@ -78,12 +80,39 @@ jobs:
           llm_extra_body: '{}'
           review_concurrency: '2'
           effort: low
-          max_tokens_budget: '700000'
-          review_task_timeout: '15'
+          max_tokens_budget: ${{ steps.target.outputs.budget }}
+          review_task_timeout: '25'
           upload_artifacts: 'true'
           sticky_summary: 'true'
           checkpoint_range: 'true'
           resolve_outdated: 'false'
+
+      - name: Publish findings rejected by inline diff validation
+        id: fallback
+        if: ${{ steps.ocr.outputs.comments_failed != '' && steps.ocr.outputs.comments_failed != '0' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.target.outputs.number }}
+          TARGET_HEAD: ${{ steps.target.outputs.head }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          import { fallbackReviewBodies } from './scripts/code-review-result.mjs';
+          const result = JSON.parse(fs.readFileSync('/tmp/ocr-result.json', 'utf8'));
+          const bodies = fallbackReviewBodies(result, process.env.TARGET_HEAD);
+          for (const [index, body] of bodies.entries()) {
+            const input = `/tmp/ocr-fallback-${index}.json`;
+            fs.writeFileSync(input, JSON.stringify({ body }), { mode: 0o600 });
+            const response = JSON.parse(execFileSync('gh', [
+              'api', `repos/${process.env.GITHUB_REPOSITORY}/issues/${process.env.PR_NUMBER}/comments`,
+              '--method', 'POST', '--input', input,
+            ], { encoding: 'utf8' }));
+            if (!response.id || response.body !== body) throw new Error('Fallback finding publication was not confirmed.');
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'comments_failed=0\n');
+          JS
 
       # The pinned v1.13.3 action writes /tmp/ocr-result.json. Recheck on upgrades.
       - name: Require complete review and published findings
@@ -91,7 +120,7 @@ jobs:
           REVIEWED_HEAD: ${{ steps.ocr.outputs.checkpoint_after }}
           TARGET_HEAD: ${{ steps.target.outputs.head }}
           RANGE_REASON: ${{ steps.ocr.outputs.range_reason }}
-          FAILED_COMMENTS: ${{ steps.ocr.outputs.comments_failed }}
+          FAILED_COMMENTS: ${{ steps.fallback.outputs.comments_failed || steps.ocr.outputs.comments_failed }}
         run: |
           set -euo pipefail
           node --input-type=module <<'JS'

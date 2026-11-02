@@ -1,6 +1,7 @@
 /* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, react/todo, react/set-state-in-effect, no-void, unicorn/no-negated-condition, eslint/no-negated-condition, react/preserve-manual-memoization */
 "use client";
 
+import { captureAnalytics } from "@soundkit/analytics/browser";
 import {
   EmbeddedCheckout,
   EmbeddedCheckoutProvider,
@@ -48,6 +49,7 @@ import {
   isSafeExternalUrl,
   loadBioMediaSection,
   loadBioProfile,
+  verifyBioHandoffSession,
   toAbsoluteBioUrl,
   toBioShareUrl,
 } from "@/lib/api";
@@ -59,6 +61,7 @@ import type {
   BioTrack,
   BioVideo,
 } from "@/lib/api";
+import { isBioAuthHandoffMessage } from "@/lib/auth-handoff";
 
 const getSoundKitWebOrigin = () => {
   try {
@@ -181,12 +184,12 @@ function BioProfilePage() {
     profile?.media ?? null
   );
   const [merchItems, setMerchItems] = useState<
-    Array<{
+    {
       id: string;
       previewMockupUrl: string | null;
       retailPriceCents: number;
       title: string;
-    }>
+    }[]
   >([]);
   const [mediaLoadingTab, setMediaLoadingTab] = useState<LoadableTab | null>(
     null
@@ -194,11 +197,29 @@ function BioProfilePage() {
   const [mediaError, setMediaError] = useState<string | null>(null);
   const loadedSectionsRef = useRef(new Set<LoadableTab>());
   const authPopupRef = useRef<Window | null>(null);
+  const pendingAuthActionRef = useRef<"tip" | "follow">("tip");
+  const viewedProfileRef = useRef<string | null>(null);
+  const tipEligibilityRef = useRef(false);
+  useEffect(() => {
+    tipEligibilityRef.current = profile?.artist.canReceiveTips === true;
+  }, [profile?.artist.canReceiveTips]);
+  useEffect(() => {
+    if (
+      profile &&
+      profile.artist.username.toLowerCase() === username.toLowerCase() &&
+      viewedProfileRef.current !== profile.artist.username
+    ) {
+      viewedProfileRef.current = profile.artist.username;
+      captureAnalytics("bio_profile_viewed");
+    }
+  }, [profile, username]);
 
   const { currentTrack, isPlaying, playTrack, togglePlay } =
     useBioAudioPlayer();
 
-  const beginAuthHandoff = (_action: "tip" | "follow" = "tip") => {
+  const beginAuthHandoff = (action: "tip" | "follow" = "tip") => {
+    pendingAuthActionRef.current = action;
+    captureAnalytics("bio_auth_handoff_started", { action });
     const returnOrigin = window.location.origin;
     const loginUrl = `${SOUNDKIT_WEB_URL}/auth/handoff?returnOrigin=${encodeURIComponent(returnOrigin)}`;
     const popup = window.open(
@@ -208,6 +229,10 @@ function BioProfilePage() {
     );
 
     if (!popup) {
+      captureAnalytics("bio_auth_handoff_failed", {
+        action,
+        reason: "popup_blocked",
+      });
       setAuthMessage("Allow pop-ups to sign in securely with SoundKit.");
       return;
     }
@@ -217,6 +242,11 @@ function BioProfilePage() {
   };
 
   const handleTipClick = () => {
+    captureAnalytics("bio_cta_clicked", {
+      action: "tip",
+      kind: "tip",
+      placement: "header",
+    });
     if (profile?.artist.canReceiveTips !== true) {
       return;
     }
@@ -229,6 +259,10 @@ function BioProfilePage() {
   };
 
   const handleFollowClick = () => {
+    captureAnalytics("bio_cta_clicked", {
+      action: "follow",
+      placement: "header",
+    });
     if (!authToken) {
       beginAuthHandoff("follow");
       return;
@@ -250,11 +284,19 @@ function BioProfilePage() {
           title: shareTitle,
           url: shareUrl,
         });
+        captureAnalytics("share_action_completed", {
+          method: "native",
+          source: "bio",
+        });
       } catch {
         // Dismissed share sheet
       }
     } else {
       await navigator.clipboard.writeText(shareUrl);
+      captureAnalytics("share_action_completed", {
+        method: "clipboard",
+        source: "bio",
+      });
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2200);
     }
@@ -279,12 +321,12 @@ function BioProfilePage() {
           return;
         }
 
-        const items = (await response.json()) as Array<{
+        const items = (await response.json()) as {
           id: string;
           previewMockupUrl: string | null;
           retailPriceCents: number;
           title: string;
-        }>;
+        }[];
 
         setMerchItems(items);
       } catch {
@@ -296,32 +338,63 @@ function BioProfilePage() {
   }, [username]);
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent<unknown>) => {
+    let active = true;
+    const handleMessage = async (event: MessageEvent<unknown>) => {
       if (
-        event.origin !== SOUNDKIT_WEB_ORIGIN ||
-        event.source !== authPopupRef.current ||
-        !isRecord(event.data)
+        !isBioAuthHandoffMessage(
+          event,
+          SOUNDKIT_WEB_ORIGIN,
+          authPopupRef.current
+        )
       ) {
         return;
       }
 
-      if (
-        event.data.type !== "soundkit-auth-handoff" ||
-        typeof event.data.token !== "string"
-      ) {
+      const popup = authPopupRef.current,
+        action = pendingAuthActionRef.current;
+      setAuthMessage("Checking your SoundKit sign-in…");
+      let user;
+      try {
+        user = await verifyBioHandoffSession(event.data.token);
+      } catch {
+        if (active && popup === authPopupRef.current) {
+          captureAnalytics("bio_auth_handoff_failed", {
+            action,
+            reason: "network",
+          });
+          setAuthMessage(
+            "SoundKit is temporarily unavailable. Please retry sign-in."
+          );
+        }
         return;
       }
-
+      if (!active || popup !== authPopupRef.current) {
+        return;
+      }
+      if (!user) {
+        captureAnalytics("bio_auth_handoff_failed", {
+          action,
+          reason: "session_invalid",
+        });
+        setAuthMessage("Your SoundKit sign-in expired. Please sign in again.");
+        return;
+      }
+      captureAnalytics("bio_auth_handoff_completed", {
+        action,
+      });
       setAuthToken(event.data.token);
       setAuthMessage("Signed in successfully with SoundKit.");
-      if (profile?.artist.canReceiveTips === true) {
+      if (action === "tip" && tipEligibilityRef.current) {
         setIsTipOpen(true);
       }
     };
 
     window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [profile?.artist.canReceiveTips]);
+    return () => {
+      active = false;
+      window.removeEventListener("message", handleMessage);
+    };
+  }, []);
 
   const artist = profile?.artist;
   const media = loadedMedia ?? profile?.media;
@@ -387,6 +460,9 @@ function BioProfilePage() {
   );
 
   const handleTabChange = async (tab: TabType) => {
+    captureAnalytics("bio_section_viewed", {
+      section: tab === "tracks" ? "music" : tab === "live" ? "events" : tab,
+    });
     setActiveTab(tab);
     if (
       tab === "feed" ||
@@ -1293,6 +1369,7 @@ function TipCheckoutDialog({
           ? payload.clientSecret
           : null;
       if (nextClientSecret) {
+        captureAnalytics("checkout_started", { kind: "tip" });
         setClientSecret(nextClientSecret);
         return;
       }

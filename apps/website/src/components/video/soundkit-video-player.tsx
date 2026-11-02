@@ -1,6 +1,5 @@
 "use client";
 
-/* eslint-disable no-useless-return, one-var, sort-vars, react/iframe-missing-sandbox */
 import MuxPlayer from "@mux/mux-player-react";
 import type { MuxPlayerRefAttributes } from "@mux/mux-player-react";
 import {
@@ -18,11 +17,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { VideoPlaybackHandle } from "@/components/video/video-playback-handle";
 import { YouTubePlayerView } from "@/components/video/youtube-player";
+/* eslint-disable no-useless-return, one-var, sort-vars, react/iframe-missing-sandbox */
+import { capture } from "@/lib/analytics";
 import { directVideoUrl, getYouTubeVideoId, httpUrl } from "@/lib/player-media";
 import {
   createVideoViewSession,
   updateVideoViewSession,
 } from "@/lib/soundkit-api-hooks";
+
+function videoAnalyticsProvider(
+  muxPlaybackId?: string | null,
+  externalPlaybackUrl?: string | null
+): "mux" | "youtube" | "soundkit" {
+  if (muxPlaybackId) return "mux";
+  if (externalPlaybackUrl && getYouTubeVideoId(externalPlaybackUrl))
+    return "youtube";
+  return "soundkit";
+}
 
 const VIDEO_VIEWER_STORAGE_KEY = "soundkit.video-viewer-id.v1",
   getAnonymousViewerId = () => {
@@ -110,7 +121,37 @@ export function SoundKitVideoPlayer({
     muxRef = useRef<MuxPlayerRefAttributes>(null),
     nativeRef = useRef<HTMLVideoElement>(null),
     youtubeRef = useRef<VideoPlaybackHandle>(null),
+    pipObserverRef = useRef<AbortController | null>(null),
     telemetryRef = useRef<VideoViewTelemetry | null>(null),
+    analyticsStartedRef = useRef<string | null>(null),
+    analyticsIdentity =
+      videoId ?? muxPlaybackId ?? externalPlaybackUrl ?? "video",
+    analyticsProvider = videoAnalyticsProvider(
+      muxPlaybackId,
+      externalPlaybackUrl
+    ),
+    handleAnalyticsPlaying = () => {
+      if (analyticsStartedRef.current !== analyticsIdentity) {
+        analyticsStartedRef.current = analyticsIdentity;
+        capture("video_play_started", { provider: analyticsProvider });
+      }
+      onPlaying?.();
+    },
+    handleAnalyticsEnded = () => {
+      if (analyticsStartedRef.current === analyticsIdentity) {
+        capture("video_play_completed", { provider: analyticsProvider });
+        analyticsStartedRef.current = null;
+      }
+      onEnded?.();
+    },
+    handleAnalyticsError = (message: string) => {
+      capture("playback_failed", {
+        media_type: "video",
+        provider: analyticsProvider,
+        reason: "provider",
+      });
+      onError?.(message);
+    },
     startViewSession = async (event: { currentTarget: EventTarget | null }) => {
       if (telemetryRef.current || !videoId) {
         return;
@@ -216,14 +257,47 @@ export function SoundKitVideoPlayer({
           typeof media.requestPictureInPicture === "function"
         ) {
           await media.requestPictureInPicture();
+          capture("pip_entered", {
+            media_type: "video",
+            provider: analyticsProvider,
+          });
           return true;
         }
         const safari = native as HTMLVideoElement & {
+          webkitPresentationMode?: string;
           webkitSetPresentationMode?: (mode: string) => void;
           webkitSupportsPresentationMode?: (mode: string) => boolean;
         };
-        if (safari.webkitSupportsPresentationMode?.("picture-in-picture")) {
-          safari.webkitSetPresentationMode?.("picture-in-picture");
+        if (
+          typeof safari.webkitSetPresentationMode === "function" &&
+          safari.webkitSupportsPresentationMode?.("picture-in-picture")
+        ) {
+          pipObserverRef.current?.abort();
+          if (safari.webkitPresentationMode === "picture-in-picture") {
+            safari.webkitSetPresentationMode("inline");
+            return true;
+          }
+          const observation = new AbortController();
+          pipObserverRef.current = observation;
+          native.addEventListener(
+            "webkitpresentationmodechanged",
+            () => {
+              observation.abort();
+              if (safari.webkitPresentationMode === "picture-in-picture") {
+                capture("pip_entered", {
+                  media_type: "video",
+                  provider: analyticsProvider,
+                });
+              }
+            },
+            { once: true, signal: observation.signal }
+          );
+          try {
+            safari.webkitSetPresentationMode("picture-in-picture");
+          } catch (error) {
+            observation.abort();
+            throw error;
+          }
           return true;
         }
         return false;
@@ -238,8 +312,10 @@ export function SoundKitVideoPlayer({
         }
       },
     }),
-    [onPaused]
+    [onPaused, analyticsProvider]
   );
+
+  useEffect(() => () => pipObserverRef.current?.abort(), []);
 
   useEffect(
     () => () => {
@@ -282,10 +358,10 @@ export function SoundKitVideoPlayer({
           }}
           onEnded={(event) => {
             sendProgress(event, true, true);
-            onEnded?.();
+            handleAnalyticsEnded();
           }}
           onError={() =>
-            onError?.(
+            handleAnalyticsError(
               "This video could not play. Try again or choose another item."
             )
           }
@@ -294,7 +370,7 @@ export function SoundKitVideoPlayer({
             onPaused?.();
           }}
           onPlay={startViewSession}
-          onPlaying={() => onPlaying?.()}
+          onPlaying={handleAnalyticsPlaying}
           onTimeUpdate={(event) => {
             sendProgress(event);
             const position = playbackPositionFromEvent(event);
@@ -350,10 +426,10 @@ export function SoundKitVideoPlayer({
         src={directSource.href}
         onEnded={(event) => {
           sendProgress(event, true, true);
-          onEnded?.();
+          handleAnalyticsEnded();
         }}
         onError={() =>
-          onError?.(
+          handleAnalyticsError(
             "This video could not play. Try again or choose another item."
           )
         }
@@ -362,7 +438,7 @@ export function SoundKitVideoPlayer({
           onPaused?.();
         }}
         onPlay={startViewSession}
-        onPlaying={() => onPlaying?.()}
+        onPlaying={handleAnalyticsPlaying}
         onTimeUpdate={(event) => {
           sendProgress(event);
           const position = playbackPositionFromEvent(event);
@@ -379,10 +455,10 @@ export function SoundKitVideoPlayer({
       <div className="overflow-hidden rounded-2xl border border-border/50 bg-black">
         <YouTubePlayerView
           autoPlay={autoPlay}
-          onEnded={onEnded}
-          onError={onError}
+          onEnded={handleAnalyticsEnded}
+          onError={handleAnalyticsError}
           onPaused={onPaused}
-          onPlaying={onPlaying}
+          onPlaying={handleAnalyticsPlaying}
           onProgress={onProgress}
           playerRef={youtubeRef}
           title={title}

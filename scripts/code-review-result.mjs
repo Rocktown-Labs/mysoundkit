@@ -58,6 +58,65 @@ export function assertReviewPublication({
   }
 }
 
+// GitHub rejects inline comments outside diff hunks. Preserve every finding in
+// ordinary PR comments rather than declaring those findings published or lost.
+export function fallbackReviewBodies(result, targetHead, limit = 55_000) {
+  assertCompleteReview(result);
+  if (!Number.isInteger(limit) || limit < 2 || limit > 55_000) {
+    throw new Error(
+      "Fallback comment size must be between 2 and 55000 characters."
+    );
+  }
+  if (
+    !targetHead ||
+    result.manifest.input?.resolved_head !== targetHead ||
+    !Array.isArray(result.comments) ||
+    result.comments.length === 0
+  ) {
+    throw new Error(
+      "Fallback publication requires findings for the exact target."
+    );
+  }
+  const bodies = [],
+    report = result.comments
+      .map((finding, index) => {
+        if (typeof finding.content !== "string" || !finding.content.trim()) {
+          throw new Error("Fallback finding has no content.");
+        }
+        return JSON.stringify(
+          {
+            category: finding.category,
+            content: finding.content,
+            end_line: finding.end_line,
+            finding: index + 1,
+            path: finding.path,
+            severity: finding.severity,
+            start_line: finding.start_line,
+            suggestion: finding.suggestion_code,
+          },
+          null,
+          2
+        );
+      })
+      .join("\n\n");
+  for (let offset = 0; offset < report.length;) {
+    let end = Math.min(offset + limit, report.length);
+    const last = report.codePointAt(end - 1) ?? 0;
+    if (end < report.length && last > 65_535) {
+      end -= 1;
+    }
+    bodies.push(
+      `Kimi review fallback for commit ${targetHead}, part ${bodies.length + 1}. ` +
+        `GitHub could not place every inline finding. This preserves all findings; some also appear inline.\n\n${report.slice(
+          offset,
+          end
+        )}`
+    );
+    offset = end;
+  }
+  return bodies;
+}
+
 function isSkippedReview(result) {
   return (
     result.status === "skipped" &&

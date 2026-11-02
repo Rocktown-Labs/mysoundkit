@@ -157,7 +157,11 @@ export function CredentialsForm({
   return (
     <Card className="gap-0 rounded-2xl border-[#27272A] bg-[#09090B] py-5 text-[#FAFAFA] shadow-none">
       <CardContent className="space-y-3.5 px-5">
-        <GoogleAuthButton accountType={accountType} callbackURL={callbackURL} />
+        <GoogleAuthButton
+          accountType={accountType}
+          callbackURL={callbackURL}
+          mode={mode}
+        />
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <Separator className="flex-1" />
           <span>or use email</span>
