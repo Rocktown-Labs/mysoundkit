@@ -75,14 +75,19 @@ export const sessionMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   const userId = c.get("user")?.id;
   if (
     userId &&
+    isDatabaseConfigured() &&
     c.res.status < 400 &&
+    c.req.path.startsWith("/v1/") &&
+    !["HEAD","OPTIONS"].includes(c.req.method) &&
     c.env.ANALYTICS_STREAM &&
     c.env.SOUNDKIT_ANALYTICS_ENV
   ) {
     c.executionCtx.waitUntil(
       (async () => {
         try {
-          await recordAccountActivity(userId);
+          let cache: Cache | undefined;
+          try { cache = await caches.open("soundkit-internal-activity-v1"); } catch { /* No cache in local Node runners. */ }
+          await recordAccountActivity(userId,{cache,environment:c.env.SOUNDKIT_ANALYTICS_ENV??"test",origin:new URL(c.req.url).origin});
         } catch {
           logWarn({ event: "analytics_activity_record_failed" });
         }

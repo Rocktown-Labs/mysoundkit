@@ -26,9 +26,18 @@ const url =
 if (!url) {
   throw new Error("An explicit database URL is required");
 }
+let target;
+try {
+  target = new URL(url);
+} catch {
+  throw new Error(`Invalid database URL for analytics migration mode ${mode}`);
+}
+if (!["postgres:", "postgresql:"].includes(target.protocol)) {
+  throw new Error("Analytics migrations require PostgreSQL");
+}
 if (
   mode === "--test-apply" &&
-  !["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname)
+  !["localhost", "127.0.0.1", "[::1]"].includes(target.hostname)
 ) {
   throw new Error("Test migrations require a local isolated fixture database");
 }
@@ -49,6 +58,14 @@ const client = new Client({
 });
 await client.connect();
 try {
+  if (mode !== "--check") {
+    const lock = await client.query(
+      "SELECT pg_try_advisory_lock(hashtextextended('soundkit-analytics-migration-v1',0)) AS locked"
+    );
+    if (!lock.rows[0].locked) {
+      throw new Error("Another analytics migration is running");
+    }
+  }
   const exists = await client.query(
     "SELECT to_regclass('soundkit_analytics.version') AS relation"
   );

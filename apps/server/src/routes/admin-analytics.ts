@@ -1,12 +1,25 @@
 /* eslint-disable one-var */
-import { OpenAPIHono } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { isDatabaseConfigured } from "@soundkit/db";
+import jsonContent from "stoker/openapi/helpers/json-content";
 import { z } from "zod";
 
 import { isAdminUser } from "@/lib/admin";
 import {
+  analyticsAccountParamSchema,
+  analyticsErasureSchema,
+  analyticsEventParamSchema,
+  analyticsFailuresSchema,
+  analyticsHealthSchema,
+  analyticsReconciliationQuerySchema,
+  analyticsReconciliationSchema,
+  analyticsReplaySchema,
+  analyticsRetentionSchema,
+} from "@/lib/analytics-api-schemas";
+import {
+  analyticsFailures,
   analyticsOutboxHealth,
   eraseAccountAnalytics,
-  analyticsFailures,
   replayAnalyticsEvent,
 } from "@/lib/analytics-outbox";
 import {
@@ -16,69 +29,150 @@ import {
 } from "@/lib/analytics-reconciliation";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>({
+    defaultHook: (result, c) => {
+      if (!result.success)
+        {return c.json({ message: "Invalid analytics request." }, 400);}
+    },
+  }),
+  errorSchema = z.object({ message: z.string() }),
+  errors = {
+    400: jsonContent(errorSchema, "Invalid request"),
+    403: jsonContent(errorSchema, "Admin access required"),
+    503: jsonContent(errorSchema, "Analytics database unavailable"),
+  };
 app.use("*", async (c, next) => {
   if (!isAdminUser(c.get("user"))) {
     return c.json({ message: "Admin access is required." }, 403);
   }
-  if (!c.env.ANALYTICS_STREAM || !c.env.SOUNDKIT_ANALYTICS_ENV) {
-    return c.json({ message: "Analytics export is not configured." }, 503);
+  if (!isDatabaseConfigured()) {
+    return c.json({ message: "Analytics database is not configured." }, 503);
   }
   return await next();
 });
-app.get("/health", async (c) =>
-  c.json(await analyticsOutboxHealth(c.env.SOUNDKIT_ANALYTICS_ENV ?? "test"))
-);
-app.get("/retention", async (c) =>
-  c.json({
-    cohorts: await analyticsRetention(c.env.SOUNDKIT_ANALYTICS_ENV ?? "test"),
-    daily: await analyticsDailyActivity(c.env.SOUNDKIT_ANALYTICS_ENV ?? "test"),
-  })
-);
-app.get("/failures", async (c) =>
-  c.json({
-    events: await analyticsFailures(c.env.SOUNDKIT_ANALYTICS_ENV ?? "test"),
-  })
-);
-app.get("/reconciliation", async (c) => {
-  const createdAt = c.req.query("before_created_at"),
-    id = c.req.query("before_id");
-  if (
-    (createdAt || id) &&
-    (!createdAt ||
-      !id ||
-      !z.string().datetime({ precision: 6 }).safeParse(createdAt).success ||
-      id.length > 256)
-  ) {
-    return c.json({ message: "Both valid cursor fields are required." }, 400);
-  }
-  return c.json(
-    await reconcileAnalytics(
-      c.env.SOUNDKIT_ANALYTICS_ENV ?? "test",
-      undefined,
-      createdAt && id ? { createdAt, id } : undefined
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/health",
+    responses: {
+      ...errors,
+      200: jsonContent(analyticsHealthSchema, "Outbox health"),
+    },
+    tags: ["Admin Analytics"],
+  }),
+  async (c) =>
+    c.json(
+      analyticsHealthSchema.parse(
+        await analyticsOutboxHealth(c.env.SOUNDKIT_ANALYTICS_ENV ?? "test")
+      ),
+      200
     )
-  );
-});
-app.post("/replay/:id", async (c) => {
-  const id = z.string().uuid().safeParse(c.req.param("id"));
-  if (!id.success) {
-    return c.json({ message: "Invalid event ID." }, 400);
+);
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/failures",
+    responses: {
+      ...errors,
+      200: jsonContent(analyticsFailuresSchema, "Quarantined events"),
+    },
+    tags: ["Admin Analytics"],
+  }),
+  async (c) =>
+    c.json(
+      analyticsFailuresSchema.parse({
+        events: await analyticsFailures(c.env.SOUNDKIT_ANALYTICS_ENV ?? "test"),
+      }),
+      200
+    )
+);
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/retention",
+    responses: {
+      ...errors,
+      200: jsonContent(
+        analyticsRetentionSchema,
+        "Observed UTC account cohorts"
+      ),
+    },
+    tags: ["Admin Analytics"],
+  }),
+  async (c) => {
+    const environment = c.env.SOUNDKIT_ANALYTICS_ENV ?? "test";
+    const [cohorts, daily] = await Promise.all([
+      analyticsRetention(environment),
+      analyticsDailyActivity(environment),
+    ]);
+    return c.json(analyticsRetentionSchema.parse({ cohorts, daily }), 200);
   }
-  const replayed = await replayAnalyticsEvent(
-    id.data,
-    c.env.SOUNDKIT_ANALYTICS_ENV ?? "test"
-  );
-  return c.json({ replayed });
-});
-// Self-service opt-out/erasure lives in the authenticated account route below;
-// admin access to another account remains an explicitly privileged operation.
-app.post("/erase/:userId", async (c) => {
-  const id = z.string().min(1).max(256).safeParse(c.req.param("userId"));
-  if (!id.success) {
-    return c.json({ message: "Invalid account ID." }, 400);
+);
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/reconciliation",
+    request: { query: analyticsReconciliationQuerySchema },
+    responses: {
+      ...errors,
+      200: jsonContent(
+        analyticsReconciliationSchema,
+        "Observed commerce mismatches"
+      ),
+    },
+    tags: ["Admin Analytics"],
+  }),
+  async (c) => {
+    const { before_created_at: createdAt, before_id: id } =
+      c.req.valid("query");
+    return c.json(
+      analyticsReconciliationSchema.parse(
+        await reconcileAnalytics(
+          c.env.SOUNDKIT_ANALYTICS_ENV ?? "test",
+          undefined,
+          createdAt && id ? { createdAt, id } : undefined
+        )
+      ),
+      200
+    );
   }
-  await eraseAccountAnalytics(id.data);
-  return c.json({ erased: true });
-});
+);
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/replay/{id}",
+    request: { params: analyticsEventParamSchema },
+    responses: {
+      ...errors,
+      200: jsonContent(analyticsReplaySchema, "Event replay requested"),
+    },
+    tags: ["Admin Analytics"],
+  }),
+  async (c) =>
+    c.json(
+      {
+        replayed: await replayAnalyticsEvent(
+          c.req.valid("param").id,
+          c.env.SOUNDKIT_ANALYTICS_ENV ?? "test"
+        ),
+      },
+      200
+    )
+);
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/erase/{userId}",
+    request: { params: analyticsAccountParamSchema },
+    responses: {
+      ...errors,
+      200: jsonContent(analyticsErasureSchema, "Account analytics erased"),
+    },
+    tags: ["Admin Analytics"],
+  }),
+  async (c) => {
+    await eraseAccountAnalytics(c.req.valid("param").userId);
+    return c.json({ erased: true }, 200);
+  }
+);
 export default app;

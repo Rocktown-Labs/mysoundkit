@@ -529,7 +529,7 @@ export const server = Cloudflare.Worker(
       env: {
         AI: workersAi,
         ANALYTICS_STREAM: analyticsStream,
-        SOUNDKIT_ANALYTICS_ENV: d.isProduction ? "production" : d.stage,
+        SOUNDKIT_ANALYTICS_ENV: d.isProduction ? "production" : d.isLocalDev ? "test" : d.stage,
         ...optionalEnvBinding("BATTLE_BOT_SECRET"),
         AUDIO_EMBEDDINGS_ENABLED: "true",
         BATTLE_DIRECTORY: battleDirectory,

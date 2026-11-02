@@ -39,6 +39,8 @@ import {
   playConditionSql,
   resolveRegionName,
 } from "@/lib/analytics-helpers";
+import { messageResponseSchema } from "@/lib/schemas";
+import { analyticsErasureSchema } from "@/lib/analytics-api-schemas";
 import { eraseAccountAnalytics } from "@/lib/analytics-outbox";
 import { publicAssetUrl } from "@/lib/asset-urls";
 import {
@@ -1542,16 +1544,20 @@ app.openapi(
   }
 );
 
-app.delete("/account-data", async (c) => {
+app.openapi(createRoute({method:"delete",path:"/account-data",tags:["Analytics"],responses:{
+  200:jsonContent(analyticsErasureSchema,"Account analytics erased"),
+  401:jsonContent(messageResponseSchema,"Sign-in required"),
+  503:jsonContent(messageResponseSchema,"Analytics database unavailable"),
+}}),async (c) => {
   const user = c.get("user");
   if (!user) {
     return c.json({ message: "Sign-in required." }, 401);
   }
-  if (!c.env.ANALYTICS_STREAM) {
-    return c.json({ message: "Internal analytics is not configured." }, 503);
+  if (!isDatabaseConfigured()) {
+    return c.json({ message: "Analytics database is not configured." }, 503);
   }
   await eraseAccountAnalytics(user.id);
-  return c.json({ erased: true });
+  return c.json({ erased: true },200);
 });
 
 export default app;

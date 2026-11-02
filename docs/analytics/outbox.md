@@ -5,6 +5,11 @@
 Traks remains anonymous, cookieless product analytics. This pipeline is a separate,
 restricted internal dataset. It does not add browser cookies or fingerprinting.
 The operational payment ledger remains the financial source of truth.
+The existing charge-refunded producer uses a charge ID and charge total rather
+than individual Refund IDs/amounts. Those legacy-shaped rows are quarantined by
+this pipeline and excluded from refund revenue until that producer is corrected;
+nonzero rejects mean the archive must not be treated as a complete net-revenue
+report. This does not repair or rewrite historical payment records.
 
 PostgreSQL AFTER triggers insert a versioned outbox event in the **same transaction**
 as successful payments, individual partial refunds, paid orders, purchase access,
@@ -61,7 +66,10 @@ Admin endpoints under `/v1/admin/analytics`:
   next batch; invalid producer data must be corrected before replay.
 - `GET /retention`: observed new-account UTC cohorts, D1/D7/D30 return counts,
   maturity flags, and daily signed-in activity. Successful authenticated API
-  activity records once per account/day/deployment. This covers website, Bio,
+  activity records once per account/day/deployment. A private per-PoP Cache API
+  throttle uses hashed account/day keys for 15 minutes before another database
+  attempt; media/HEAD/OPTIONS requests are excluded. Cache failures fall back to
+  the authoritative database uniqueness/exclusion checks. This covers website, Bio,
   desktop and mobile calls without another identifier. It excludes anonymous
   visitors and pre-rollout historical cohorts. Erased accounts leave these cohorts.
 - `GET /reconciliation`: observational checks for captured orders over the retained
@@ -102,7 +110,7 @@ Production target: PlanetScale `rocktownlabs/soundkit/main` (Postgres).
 The separate schema is excluded from automatic `drizzle-kit push` via explicit
 `schemaFilter: ["public"]`. CI installs the migration only in its isolated local
 PostgreSQL/pgvector service. Production deployment **checks** its fingerprint and
-all ten enabled capture triggers; deployment cannot auto-install it.
+all ten enabled capture triggers before and after application schema push; deployment cannot auto-install it.
 
 Review `packages/db/analytics/001_outbox.sql` and get its fingerprint:
 

@@ -6,5 +6,5 @@ DO $$ DECLARE target text; BEGIN
     EXECUTE format('DROP TRIGGER IF EXISTS soundkit_analytics_capture ON public.%I',target);
   END LOOP;
 END $$;
-UPDATE soundkit_analytics.version SET fingerprint='disabled:' || fingerprint WHERE version=1;
+UPDATE soundkit_analytics.version SET fingerprint='disabled:' || fingerprint WHERE version=1 AND fingerprint NOT LIKE 'disabled:%';
 COMMIT;

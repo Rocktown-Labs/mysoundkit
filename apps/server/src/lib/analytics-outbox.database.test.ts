@@ -36,6 +36,14 @@ describe.skipIf(!url || process.env.SOUNDKIT_DISABLE_DB_TESTS === "true")(
       environment = "pr-500";
     let actor: string;
     beforeAll(async () => {
+      if (
+        !url ||
+        !["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname)
+      ) {
+        throw new Error(
+          "Analytics DDL tests require an isolated local database"
+        );
+      }
       await client.connect();
       await client.query("SET TIME ZONE 'UTC'");
     });
@@ -316,7 +324,7 @@ describe.skipIf(!url || process.env.SOUNDKIT_DISABLE_DB_TESTS === "true")(
         [id]
       );
       for (const amount of [250, 500]) {
-        const refund = crypto.randomUUID();
+        const refund = `re_${crypto.randomUUID()}`;
         for (let repeat = 0; repeat < 2; repeat += 1) {
           await client.query(
             "INSERT INTO public.payment_refunds(id,amount_cents,stripe_refund_id,transaction_id) VALUES($1,$2,$1,$3) ON CONFLICT(stripe_refund_id) DO NOTHING",
@@ -404,6 +412,106 @@ describe.skipIf(!url || process.env.SOUNDKIT_DISABLE_DB_TESTS === "true")(
       );
       await maintainAnalyticsRetention(db);
       expect(await events()).toHaveLength(0);
+    });
+
+    it("keeps observed signup cohorts UTC when the session timezone differs", async () => {
+      await client.query("SET TIME ZONE 'America/Chicago'");
+      const other = `${actor}-timezone`;
+      await client.query(
+        `INSERT INTO public."user"(id,name,email) VALUES($1,'Fixture',$2)`,
+        [other, `${other}@example.test`]
+      );
+      const row = await client.query(
+        "SELECT s.cohort_day::text AS day,(now() AT TIME ZONE 'UTC')::date::text AS expected FROM soundkit_analytics.subjects s WHERE s.user_id=$1",
+        [other]
+      );
+      expect(row.rows[0].day).toBe(row.rows[0].expected);
+    });
+
+    it("allows an injected database without an ambient DATABASE_URL", async () => {
+      const prior = process.env.DATABASE_URL;
+      delete process.env.DATABASE_URL;
+      try {
+        expect(
+          await dispatchAnalyticsOutbox({
+            db,
+            environment,
+            stream: { send: async () => {} },
+          })
+        ).toMatchObject({ delivered: 1, skipped: false });
+      } finally {
+        if (prior === undefined) {
+          delete process.env.DATABASE_URL;
+        } else {
+          process.env.DATABASE_URL = prior;
+        }
+      }
+    });
+
+    it("quarantines legacy charge-based refund records without exporting them", async () => {
+      await clearSignup();
+      const id = await payment();
+      await client.query(
+        "UPDATE public.transactions SET status='succeeded' WHERE id=$1",
+        [id]
+      );
+      await client.query(
+        "INSERT INTO public.payment_refunds(id,amount_cents,stripe_refund_id,transaction_id) VALUES($1,1999,'ch_legacy',$2)",
+        [crypto.randomUUID(), id]
+      );
+      const send = vi.fn(async (_records: Record<string, unknown>[]) => {});
+      await dispatchAnalyticsOutbox({ db, environment, stream: { send } });
+      expect(
+        send.mock.calls
+          .flatMap((call) => call[0])
+          .filter((event) => event.event_type === "payment_refunded")
+      ).toHaveLength(0);
+      expect((await analyticsOutboxHealth(environment, db))?.quarantined).toBe(
+        1
+      );
+    });
+
+    it("quarantines leased rows after unexpected schema drift", async () => {
+      // This entire fixture transaction rolls back, including the DDL.
+      await client.query(
+        "ALTER TABLE soundkit_analytics.events ALTER COLUMN occurred_at DROP NOT NULL"
+      );
+      await client.query(
+        "UPDATE soundkit_analytics.events SET occurred_at=NULL WHERE environment=$1",
+        [environment]
+      );
+      const send = vi.fn(async (_records: Record<string, unknown>[]) => {});
+      expect(
+        await dispatchAnalyticsOutbox({ db, environment, stream: { send } })
+      ).toMatchObject({ delivered: 0, rejected: 1 });
+      expect(send).not.toHaveBeenCalled();
+      expect((await analyticsOutboxHealth(environment, db))?.quarantined).toBe(
+        1
+      );
+    });
+
+    it("captures provisioned subscription access without claiming paid revenue", async () => {
+      await clearSignup();
+      const id = crypto.randomUUID();
+      await client.query(
+        "INSERT INTO public.subscription(id,plan,reference_id,status) VALUES($1,'fixture-plan',$2,'incomplete')",
+        [id, actor]
+      );
+      expect(await events()).toHaveLength(0);
+      await client.query(
+        "UPDATE public.subscription SET status='trialing' WHERE id=$1",
+        [id]
+      );
+      await client.query(
+        "UPDATE public.subscription SET status='active' WHERE id=$1",
+        [id]
+      );
+      expect(await events()).toHaveLength(1);
+      expect((await events())[0]).toMatchObject({
+        environment,
+        event_type: "access_granted",
+        properties: { kind: "subscription" },
+      });
     });
 
     it("captures actual ready and publication transitions for tracks, projects and videos", async () => {

@@ -4,7 +4,7 @@ SET LOCAL lock_timeout = '3s';
 SET LOCAL statement_timeout = '30s';
 CREATE SCHEMA soundkit_analytics;
 REVOKE ALL ON SCHEMA soundkit_analytics FROM PUBLIC;
-CREATE TABLE soundkit_analytics.version (version integer PRIMARY KEY, fingerprint text NOT NULL, installed_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE soundkit_analytics.version (version integer PRIMARY KEY, fingerprint text NOT NULL CHECK(fingerprint ~ '^(disabled:)?[a-f0-9]{64}$'), installed_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE soundkit_analytics.exclusions (
   user_id text PRIMARY KEY REFERENCES public."user"(id) ON DELETE CASCADE
 );
@@ -94,7 +94,7 @@ BEGIN
   CASE TG_TABLE_NAME
   WHEN 'user' THEN
     PERFORM soundkit_analytics.emit('account_created',source,NEW.id);
-    UPDATE soundkit_analytics.subjects SET registration_environment=soundkit_analytics.environment() WHERE user_id=NEW.id;
+    UPDATE soundkit_analytics.subjects SET registration_environment=soundkit_analytics.environment(),cohort_day=(now() AT TIME ZONE 'UTC')::date WHERE user_id=NEW.id;
     RETURN NEW;
   WHEN 'subscription' THEN
     IF NEW.status NOT IN ('active','trialing') THEN RETURN NEW; END IF;
@@ -117,7 +117,7 @@ BEGIN
     props := jsonb_build_object('amount_cents',NEW.total_cents,'currency',upper(NEW.currency));
   WHEN 'purchases' THEN
     kind := 'access_granted'; actor := NEW.buyer_user_id;
-    props := jsonb_build_object('kind',CASE WHEN NEW.track_id IS NOT NULL THEN 'track' WHEN NEW.project_id IS NOT NULL THEN 'project' ELSE 'video' END);
+    props := jsonb_build_object('kind',CASE WHEN NEW.track_id IS NOT NULL THEN 'track' WHEN NEW.project_id IS NOT NULL THEN 'project' WHEN NEW.video_id IS NOT NULL THEN 'video' ELSE '' END);
   WHEN 'track_assets' THEN
     IF NEW.status <> 'ready' THEN RETURN NEW; END IF;
     IF TG_OP='UPDATE' THEN IF OLD.status='ready' THEN RETURN NEW; END IF; END IF;
@@ -140,10 +140,19 @@ BEGIN
       IF OLD.published_at IS NOT NULL AND OLD.is_public THEN RETURN NEW; END IF;
     END IF;
     kind := 'media_published'; actor := NEW.owner_user_id;
-    props := jsonb_build_object('kind',CASE TG_TABLE_NAME WHEN 'tracks' THEN 'track' WHEN 'videos' THEN 'video' ELSE 'project' END);
+    props := jsonb_build_object('kind',CASE TG_TABLE_NAME WHEN 'tracks' THEN 'track' ELSE 'video' END);
   ELSE RETURN NEW;
   END CASE;
   PERFORM soundkit_analytics.emit(kind,source || ':' || kind,actor,props);
+  -- The legacy charge.refunded producer stores charge IDs/charge totals in
+  -- payment_refunds. They are not confirmed individual Refund facts. Keep
+  -- them visible for reconciliation without exporting false refund revenue.
+  IF TG_TABLE_NAME='payment_refunds' THEN
+    IF left(NEW.stripe_refund_id,3) <> 're_' THEN
+      UPDATE soundkit_analytics.events SET quarantined_at=now(),failure_code='invalid_event'
+        WHERE source_key=source || ':' || kind;
+    END IF;
+  END IF;
   RETURN NEW;
 END $$;
 CREATE TRIGGER soundkit_analytics_capture AFTER INSERT ON public."user" FOR EACH ROW EXECUTE FUNCTION soundkit_analytics.capture();

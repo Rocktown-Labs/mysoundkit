@@ -5,6 +5,8 @@ import { z } from "zod";
 
 import { logInfo, logWarn } from "@/middleware/structured-logging";
 
+import { recordDailyActivity } from "./analytics-activity";
+import type { ActivityCache } from "./analytics-activity";
 import { reconcileAnalytics } from "./analytics-reconciliation";
 
 export type AnalyticsDatabase = Pick<ReturnType<typeof createDb>, "execute">;
@@ -112,10 +114,20 @@ export function serializeOutboxEvent(row: OutboxRow): Record<string, unknown> {
   };
 }
 
-export async function recordAccountActivity(userId: string): Promise<void> {
-  await createDb().execute(
-    sql`SELECT soundkit_analytics.record_activity(${userId})`
-  );
+export async function recordAccountActivity(
+  userId: string,
+  options: { environment: string; origin: string; cache?: ActivityCache }
+): Promise<void> {
+  if (!isDatabaseConfigured()) {return;}
+  await recordDailyActivity({
+    ...options,
+    record: async () => {
+      await createDb().execute(
+        sql`SELECT soundkit_analytics.record_activity(${userId})`
+      );
+    },
+    userId,
+  });
 }
 
 export async function dispatchAnalyticsOutbox({
@@ -127,7 +139,7 @@ export async function dispatchAnalyticsOutbox({
   environment?: string;
   db?: AnalyticsDatabase;
 }): Promise<{ delivered: number; rejected: number; skipped: boolean }> {
-  if (!stream || !environment || !isDatabaseConfigured()) {
+  if (!stream || !environment || (!db && !isDatabaseConfigured())) {
     return { delivered: 0, rejected: 0, skipped: true };
   }
   const database = db ?? createDb(),
@@ -159,8 +171,16 @@ export async function dispatchAnalyticsOutbox({
         subject_id: z.string().nullable(),
       })
     )
-    .parse(claimed.rows);
-  for (const row of rows) {
+    .safeParse(claimed.rows);
+  if (!rows.success) {
+    const invalid =
+      await database.execute(sql`UPDATE soundkit_analytics.events SET
+      quarantined_at=now(),failure_code='invalid_event',lease_id=NULL,leased_until=NULL
+      WHERE lease_id=${lease}::uuid RETURNING id`);
+    logWarn({ event: "analytics_outbox_parse_failed" });
+    return { delivered: 0, rejected: invalid.rowCount ?? 0, skipped: false };
+  }
+  for (const row of rows.data) {
     let record: Record<string, unknown>;
     try {
       record = serializeOutboxEvent(row);
@@ -263,7 +283,7 @@ export async function runAnalyticsSweep({
   stream?: AnalyticsStream;
   environment?: string;
 }) {
-  if (!stream || !environment) {
+  if (!stream || !environment || !isDatabaseConfigured()) {
     return;
   }
   try {
@@ -286,7 +306,10 @@ export async function runAnalyticsSweep({
 
 export async function analyticsFailures(environment: string) {
   const result = await createDb().execute(sql`
-    SELECT id,event_type,occurred_at,attempts,failure_code,quarantined_at
+    SELECT id,event_type,
+      to_char(occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS occurred_at,
+      attempts,failure_code,
+      to_char(quarantined_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS quarantined_at
     FROM soundkit_analytics.events WHERE environment=${environment} AND quarantined_at IS NOT NULL
     ORDER BY quarantined_at,id LIMIT 50
   `);
