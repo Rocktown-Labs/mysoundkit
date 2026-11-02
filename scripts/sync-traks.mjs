@@ -34,7 +34,7 @@ export function missingConfiguration(site, goals, funnels) {
 }
 
 async function main() {
-  const token = process.env.TRAKS_API_TOKEN;
+  const token = process.env.TRAKS_API_TOKEN?.trim();
   if (!token) {
     throw new Error("Set TRAKS_API_TOKEN in the environment.");
   }
@@ -66,17 +66,20 @@ async function main() {
     if (session) {
       headers["Mcp-Session-Id"] = session;
     }
-    const text = await response.text(),
-      message = response.headers
-        .get("content-type")
-        ?.includes("text/event-stream")
-        ? JSON.parse(
-            text
-              .split(/\r?\n/u)
-              .findLast((line) => line.startsWith("data: "))
-              .slice(6)
-          )
-        : JSON.parse(text);
+    const text = await response.text();
+    let payload = text;
+    if (response.headers.get("content-type")?.includes("text/event-stream")) {
+      const data = text
+        .split(/\r?\n/u)
+        .findLast((line) => line.startsWith("data: "));
+      if (!data) {
+        throw new Error(
+          `Traks MCP returned an empty event stream for ${method}.`
+        );
+      }
+      payload = data.slice(6);
+    }
+    const message = JSON.parse(payload);
     if (message.error || message.result?.isError) {
       throw new Error("Traks MCP rejected the request.");
     }

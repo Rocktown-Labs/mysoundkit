@@ -109,8 +109,8 @@ before selecting an ANN index or changing recall/latency tradeoffs.
 ## Review completion
 
 The CI Kimi review keeps a 700k token cap for up to 20 changed files and a 1.4m
-cap for larger PRs, with a 35-minute job timeout. A reached budget, skipped
-selection or unpublished finding still fails the existing completion gate.
+cap for larger PRs, with a 35-minute job timeout. Unfinished selected files or
+unpublished findings still fail the existing completion gate.
 Standalone reviews can deliberately use `--max-tokens-budget 1400000` or review
 small groups through the CLI's exclude patterns; retain each report and inspect
 its coverage. A partial review is not approval.

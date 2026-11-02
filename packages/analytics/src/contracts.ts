@@ -23,6 +23,7 @@ const propertyEnums: Record<string, readonly string[]> = {
     ],
     duration_tier: ["preview", "full"],
     eligibility: ["eligible", "ineligible", "unknown", "independent", "major"],
+    exit_action: ["finish_later", "log_out"],
     kind: [
       "track",
       "project",
@@ -52,6 +53,7 @@ const propertyEnums: Record<string, readonly string[]> = {
       "subscription",
       "tip",
     ],
+    project_type: ["album", "ep", "mixtape", "single"],
     provider: ["soundkit", "youtube", "mux"],
     purchase_mode: [
       "digital",
@@ -73,7 +75,19 @@ const propertyEnums: Record<string, readonly string[]> = {
       "route_change",
       "other",
     ],
-    scope: ["global", "north-america"],
+    region_type: ["global", "north-america"],
+    scope: [
+      "global",
+      "north-america",
+      "usa",
+      "canada",
+      "mexico",
+      "africa",
+      "europe",
+      "asia",
+      "latin-america",
+      "oceania",
+    ],
     section: [
       "music",
       "projects",
@@ -87,6 +101,12 @@ const propertyEnums: Record<string, readonly string[]> = {
       "preferences",
       "feed",
       "credits",
+    ],
+    selected_plan: [
+      "artist_free",
+      "fan_free",
+      "soundkit_premium_artist",
+      "soundkit_premium_fan",
     ],
     source: [
       "catalog",
@@ -102,7 +122,12 @@ const propertyEnums: Record<string, readonly string[]> = {
       "nav",
       "explore_empty",
       "queue",
+      "battle",
+      "library",
+      "listening_party",
+      "vod",
     ],
+    status: ["draft", "ready", "processing", "failed"],
     step: [
       "profile",
       "identity",
@@ -148,8 +173,8 @@ export const eventCatalog = {
   file_downloaded: ["kind", "destination"],
   login_method_selected: ["method"],
   media_transition_completed: ["media_type", "provider"],
-  onboarding_completed: ["account_type"],
-  onboarding_exited: ["account_type", "step", "step_number"],
+  onboarding_completed: ["account_type", "selected_plan"],
+  onboarding_exited: ["account_type", "step", "step_number", "exit_action"],
   onboarding_resumed: ["account_type", "step", "step_number"],
   onboarding_started: ["account_type"],
   onboarding_step_completed: ["account_type", "step", "step_number"],
@@ -159,12 +184,12 @@ export const eventCatalog = {
   playback_failed: ["media_type", "provider", "reason"],
   premium_access_confirmed: ["account_type"],
   premium_checkout_completed: ["account_type"],
-  premium_checkout_started: ["account_type"],
-  project_created: ["outcome"],
-  project_updated: ["outcome"],
+  premium_checkout_started: ["account_type", "selected_plan"],
+  project_created: ["outcome", "project_type"],
+  project_updated: ["outcome", "project_type"],
   queue_item_added: ["media_type"],
   region_fallback_served: ["scope", "has_region", "outcome"],
-  region_selected: ["scope", "has_region"],
+  region_selected: ["scope", "has_region", "region_type"],
   search_results_viewed: ["outcome", "kind"],
   share_action_completed: ["method", "source"],
   signup_method_selected: ["method", "account_type", "source"],
@@ -174,7 +199,13 @@ export const eventCatalog = {
   track_play_started: ["source", "duration_tier"],
   track_saved: ["source"],
   track_upload_completed: ["kind", "outcome"],
-  track_upload_settled: ["kind", "outcome", "successful_count", "failed_count"],
+  track_upload_settled: [
+    "kind",
+    "outcome",
+    "successful_count",
+    "failed_count",
+    "status",
+  ],
   user_signed_in: ["method"],
   video_play_completed: ["provider"],
   video_play_started: ["provider"],
@@ -186,13 +217,20 @@ export function isAnalyticsEvent(event: string): event is AnalyticsEventName {
   return Object.hasOwn(eventCatalog, event);
 }
 
+function analyticsPropertyValue(
+  key: string,
+  input: Record<string, unknown>
+): unknown {
+  return key === "method" ? (input.method ?? input.auth_method) : input[key];
+}
+
 export function sanitizeAnalyticsProperties(
   event: AnalyticsEventName,
   input: Record<string, unknown> = {}
 ): AnalyticsProperties {
   const output: AnalyticsProperties = {};
   for (const key of eventCatalog[event]) {
-    const value = input[key];
+    const value = analyticsPropertyValue(key, input);
     if (
       key === "step" &&
       typeof value === "number" &&
@@ -224,6 +262,7 @@ export function sanitizeAnalyticsProperties(
 const staticRoutes = new Set([
     "/",
     "/login",
+    "/library",
     "/signup",
     "/signup/artist",
     "/signup/fan",

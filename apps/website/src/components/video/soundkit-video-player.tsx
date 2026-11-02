@@ -25,6 +25,16 @@ import {
   updateVideoViewSession,
 } from "@/lib/soundkit-api-hooks";
 
+function videoAnalyticsProvider(
+  muxPlaybackId?: string | null,
+  externalPlaybackUrl?: string | null
+): "mux" | "youtube" | "soundkit" {
+  if (muxPlaybackId) return "mux";
+  if (externalPlaybackUrl && getYouTubeVideoId(externalPlaybackUrl))
+    return "youtube";
+  return "soundkit";
+}
+
 const VIDEO_VIEWER_STORAGE_KEY = "soundkit.video-viewer-id.v1",
   getAnonymousViewerId = () => {
     if (typeof window === "undefined") {
@@ -115,11 +125,10 @@ export function SoundKitVideoPlayer({
     analyticsStartedRef = useRef<string | null>(null),
     analyticsIdentity =
       videoId ?? muxPlaybackId ?? externalPlaybackUrl ?? "video",
-    analyticsProvider = muxPlaybackId
-      ? "mux"
-      : externalPlaybackUrl && getYouTubeVideoId(externalPlaybackUrl)
-        ? "youtube"
-        : "soundkit",
+    analyticsProvider = videoAnalyticsProvider(
+      muxPlaybackId,
+      externalPlaybackUrl
+    ),
     handleAnalyticsPlaying = () => {
       if (analyticsStartedRef.current !== analyticsIdentity) {
         analyticsStartedRef.current = analyticsIdentity;

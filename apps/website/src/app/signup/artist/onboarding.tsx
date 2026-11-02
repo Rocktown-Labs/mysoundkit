@@ -183,7 +183,7 @@ function ArtistOnboardingPage() {
         }
         setEligibility(value);
         capture("creator_eligibility_declared", {
-          account_type: value === "major" ? "fan" : "artist",
+          account_type: "artist",
           eligibility: value,
         });
       } catch {

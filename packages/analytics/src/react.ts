@@ -80,6 +80,10 @@ export function useTraksAnalytics(
   }, [surface]);
 
   useEffect(() => {
-    tracker.current?.pageview(pathname);
+    // Router changes invalidate this effect; the browser URL is the single
+    // encoded identity also used at mount and before child conversion events.
+    if (pathname) {
+      tracker.current?.pageview(window.location.pathname);
+    }
   }, [pathname]);
 }

@@ -58,7 +58,11 @@ async function loadClient(): Promise<void> {
     });
     client = posthog;
     for (const operation of queue.splice(0)) {
-      applyOperation(posthog, operation);
+      try {
+        applyOperation(posthog, operation);
+      } catch {
+        // A malformed diagnostic operation must not discard later events.
+      }
     }
   } catch {
     // A blocked optional SDK must not create an unhandled network rejection.

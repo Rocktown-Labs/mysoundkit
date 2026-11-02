@@ -11,7 +11,7 @@ const secret = "private-person@example.test",
       ),
       client = createTraksClient({
         hostname,
-        sessionId: "ephemeral-session",
+
         surface,
         transport,
       });
@@ -19,6 +19,33 @@ const secret = "private-person@example.test",
   };
 
 describe("anonymous analytics privacy contract", () => {
+  it("retains bounded legacy dimensions without retaining private identifiers", () => {
+    expect(
+      sanitizeAnalyticsProperties("account_created", {
+        account_type: "artist",
+        auth_method: "google",
+        user_id: "private",
+      })
+    ).toEqual({ account_type: "artist", method: "google" });
+    expect(
+      sanitizeAnalyticsProperties("region_selected", {
+        region: "private",
+        region_type: "global",
+        scope: "europe",
+      })
+    ).toEqual({ region_type: "global", scope: "europe" });
+    expect(
+      sanitizeAnalyticsProperties("track_play_started", {
+        source: "listening_party",
+      })
+    ).toEqual({ source: "listening_party" });
+    expect(
+      sanitizeAnalyticsProperties("onboarding_completed", {
+        selected_plan: "soundkit_premium_artist",
+      })
+    ).toEqual({ selected_plan: "soundkit_premium_artist" });
+    expect(analyticsRoute("/library", "bio")).toBe("/library");
+  });
   it("preserves the existing numeric onboarding steps as bounded step numbers", () => {
     expect(
       sanitizeAnalyticsProperties("onboarding_step_viewed", {
@@ -78,7 +105,7 @@ describe("anonymous analytics privacy contract", () => {
       ep: JSON.stringify({ source: "bio", surface: "bio" }),
       p: "/artist",
       s: "pb_live_bi7j9kw1gfy9ob8x690iw79d",
-      sid: "ephemeral-session",
+      sid: expect.any(String),
     });
   });
 
@@ -136,7 +163,7 @@ describe("anonymous analytics privacy contract", () => {
     const client = createTraksClient({
       hostname: "soundkit.bio",
       now: () => clock,
-      sessionId: "memory-only",
+
       surface: "bio",
       transport,
     });
@@ -165,7 +192,7 @@ describe("anonymous analytics privacy contract", () => {
       client = createTraksClient({
         getPathname: () => "/signup/artist/onboarding",
         hostname: "mysoundkit.com",
-        sessionId: "memory-only",
+
         surface: "web",
         transport,
       });
@@ -184,7 +211,7 @@ describe("anonymous analytics privacy contract", () => {
   it("isolates network failures from the product action", async () => {
     const client = createTraksClient({
       hostname: "mysoundkit.com",
-      sessionId: "memory-only",
+
       surface: "web",
       transport: vi.fn(() => Promise.reject(new Error("offline"))),
     });

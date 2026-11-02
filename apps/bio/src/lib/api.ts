@@ -1078,7 +1078,8 @@ export const clearBioAuthToken = (): void => {
 };
 
 export const getCurrentSessionUser = async (
-  token = getBioAuthToken()
+  token = getBioAuthToken(),
+  options?: { throwOnUnavailable: boolean }
 ): Promise<BioCurrentUser | null> => {
   try {
     const headers: Record<string, string> = { Accept: "application/json" };
@@ -1089,9 +1090,22 @@ export const getCurrentSessionUser = async (
     const response = await fetch(`${API_V1_URL}/me`, {
       credentials: "include",
       headers,
+      signal: options?.throwOnUnavailable
+        ? AbortSignal.timeout(5000)
+        : undefined,
     });
 
     if (!response.ok) {
+      if (
+        options?.throwOnUnavailable &&
+        response.status !== 401 &&
+        response.status !== 403
+      ) {
+        throw new BioApiError(
+          "Session verification is temporarily unavailable.",
+          response.status
+        );
+      }
       return null;
     }
 
@@ -1100,6 +1114,8 @@ export const getCurrentSessionUser = async (
         isRecord(payload) && isRecord(payload.user) ? payload.user : payload;
     const id = isRecord(data) ? stringValue(data.id) : null;
     if (!isRecord(data) || !id) {
+      if (options?.throwOnUnavailable)
+        throw new BioApiError("Unexpected session response.", response.status);
       return null;
     }
 
@@ -1121,9 +1137,27 @@ export const getCurrentSessionUser = async (
       role: stringValue(data.role),
       username,
     };
-  } catch {
+  } catch (error) {
+    if (options?.throwOnUnavailable) throw error;
     return null;
   }
+};
+
+/** Invalid sessions return null; transient verification failures retry, then throw. */
+export const verifyBioHandoffSession = async (
+  token: string
+): Promise<BioCurrentUser | null> => {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await getCurrentSessionUser(token, { throwOnUnavailable: true });
+    } catch (error) {
+      if (attempt === 2) throw error;
+      await new Promise<void>((resolve) =>
+        globalThis.setTimeout(resolve, 250 * (attempt + 1))
+      );
+    }
+  }
+  return null;
 };
 
 export class BioApiError extends Error {

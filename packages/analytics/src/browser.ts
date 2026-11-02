@@ -27,22 +27,18 @@ export function createTraksClient({
   surface,
   hostname,
   transport = globalThis.fetch,
-  sessionId,
   getPathname,
   now = () => performance.now(),
 }: {
   surface: AnalyticsSurface;
   hostname: string;
   transport?: typeof fetch;
-  sessionId?: string;
   getPathname?: () => string;
   now?: () => number;
 }) {
   const site = analyticsSites[surface],
     enabled = hostname === site.domain || hostname === `www.${site.domain}`,
-    identifier = enabled
-      ? (sessionId ?? globalThis.crypto?.randomUUID?.())
-      : undefined;
+    identifier = enabled ? globalThis.crypto?.randomUUID?.() : undefined;
   let path = "/",
     previousPathname: string | null = null,
     visibleSince: number | null = null,
@@ -174,6 +170,9 @@ const browserClients = new WeakMap<
   Map<AnalyticsSurface, TraksClient>
 >();
 export function getBrowserTraksClient(surface: AnalyticsSurface): TraksClient {
+  if (typeof window === "undefined") {
+    return createTraksClient({ hostname: "", surface });
+  }
   let clients = browserClients.get(window);
   if (!clients) {
     clients = new Map();
