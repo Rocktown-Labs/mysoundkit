@@ -448,6 +448,11 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
             "account.application.authorized",
             "account.application.deauthorized",
             "capability.updated",
+            "charge.refunded",
+            "charge.refund.updated",
+            "refund.created",
+            "refund.updated",
+            "refund.failed",
           ],
           key: "connect",
           secretConfigured: Boolean(

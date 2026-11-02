@@ -11,7 +11,7 @@
 
 ### Fixed
 
-- Record confirmed individual Stripe refund IDs/amounts idempotently, preserve partial/pending states and protect full refunds from late Checkout settlement; add guarded lifecycle-subscription maintenance (#509).
+- Record confirmed individual Stripe refund IDs/amounts idempotently, preserve partial/pending states and protect full refunds from late Checkout settlement with metadata-independent Session binding; add guarded lifecycle-subscription maintenance (#509).
 
 - Kept native discovery tied to the selected region, collapsed empty discovery rails with explicit global exploration, preserved authenticated Request inputs, cleared playback on account changes, and handled desktop cold-start deep links (#506).
 

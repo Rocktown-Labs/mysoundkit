@@ -82,7 +82,7 @@ export async function syncRefundSubscriptions({
       }
     }
     result.push({
-      connect: Boolean(endpoint.connect),
+      connect: Boolean(endpoint.connect || endpoint.application),
       livemode: endpoint.livemode === true,
       missing,
       updated: apply && missing.length > 0,

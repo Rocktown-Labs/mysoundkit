@@ -7,7 +7,8 @@ and a transaction-row lock. Partial, pending, canceled and failed refunds do not
 mark a payment fully refunded. Known duplicate facts are validated, not updated.
 
 A refund arriving before Checkout settlement must prove the stored Checkout
-Session owns its PaymentIntent; metadata alone cannot establish the binding.
+Session owns its PaymentIntent. The filtered Stripe Session lookup works without
+charge metadata; metadata alone cannot establish the binding.
 Confirmed captured payments and refund facts commit atomically. Full refunds
 mark transaction/order refunded, and late Checkout events cannot downgrade that
 state or restart fulfillment/transfers after that state is visible.

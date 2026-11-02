@@ -38,6 +38,14 @@ const listSchema = z.object({
   data: z.array(refundSchema),
   has_more: z.boolean(),
 });
+const checkoutSessionSchema = z.object({
+  id: z.string().regex(/^cs_/u),
+  payment_intent: reference.nullable(),
+});
+const checkoutListSchema = z.object({
+  data: z.array(checkoutSessionSchema),
+  has_more: z.boolean(),
+});
 const refundEvents = new Set([
   "charge.refunded",
   "charge.refund.updated",
@@ -182,32 +190,39 @@ async function findTransaction(
   if (matches[0]) {
     return matches[0];
   }
-  // Refunds may precede Checkout's webhook. Metadata alone is insufficient:
-  // verify the stored Checkout Session actually owns this PaymentIntent.
-  const metadataId = charge.metadata?.transactionId;
-  if (!metadataId) {
+  // Refunds can precede Checkout's webhook. Resolve the canonical Session
+  // by PaymentIntent instead of requiring metadata to have copied to Charge.
+  const sessions = checkoutListSchema.parse(
+    await stripeRequest<unknown>({
+      connectedAccountId,
+      method: "GET",
+      params: new URLSearchParams({
+        limit: "2",
+        payment_intent: charge.payment_intent ?? "",
+      }),
+      path: "/checkout/sessions",
+    })
+  );
+  if (sessions.has_more || sessions.data.length > 1) {
+    throw new Error("Stripe refund Checkout binding is ambiguous");
+  }
+  const [session] = sessions.data;
+  if (!session) {
+    if (charge.metadata?.transactionId) {
+      throw new Error("Refund Checkout Session is not yet discoverable");
+    }
     return;
+  }
+  if (session.payment_intent !== charge.payment_intent) {
+    throw new Error("Refund Checkout Session does not own the payment intent");
   }
   const [candidate] = await db
     .select()
     .from(transactions)
-    .where(eq(transactions.id, metadataId))
+    .where(eq(transactions.stripeCheckoutSessionId, session.id))
     .limit(1);
-  if (!candidate) {
-    return;
-  }
-  if (!candidate.stripeCheckoutSessionId) {
+  if (!candidate && charge.metadata?.transactionId) {
     throw new Error("Refund arrived before the Checkout binding was saved");
-  }
-  const session = z.object({ payment_intent: reference.nullable() }).parse(
-    await stripeRequest<unknown>({
-      connectedAccountId,
-      method: "GET",
-      path: `/checkout/sessions/${encodeURIComponent(candidate.stripeCheckoutSessionId)}`,
-    })
-  );
-  if (session.payment_intent !== charge.payment_intent) {
-    throw new Error("Refund Checkout Session does not own the payment intent");
   }
   return candidate;
 }

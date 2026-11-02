@@ -65,6 +65,7 @@ function provider(
     paginate?: boolean;
     sessionIntent?: string;
     unavailable?: boolean;
+    withoutMetadata?: boolean;
   } = {}
 ) {
   request.mockImplementation(({ method, path, params }) => {
@@ -83,9 +84,19 @@ function provider(
         payment_intent: intent,
       });
     }
-    if (path === "/checkout/sessions/cs_fixture") {
+    if (path === "/checkout/sessions") {
+      expect(params.get("payment_intent")).toBe(intent);
       return Promise.resolve({
-        payment_intent: options.sessionIntent ?? intent,
+        data:
+          options.id || options.withoutMetadata
+            ? [
+                {
+                  id: "cs_fixture",
+                  payment_intent: options.sessionIntent ?? intent,
+                },
+              ]
+            : [],
+        has_more: false,
       });
     }
     if (path.startsWith("/refunds/")) {
@@ -204,6 +215,15 @@ describe.skipIf(!local)("confirmed Stripe refund persistence", () => {
       expect(await sync(db)).toEqual({ fullRefund: true, recorded: 1 });
       expect(await statusOf(db, id)).toBe("refunded");
       expect(await facts(db, id)).toHaveLength(1);
+    }, true);
+  });
+  it("resolves an early refund without relying on copied charge metadata", async () => {
+    await fixture(async (db, id, intent) => {
+      provider(intent, [refund(intent, "re_no_metadata", 1000)], {
+        withoutMetadata: true,
+      });
+      expect(await sync(db)).toEqual({ fullRefund: true, recorded: 1 });
+      expect(await statusOf(db, id)).toBe("refunded");
     }, true);
   });
   it("rejects metadata pointing at another Checkout Session without writing facts", async () => {
