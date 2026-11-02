@@ -1,6 +1,5 @@
 /* eslint-disable one-var, sort-vars */
 import {
-  keepPreviousData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -16,7 +15,6 @@ import type {
 import type { AppType } from "../../server/src/rpc-contract";
 import { API_BASE_URL } from "./api";
 import { authenticatedFetch } from "./authenticated-fetch";
-import { withGlobalRegionFallback } from "./explore-region";
 
 export const apiClient = hc<AppType>(API_BASE_URL, {
   // The Expo auth client persists the session in SecureStore rather than the
@@ -309,18 +307,7 @@ const listKey = (scope: string, query: Record<string, unknown>) => [
 
 export const useTracksQuery = (query: TracksQuery) =>
   useQuery({
-    placeholderData: keepPreviousData,
-    queryFn: () =>
-      withGlobalRegionFallback(
-        query.region,
-        async () => rpcJson(await tracksGet({ query })),
-        async () =>
-          rpcJson(
-            await tracksGet({
-              query: { ...query, region: "all", regionType: "global" },
-            })
-          )
-      ),
+    queryFn: async () => rpcJson(await tracksGet({ query })),
     queryKey: listKey("tracks", query),
   });
 
@@ -338,23 +325,8 @@ export const useTracksInfiniteQuery = (query: TracksQuery) => {
       return allPages.length + 1;
     },
     initialPageParam: 1,
-    queryFn: ({ pageParam = 1 }) =>
-      withGlobalRegionFallback(
-        pageParam === 1 ? query.region : undefined,
-        async () =>
-          rpcJson(await tracksGet({ query: { ...query, page: pageParam } })),
-        async () =>
-          rpcJson(
-            await tracksGet({
-              query: {
-                ...query,
-                page: pageParam,
-                region: "all",
-                regionType: "global",
-              },
-            })
-          )
-      ),
+    queryFn: async ({ pageParam = 1 }) =>
+      rpcJson(await tracksGet({ query: { ...query, page: pageParam } })),
     queryKey: [...listKey("tracks", query), "infinite"],
   });
 };
@@ -373,18 +345,7 @@ export const useTrackQuery = (trackId: string) =>
 
 export const useVideosQuery = (query: VideosQuery) =>
   useQuery({
-    placeholderData: keepPreviousData,
-    queryFn: () =>
-      withGlobalRegionFallback(
-        query.region,
-        async () => rpcJson(await videosGet({ query })),
-        async () =>
-          rpcJson(
-            await videosGet({
-              query: { ...query, region: "all", regionType: "global" },
-            })
-          )
-      ),
+    queryFn: async () => rpcJson(await videosGet({ query })),
     queryKey: listKey("videos", query),
   });
 
@@ -412,18 +373,7 @@ export const useVideoCommentsQuery = (videoId: string) =>
 
 export const usePublicProjectsQuery = (query: PublicProjectsQuery) =>
   useQuery({
-    placeholderData: keepPreviousData,
-    queryFn: () =>
-      withGlobalRegionFallback(
-        query.region,
-        async () => rpcJson(await publicProjectsGet({ query })),
-        async () =>
-          rpcJson(
-            await publicProjectsGet({
-              query: { ...query, region: "all", regionType: "global" },
-            })
-          )
-      ),
+    queryFn: async () => rpcJson(await publicProjectsGet({ query })),
     queryKey: listKey("projects", query),
   });
 
@@ -443,18 +393,7 @@ export const usePublicProjectQuery = (projectId: string) =>
 
 export const useArtistsQuery = (query: ArtistsQuery) =>
   useQuery({
-    placeholderData: keepPreviousData,
-    queryFn: () =>
-      withGlobalRegionFallback(
-        query.region,
-        async () => rpcJson(await artistsGet({ query })),
-        async () =>
-          rpcJson(
-            await artistsGet({
-              query: { ...query, region: "all", regionType: "global" },
-            })
-          )
-      ),
+    queryFn: async () => rpcJson(await artistsGet({ query })),
     queryKey: listKey("artists", query),
   });
 
@@ -472,23 +411,8 @@ export const useArtistsInfiniteQuery = (query: ArtistsQuery) => {
       return allPages.length + 1;
     },
     initialPageParam: 1,
-    queryFn: ({ pageParam = 1 }) =>
-      withGlobalRegionFallback(
-        pageParam === 1 ? query.region : undefined,
-        async () =>
-          rpcJson(await artistsGet({ query: { ...query, page: pageParam } })),
-        async () =>
-          rpcJson(
-            await artistsGet({
-              query: {
-                ...query,
-                page: pageParam,
-                region: "all",
-                regionType: "global",
-              },
-            })
-          )
-      ),
+    queryFn: async ({ pageParam = 1 }) =>
+      rpcJson(await artistsGet({ query: { ...query, page: pageParam } })),
     queryKey: [...listKey("artists", query), "infinite"],
   });
 };
@@ -519,18 +443,7 @@ export const useArtistMediaQuery = (username: string) =>
 
 export const useBattlesQuery = (query: PublicRegionQuery) =>
   useQuery({
-    placeholderData: keepPreviousData,
-    queryFn: () =>
-      withGlobalRegionFallback(
-        query.region,
-        async () => rpcJson(await battlesGet({ query })),
-        async () =>
-          rpcJson(
-            await battlesGet({
-              query: { ...query, region: "all", regionType: "global" },
-            })
-          )
-      ),
+    queryFn: async () => rpcJson(await battlesGet({ query })),
     queryKey: listKey("battles", query),
     refetchInterval: 15_000,
   });
@@ -560,42 +473,15 @@ export const usePublicLiveExperiencesQuery = (
   query: PublicRegionQuery
 ) =>
   useQuery({
-    placeholderData: keepPreviousData,
-    queryFn: () =>
-      withGlobalRegionFallback(
-        query.region,
-        async () =>
-          rpcJson(await liveExperiencesGet({ query: { kind, ...query } })),
-        async () =>
-          rpcJson(
-            await liveExperiencesGet({
-              query: {
-                ...query,
-                kind,
-                region: "all",
-                regionType: "global",
-              },
-            })
-          )
-      ),
+    queryFn: async () =>
+      rpcJson(await liveExperiencesGet({ query: { kind, ...query } })),
     queryKey: [...listKey("live-experiences", query), kind],
     refetchInterval: 10_000,
   });
 
 export const useListeningPartiesQuery = (query: PublicRegionQuery) =>
     useQuery({
-      placeholderData: keepPreviousData,
-      queryFn: () =>
-        withGlobalRegionFallback(
-          query.region,
-          async () => rpcJson(await listeningPartiesGet({ query })),
-          async () =>
-            rpcJson(
-              await listeningPartiesGet({
-                query: { ...query, region: "all", regionType: "global" },
-              })
-            )
-        ),
+      queryFn: async () => rpcJson(await listeningPartiesGet({ query })),
       queryKey: listKey("listening-parties", query),
     }),
   /** Party detail is served through the list endpoint; select by id. */
@@ -636,254 +522,131 @@ export interface DiscoverRegionQuery {
 
 export const useDiscoverTopSongsQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: () =>
-      withGlobalRegionFallback(
-        region.region,
-        async () =>
-          rpcJson(
-            await tracksGet({
-              query: {
-                ...PUBLIC_SCOPE,
-                limit: 10,
-                region: region.region,
-                regionType: region.regionType,
-                sort: "plays-desc",
-              },
-            })
-          ),
-        async () =>
-          rpcJson(
-            await tracksGet({
-              query: {
-                ...PUBLIC_SCOPE,
-                limit: 10,
-                region: "all",
-                regionType: "global",
-                sort: "plays-desc",
-              },
-            })
-          )
+    queryFn: async () =>
+      rpcJson(
+        await tracksGet({
+          query: {
+            ...PUBLIC_SCOPE,
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+            sort: "plays-desc",
+          },
+        })
       ),
     queryKey: ["native", "discover", "top-songs", region],
   });
 
 export const useDiscoverNewReleasesQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: () =>
-      withGlobalRegionFallback(
-        region.region,
-        async () =>
-          rpcJson(
-            await tracksGet({
-              query: {
-                ...PUBLIC_SCOPE,
-                limit: 10,
-                region: region.region,
-                regionType: region.regionType,
-                sort: "date-desc",
-              },
-            })
-          ),
-        async () =>
-          rpcJson(
-            await tracksGet({
-              query: {
-                ...PUBLIC_SCOPE,
-                limit: 10,
-                region: "all",
-                regionType: "global",
-                sort: "date-desc",
-              },
-            })
-          )
+    queryFn: async () =>
+      rpcJson(
+        await tracksGet({
+          query: {
+            ...PUBLIC_SCOPE,
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+            sort: "date-desc",
+          },
+        })
       ),
     queryKey: ["native", "discover", "new-releases", region],
   });
 
 export const useDiscoverTopArtistsQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: () =>
-      withGlobalRegionFallback(
-        region.region,
-        async () =>
-          rpcJson(
-            await artistsGet({
-              query: {
-                category: "top",
-                limit: 10,
-                region: region.region,
-                regionType: region.regionType,
-                sort: "rank-asc",
-              },
-            })
-          ),
-        async () =>
-          rpcJson(
-            await artistsGet({
-              query: {
-                category: "top",
-                limit: 10,
-                region: "all",
-                regionType: "global",
-                sort: "rank-asc",
-              },
-            })
-          )
+    queryFn: async () =>
+      rpcJson(
+        await artistsGet({
+          query: {
+            category: "top",
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+            sort: "rank-asc",
+          },
+        })
       ),
     queryKey: ["native", "discover", "top-artists", region],
   });
 
 export const useDiscoverVideosQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: () =>
-      withGlobalRegionFallback(
-        region.region,
-        async () =>
-          rpcJson(
-            await videosGet({
-              query: {
-                ...PUBLIC_SCOPE,
-                limit: 10,
-                region: region.region,
-                regionType: region.regionType,
-              },
-            })
-          ),
-        async () =>
-          rpcJson(
-            await videosGet({
-              query: {
-                ...PUBLIC_SCOPE,
-                limit: 10,
-                region: "all",
-                regionType: "global",
-              },
-            })
-          )
+    queryFn: async () =>
+      rpcJson(
+        await videosGet({
+          query: {
+            ...PUBLIC_SCOPE,
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+          },
+        })
       ),
     queryKey: ["native", "discover", "videos", region],
   });
 
 export const useDiscoverProjectsQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: () =>
-      withGlobalRegionFallback(
-        region.region,
-        async () =>
-          rpcJson(
-            await publicProjectsGet({
-              query: {
-                limit: 10,
-                region: region.region,
-                regionType: region.regionType,
-                sort: "date-desc",
-              },
-            })
-          ),
-        async () =>
-          rpcJson(
-            await publicProjectsGet({
-              query: {
-                limit: 10,
-                region: "all",
-                regionType: "global",
-                sort: "date-desc",
-              },
-            })
-          )
+    queryFn: async () =>
+      rpcJson(
+        await publicProjectsGet({
+          query: {
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+            sort: "date-desc",
+          },
+        })
       ),
     queryKey: ["native", "discover", "projects", region],
   });
 
 export const useDiscoverBattlesQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: () =>
-      withGlobalRegionFallback(
-        region.region,
-        async () =>
-          rpcJson(
-            await battlesGet({
-              query: {
-                ...PUBLIC_SCOPE,
-                limit: 10,
-                region: region.region,
-                regionType: region.regionType,
-              },
-            })
-          ),
-        async () =>
-          rpcJson(
-            await battlesGet({
-              query: {
-                ...PUBLIC_SCOPE,
-                limit: 10,
-                region: "all",
-                regionType: "global",
-              },
-            })
-          )
+    queryFn: async () =>
+      rpcJson(
+        await battlesGet({
+          query: {
+            ...PUBLIC_SCOPE,
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+          },
+        })
       ),
     queryKey: ["native", "discover", "battles", region],
   });
 
 export const useDiscoverStreamsQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: () =>
-      withGlobalRegionFallback(
-        region.region,
-        async () =>
-          rpcJson(
-            await liveExperiencesGet({
-              query: {
-                ...PUBLIC_SCOPE,
-                kind: "stream",
-                region: region.region,
-                regionType: region.regionType,
-              },
-            })
-          ),
-        async () =>
-          rpcJson(
-            await liveExperiencesGet({
-              query: {
-                ...PUBLIC_SCOPE,
-                kind: "stream",
-                region: "all",
-                regionType: "global",
-              },
-            })
-          )
+    queryFn: async () =>
+      rpcJson(
+        await liveExperiencesGet({
+          query: {
+            ...PUBLIC_SCOPE,
+            kind: "stream",
+            region: region.region,
+            regionType: region.regionType,
+          },
+        })
       ),
     queryKey: ["native", "discover", "streams", region],
   });
 
 export const useDiscoverPartiesQuery = (region: DiscoverRegionQuery) =>
   useQuery({
-    queryFn: () =>
-      withGlobalRegionFallback(
-        region.region,
-        async () =>
-          rpcJson(
-            await listeningPartiesGet({
-              query: {
-                ...PUBLIC_SCOPE,
-                limit: 10,
-                region: region.region,
-                regionType: region.regionType,
-              },
-            })
-          ),
-        async () =>
-          rpcJson(
-            await listeningPartiesGet({
-              query: {
-                ...PUBLIC_SCOPE,
-                limit: 10,
-                region: "all",
-                regionType: "global",
-              },
-            })
-          )
+    queryFn: async () =>
+      rpcJson(
+        await listeningPartiesGet({
+          query: {
+            ...PUBLIC_SCOPE,
+            limit: 10,
+            region: region.region,
+            regionType: region.regionType,
+          },
+        })
       ),
     queryKey: ["native", "discover", "parties", region],
   });

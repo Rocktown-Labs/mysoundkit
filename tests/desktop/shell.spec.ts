@@ -31,13 +31,13 @@ const repoRoot = path.join(import.meta.dirname, "..", ".."),
   // Nothing listens on port 1, so "external" navigation targets fail
   // locally and instantly — nothing ever leaves the machine.
   unreachableUrl = "http://127.0.0.1:1/",
-  launchShell = async (appUrl: string) => {
+  launchShell = async (appUrl: string, deepLink?: string) => {
     const userDataDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), "soundkit-e2e-")
     );
 
     return electron.launch({
-      args: [mainBundlePath],
+      args: [mainBundlePath, ...(deepLink ? [deepLink] : [])],
       env: {
         ...process.env,
         SOUNDKIT_APP_URL: appUrl,
@@ -70,6 +70,24 @@ test("loads the configured app URL in the shell window", async () => {
   try {
     const window = await electronApp.firstWindow();
 
+    await expect(window.locator("#fixture-marker")).toHaveText(
+      "SoundKit fixture"
+    );
+  } finally {
+    await closeShell(electronApp);
+    await fixture.close();
+  }
+});
+
+test("opens a validated deep link supplied on cold start", async () => {
+  const fixture = await startFixtureServer(),
+    electronApp = await launchShell(
+      fixture.url,
+      "soundkit://tracks/cold-start"
+    );
+  try {
+    const window = await electronApp.firstWindow();
+    await expect(window).toHaveURL(`${fixture.url}/tracks/cold-start`);
     await expect(window.locator("#fixture-marker")).toHaveText(
       "SoundKit fixture"
     );

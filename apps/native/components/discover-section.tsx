@@ -177,18 +177,24 @@ function DiscoverCard({ data }: { data: DiscoverCardData }) {
 export function DiscoverSection({
   data,
   emptyMessage,
+  hideWhenEmpty = false,
   isLoading,
   seeAllHref,
   title,
 }: {
   data: readonly DiscoverCardData[];
   emptyMessage: string;
+  hideWhenEmpty?: boolean;
   isLoading?: boolean;
   seeAllHref: string;
   title: string;
 }) {
   const { colorScheme } = useColorScheme(),
     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+
+  if (hideWhenEmpty && !isLoading && data.length === 0) {
+    return null;
+  }
 
   return (
     <View style={styles.section}>

@@ -1,7 +1,7 @@
 /* oxlint-disable one-var, sort-vars, no-nested-ternary, require-unicode-regexp */
 /* eslint-disable one-var, sort-vars, no-nested-ternary, require-unicode-regexp */
 import { useEffect, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AvatarHeaderButton } from "@/components/avatar-header-button";
 import { CartHeaderButton } from "@/components/cart/cart-header-button";
@@ -63,6 +63,9 @@ const SECTION_EMPTY = "Nothing here yet — check back soon.",
       flexDirection: "row",
       gap: 12,
     },
+    stateAction: { paddingVertical: 12 },
+    stateBox: { gap: 8 },
+    stateCopy: { fontSize: 14, lineHeight: 20 },
     tagline: { fontSize: 14, lineHeight: 20, marginTop: -14 },
     title: {
       fontSize: 32,
@@ -188,6 +191,40 @@ export default function DiscoverScreen() {
     };
   }, []);
 
+  const [isRetrying, setIsRetrying] = useState(false);
+  const retryInFlightRef = useRef(false);
+  const discoveryQueries = [
+    topSongs,
+    newReleases,
+    liveBattles,
+    topArtists,
+    videos,
+    liveStreams,
+    projects,
+    liveParties,
+  ];
+  const hasResults = discoveryQueries.some(
+    (query) => (query.data?.length ?? 0) > 0
+  );
+  const settled = discoveryQueries.every((query) => !query.isPending);
+  const hasError = discoveryQueries.some((query) => query.isError);
+  const retryDiscovery = async () => {
+    if (retryInFlightRef.current) {
+      return;
+    }
+    retryInFlightRef.current = true;
+    setIsRetrying(true);
+    try {
+      await Promise.allSettled(
+        discoveryQueries.map((query) => query.refetch({ cancelRefetch: false }))
+      );
+    } catch {
+      // Keep the current error message if creating a retry itself fails.
+    }
+    retryInFlightRef.current = false;
+    setIsRetrying(false);
+  };
+
   return (
     <Container>
       <ScrollView contentContainerStyle={styles.content}>
@@ -213,7 +250,55 @@ export default function DiscoverScreen() {
           regionName={selectedRegion}
           scope={activeScope}
         />
+        {hasError ? (
+          <View style={styles.stateBox}>
+            <Text style={[styles.stateCopy, { color: theme.text }]}>
+              Some discovery results couldn’t load.
+            </Text>
+            <Pressable
+              accessibilityLabel="Retry loading discovery results"
+              accessibilityRole="button"
+              accessibilityState={{ busy: isRetrying, disabled: isRetrying }}
+              disabled={isRetrying}
+              style={styles.stateAction}
+              onPress={() => {
+                void retryDiscovery();
+              }}
+            >
+              <Text style={{ color: theme.primary }}>
+                {isRetrying ? "Retrying…" : "Try again"}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {settled && !hasResults && !hasError ? (
+          <View style={styles.stateBox}>
+            <Text style={[styles.stateCopy, { color: theme.text }]}>
+              No releases or live activity in this region yet.
+            </Text>
+            {activeScope !== "global" || selectedRegion ? (
+              <Pressable
+                accessibilityLabel="Explore all SoundKit"
+                accessibilityRole="button"
+                style={styles.stateAction}
+                onPress={() => {
+                  setActiveScope("global");
+                  setSelectedRegion(null);
+                  void saveRegionSelection({
+                    mapScope: "global",
+                    regionName: null,
+                  });
+                }}
+              >
+                <Text style={{ color: theme.primary }}>
+                  Explore all SoundKit
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
         <DiscoverSection
+          hideWhenEmpty
           data={toTrackCards(topSongs.data)}
           emptyMessage={SECTION_EMPTY}
           isLoading={topSongs.isLoading}
@@ -221,6 +306,7 @@ export default function DiscoverScreen() {
           title="Top Songs"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toTrackCards(newReleases.data)}
           emptyMessage={SECTION_EMPTY}
           isLoading={newReleases.isLoading}
@@ -228,6 +314,7 @@ export default function DiscoverScreen() {
           title="New Releases"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toBattleCards(liveBattles.data)}
           emptyMessage="No battles scheduled in this region yet."
           isLoading={liveBattles.isLoading}
@@ -235,6 +322,7 @@ export default function DiscoverScreen() {
           title="Live Battles"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toArtistCards(topArtists.data)}
           emptyMessage={SECTION_EMPTY}
           isLoading={topArtists.isLoading}
@@ -242,6 +330,7 @@ export default function DiscoverScreen() {
           title="Top Artists"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toVideoCards(videos.data)}
           emptyMessage={SECTION_EMPTY}
           isLoading={videos.isLoading}
@@ -249,6 +338,7 @@ export default function DiscoverScreen() {
           title="Featured Videos"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toStreamCards(liveStreams.data)}
           emptyMessage="No creator streams happening right now."
           isLoading={liveStreams.isLoading}
@@ -256,6 +346,7 @@ export default function DiscoverScreen() {
           title="Live Streams"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toProjectCards(projects.data)}
           emptyMessage={SECTION_EMPTY}
           isLoading={projects.isLoading}
@@ -263,6 +354,7 @@ export default function DiscoverScreen() {
           title="Featured Projects"
         />
         <DiscoverSection
+          hideWhenEmpty
           data={toPartyCards(liveParties.data)}
           emptyMessage="No listening parties scheduled yet."
           isLoading={liveParties.isLoading}
