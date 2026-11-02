@@ -64,7 +64,9 @@ jobs:
             throw new Error('Review requires an open same-repository PR targeting master');
           }
           // Keep the ordinary cap; larger diffs have a bounded higher ceiling.
-          const budget = pr.changed_files > 20 ? 1400000 : 700000;
+          // A 35-file review exhausted 1.4M before dispatching its final
+          // groups, so the higher ceiling leaves room for the last files.
+          const budget = pr.changed_files > 20 ? 2000000 : 700000;
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `number=${pr.number}\nbase=${pr.base.ref}\nhead=${pr.head.sha}\nbase_sha=${pr.base.sha}\nbudget=${budget}\n`);
           JS
 
