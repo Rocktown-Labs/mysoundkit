@@ -56,12 +56,11 @@ test("distinguishes working Workers from rejected Pipelines without exposing cre
       success: false,
     }
   );
-  assert.doesNotMatch(
-    JSON.stringify(reports),
-    new RegExp(
-      [env.CLOUDFLARE_API_TOKEN, "private-worker", account].join("|"),
-      "u"
-    )
+  assert.ok(
+    [env.CLOUDFLARE_API_TOKEN, "private-worker", account].every(
+      (value) => !JSON.stringify(reports).includes(value)
+    ),
+    "Diagnostic output must not expose private values"
   );
 });
 
@@ -101,12 +100,11 @@ test("reports only Pipeline policy names and whether the target account is inclu
     ],
     probe: "pipeline_policy_metadata",
   });
-  assert.doesNotMatch(
-    JSON.stringify(reports),
-    new RegExp(
-      ["private-", env.CLOUDFLARE_API_TOKEN, account, tokenId].join("|"),
-      "u"
-    )
+  assert.ok(
+    ["private-", env.CLOUDFLARE_API_TOKEN, account, tokenId].every(
+      (value) => !JSON.stringify(reports).includes(value)
+    ),
+    "Diagnostic output must not expose private values"
   );
 });
 
@@ -185,6 +183,8 @@ test("token labels are opt-in and never expose the token value", async () => {
 for (const [failure, error] of [
   ["invalid_json", new SyntaxError("fixture-secret")],
   ["timeout", new DOMException("fixture-secret", "TimeoutError")],
+  ["timeout", new DOMException("fixture-secret", "AbortError")],
+  ["network", new TypeError("fixture-secret")],
 ]) {
   test(`classifies ${failure} without disclosing exception text`, async () => {
     const reports = await diagnosePipelinesAuth(env, () =>

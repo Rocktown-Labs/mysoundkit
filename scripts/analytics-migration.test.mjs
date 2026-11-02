@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const fixtureUrl = process.env.SOUNDKIT_TEST_DATABASE_URL,
   localFixture =
     fixtureUrl &&
+    URL.canParse(fixtureUrl) &&
     ["127.0.0.1", "localhost", "[::1]"].includes(new URL(fixtureUrl).hostname),
   script = fileURLToPath(new URL("analytics-migration.mjs", import.meta.url));
 test("analytics migration fingerprint is stable without database credentials", () => {
@@ -61,7 +62,11 @@ test(
     for (const mode of ["--check", "--test-apply", "--check"]) {
       const result = spawnSync(process.execPath, [script, mode], {
         encoding: "utf-8",
-        env: { ...process.env, DATABASE_URL: fixtureUrl },
+        env: {
+          ...process.env,
+          DATABASE_URL: fixtureUrl,
+          SOUNDKIT_TEST_DATABASE_URL: fixtureUrl,
+        },
       });
       assert.equal(result.status, 0, result.stderr);
       assert.match(result.stdout, /fingerprint and capture triggers verified/u);

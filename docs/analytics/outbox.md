@@ -196,3 +196,7 @@ three-second lock timeout, the complete transaction rolls back and the old app
 continues serving. Inspect long-running transactions, database write latency and
 errors before scheduling another approved attempt. Never remove the timeout or
 force drift to make a deployment proceed.
+
+Independent initial authentication probes complete concurrently; their log order
+is unspecified. Consumers identify each result by its stable `probe` field, not
+its position. Raw exception messages remain excluded by design.
