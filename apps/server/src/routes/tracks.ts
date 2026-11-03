@@ -47,6 +47,7 @@ import {
 import {
   resolveDownloadAccess,
   resolveListeningAccess,
+  resolveTrackPlaybackAccess,
 } from "@/lib/content-access";
 import {
   buildTrackDetail,
@@ -117,6 +118,7 @@ import {
   resolveTrackAssetFromRows,
   resolveTrackCoverAssetFromRows,
 } from "@/lib/track-asset-resolver";
+import { hasAcceptedTrackCollaboration } from "@/lib/track-collaboration";
 import { notifyTrackLive } from "@/lib/track-notifications";
 import type { AppEnv } from "@/lib/types";
 import { claimUploadIntent, completeUploadIntent } from "@/lib/upload-intents";
@@ -3314,20 +3316,15 @@ app.openapi(
 
     const isAuthenticated = isAuthenticatedUser(currentUser),
       isOwner = isAuthenticated && track.ownerUserId === currentUser.id,
-      [collaboratorAccess] = isAuthenticated
-        ? await db
-            .select({ id: trackCollaborators.id })
-            .from(trackCollaborators)
-            .where(
-              and(
-                eq(trackCollaborators.trackId, trackId),
-                eq(trackCollaborators.collaboratorUserId, currentUser.id),
-                eq(trackCollaborators.invitationStatus, "accepted")
-              )
-            )
-            .limit(1)
-        : [],
-      canManageTrack = isOwner || Boolean(collaboratorAccess),
+      hasCollaboration =
+        isAuthenticated && !isOwner
+          ? await hasAcceptedTrackCollaboration({
+              db,
+              trackId,
+              userId: currentUser.id,
+            })
+          : false,
+      canManageTrack = isOwner || (hasCollaboration && !track.deletedAt),
       hasPurchase = isAuthenticated
         ? await hasPurchasedTrack({ db, trackId, userId: currentUser.id })
         : false,
@@ -3339,12 +3336,14 @@ app.openapi(
             user: currentUser,
           })
         : null,
-      access = resolveListeningAccess({
+      access = resolveTrackPlaybackAccess({
+        hasCollaboration,
         hasPurchase,
+        isOwner,
         isPremium: entitlements?.isPremium ?? false,
         policy: track,
       });
-    if (!(canManageTrack || (track.isPublic && access.canListen))) {
+    if (!access.allowed) {
       return c.json(
         { message: "Playback access is not available for this track." },
         HttpStatusCodes.FORBIDDEN
@@ -3809,38 +3808,13 @@ app.openapi(
         return c.json(await buildTrackDetail(ownedTrack), HttpStatusCodes.OK);
       }
 
-      const [collaboratorRow, projectCollaboratorRow] = await Promise.all([
-        db
-          .select({ id: trackCollaborators.id })
-          .from(trackCollaborators)
-          .where(
-            and(
-              eq(trackCollaborators.trackId, trackId),
-              eq(trackCollaborators.collaboratorUserId, currentUser.id),
-              eq(trackCollaborators.invitationStatus, "accepted")
-            )
-          )
-          .limit(1)
-          .then((rows) => rows[0]),
-        db
-          .select({ id: projectCollaborators.id })
-          .from(projectTracks)
-          .innerJoin(
-            projectCollaborators,
-            eq(projectCollaborators.projectId, projectTracks.projectId)
-          )
-          .where(
-            and(
-              eq(projectTracks.trackId, trackId),
-              eq(projectCollaborators.collaboratorUserId, currentUser.id),
-              eq(projectCollaborators.invitationStatus, "accepted")
-            )
-          )
-          .limit(1)
-          .then((rows) => rows[0]),
-      ]);
-
-      if (collaboratorRow || projectCollaboratorRow) {
+      if (
+        await hasAcceptedTrackCollaboration({
+          db,
+          trackId,
+          userId: currentUser.id,
+        })
+      ) {
         const [collaboratedTrack] = await db
           .select()
           .from(tracks)

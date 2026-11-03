@@ -1,3 +1,4 @@
+/* oxlint-disable one-var -- Public policy functions remain independently exported. */
 export type ListeningAccess = "public" | "premium_or_purchased";
 
 export interface ContentListeningPolicy {
@@ -109,4 +110,55 @@ export const resolveListeningAccess = ({
   }
 
   return { canListen: false, isPreview: true, reason: "preview" };
+};
+
+export interface TrackPlaybackPolicy extends ContentListeningPolicy {
+  deletedAt: Date | string | null | undefined;
+  isPublic: boolean;
+}
+export type TrackPlaybackDecision =
+  | {
+      allowed: true;
+      reason: "manager" | "purchased" | "free" | "premium" | "public";
+    }
+  | { allowed: false; reason: "unavailable" | "premium_or_purchase_required" };
+
+/** Purchases survive visibility changes; premium alone never reveals private media. */
+export const resolveTrackPlaybackAccess = ({
+  hasCollaboration,
+  hasPurchase,
+  isOwner,
+  isPremium,
+  policy,
+}: {
+  hasCollaboration: boolean;
+  hasPurchase: boolean;
+  isOwner: boolean;
+  isPremium: boolean;
+  policy: TrackPlaybackPolicy;
+}): TrackPlaybackDecision => {
+  if (isOwner) {
+    return { allowed: true, reason: "manager" };
+  }
+  if (hasPurchase) {
+    return { allowed: true, reason: "purchased" };
+  }
+  if (policy.deletedAt) {
+    return { allowed: false, reason: "unavailable" };
+  }
+  if (hasCollaboration) {
+    return { allowed: true, reason: "manager" };
+  }
+  if (!policy.isPublic) {
+    return { allowed: false, reason: "unavailable" };
+  }
+  const listening = resolveListeningAccess({
+    hasPurchase: false,
+    isPremium,
+    policy,
+  });
+  if (!listening.canListen || listening.reason === "preview") {
+    return { allowed: false, reason: "premium_or_purchase_required" };
+  }
+  return { allowed: true, reason: listening.reason };
 };
