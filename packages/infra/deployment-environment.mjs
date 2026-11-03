@@ -105,3 +105,37 @@ export function databaseIdentityFinding(
   }
   return null;
 }
+
+/** Opt-in cutover keeps legacy previews unchanged until staging is proven. */
+export function deploymentRouting(stage, localDev = false, isolated = false) {
+  const environment = deploymentEnvironment(stage, localDev);
+  if (environment.isProduction) {
+    return {
+      apiHost: "api.mysoundkit.com",
+      bioHost: "soundkit.bio",
+      isolated: false,
+      mediaBucket: productionMediaBucket,
+      siteHost: "mysoundkit.com",
+    };
+  }
+  if (isolated && !localDev) {
+    const group =
+      stage === "staging"
+        ? "staging.soundkit.bio"
+        : `${stage}.preview.soundkit.bio`;
+    return {
+      apiHost: `api.${group}`,
+      bioHost: `bio.${group}`,
+      isolated: true,
+      mediaBucket: "soundkit-media-staging",
+      siteHost: group,
+    };
+  }
+  return {
+    apiHost: `api-${stage}.mysoundkit.com`,
+    bioHost: `bio-${stage}.mysoundkit.com`,
+    isolated: false,
+    mediaBucket: productionMediaBucket,
+    siteHost: `soundkit-web-${stage}.mysoundkit.com`,
+  };
+}

@@ -1,4 +1,5 @@
 import { expoClient } from "@better-auth/expo/client";
+import { nativeSessionScope } from "@soundkit/env/session-scope";
 import { createAuthClient } from "better-auth/react";
 import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
@@ -30,7 +31,10 @@ export const authClient = createAuthClient({
     expoClient({
       scheme: (Constants.expoConfig?.scheme as string) || "soundkit",
       storage: SecureStore,
-      storagePrefix: (Constants.expoConfig?.scheme as string) || "soundkit",
+      ...nativeSessionScope(
+        API_AUTH_URL,
+        (Constants.expoConfig?.scheme as string) || "soundkit"
+      ),
     }),
   ],
 });

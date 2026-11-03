@@ -2,7 +2,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deploymentEnvironment } from "../packages/infra/deployment-environment.mjs";
+import {
+  deploymentEnvironment,
+  deploymentRouting,
+} from "../packages/infra/deployment-environment.mjs";
 import { deploymentPreflight } from "./deployment-preflight.mjs";
 
 const safe = {
@@ -152,4 +155,19 @@ test("raw live credentials cannot hide behind declared test metadata", async () 
     stage: "staging",
   });
   assert.deepEqual(report.findings, ["nonproduction_stripe_mode_invalid"]);
+});
+
+test("isolated routing preserves production and separates staging cookie parents", () => {
+  assert.deepEqual(
+    deploymentRouting("prod", false, true),
+    deploymentRouting("prod")
+  );
+  const staging = deploymentRouting("staging", false, true),
+    preview = deploymentRouting("pr-520", false, true);
+  assert.equal(staging.siteHost, "staging.soundkit.bio");
+  assert.equal(preview.siteHost, "pr-520.preview.soundkit.bio");
+  assert.equal(preview.mediaBucket, staging.mediaBucket);
+  assert.equal(preview.apiHost.endsWith(`.${staging.siteHost}`), false);
+  assert.equal(deploymentRouting("pr-520").mediaBucket, "soundkit-media");
+  assert.equal(deploymentRouting("prod", true, true).isolated, false);
 });
