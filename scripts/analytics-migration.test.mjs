@@ -1,6 +1,8 @@
-/* oxlint-disable node/no-sync -- CLI guard tests intentionally wait for each isolated child process. */
+/* oxlint-disable one-var, sort-vars, node/no-sync -- CLI guard tests intentionally wait for each isolated child process. */
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
+import { createServer } from "node:net";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -71,5 +73,38 @@ test(
       assert.equal(result.status, 0, result.stderr);
       assert.match(result.stdout, /fingerprint and capture triggers verified/u);
     }
+  }
+);
+
+test(
+  "migration CLI omits pooler-incompatible startup parameters",
+  { timeout: 10_000 },
+  async (t) => {
+    const server = createServer();
+    t.after(() => server.close());
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const connected = once(server, "connection"),
+      child = spawn(process.execPath, [script, "--check"], {
+        env: {
+          ...process.env,
+          DATABASE_URL: `postgres://fixture@127.0.0.1:${address.port}/fixture?sslmode=disable`,
+        },
+        stdio: "ignore",
+      });
+    t.after(() => child.kill());
+    const exited = once(child, "exit"),
+      [socket] = await connected;
+    t.after(() => socket.destroy());
+    const [packet] = await once(socket, "data");
+    socket.destroy();
+    await exited;
+    // Inspect the actual node-postgres startup packet, before authentication/SQL.
+    assert.equal(packet.readInt32BE(4), 196_608);
+    const parameters = packet.subarray(8).toString("utf-8").split("\0");
+    assert.ok(parameters.includes("user"));
+    assert.ok(!parameters.includes("statement_timeout"));
   }
 );

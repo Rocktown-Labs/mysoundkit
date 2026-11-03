@@ -54,13 +54,19 @@ if (
 const client = new Client({
   connectionString: url,
   connectionTimeoutMillis: 5000,
-  statement_timeout: 35_000,
+  // Client deadline avoids unsupported PgBouncer startup parameters.
+  // The migration separately enforces SET LOCAL statement_timeout/lock_timeout.
+  query_timeout: 35_000,
 });
 await client.connect();
 try {
+  // Pin one backend through checks and apply; session locks leak through poolers.
+  await client.query("BEGIN");
+  await client.query("SET LOCAL statement_timeout = '30s'");
+  await client.query("SET LOCAL lock_timeout = '3s'");
   if (mode !== "--check") {
     const lock = await client.query(
-      "SELECT pg_try_advisory_lock(hashtextextended('soundkit-analytics-migration-v1',0)) AS locked"
+      "SELECT pg_try_advisory_xact_lock(hashtextextended('soundkit-analytics-migration-v1',0)) AS locked"
     );
     if (!lock.rows[0].locked) {
       throw new Error("Another analytics migration is running");
@@ -113,10 +119,22 @@ try {
       );
     }
     await client.query(
-      migration.replaceAll("__MIGRATION_SHA256__", fingerprint)
+      // The runner owns the transaction so the advisory lock and DDL share it.
+      migration
+        .replace("\nBEGIN;\n", "\n")
+        .replace(/\nCOMMIT;\s*$/u, "\n")
+        .replaceAll("__MIGRATION_SHA256__", fingerprint)
     );
     console.info(`Analytics migration v1 installed (${fingerprint}).`);
   }
+  await client.query("COMMIT");
+} catch (error) {
+  try {
+    await client.query("ROLLBACK");
+  } catch {
+    // Ending the connection also aborts an open transaction.
+  }
+  throw error;
 } finally {
   await client.end();
 }
