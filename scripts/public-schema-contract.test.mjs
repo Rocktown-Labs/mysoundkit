@@ -65,6 +65,12 @@ test("missing columns, changed types and changed nullability refuse deployment",
     "vector_extension_missing",
   ]);
 });
+test("type modifiers are significant to the release contract", () => {
+  assert.notEqual(
+    columnsFingerprint([{ ...columns[0], type: "numeric(10,2)" }]),
+    columnsFingerprint([{ ...columns[0], type: "numeric" }])
+  );
+});
 test("database check uses a read-only transaction and rolls back even on failure", async () => {
   const statements = [],
     client = {

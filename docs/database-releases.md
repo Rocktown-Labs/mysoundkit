@@ -48,7 +48,8 @@ to make a failing deployment green.
    update the release manifest in the application PR with migration evidence.
 5. Run canonical verification, review, staging journeys and the check-only gate.
    Merge and deploy the exact reviewed application commit. Automatic post-deploy
-   checks cover public web/Bio availability and API/database health.
+   checks cover public web/Bio availability, API/database health and a bounded
+   real public catalog read.
 
 ## Failed release and rollback
 

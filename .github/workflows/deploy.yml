@@ -270,6 +270,10 @@ jobs:
           const health = JSON.parse(await new Response(process.stdin).text());
           if (!health.ok || health.database !== "connected") process.exit(1);
           console.log("Production API healthy; database connected.");'
+          curl --fail --silent --show-error --retry 2 --retry-delay 3 --retry-max-time 45 --max-time 15 'https://api.mysoundkit.com/v1/tracks?scope=public&limit=1' | node --input-type=module -e '
+          const rows = JSON.parse(await new Response(process.stdin).text());
+          if (!Array.isArray(rows) || rows.length > 1) process.exit(1);
+          console.log("Production public catalog read passed.");'
           curl --fail --silent --show-error --retry 2 --retry-delay 3 --retry-max-time 45 --max-time 15 -o /dev/null https://mysoundkit.com
           curl --fail --silent --show-error --retry 2 --retry-delay 3 --retry-max-time 45 --max-time 15 -o /dev/null https://soundkit.bio
 
