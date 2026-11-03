@@ -5,7 +5,7 @@ import { transactions } from "@soundkit/db/schema/payments";
 import { and, asc, eq, isNotNull, lt } from "drizzle-orm";
 import { z } from "zod";
 
-import { logInfo, logWarn } from "@/middleware/structured-logging";
+import { logError, logInfo, logWarn } from "@/middleware/structured-logging";
 
 import { stripeRequest } from "./stripe";
 
@@ -181,11 +181,22 @@ export const runCheckoutReconciliation = async ({
       ) {
         abandoned += 1;
       }
-    } catch {
-      // Never expose provider payloads or database credentials through cron logs.
-      logWarn({
+    } catch (error) {
+      // Fixed classifications only; never log provider payloads or DB credentials.
+      const timeout =
+        error instanceof Error &&
+        ["AbortError", "TimeoutError"].includes(error.name);
+      let reason = "reconciliation_failed";
+      if (timeout) {
+        reason = "timeout";
+      } else if (error instanceof z.ZodError) {
+        reason = "invalid_provider_response";
+      }
+      const logFailure = timeout ? logWarn : logError;
+      logFailure({
         event: "stale_checkout_reconciliation_deferred",
         orderId: order.id,
+        reason,
       });
     }
   }

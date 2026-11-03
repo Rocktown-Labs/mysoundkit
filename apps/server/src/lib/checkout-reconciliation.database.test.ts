@@ -14,6 +14,8 @@ import { runCheckoutReconciliation } from "./checkout-reconciliation";
 const state = vi.hoisted(() => ({
   afterSelection: undefined as (() => Promise<void>) | undefined,
   db: undefined as unknown,
+  logError: vi.fn(),
+  logWarn: vi.fn(),
   request: vi.fn(),
 }));
 vi.mock("@soundkit/db", () => ({
@@ -21,6 +23,11 @@ vi.mock("@soundkit/db", () => ({
   isDatabaseConfigured: () => true,
 }));
 vi.mock("./stripe", () => ({ stripeRequest: state.request }));
+vi.mock("@/middleware/structured-logging", () => ({
+  logError: state.logError,
+  logInfo: vi.fn(),
+  logWarn: state.logWarn,
+}));
 const url = process.env.SOUNDKIT_TEST_DATABASE_URL;
 const local =
   url && ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname);
@@ -98,6 +105,8 @@ async function fixture(run: (db: Db, id: string) => Promise<void>) {
       });
       state.afterSelection = undefined;
       state.request.mockReset();
+      state.logError.mockClear();
+      state.logWarn.mockClear();
       state.request.mockResolvedValue({
         id: `cs_${id}`,
         payment_intent: null,
@@ -131,32 +140,59 @@ async function statuses(db: Db, id: string) {
 }
 
 describe.skipIf(!local)("stale checkout reconciliation", () => {
+  it("reports bounded failure reasons at the appropriate level", async () => {
+    await fixture(async (db, id) => {
+      state.request.mockRejectedValueOnce(
+        new DOMException("private provider timeout", "TimeoutError")
+      );
+      await runCheckoutReconciliation();
+      expect(state.logWarn).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: "timeout" })
+      );
+      state.request.mockResolvedValueOnce(null);
+      await runCheckoutReconciliation();
+      expect(state.logError).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: "invalid_provider_response" })
+      );
+      state.request.mockRejectedValueOnce(
+        new Error("private provider payload")
+      );
+      await runCheckoutReconciliation();
+      expect(state.logError).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: "reconciliation_failed" })
+      );
+      expect(
+        JSON.stringify([
+          ...state.logError.mock.calls,
+          ...state.logWarn.mock.calls,
+        ])
+      ).not.toContain("private provider");
+      expect(await statuses(db, id)).toEqual(["pending", "checkout_pending"]);
+    });
+  });
+
   it("session-less stale rows cannot consume the verifiable batch", async () => {
     await fixture(async (db, id) => {
       const ids = Array.from({ length: 50 }, () => randomUUID());
-      await db
-        .insert(transactions)
-        .values(
-          ids.map((missingId) => ({
-            amountCents: 1000,
-            artistAmountCents: 900,
-            id: missingId,
-            platformFeeCents: 100,
-            status: "pending" as const,
-            transactionType: "product_purchase" as const,
-          }))
-        );
-      await db
-        .insert(orders)
-        .values(
-          ids.map((missingId) => ({
-            buyerUserId: id,
-            createdAt: new Date("2019-01-01T00:00:00Z"),
-            id: missingId,
-            status: "checkout_pending" as const,
-            transactionId: missingId,
-          }))
-        );
+      await db.insert(transactions).values(
+        ids.map((missingId) => ({
+          amountCents: 1000,
+          artistAmountCents: 900,
+          id: missingId,
+          platformFeeCents: 100,
+          status: "pending" as const,
+          transactionType: "product_purchase" as const,
+        }))
+      );
+      await db.insert(orders).values(
+        ids.map((missingId) => ({
+          buyerUserId: id,
+          createdAt: new Date("2019-01-01T00:00:00Z"),
+          id: missingId,
+          status: "checkout_pending" as const,
+          transactionId: missingId,
+        }))
+      );
       expect((await runCheckoutReconciliation()).abandoned).toBe(1);
       expect(await statuses(db, id)).toEqual(["failed", "failed"]);
       expect(state.request).toHaveBeenCalledTimes(1);
