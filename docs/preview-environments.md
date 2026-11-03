@@ -33,3 +33,41 @@ If a stale preview has already changed the shared schema:
 3. Restore only reviewed, additive schema changes from the owning branch.
 4. Redeploy the affected preview after restoration.
 5. Exercise the failed endpoints directly before resuming feature testing.
+
+## Isolation cutover (#513, #515)
+
+The existing shared database/media policy above remains in effect until staging
+is provisioned and cut over. Resource names alone do not establish isolation.
+CI currently runs `scripts/deployment-preflight.mjs` in **report** mode: unsafe
+bindings produce `passed:false` with bounded reason codes, but do not break the
+existing preview while replacement resources are being prepared.
+
+The shared environment manifest in `packages/infra/deployment-environment.mjs`
+recognizes prod, staging, pr-N and local development. Local development takes
+precedence over a prod profile for analytics and scheduled jobs. Current remote
+production names and bindings are unchanged.
+
+Before switching to enforce mode:
+
+1. Create a nonproduction database from reviewed schema and synthetic fixtures;
+   use one persistent staging branch initially and cap temporary PR branches.
+2. Create private nonproduction media storage and provider sandboxes/sinks.
+3. Install `soundkit_environment.identity` **only in nonproduction**, with one
+   row `{singleton:true,target:'rocktownlabs/soundkit/staging'}` (or its exact
+   isolated pr-N target). Grant the staging app read access to this marker.
+4. Point `SOUNDKIT_DATABASE_TARGET`, `SOUNDKIT_MEDIA_BUCKET_NAME` and the actual
+   database/media bindings at those resources. Set external effects disabled;
+   do not bind real email or fulfillment credentials. Use only test Stripe keys.
+5. Run `node scripts/deployment-preflight.mjs --stage staging --mode enforce
+   --check-database`. This reads the marker from the actual connected database;
+   a declared staging label alone cannot pass. Marker failure never triggers
+   automatic DDL or prints connection credentials.
+6. Make that enforcing check mandatory before deploy/resource mutations and
+   remove production access from preview credentials. Keep production ownership
+   and cleanup rules separate; never destroy production to test isolation.
+
+This preflight covers the database/media/payment/side-effect boundaries above;
+it is not proof of every provider's account permissions. Provider-specific
+resource ownership and request adapters remain part of the staged cutover.
+The report is redacted, and report-mode failure must not be called a healthy or
+isolated environment. Bad stage/mode arguments always fail rather than default.

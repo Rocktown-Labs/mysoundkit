@@ -211,6 +211,14 @@ jobs:
           pnpm add alchemy@0.90.1 --ignore-scripts
           node seed-v2-r2-secrets.mjs "$RUNNER_TEMP/r2-secrets.env"
 
+      - name: Report deployment isolation readiness
+        run: node scripts/deployment-preflight.mjs --stage prod --mode report
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          PRINTFUL_API_KEY: ${{ secrets.PRINTFUL_API_KEY }}
+          KUNAKI_PASSWORD: ${{ secrets.KUNAKI_PASSWORD }}
+
       - name: Deploy through Alchemy
         working-directory: packages/infra
         run: |
@@ -403,6 +411,14 @@ jobs:
           echo '{"name":"seed","private":true}' > package.json
           pnpm add alchemy@0.90.1 --ignore-scripts
           node seed-v2-r2-secrets.mjs "$RUNNER_TEMP/r2-secrets.env"
+
+      - name: Report deployment isolation readiness
+        run: node scripts/deployment-preflight.mjs --stage pr-${{ github.event.pull_request.number }} --mode report
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          PRINTFUL_API_KEY: ${{ secrets.PRINTFUL_API_KEY }}
+          KUNAKI_PASSWORD: ${{ secrets.KUNAKI_PASSWORD }}
 
       - name: Deploy preview through Alchemy
         working-directory: packages/infra

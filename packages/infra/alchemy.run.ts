@@ -9,6 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 
 import { analyticsPipeline, analyticsStream } from "./analytics-lake";
+import { deploymentEnvironment } from "./deployment-environment.mjs";
 
 config({ path: "./.env" });
 config({ path: "../../apps/website/.env" });
@@ -26,14 +27,9 @@ const isLocalDev = ["true", "1", "yes", "on"].includes(
 // this file to discover providers).
 const deployment = Effect.gen(function* () {
   const stage = yield* Stage,
-    isProduction = stage === "prod",
-    isPullRequestPreview = stage.startsWith("pr-");
-
-  if (!(isLocalDev || isProduction || isPullRequestPreview)) {
-    throw new Error(
-      `Unsupported remote stage "${stage}". Use prod or a pr-<number> preview stage.`
-    );
-  }
+    identity = deploymentEnvironment(stage, isLocalDev),
+    { isProduction } = identity,
+    { isPullRequestPreview } = identity;
 
   // Production serves media through the dedicated media host attached to the
   // server Worker. Local and pr-<number> preview stages have no adopted media
@@ -83,6 +79,8 @@ const deployment = Effect.gen(function* () {
     resourceName = (name: string) => (isProduction ? name : `${name}-${stage}`);
 
   return {
+    analyticsEnvironment: identity.analyticsEnvironment,
+    scheduledJobsEnabled: identity.scheduledJobsEnabled,
     API_HOST,
     API_URL,
     BIO_ALIAS_HOSTS,
@@ -513,19 +511,14 @@ export const server = Cloudflare.Worker(
     const d = yield* deployment;
 
     requireR2UploadCredentials(d.isProduction);
-    let analyticsEnvironment = d.stage;
-    if (d.isLocalDev) {
-      analyticsEnvironment = "test";
-    } else if (d.isProduction) {
-      analyticsEnvironment = "production";
-    }
+    const { analyticsEnvironment } = d;
 
     return {
       compatibility: { flags: ["nodejs_compat"] },
       // Scheduled jobs are production-only. Preview Workers share
       // production backing services, so registering this trigger would
       // create production side effects from an isolated preview deployment.
-      crons: d.isProduction ? ["*/5 * * * *"] : [],
+      crons: d.scheduledJobsEnabled ? ["*/5 * * * *"] : [],
       dev: {
         port: 3000,
       },
@@ -551,7 +544,9 @@ export const server = Cloudflare.Worker(
         ...optionalEnvBinding("CLOUDFLARE_STREAM_CUSTOMER_CODE"),
         ...optionalEnvBinding("CLOUDFLARE_STREAM_WEBHOOK_SECRET"),
         SOUNDKIT_ALLOW_MOCK_REALTIME: d.isPullRequestPreview ? "true" : "false",
-        SOUNDKIT_SCHEDULED_JOBS_ENABLED: d.isProduction ? "true" : "false",
+        SOUNDKIT_SCHEDULED_JOBS_ENABLED: d.scheduledJobsEnabled
+          ? "true"
+          : "false",
         DATABASE_URL: Config.Redacted("DATABASE_URL"),
         DO_METRICS: doMetrics,
         EMAIL_DELIVERY_QUEUE: emailDeliveryQueue,
