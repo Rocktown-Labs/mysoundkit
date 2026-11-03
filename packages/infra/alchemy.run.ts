@@ -1,6 +1,9 @@
-/* oxlint-disable node/no-top-level-await, one-var, sort-keys, sort-vars, func-names, max-classes-per-file */
+/* oxlint-disable node/no-top-level-await, one-var, sort-keys, sort-vars, func-names, max-classes-per-file, unicorn/no-array-method-this-argument */
+import { createHash } from "node:crypto";
+
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
+import * as Output from "alchemy/Output";
 import * as RemovalPolicy from "alchemy/RemovalPolicy";
 import { Stage } from "alchemy/Stage";
 import { config } from "dotenv";
@@ -8,8 +11,13 @@ import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 
+import { deploymentPreflight } from "../../scripts/deployment-preflight.mjs";
 import { analyticsPipeline, analyticsStream } from "./analytics-lake";
-import { deploymentEnvironment } from "./deployment-environment.mjs";
+import {
+  deploymentEnvironment,
+  deploymentRouting,
+  isolationMode,
+} from "./deployment-environment.mjs";
 
 config({ path: "./.env" });
 config({ path: "../../apps/website/.env" });
@@ -28,23 +36,27 @@ const isLocalDev = ["true", "1", "yes", "on"].includes(
 const deployment = Effect.gen(function* () {
   const stage = yield* Stage,
     identity = deploymentEnvironment(stage, isLocalDev),
+    routing = deploymentRouting(
+      stage,
+      isLocalDev,
+      isolationMode(process.env.SOUNDKIT_ISOLATION_MODE) === "enforce"
+    ),
     { isProduction } = identity,
     { isPullRequestPreview } = identity;
 
   // Production serves media through the dedicated media host attached to the
   // server Worker. Local and pr-<number> preview stages have no adopted media
   // domain, so they route through the guarded /media API route instead.
-  const SITE_HOST = isProduction
-      ? "mysoundkit.com"
-      : `soundkit-web-${stage}.mysoundkit.com`,
-    API_HOST = isProduction
-      ? "api.mysoundkit.com"
-      : `api-${stage}.mysoundkit.com`,
-    MEDIA_HOST = isProduction
-      ? "media.mysoundkit.com"
-      : `media-${stage}.mysoundkit.com`,
+  const SITE_HOST = routing.siteHost,
+    API_HOST = routing.apiHost,
+    MEDIA_HOST = (() => {
+      if (isProduction) {
+        return "media.mysoundkit.com";
+      }
+      return routing.isolated ? API_HOST : `media-${stage}.mysoundkit.com`;
+    })(),
     SITE_URL = isLocalDev ? "http://localhost:3001" : `https://${SITE_HOST}`,
-    BIO_HOST = isProduction ? "soundkit.bio" : `bio-${stage}.mysoundkit.com`,
+    BIO_HOST = routing.bioHost,
     BIO_ALIAS_HOSTS = ["www.soundkit.bio"],
     BIO_URL = (() => {
       if (isLocalDev) {
@@ -86,7 +98,8 @@ const deployment = Effect.gen(function* () {
     BIO_ALIAS_HOSTS,
     BIO_HOST,
     BIO_URL,
-    MEDIA_BUCKET_NAME: "soundkit-media",
+    MEDIA_BUCKET_NAME: routing.mediaBucket,
+    isIsolated: routing.isolated,
     MEDIA_HOST,
     MEDIA_URL,
     SENTRY_ENVIRONMENT,
@@ -165,7 +178,7 @@ const getR2Jurisdiction = () => {
 // physical name is shared, preview stages also RETAIN it on destroy —
 // otherwise `alchemy destroy` for a pr-<number> stage tries to delete the
 // production bucket (it fails today only because the bucket is non-empty).
-export const media = Cloudflare.R2.Bucket(
+const legacyMedia = Cloudflare.R2.Bucket(
   "media",
   Effect.gen(function* () {
     const d = yield* deployment;
@@ -209,6 +222,70 @@ export const media = Cloudflare.R2.Bucket(
     })
   )
 );
+
+// Staging owns the shared synthetic catalog. PR stages reference its resources;
+// deleting a PR cannot delete staging media or its upload token.
+export const media = Effect.gen(function* () {
+  const d = yield* deployment;
+  if (!d.isIsolated) {
+    return yield* legacyMedia;
+  }
+  if (d.stage !== "staging") {
+    return yield* Cloudflare.R2.Bucket.ref("isolated-media", {
+      stage: "staging",
+    });
+  }
+  return yield* Cloudflare.R2.Bucket("isolated-media", {
+    cors: [
+      {
+        allowedHeaders: ["*"],
+        allowedMethods: ["GET", "HEAD", "PUT", "POST"],
+        allowedOrigins: [
+          "https://staging.soundkit.bio",
+          "https://*.preview.soundkit.bio",
+          "https://bio.staging.soundkit.bio",
+        ],
+        exposeHeaders: ["ETag"],
+      },
+    ],
+    forceDestroy: false,
+    name: d.MEDIA_BUCKET_NAME,
+    publicAccess: false,
+  }).pipe(RemovalPolicy.retain(true));
+});
+
+const isolatedMediaToken = Effect.gen(function* () {
+  const d = yield* deployment;
+  if (d.stage !== "staging") {
+    return yield* Cloudflare.ApiToken.AccountApiToken.ref(
+      "isolated-media-upload-token",
+      { stage: "staging" }
+    );
+  }
+  const bucket = yield* media,
+    { accountId } = yield* yield* Cloudflare.CloudflareEnvironment;
+  if (!accountId) {
+    throw new Error("CLOUDFLARE_ACCOUNT_ID is required");
+  }
+  return yield* Cloudflare.ApiToken.AccountApiToken(
+    "isolated-media-upload-token",
+    {
+      accountId,
+      policies: Output.map(bucket.bucketName, (name) => [
+        {
+          effect: "allow" as const,
+          permissionGroups: [
+            "Workers R2 Storage Bucket Item Read" as const,
+            "Workers R2 Storage Bucket Item Write" as const,
+          ],
+          resources: {
+            [`com.cloudflare.edge.r2.bucket.${accountId}_default_${name}`]: "*",
+          },
+        },
+      ]),
+    }
+  );
+});
 
 // Storage bucket for RealtimeKit live recordings. Recordings stay private
 // until a live experience is published; the server streams them via R2.
@@ -388,7 +465,7 @@ export class MediaProcessorContainer extends Cloudflare.Container<MediaProcessor
       // `<context>/Dockerfile`, which is what we want.
       context: "../../apps/media-processor",
       instanceType: d.isProduction ? "standard-1" : "basic",
-      maxInstances: d.isProduction ? 25 : 20,
+      maxInstances: d.isProduction ? 25 : 1,
       name: d.resourceName("soundkit-media-processor"),
       observability: {
         logs: { enabled: true },
@@ -406,7 +483,7 @@ export class StemSeparatorContainer extends Cloudflare.Container<StemSeparatorCo
       className: "StemSeparatorContainer",
       context: "../../apps/stem-separator",
       instanceType: "standard-3",
-      maxInstances: 10,
+      maxInstances: d.isProduction ? 10 : 1,
       name: d.resourceName("soundkit-stem-separator"),
       observability: {
         logs: { enabled: true },
@@ -511,7 +588,25 @@ export const server = Cloudflare.Worker(
     const d = yield* deployment;
 
     requireR2UploadCredentials(d.isProduction);
-    const { analyticsEnvironment } = d;
+    const apiAliases = d.isIsolated ? [] : [d.MEDIA_HOST],
+      { analyticsEnvironment } = d,
+      token = d.isIsolated ? yield* isolatedMediaToken : undefined,
+      uploadCredentials = {
+        CLOUDFLARE_ACCESS_KEY_ID: token
+          ? token.tokenId
+          : (process.env.CLOUDFLARE_ACCESS_KEY_ID ?? ""),
+        CLOUDFLARE_SECRET_ACCESS_KEY: token
+          ? Output.map(token.value, (value) =>
+              Redacted.make(
+                createHash("sha256").update(Redacted.value(value)).digest("hex")
+              )
+            )
+          : Redacted.make(process.env.CLOUDFLARE_SECRET_ACCESS_KEY ?? ""),
+      },
+      providerBinding = (name: string) =>
+        d.isIsolated ? {} : optionalEnvBinding(name),
+      providerSecret = (name: string) =>
+        d.isIsolated ? Redacted.make("") : Config.Redacted(name);
 
     return {
       compatibility: { flags: ["nodejs_compat"] },
@@ -524,34 +619,36 @@ export const server = Cloudflare.Worker(
       },
       domain: d.isLocalDev
         ? undefined
-        : { aliases: [d.MEDIA_HOST], name: d.API_HOST },
+        : { aliases: apiAliases, name: d.API_HOST },
       env: {
         AI: workersAi,
         ANALYTICS_STREAM: analyticsStream,
         SOUNDKIT_ANALYTICS_ENV: analyticsEnvironment,
-        ...optionalEnvBinding("BATTLE_BOT_SECRET"),
-        AUDIO_EMBEDDINGS_ENABLED: "true",
+        ...providerBinding("BATTLE_BOT_SECRET"),
+        AUDIO_EMBEDDINGS_ENABLED: d.isIsolated ? "false" : "true",
         BATTLE_DIRECTORY: battleDirectory,
         BETTER_AUTH_SECRET: Config.Redacted("BETTER_AUTH_SECRET"),
         BETTER_AUTH_URL: d.API_URL,
-        ...optionalEnvBinding("CLOUDFLARE_ACCESS_KEY_ID"),
+        ...uploadCredentials,
         CLOUDFLARE_ACCOUNT_ID: Config.String("CLOUDFLARE_ACCOUNT_ID"),
-        ...optionalEnvBinding("CLOUDFLARE_SECRET_ACCESS_KEY"),
         CORS_ORIGIN: d.SITE_URL,
-        ...optionalEnvBinding("CLOUDFLARE_API_TOKEN"),
-        ...optionalEnvBinding("CLOUDFLARE_REALTIMEKIT_APP_ID"),
-        ...optionalEnvBinding("CLOUDFLARE_STREAM_API_TOKEN"),
-        ...optionalEnvBinding("CLOUDFLARE_STREAM_CUSTOMER_CODE"),
-        ...optionalEnvBinding("CLOUDFLARE_STREAM_WEBHOOK_SECRET"),
-        SOUNDKIT_ALLOW_MOCK_REALTIME: d.isPullRequestPreview ? "true" : "false",
+        ...providerBinding("CLOUDFLARE_API_TOKEN"),
+        ...providerBinding("CLOUDFLARE_REALTIMEKIT_APP_ID"),
+        ...providerBinding("CLOUDFLARE_STREAM_API_TOKEN"),
+        ...providerBinding("CLOUDFLARE_STREAM_CUSTOMER_CODE"),
+        ...providerBinding("CLOUDFLARE_STREAM_WEBHOOK_SECRET"),
+        SOUNDKIT_ALLOW_MOCK_REALTIME:
+          d.isIsolated || d.isPullRequestPreview ? "true" : "false",
         SOUNDKIT_SCHEDULED_JOBS_ENABLED: d.scheduledJobsEnabled
           ? "true"
           : "false",
         DATABASE_URL: Config.Redacted("DATABASE_URL"),
         DO_METRICS: doMetrics,
         EMAIL_DELIVERY_QUEUE: emailDeliveryQueue,
-        GOOGLE_EMBEDDING_MODEL: Config.String("GOOGLE_EMBEDDING_MODEL"),
-        GOOGLE_GENERATIVE_AI_API_KEY: Config.Redacted(
+        GOOGLE_EMBEDDING_MODEL: d.isIsolated
+          ? "gemini-embedding-001"
+          : Config.String("GOOGLE_EMBEDDING_MODEL"),
+        GOOGLE_GENERATIVE_AI_API_KEY: providerSecret(
           "GOOGLE_GENERATIVE_AI_API_KEY"
         ),
         HYPERDRIVE: hyperdrive,
@@ -565,66 +662,64 @@ export const server = Cloudflare.Worker(
         MEDIA_PUBLIC_URL: d.MEDIA_URL,
         ...optionalEnvBinding("MEDIA_SIGNING_SECRET"),
         MEDIA_RETENTION_WORKFLOW: mediaRetentionWorkflow,
-        MUX_TOKEN_ID: Config.Redacted("MUX_TOKEN_ID"),
-        MUX_TOKEN_SECRET: Config.Redacted("MUX_TOKEN_SECRET"),
-        MUX_WEBHOOK_SECRET: Config.Redacted("MUX_WEBHOOK_SECRET"),
+        MUX_TOKEN_ID: providerSecret("MUX_TOKEN_ID"),
+        MUX_TOKEN_SECRET: providerSecret("MUX_TOKEN_SECRET"),
+        MUX_WEBHOOK_SECRET: providerSecret("MUX_WEBHOOK_SECRET"),
         NOTIFICATION_QUEUE: activityNotificationQueue,
-        OPENAI_API_KEY: Config.Redacted("OPENAI_API_KEY"),
+        OPENAI_API_KEY: providerSecret("OPENAI_API_KEY"),
         PAYOUT_RUN_WORKFLOW: payoutRunWorkflow,
         PRESENCE: presence,
         PROJECT_EXPORT_WORKFLOW: projectExportWorkflow,
         PURCHASE_FULFILLMENT_WORKFLOW: purchaseFulfillmentWorkflow,
-        ...optionalEnvBinding("RECORDINGS_ACCESS_KEY_ID"),
+        ...providerBinding("RECORDINGS_ACCESS_KEY_ID"),
         RECORDINGS_BUCKET: recordings,
         RECORDINGS_BUCKET_NAME: d.resourceName("soundkit-recordings"),
-        ...optionalEnvBinding("RECORDINGS_SECRET_ACCESS_KEY"),
+        ...providerBinding("RECORDINGS_SECRET_ACCESS_KEY"),
         SENTRY_DSN: d.SENTRY_SERVER_DSN,
         SENTRY_ENVIRONMENT: d.SENTRY_ENVIRONMENT,
         SOUNDKIT_BIO_URL: d.BIO_URL,
         SOUNDKIT_PUBLIC_URL: d.SITE_URL,
-        ...optionalEnvBinding("RESEND_API_KEY"),
-        ...optionalEnvBinding("RESEND_WEBHOOK_SECRET"),
+        ...providerBinding("RESEND_API_KEY"),
+        ...providerBinding("RESEND_WEBHOOK_SECRET"),
         ...optionalEnvBinding("TURNSTILE_HOSTNAMES"),
         ...optionalEnvBinding("TURNSTILE_SECRET"),
-        ...optionalEnvBinding("SOUNDKIT_EMAIL_FROM"),
-        ...optionalEnvBinding("SOUNDKIT_EMAIL_REPLY_TO"),
+        ...providerBinding("SOUNDKIT_EMAIL_FROM"),
+        ...providerBinding("SOUNDKIT_EMAIL_REPLY_TO"),
         // Legacy StemSplit integration (removed #257): bindings stay
         // optional so retired credentials are never required for deploys.
-        ...optionalEnvBinding("STEMSPLIT_WEBHOOK_SECRET"),
+        ...providerBinding("STEMSPLIT_WEBHOOK_SECRET"),
         STEM_SEPARATOR: StemSeparatorContainer,
-        STRIPE_SECRET_KEY: Config.Redacted("STRIPE_SECRET_KEY"),
-        ...optionalEnvBinding("STRIPE_BETTER_AUTH_WEBHOOK_SECRET"),
-        ...optionalEnvBinding("STRIPE_COMMERCE_WEBHOOK_SECRET"),
-        ...optionalEnvBinding("STRIPE_CONNECT_WEBHOOK_SECRET"),
+        STRIPE_SECRET_KEY: providerSecret("STRIPE_SECRET_KEY"),
+        ...providerBinding("STRIPE_BETTER_AUTH_WEBHOOK_SECRET"),
+        ...providerBinding("STRIPE_COMMERCE_WEBHOOK_SECRET"),
+        ...providerBinding("STRIPE_CONNECT_WEBHOOK_SECRET"),
         TRACK_DURATION_BACKFILL_QUEUE: trackDurationBackfillQueue,
         TRACK_ENRICHMENT_WORKFLOW: trackEnrichmentWorkflow,
         UPLOAD_BUCKET_NAME: d.MEDIA_BUCKET_NAME,
-        ...optionalEnvBinding("ADMIN_EMAILS"),
+        ...providerBinding("ADMIN_EMAILS"),
         ...optionalEnvBinding("BATTLE_ADMISSION_BATCH_SIZE"),
-        ...optionalEnvBinding("GOOGLE_CLIENT_ID"),
-        ...(process.env.GOOGLE_CLIENT_SECRET
+        ...providerBinding("GOOGLE_CLIENT_ID"),
+        ...(!d.isIsolated && process.env.GOOGLE_CLIENT_SECRET
           ? { GOOGLE_CLIENT_SECRET: Config.Redacted("GOOGLE_CLIENT_SECRET") }
           : {}),
         ...(r2Jurisdiction
           ? { CLOUDFLARE_R2_JURISDICTION: r2Jurisdiction }
           : {}),
-        ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID"),
-        ...optionalEnvBinding(
-          "STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID"
-        ),
-        ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID"),
-        ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID"),
-        ...optionalEnvBinding("KUNAKI_USER_ID"),
-        ...optionalEnvBinding("KUNAKI_PASSWORD"),
-        ...optionalEnvBinding("KUNAKI_MODE"),
+        ...providerBinding("STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID"),
+        ...providerBinding("STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID"),
+        ...providerBinding("STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID"),
+        ...providerBinding("STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID"),
+        ...providerBinding("KUNAKI_USER_ID"),
+        ...providerBinding("KUNAKI_PASSWORD"),
+        ...providerBinding("KUNAKI_MODE"),
         // Printful POD (issue #406): production-only bindings. Preview stages
         // share the production database, so they must never hold credentials
         // capable of creating real Printful orders.
         ...(d.isProduction
           ? {
-              ...optionalEnvBinding("PRINTFUL_API_KEY"),
-              ...optionalEnvBinding("PRINTFUL_STORE_ID"),
-              ...optionalEnvBinding("PRINTFUL_WEBHOOK_SECRET"),
+              ...providerBinding("PRINTFUL_API_KEY"),
+              ...providerBinding("PRINTFUL_STORE_ID"),
+              ...providerBinding("PRINTFUL_WEBHOOK_SECRET"),
             }
           : {}),
       },
@@ -751,6 +846,23 @@ export default Alchemy.Stack(
     state: Cloudflare.state(),
   },
   Effect.gen(function* () {
+    // Refuse a mislabeled database before applying application resources, even
+    // when the operator invokes Alchemy directly rather than through CI.
+    const d = yield* deployment;
+    if (d.isIsolated) {
+      yield* Effect.promise(async () => {
+        const report = await deploymentPreflight({
+          stage: d.stage,
+          mode: "enforce",
+          checkDatabase: true,
+        });
+        if (!report.passed) {
+          throw new Error(
+            `Deployment isolation refused: ${report.findings.join(",")}`
+          );
+        }
+      }).pipe(Effect.orDie);
+    }
     yield* analyticsPipeline;
     yield* media;
     yield* recordings;

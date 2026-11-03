@@ -4,6 +4,10 @@
 
 ### Added
 
+- Give medium Kimi reviews bounded headroom after observed partial coverage, preserving strict completion/publication gates (#523).
+
+- Add an opt-in isolated staging stack with scoped synthetic media uploads, separate browser/native sessions, deployment without production provider keys and real login/media smoke checks (#520).
+
 - Add guarded isolated staging bootstrap and synthetic Better Auth/catalog fixtures, with separate runtime/migration credentials and database identity checks (#517).
 
 - Add a shared deployment identity manifest and redacted isolation preflight with actual nonproduction database-marker validation; report existing preview risks before cutover (#515).

@@ -5,6 +5,7 @@ import { userNotifications, userProfiles } from "@soundkit/db/schema/app";
 import { member } from "@soundkit/db/schema/auth";
 import * as schema from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
+import { isolatedSessionScope } from "@soundkit/env/session-scope";
 import { getPreferredRecipientName } from "@soundkit/transactional/recipient-name";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -403,6 +404,7 @@ export const createAuth = () => {
       env.BETTER_AUTH_URL.includes("127.0.0.1"),
     isDevelopment =
       globalThis.process?.env.NODE_ENV === "development" || isLocalAuthUrl,
+    sessionScope = isolatedSessionScope(env.BETTER_AUTH_URL),
     stripeClient = createStripeClient(),
     stripeWebhookSecret = getEnvValue("STRIPE_BETTER_AUTH_WEBHOOK_SECRET"),
     allowedAuthHosts = uniqueValues([
@@ -423,8 +425,9 @@ export const createAuth = () => {
 
   return betterAuth({
     advanced: {
+      ...(sessionScope ? { cookiePrefix: sessionScope.cookiePrefix } : {}),
       crossSubDomainCookies: {
-        domain: "mysoundkit.com",
+        domain: sessionScope?.domain ?? "mysoundkit.com",
         enabled: !isDevelopment,
       },
       defaultCookieAttributes: {

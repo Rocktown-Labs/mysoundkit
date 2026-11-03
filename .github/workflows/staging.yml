@@ -1,0 +1,76 @@
+name: Deploy Isolated Staging
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: soundkit-isolated-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 30
+    env:
+      SOUNDKIT_ISOLATION_MODE: enforce
+      SOUNDKIT_DATABASE_TARGET: rocktownlabs/soundkit/staging
+      SOUNDKIT_MEDIA_BUCKET_NAME: soundkit-media-staging
+      SOUNDKIT_EXTERNAL_EFFECTS_MODE: disabled
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce actual database and provider isolation
+        run: node scripts/deployment-preflight.mjs --stage staging --mode enforce --check-database
+
+      # No schema push, production provider keys, v1 secret recovery or production
+      # resource adoption. Staging was bootstrapped from synthetic schema only.
+      - name: Deploy isolated staging through Alchemy
+        working-directory: packages/infra
+        run: pnpm run deploy:stage --stage staging --yes
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          MEDIA_SIGNING_SECRET: ${{ secrets.MEDIA_SIGNING_SECRET }}
+
+      - name: Upload synthetic fixture media to isolated bucket
+        run: node scripts/staging-media.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Verify staging login and media boundaries
+        run: node scripts/staging-smoke.mjs
+        env:
+          SOUNDKIT_E2E_ARTIST_EMAIL: ${{ secrets.SOUNDKIT_E2E_ARTIST_EMAIL }}
+          SOUNDKIT_E2E_ARTIST_PASSWORD: ${{ secrets.SOUNDKIT_E2E_ARTIST_PASSWORD }}
+          SOUNDKIT_E2E_FAN_EMAIL: ${{ secrets.SOUNDKIT_E2E_FAN_EMAIL }}
+          SOUNDKIT_E2E_FAN_PASSWORD: ${{ secrets.SOUNDKIT_E2E_FAN_PASSWORD }}
+
+      - name: Read-only production health check
+        if: always()
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 15 https://api.mysoundkit.com/health | node --input-type=module -e '
+          const health = JSON.parse(await new Response(process.stdin).text());
+          if (!health.ok || health.database !== "connected") process.exit(1);
+          console.log("Production API is healthy; database connected.");'
+          curl --fail --silent --show-error --max-time 15 -o /dev/null https://mysoundkit.com
+          curl --fail --silent --show-error --max-time 15 -o /dev/null https://soundkit.bio

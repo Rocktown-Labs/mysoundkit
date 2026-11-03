@@ -77,3 +77,53 @@ not raw provider secrets. Preview reports include only bindings that the preview
 deploy actually receives. Scheduling is derived directly from the shared manifest
 for Worker bindings and cron registration; the report does not pretend to inspect
 an independent scheduling override.
+
+## Isolated staging rollout (#520)
+
+`Deploy Isolated Staging` is a manual workflow using the `staging` environment.
+It enforces the connected database marker before application resource changes,
+then deploys only stage-owned resources. It never pushes a schema or adopts
+production resources. Existing previews remain in report mode until staging's
+real login/media checks succeed and a separate cutover changes their bindings.
+
+Staging web/API/Bio use `staging.soundkit.bio`, `api.staging.soundkit.bio` and
+`bio.staging.soundkit.bio`. Opt-in isolated PRs use `pr-N.preview.soundkit.bio`,
+`api.pr-N.preview.soundkit.bio` and `bio.pr-N.preview.soundkit.bio`. PR hosts are
+outside staging's cookie parent. Production's API cookies remain on
+`mysoundkit.com`, with existing names; each new stage has a distinct cookie
+prefix and the narrowest shared parent needed for SSR. Native storage is keyed
+by API origin, preserving the existing production storage prefix. A development
+build switching origins must sign in again.
+
+One persistent stage owns `soundkit-media-staging` and a bucket-scoped upload
+token. Ordinary isolated PRs reference that owned resource instead of managing
+it; teardown cannot delete the shared staging catalog. The media bucket is
+private and retained. Recordings, queues, Durable Objects, workflows, telemetry
+and Hyperdrive configurations retain their per-stage identities. Containers are
+capped to one instance outside production. These are shared synthetic staging
+data, not a claim of per-PR database isolation.
+
+Isolated Workers receive no runtime Cloudflare management token, production
+Stripe/Mux/Google/OpenAI/RealtimeKit credentials, email or fulfillment credentials.
+Unavailable optional integrations stay unavailable; mock realtime and disabled
+scheduled jobs are explicit. The deployment process still requires the account
+management token to provision resources. Dedicated staging auth/media signing
+secrets live in the GitHub `staging` environment. Production credentials and
+resource identities are unchanged.
+
+The staging workflow uploads four generated WAV tones only to the exact staging
+bucket and fixed fixture prefix after verifying the actual database marker.
+The account token is used by this deployment-only script, never sent to a
+browser or bound into the isolated Worker. Smoke checks verify signed cookie
+login, cookie attributes, HTTP byte ranges, free playback, owner-only private
+playback and denial of paid master playback for an unpaid fan/anonymous caller.
+They do not manufacture a purchase or prove payment-provider integration.
+
+Rollback: leave preview cutover disabled, revert the application PR through a
+reviewed PR if necessary, and redeploy the last known staging code. Retain the
+staging database/media; never run production teardown to repair staging.
+
+References: [Better Auth cookie scoping](https://better-auth.com/docs/concepts/cookies),
+[Cloudflare multi-level custom-domain certificates](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/),
+[R2 token scope and S3 derivation](https://developers.cloudflare.com/r2/api/tokens/),
+[deployment-only fixture object upload](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/objects/methods/upload/).

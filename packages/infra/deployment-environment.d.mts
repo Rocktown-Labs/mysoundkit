@@ -34,3 +34,15 @@ export function databaseIdentityFinding(
 export const productionMediaBucket: "soundkit-media",
   productionTarget: "rocktownlabs/soundkit/main",
   stagingTarget: "rocktownlabs/soundkit/staging";
+
+export function deploymentRouting(
+  stage: string,
+  localDev?: boolean,
+  isolated?: boolean
+): {
+  isolated: boolean;
+  siteHost: string;
+  apiHost: string;
+  bioHost: string;
+  mediaBucket: string;
+};
