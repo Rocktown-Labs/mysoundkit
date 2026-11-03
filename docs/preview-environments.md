@@ -71,3 +71,9 @@ it is not proof of every provider's account permissions. Provider-specific
 resource ownership and request adapters remain part of the staged cutover.
 The report is redacted, and report-mode failure must not be called a healthy or
 isolated environment. Bad stage/mode arguments always fail rather than default.
+
+Readiness-only CI steps receive Stripe mode and credential-presence booleans,
+not raw provider secrets. Preview reports include only bindings that the preview
+deploy actually receives. Scheduling is derived directly from the shared manifest
+for Worker bindings and cron registration; the report does not pretend to inspect
+an independent scheduling override.

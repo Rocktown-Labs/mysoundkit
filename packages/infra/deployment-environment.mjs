@@ -1,4 +1,5 @@
-const productionTarget = "rocktownlabs/soundkit/main",
+export const productionMediaBucket = "soundkit-media",
+  productionTarget = "rocktownlabs/soundkit/main",
   stagingTarget = "rocktownlabs/soundkit/staging";
 
 export function deploymentEnvironment(stage, localDev = false) {
@@ -53,33 +54,30 @@ export function isolationMode(mode = "report") {
 
 /** Return bounded codes only: inputs may contain credentials. */
 export function isolationFindings(environment, configuration) {
-  const findings = [];
+  const findings = [],
+    mediaPrefix = `${productionMediaBucket}-`,
+    validMedia =
+      configuration.mediaBucket?.startsWith(mediaPrefix) &&
+      /^(?:staging|local|pr-[1-9]\d*)$/u.test(
+        configuration.mediaBucket.slice(mediaPrefix.length)
+      );
+
   if (!environment.databaseTargets.includes(configuration.databaseTarget)) {
     findings.push("database_target_unapproved");
   }
   if (environment.kind === "production") {
-    if (configuration.mediaBucket !== "soundkit-media") {
+    if (configuration.mediaBucket !== productionMediaBucket) {
       findings.push("production_media_identity_changed");
     }
-    if (!/^(?:sk|rk)_live_/u.test(configuration.stripeKey ?? "")) {
+    if (configuration.stripeMode !== "live") {
       findings.push("production_stripe_mode_invalid");
     }
     return findings;
   }
-  if (
-    !/^soundkit-media-(?:staging|local|pr-[1-9]\d*)$/u.test(
-      configuration.mediaBucket ?? ""
-    )
-  ) {
+  if (!validMedia) {
     findings.push("nonproduction_media_identity_invalid");
   }
-  if (configuration.scheduledJobsEnabled) {
-    findings.push("nonproduction_scheduled_jobs_enabled");
-  }
-  if (
-    configuration.stripeKey &&
-    !/^(?:sk|rk)_test_/u.test(configuration.stripeKey)
-  ) {
+  if (!["test", "missing"].includes(configuration.stripeMode ?? "missing")) {
     findings.push("nonproduction_stripe_mode_invalid");
   }
   if (configuration.externalEffects !== "disabled") {

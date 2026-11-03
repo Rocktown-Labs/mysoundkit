@@ -8,6 +8,8 @@ import {
   deploymentEnvironment,
   isolationFindings,
   isolationMode,
+  productionTarget,
+  productionMediaBucket,
 } from "../packages/infra/deployment-environment.mjs";
 
 async function readDatabaseIdentity(url) {
@@ -17,21 +19,42 @@ async function readDatabaseIdentity(url) {
   const require = createRequire(
     new URL("../packages/db/package.json", import.meta.url)
   );
-  const { Client } = require("pg"),
+  const { Client } = require("pg");
+  let client;
+  let failed = false;
+  try {
     client = new Client({
       connectionString: url,
       connectionTimeoutMillis: 5000,
       query_timeout: 5000,
     });
-  try {
+    client.on("error", () => {
+      failed = true;
+    });
     await client.connect();
     const result = await client.query(
       "SELECT target FROM soundkit_environment.identity WHERE singleton = true"
     );
+    if (failed) {
+      throw new Error("Database identity connection failed");
+    }
     return result.rows.length === 1 ? result.rows[0].target : null;
   } finally {
-    await client.end();
+    await client?.end();
   }
+}
+
+function providerMode(env) {
+  if (!env.STRIPE_SECRET_KEY) {
+    return env.SOUNDKIT_STRIPE_MODE ?? "missing";
+  }
+  if (/^(?:sk|rk)_live_/u.test(env.STRIPE_SECRET_KEY)) {
+    return "live";
+  }
+  if (/^(?:sk|rk)_test_/u.test(env.STRIPE_SECRET_KEY)) {
+    return "test";
+  }
+  return "unknown";
 }
 
 export async function deploymentPreflight({
@@ -48,19 +71,20 @@ export async function deploymentPreflight({
     environment = deploymentEnvironment(stage, localDev),
     databaseTarget =
       env.SOUNDKIT_DATABASE_TARGET ??
-      (environment.kind === "production"
-        ? "rocktownlabs/soundkit/main"
-        : undefined),
+      (environment.kind === "production" ? productionTarget : undefined),
     findings = isolationFindings(environment, {
       databaseTarget,
       externalEffects: env.SOUNDKIT_EXTERNAL_EFFECTS_MODE,
-      hasEmailCredentials: Boolean(env.RESEND_API_KEY),
+      hasEmailCredentials:
+        env.SOUNDKIT_HAS_EMAIL_CREDENTIALS === "true" ||
+        Boolean(env.RESEND_API_KEY),
       hasFulfillmentCredentials: Boolean(
-        env.PRINTFUL_API_KEY || env.KUNAKI_PASSWORD
+        env.SOUNDKIT_HAS_FULFILLMENT_CREDENTIALS === "true" ||
+        env.PRINTFUL_API_KEY ||
+        env.KUNAKI_PASSWORD
       ),
-      mediaBucket: env.SOUNDKIT_MEDIA_BUCKET_NAME ?? "soundkit-media",
-      scheduledJobsEnabled: environment.scheduledJobsEnabled,
-      stripeKey: env.STRIPE_SECRET_KEY,
+      mediaBucket: env.SOUNDKIT_MEDIA_BUCKET_NAME ?? productionMediaBucket,
+      stripeMode: providerMode(env),
     });
   if (environment.kind !== "production") {
     if (checkDatabase) {

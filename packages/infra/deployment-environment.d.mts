@@ -14,8 +14,7 @@ export interface IsolationConfiguration {
   hasEmailCredentials?: boolean;
   hasFulfillmentCredentials?: boolean;
   mediaBucket?: string;
-  scheduledJobsEnabled?: boolean;
-  stripeKey?: string;
+  stripeMode?: string;
 }
 export function deploymentEnvironment(
   stage: string,
@@ -31,3 +30,7 @@ export function databaseIdentityFinding(
   declaredTarget: string | undefined,
   actualTarget: unknown
 ): string | null;
+
+export const productionMediaBucket: "soundkit-media",
+  productionTarget: "rocktownlabs/soundkit/main",
+  stagingTarget: "rocktownlabs/soundkit/staging";

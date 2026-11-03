@@ -113,3 +113,43 @@ test("an invalid mode is never silently downgraded to report", async () => {
     deploymentPreflight({ env: safe, mode: "enfroce", stage: "staging" })
   );
 });
+
+test("metadata-only readiness checks do not require raw credentials", async () => {
+  const report = await deploymentPreflight({
+    env: {
+      SOUNDKIT_HAS_EMAIL_CREDENTIALS: "true",
+      SOUNDKIT_HAS_FULFILLMENT_CREDENTIALS: "true",
+      SOUNDKIT_STRIPE_MODE: "live",
+    },
+    stage: "pr-515",
+  });
+  assert.deepEqual(report.findings, [
+    "database_target_unapproved",
+    "nonproduction_media_identity_invalid",
+    "nonproduction_stripe_mode_invalid",
+    "nonproduction_external_effects_not_disabled",
+    "nonproduction_fulfillment_credentials",
+    "nonproduction_email_credentials",
+    "database_identity_not_checked",
+  ]);
+  assert.deepEqual(Object.keys(report).toSorted(), [
+    "enforced",
+    "findings",
+    "kind",
+    "passed",
+    "stage",
+  ]);
+});
+test("raw live credentials cannot hide behind declared test metadata", async () => {
+  const report = await deploymentPreflight({
+    checkDatabase: true,
+    env: {
+      ...safe,
+      SOUNDKIT_STRIPE_MODE: "test",
+      STRIPE_SECRET_KEY: "sk_live_sensitive",
+    },
+    readIdentity,
+    stage: "staging",
+  });
+  assert.deepEqual(report.findings, ["nonproduction_stripe_mode_invalid"]);
+});

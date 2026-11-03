@@ -214,10 +214,9 @@ jobs:
       - name: Report deployment isolation readiness
         run: node scripts/deployment-preflight.mjs --stage prod --mode report
         env:
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          PRINTFUL_API_KEY: ${{ secrets.PRINTFUL_API_KEY }}
-          KUNAKI_PASSWORD: ${{ secrets.KUNAKI_PASSWORD }}
+          SOUNDKIT_STRIPE_MODE: ${{ (startsWith(secrets.STRIPE_SECRET_KEY, 'sk_live_') || startsWith(secrets.STRIPE_SECRET_KEY, 'rk_live_')) && 'live' || (startsWith(secrets.STRIPE_SECRET_KEY, 'sk_test_') || startsWith(secrets.STRIPE_SECRET_KEY, 'rk_test_')) && 'test' || 'missing' }}
+          SOUNDKIT_HAS_EMAIL_CREDENTIALS: ${{ secrets.RESEND_API_KEY != '' }}
+          SOUNDKIT_HAS_FULFILLMENT_CREDENTIALS: ${{ secrets.PRINTFUL_API_KEY != '' || secrets.KUNAKI_PASSWORD != '' }}
 
       - name: Deploy through Alchemy
         working-directory: packages/infra
@@ -415,10 +414,7 @@ jobs:
       - name: Report deployment isolation readiness
         run: node scripts/deployment-preflight.mjs --stage pr-${{ github.event.pull_request.number }} --mode report
         env:
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          PRINTFUL_API_KEY: ${{ secrets.PRINTFUL_API_KEY }}
-          KUNAKI_PASSWORD: ${{ secrets.KUNAKI_PASSWORD }}
+          SOUNDKIT_STRIPE_MODE: ${{ (startsWith(secrets.STRIPE_SECRET_KEY, 'sk_live_') || startsWith(secrets.STRIPE_SECRET_KEY, 'rk_live_')) && 'live' || (startsWith(secrets.STRIPE_SECRET_KEY, 'sk_test_') || startsWith(secrets.STRIPE_SECRET_KEY, 'rk_test_')) && 'test' || 'missing' }}
 
       - name: Deploy preview through Alchemy
         working-directory: packages/infra
