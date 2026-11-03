@@ -26,7 +26,7 @@ columns, not every index, constraint, enum label, default, privilege or stored
 function. Changes to those still require migration review and staging evidence;
 a passing column check alone is not a full schema or security sign-off.
 
-The source set includes all non-test TypeScript schema modules and Drizzle's
+The source set recursively includes all non-test TypeScript schema modules and Drizzle's
 configuration. New/removed/edited files require a reviewed manifest update.
 Source hashes can change for a format-only edit without database changes; keep
 the existing observed column hash and document why no migration is necessary.

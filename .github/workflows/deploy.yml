@@ -137,6 +137,7 @@ jobs:
       - browser
     runs-on: ubuntu-latest
     environment: production
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -265,12 +266,12 @@ jobs:
       - name: Read-only post-deploy production checks
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 15 https://api.mysoundkit.com/health | node --input-type=module -e '
+          curl --fail --silent --show-error --retry 2 --retry-delay 3 --retry-max-time 45 --max-time 15 https://api.mysoundkit.com/health | node --input-type=module -e '
           const health = JSON.parse(await new Response(process.stdin).text());
           if (!health.ok || health.database !== "connected") process.exit(1);
           console.log("Production API healthy; database connected.");'
-          curl --fail --silent --show-error --max-time 15 -o /dev/null https://mysoundkit.com
-          curl --fail --silent --show-error --max-time 15 -o /dev/null https://soundkit.bio
+          curl --fail --silent --show-error --retry 2 --retry-delay 3 --retry-max-time 45 --max-time 15 -o /dev/null https://mysoundkit.com
+          curl --fail --silent --show-error --retry 2 --retry-delay 3 --retry-max-time 45 --max-time 15 -o /dev/null https://soundkit.bio
 
   real-e2e:
     name: Real Backend E2E

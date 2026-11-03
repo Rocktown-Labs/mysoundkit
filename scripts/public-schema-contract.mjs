@@ -4,6 +4,8 @@ import { readFile, readdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
+import { productionTarget } from "../packages/infra/deployment-environment.mjs";
+
 const root = new URL("../", import.meta.url);
 export const columnInventorySql =
   "SELECT c.relname AS table,a.attname AS column,format_type(a.atttypid,a.atttypmod) AS type,a.attnotnull AS required FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid WHERE n.nspname='public' AND c.relkind IN ('r','p') AND a.attnum>0 AND NOT a.attisdropped";
@@ -24,29 +26,31 @@ export function columnsFingerprint(rows) {
 }
 
 export async function sourceFiles() {
-  const entries = await readdir(new URL("packages/db/src/schema/", root)),
+  const entries = await readdir(new URL("packages/db/src/schema/", root), {
+      recursive: true,
+    }),
     paths = [
       "packages/db/drizzle.config.ts",
       ...entries
         .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))
         .map((name) => `packages/db/src/schema/${name}`),
-    ].toSorted(),
-    files = [];
-  for (const path of paths) {
-    const content = await readFile(new URL(path, root));
-    files.push({
-      path,
-      sha256: createHash("sha256").update(content).digest("hex"),
-    });
-  }
-  return files;
+    ].toSorted();
+  return Promise.all(
+    paths.map(async (path) => {
+      const content = await readFile(new URL(path, root));
+      return {
+        path,
+        sha256: createHash("sha256").update(content).digest("hex"),
+      };
+    })
+  );
 }
 
 export function contractFindings({ baseline, files, columns, vector }) {
   const findings = [];
   if (
     baseline.version !== 1 ||
-    baseline.target !== "rocktownlabs/soundkit/main" ||
+    baseline.target !== productionTarget ||
     !/^[a-f0-9]{64}$/u.test(baseline.columnsSha256 ?? "")
   ) {
     findings.push("baseline_invalid");
@@ -92,7 +96,8 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   let client,
-    connectionFailed = false;
+    connectionFailed = false,
+    phase = "configuration";
   try {
     if (!process.env.DATABASE_URL || process.argv.length > 2) {
       throw new Error("Explicit connection and check-only invocation required");
@@ -114,7 +119,9 @@ if (
     client.on("error", () => {
       connectionFailed = true;
     });
+    phase = "connect";
     await client.connect();
+    phase = "inventory";
     const findings = await checkPublicSchema({ baseline, client, files });
     if (connectionFailed) {
       findings.push("database_connection_failed");
@@ -123,15 +130,32 @@ if (
       JSON.stringify({
         findings,
         passed: findings.length === 0,
-        target: "rocktownlabs/soundkit/main",
+        target: productionTarget,
       })
     );
     if (findings.length) {
       process.exitCode = 1;
     }
-  } catch {
+  } catch (error) {
+    const code = [
+      "42501",
+      "57014",
+      "53300",
+      "57P01",
+      "08006",
+      "08001",
+      "28P01",
+      "3D000",
+      "42P01",
+      "ECONNRESET",
+      "ETIMEDOUT",
+      "ENOTFOUND",
+      "ECONNREFUSED",
+    ].includes(error?.code)
+      ? error.code
+      : "check_failed";
     console.error(
-      "Public schema check failed; connection/provider details redacted. No schema was applied."
+      `Public schema check failed (${phase}/${code}); connection/provider details redacted. No schema was applied.`
     );
     process.exitCode = 1;
   } finally {
