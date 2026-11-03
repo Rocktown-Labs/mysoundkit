@@ -50,7 +50,9 @@ const deployment = Effect.gen(function* () {
   const SITE_HOST = routing.siteHost,
     API_HOST = routing.apiHost,
     MEDIA_HOST = (() => {
-      if (isProduction) {return "media.mysoundkit.com";}
+      if (isProduction) {
+        return "media.mysoundkit.com";
+      }
       return routing.isolated ? API_HOST : `media-${stage}.mysoundkit.com`;
     })(),
     SITE_URL = isLocalDev ? "http://localhost:3001" : `https://${SITE_HOST}`,
@@ -586,7 +588,8 @@ export const server = Cloudflare.Worker(
     const d = yield* deployment;
 
     requireR2UploadCredentials(d.isProduction);
-    const { analyticsEnvironment } = d,
+    const apiAliases = d.isIsolated ? [] : [d.MEDIA_HOST],
+      { analyticsEnvironment } = d,
       token = d.isIsolated ? yield* isolatedMediaToken : undefined,
       uploadCredentials = {
         CLOUDFLARE_ACCESS_KEY_ID: token
@@ -616,7 +619,7 @@ export const server = Cloudflare.Worker(
       },
       domain: d.isLocalDev
         ? undefined
-        : { aliases: d.isIsolated ? [] : [d.MEDIA_HOST], name: d.API_HOST },
+        : { aliases: apiAliases, name: d.API_HOST },
       env: {
         AI: workersAi,
         ANALYTICS_STREAM: analyticsStream,

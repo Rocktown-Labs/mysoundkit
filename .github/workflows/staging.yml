@@ -23,16 +23,12 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       NODE_OPTIONS: --max-old-space-size=4096
     steps:
-      - name: Bootstrap repository
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git init .
-          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
-          git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" fetch --depth=1 origin "${GITHUB_SHA}"
-          git checkout --detach FETCH_HEAD
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Set up Node and pnpm
         uses: ./.github/actions/setup-node-pnpm

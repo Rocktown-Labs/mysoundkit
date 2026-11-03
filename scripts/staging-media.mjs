@@ -78,7 +78,7 @@ export async function uploadFixtureMedia({
       throw new Error("Staging fixture upload failed");
     }
   }
-  return { bucket: "soundkit-media-staging", objects: 4 };
+  return { bucket: env.SOUNDKIT_MEDIA_BUCKET_NAME, objects: 4 };
 }
 
 if (

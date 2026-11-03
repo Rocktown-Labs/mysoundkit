@@ -1,4 +1,6 @@
 /* oxlint-disable one-var, sort-vars, no-await-in-loop, node/no-top-level-await -- Bounded sequential staging probes. */
+import { pathToFileURL } from "node:url";
+
 import { deploymentPreflight } from "./deployment-preflight.mjs";
 
 const api = "https://api.staging.soundkit.bio",
@@ -69,7 +71,7 @@ async function login(kind) {
   ) {
     throw new Error("Staging session cookie scope invalid");
   }
-  const cookie = cookies.map((value) => value.split(";")[0]).join("; "),
+  const [cookie] = sessionCookie.split(";"),
     session = await probe("/auth/get-session", { headers: { cookie } });
   const sessionData = session.ok ? await session.json() : null;
   if (sessionData?.user?.id !== `staging-fixture-v1-${kind}`) {
@@ -78,65 +80,76 @@ async function login(kind) {
   return cookie;
 }
 
-let artist,
-  fan,
-  phase = "preflight";
-try {
-  const report = await deploymentPreflight({
-    checkDatabase: true,
-    mode: "enforce",
-    stage: "staging",
-  });
-  if (!report.passed) {
-    throw new Error("Staging identity preflight refused smoke checks");
-  }
-  phase = "staging_health";
-  const health = await probe("/health");
-  const healthData = health.ok ? await health.json() : null;
-  if (!healthData?.ok) {
-    throw new Error("Staging health failed");
-  }
-  for (const url of [origin, "https://bio.staging.soundkit.bio"]) {
-    const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-    await response.body?.cancel();
-    if (!response.ok) {
-      throw new Error("Staging website unavailable");
+export async function smokeStaging() {
+  let artist,
+    fan,
+    phase = "preflight";
+  try {
+    const report = await deploymentPreflight({
+      checkDatabase: true,
+      mode: "enforce",
+      stage: "staging",
+    });
+    if (!report.passed) {
+      throw new Error("Staging identity preflight refused smoke checks");
     }
-  }
-  phase = "anonymous_media";
-  await playback("free", null, 48_000);
-  await playback("paid", null, null);
-  await playback("private", null, null);
-  phase = "artist_login";
-  artist = await login("artist");
-  phase = "fan_login";
-  fan = await login("fan");
-  phase = "authenticated_media";
-  await playback("private", artist, 48_000);
-  await playback("private", fan, null);
-  await playback("paid", fan, null);
-  await playback("paid", artist, 48_000);
-  console.info(
-    "Staging health, scoped cookie sessions, real media ranges and owner/fan/anonymous boundaries passed."
-  );
-} catch {
-  console.error(
-    `Staging smoke failed (${phase}); credentials, cookies and provider details redacted.`
-  );
-  process.exitCode = 1;
-} finally {
-  for (const cookie of [artist, fan].filter(Boolean)) {
-    try {
-      const response = await probe("/auth/sign-out", {
-        headers: { cookie, origin },
-        method: "POST",
+    phase = "staging_health";
+    const health = await probe("/health");
+    const healthData = health.ok ? await health.json() : null;
+    if (!healthData?.ok) {
+      throw new Error("Staging health failed");
+    }
+    for (const url of [origin, "https://bio.staging.soundkit.bio"]) {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(15_000),
       });
       await response.body?.cancel();
       if (!response.ok) {
+        throw new Error("Staging website unavailable");
+      }
+    }
+    phase = "anonymous_media";
+    await playback("free", null, 48_000);
+    await playback("paid", null, null);
+    await playback("private", null, null);
+    phase = "artist_login";
+    artist = await login("artist");
+    phase = "fan_login";
+    fan = await login("fan");
+    phase = "authenticated_media";
+    await playback("private", artist, 48_000);
+    await playback("private", fan, null);
+    await playback("paid", fan, null);
+    await playback("paid", artist, 48_000);
+    console.info(
+      "Staging health, scoped cookie sessions, real media ranges and owner/fan/anonymous boundaries passed."
+    );
+  } catch {
+    console.error(
+      `Staging smoke failed (${phase}); credentials, cookies and provider details redacted.`
+    );
+    process.exitCode = 1;
+  } finally {
+    for (const cookie of [artist, fan].filter(Boolean)) {
+      try {
+        const response = await probe("/auth/sign-out", {
+          headers: { cookie, origin },
+          method: "POST",
+        });
+        await response.body?.cancel();
+        if (!response.ok) {
+          process.exitCode = 1;
+        }
+      } catch {
         process.exitCode = 1;
       }
-    } catch {
-      process.exitCode = 1;
     }
   }
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  await smokeStaging();
 }
