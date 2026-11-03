@@ -25,12 +25,14 @@ export const stripeRequest = async <T>({
   method = "POST",
   params,
   path,
+  signal,
 }: {
   connectedAccountId?: string;
   idempotencyKey?: string;
   method?: "GET" | "POST" | "DELETE";
   params?: URLSearchParams;
   path: string;
+  signal?: AbortSignal;
 }): Promise<T | null> => {
   const secretKey = getEnvValue("STRIPE_SECRET_KEY");
 
@@ -56,6 +58,7 @@ export const stripeRequest = async <T>({
       body: method === "POST" ? (params ? params.toString() : "") : undefined,
       headers,
       method,
+      signal,
     }),
     responseBody = await response.text();
 
