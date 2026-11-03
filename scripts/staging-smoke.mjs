@@ -63,7 +63,7 @@ async function login(kind) {
   await response.body?.cancel();
   if (
     !sessionCookie ||
-    !/;\s*domain=staging\.soundkit\.bio(?:;|$)/iu.test(sessionCookie) ||
+    !/;\s*domain=\.?staging\.soundkit\.bio(?:;|$)/iu.test(sessionCookie) ||
     !/;\s*httponly(?:;|$)/iu.test(sessionCookie) ||
     !/;\s*secure(?:;|$)/iu.test(sessionCookie)
   ) {
@@ -78,7 +78,9 @@ async function login(kind) {
   return cookie;
 }
 
-let artist, fan;
+let artist,
+  fan,
+  phase = "preflight";
 try {
   const report = await deploymentPreflight({
     checkDatabase: true,
@@ -88,6 +90,7 @@ try {
   if (!report.passed) {
     throw new Error("Staging identity preflight refused smoke checks");
   }
+  phase = "staging_health";
   const health = await probe("/health");
   const healthData = health.ok ? await health.json() : null;
   if (!healthData?.ok) {
@@ -100,11 +103,15 @@ try {
       throw new Error("Staging website unavailable");
     }
   }
+  phase = "anonymous_media";
   await playback("free", null, 48_000);
   await playback("paid", null, null);
   await playback("private", null, null);
+  phase = "artist_login";
   artist = await login("artist");
+  phase = "fan_login";
   fan = await login("fan");
+  phase = "authenticated_media";
   await playback("private", artist, 48_000);
   await playback("private", fan, null);
   await playback("paid", fan, null);
@@ -114,7 +121,7 @@ try {
   );
 } catch {
   console.error(
-    "Staging smoke failed; credentials, cookies and provider details redacted."
+    `Staging smoke failed (${phase}); credentials, cookies and provider details redacted.`
   );
   process.exitCode = 1;
 } finally {

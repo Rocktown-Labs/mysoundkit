@@ -61,7 +61,7 @@ export async function uploadFixtureMedia({
     const body = fixtureTone(name === "paid-preview" ? 1000 : 3000),
       key = `staging-fixtures/v1/${name}.wav`,
       response = await request(
-        `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/r2/buckets/soundkit-media-staging/objects/${key}`,
+        `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/r2/buckets/${env.SOUNDKIT_MEDIA_BUCKET_NAME}/objects/${key}`,
         {
           body,
           headers: {

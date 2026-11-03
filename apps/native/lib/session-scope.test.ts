@@ -65,3 +65,12 @@ describe("environment session scopes", () => {
     ).not.toBe(scopes[0]?.storagePrefix);
   });
 });
+
+it("rejects malformed native origins without falling back to production storage", () => {
+  for (const invalid of ["", "private configuration", "file:///api/auth"]) {
+    expect(isolatedSessionScope(invalid)).toBeNull();
+    expect(() => nativeSessionScope(invalid, "soundkit")).toThrow(
+      "Invalid SoundKit API URL configuration"
+    );
+  }
+});

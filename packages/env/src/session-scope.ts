@@ -1,7 +1,6 @@
 /* oxlint-disable one-var, sort-vars -- Early returns keep environment boundaries explicit. */
 /** Match only our isolated API domains; production cookie names remain stable. */
-export const isolatedSessionScope = (apiUrl: string) => {
-  const url = new URL(apiUrl);
+const isolatedScopeFromUrl = (url: URL) => {
   if (url.protocol !== "https:" || url.port) {
     return null;
   }
@@ -19,9 +18,26 @@ export const isolatedSessionScope = (apiUrl: string) => {
     : null;
 };
 
+const parseApiUrl = (apiUrl: string) => {
+  try {
+    const url = new URL(apiUrl);
+    return ["https:", "http:"].includes(url.protocol) ? url : null;
+  } catch {
+    return null;
+  }
+};
+
+export const isolatedSessionScope = (apiUrl: string) => {
+  const url = parseApiUrl(apiUrl);
+  return url ? isolatedScopeFromUrl(url) : null;
+};
+
 export const nativeSessionScope = (apiUrl: string, scheme: string) => {
-  const url = new URL(apiUrl),
-    isolated = isolatedSessionScope(apiUrl);
+  const url = parseApiUrl(apiUrl);
+  if (!url) {
+    throw new Error("Invalid SoundKit API URL configuration");
+  }
+  const isolated = isolatedScopeFromUrl(url);
   if (url.origin === "https://api.mysoundkit.com") {
     return { cookiePrefix: "better-auth", storagePrefix: scheme };
   }

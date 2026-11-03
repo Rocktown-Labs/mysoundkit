@@ -49,9 +49,10 @@ const deployment = Effect.gen(function* () {
   // domain, so they route through the guarded /media API route instead.
   const SITE_HOST = routing.siteHost,
     API_HOST = routing.apiHost,
-    MEDIA_HOST = isProduction
-      ? "media.mysoundkit.com"
-      : `media-${stage}.mysoundkit.com`,
+    MEDIA_HOST = (() => {
+      if (isProduction) {return "media.mysoundkit.com";}
+      return routing.isolated ? API_HOST : `media-${stage}.mysoundkit.com`;
+    })(),
     SITE_URL = isLocalDev ? "http://localhost:3001" : `https://${SITE_HOST}`,
     BIO_HOST = routing.bioHost,
     BIO_ALIAS_HOSTS = ["www.soundkit.bio"],

@@ -71,6 +71,7 @@ jobs:
       - name: Read-only production health check
         if: always()
         run: |
+          set -euo pipefail
           curl --fail --silent --show-error --max-time 15 https://api.mysoundkit.com/health | node --input-type=module -e '
           const health = JSON.parse(await new Response(process.stdin).text());
           if (!health.ok || health.database !== "connected") process.exit(1);
