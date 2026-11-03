@@ -18,7 +18,10 @@ The GitHub `staging` environment holds:
 Credentials are supplied privately, never printed or committed. The scripts do
 not load `apps/server/.env` or fall back to production connections. The app role
 can invoke required analytics functions and read the identity marker, but cannot
-create objects in the public schema. Provider keys and production credentials
+create objects in the public schema. Table and sequence access in public and
+analytics comes from the explicitly provisioned `pg_read_all_data` and
+`pg_write_all_data` inherited roles; schema/function grants alone are not the
+complete authority model. Provider keys and production credentials
 are not supplied by the fixture setup.
 
 PlanetScale's connection username can differ from PostgreSQL `current_user`.
@@ -82,7 +85,9 @@ copy a routing username from a connection URL into a PostgreSQL GRANT statement.
 ## Synthetic catalog
 
 Permanent seed identities are `staging-fixture-v1-{artist,fan,collaborator}`,
-with reserved `@example.test` emails. The artists have Arkansas profiles; the
+with reserved `@example.test` emails. The GitHub email secrets must exactly match
+`soundkit-fixture-artist@example.test`, `soundkit-fixture-fan@example.test` and
+`soundkit-fixture-collaborator@example.test`, respectively. The artists have Arkansas profiles; the
 fan has a Texas profile. Each artist owns its own synthetic workspace. These
 are fixtures, not real accounts or evidence of real creator activity.
 
@@ -116,3 +121,17 @@ production URL defaults as part of this setup.
 Future staging schema updates need reviewed migrations; the initial bootstrap
 must not be repeatedly used to overwrite existing state. The separate broad
 security audit remains paused.
+
+
+The schema file and its expected fingerprint are trusted administrative inputs
+that must be reviewed together. The schema-only regex is a sanity check, not a
+SQL sandbox; never pass an untrusted dump or automatically approve its hash.
+The reviewed baseline legitimately contains ALTER TABLE constraints and functions.
+
+Repeat seeding preserves existing profile edits and credential hashes. It repairs
+only the defined synthetic tracks' workspace association and preview asset shape;
+it does not reset staging, rotate passwords or truncate tables. A conflicting
+non-fixture genre slug intentionally reuses the shared genre taxonomy. Previews
+are variant_audio with preview metadata linked to their master, never a second
+master candidate. Actual anonymous preview delivery is a separate journey from
+paid-master denial and is not claimed by fixture preparation.

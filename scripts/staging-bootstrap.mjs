@@ -5,8 +5,11 @@ import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
-const stagingTarget = "rocktownlabs/soundkit/staging";
+import { stagingTarget } from "../packages/infra/deployment-environment.mjs";
+
 export function publicSchemaBaseline(input) {
+  // Administrative input must be independently reviewed and fingerprinted. This
+  // schema-only sanity check is not a sandbox or an untrusted SQL parser.
   // pg_dump metadata/settings do not belong in a transaction-pooled connection.
   const sql = input
     .replaceAll(/^\\(?:un)?restrict[^\n]*$/gmu, "")
@@ -21,7 +24,7 @@ export function publicSchemaBaseline(input) {
       "CREATE SCHEMA IF NOT EXISTS public;"
     );
   if (
-    /^(?:INSERT|UPDATE|DELETE|COPY|DROP|TRUNCATE|ALTER SYSTEM|CREATE DATABASE)\b/imu.test(
+    /^\s*(?:INSERT|UPDATE|DELETE|COPY|DROP|TRUNCATE|ALTER SYSTEM|CREATE DATABASE)\b/imu.test(
       sql
     ) ||
     !sql.includes("CREATE TABLE public.")
@@ -31,6 +34,27 @@ export function publicSchemaBaseline(input) {
   return sql;
 }
 const hash = (value) => createHash("sha256").update(value).digest("hex");
+
+async function loadAnalyticsMigration() {
+  const analytics = await readFile(
+    new URL("../packages/db/analytics/001_outbox.sql", import.meta.url),
+    "utf-8"
+  );
+  const analyticsSha256 = hash(analytics),
+    expectedTriggers = (
+      analytics.match(/^CREATE TRIGGER soundkit_analytics_capture\b/gmu) ?? []
+    ).length;
+  // The approved migration contains PL/pgSQL BEGIN blocks too. Require exactly
+  // its known outer transaction lines rather than counting every BEGIN token.
+  if (
+    (analytics.match(/^BEGIN;$/gmu) ?? []).length !== 1 ||
+    (analytics.match(/^COMMIT;$/gmu) ?? []).length !== 1 ||
+    !analytics.endsWith("COMMIT;\n")
+  ) {
+    throw new Error("Reviewed analytics transaction structure changed");
+  }
+  return { analytics, analyticsSha256, expectedTriggers };
+}
 
 export async function bootstrapStaging({
   client,
@@ -53,11 +77,8 @@ export async function bootstrapStaging({
   if (hash(baseline) !== schemaSha256) {
     throw new Error("Staging schema fingerprint mismatch");
   }
-  const analytics = await readFile(
-    new URL("../packages/db/analytics/001_outbox.sql", import.meta.url),
-    "utf-8"
-  );
-  const analyticsSha256 = hash(analytics);
+  const { analytics, analyticsSha256, expectedTriggers } =
+    await loadAnalyticsMigration();
   await client.query("BEGIN");
   try {
     await client.query("SET LOCAL statement_timeout = '30s'");
@@ -89,7 +110,7 @@ export async function bootstrapStaging({
       );
       if (
         capture.rows[0]?.fingerprint !== analyticsSha256 ||
-        capture.rows[0]?.enabled !== 10
+        capture.rows[0]?.enabled !== expectedTriggers
       ) {
         throw new Error(
           "Existing staging analytics differs; explicit repair required"
@@ -199,14 +220,14 @@ if (
         new URL("../packages/db/package.json", import.meta.url)
       );
       const { Client } = require("pg");
+      if (!process.env.MIGRATION_DATABASE_URL) {
+        throw new Error("Explicit staging migration connection required");
+      }
       client = new Client({
         connectionString: process.env.MIGRATION_DATABASE_URL,
         connectionTimeoutMillis: 5000,
         query_timeout: 60_000,
       });
-      if (!process.env.MIGRATION_DATABASE_URL) {
-        throw new Error("Explicit staging migration connection required");
-      }
       client.on("error", handleConnectionError);
       await client.connect();
       const report = await bootstrapStaging({

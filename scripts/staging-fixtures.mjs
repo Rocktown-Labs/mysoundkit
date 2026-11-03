@@ -2,6 +2,8 @@
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
+import { stagingTarget } from "../packages/infra/deployment-environment.mjs";
+
 export const fixtureAccounts = Object.freeze([
   {
     accountType: "artist",
@@ -116,11 +118,14 @@ async function seedCatalog(client, mediaBucket) {
   await client.query(
     "INSERT INTO public.genres(id,name,slug) VALUES('staging-fixture-v1-genre','Hip-Hop','hip-hop') ON CONFLICT(slug) DO NOTHING"
   );
-  const [artist] = fixtureAccounts;
+  const artist = fixtureAccounts.find((account) => account.kind === "artist");
+  if (!artist) {
+    throw new Error("Artist fixture definition missing");
+  }
   for (const track of fixtureTracks) {
     const id = `staging-fixture-v1-track-${track.kind}`;
     await client.query(
-      "INSERT INTO public.tracks(id,owner_user_id,title,slug,is_public,is_for_sale,price_cents,listening_access,genre_id,production_status,release_strategy,published_at,downloads_require_first_play) VALUES($1,$2,$3,$1,$4,$5,$6,$7,(SELECT id FROM public.genres WHERE slug='hip-hop'),'complete',$8,$9,false) ON CONFLICT(id) DO NOTHING",
+      "INSERT INTO public.tracks(id,owner_user_id,title,slug,is_public,is_for_sale,price_cents,listening_access,genre_id,production_status,release_strategy,published_at,downloads_require_first_play,organization_id) VALUES($1,$2,$3,$1,$4,$5,$6,$7,(SELECT id FROM public.genres WHERE slug='hip-hop'),'complete',$8,$9,false,$10) ON CONFLICT(id) DO UPDATE SET organization_id=EXCLUDED.organization_id WHERE tracks.owner_user_id=EXCLUDED.owner_user_id AND tracks.slug=EXCLUDED.slug",
       [
         id,
         artist.id,
@@ -131,6 +136,7 @@ async function seedCatalog(client, mediaBucket) {
         track.forSale ? "premium_or_purchased" : "public",
         track.public ? "publish_when_ready" : "private",
         track.public ? new Date() : null,
+        `${artist.id}-org`,
       ]
     );
     await client.query(
@@ -139,8 +145,8 @@ async function seedCatalog(client, mediaBucket) {
     );
     if (track.forSale) {
       await client.query(
-        "INSERT INTO public.track_assets(id,track_id,asset_kind,purpose,storage_provider,bucket_name,object_key,status,mime_type,duration_ms) VALUES($1,$2,'master','preview','r2',$3,'staging-fixtures/v1/paid-preview.wav','ready','audio/wav',1000) ON CONFLICT(id) DO NOTHING",
-        [`${id}-preview`, id, mediaBucket]
+        "INSERT INTO public.track_assets(id,track_id,asset_kind,purpose,storage_provider,bucket_name,object_key,status,mime_type,duration_ms,source_asset_id,metadata) VALUES($1,$2,'variant_audio','preview','r2',$3,'staging-fixtures/v1/paid-preview.wav','ready','audio/wav',1000,$4,'{\"variant\":\"preview_30s\"}') ON CONFLICT(id) DO UPDATE SET asset_kind=EXCLUDED.asset_kind,purpose=EXCLUDED.purpose,source_asset_id=EXCLUDED.source_asset_id,metadata=EXCLUDED.metadata WHERE track_assets.track_id=EXCLUDED.track_id AND track_assets.object_key=EXCLUDED.object_key",
+        [`${id}-preview`, id, mediaBucket, `${id}-master`]
       );
     }
   }
@@ -148,10 +154,7 @@ async function seedCatalog(client, mediaBucket) {
 
 /** No provider calls or financial ledger rows; this function accepts staging only. */
 export async function seedStaging({ client, target, passwords, mediaBucket }) {
-  if (
-    target !== "rocktownlabs/soundkit/staging" ||
-    mediaBucket !== "soundkit-media-staging"
-  ) {
+  if (target !== stagingTarget || mediaBucket !== "soundkit-media-staging") {
     throw new Error("Explicit isolated staging target/media required");
   }
   for (const account of fixtureAccounts) {

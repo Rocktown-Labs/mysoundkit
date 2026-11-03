@@ -87,12 +87,13 @@ test("a non-empty database without the staging marker rolls back before DDL", as
     !statements.some((text) => /CREATE EXTENSION|CREATE TABLE/u.test(text))
   );
 });
-test("a schema-only input cannot carry data or destructive commands", () => {
+test("baseline sanity check rejects obvious data and destructive commands", () => {
   for (const statement of [
     "INSERT INTO public.fixture VALUES('x');",
     "DELETE FROM public.fixture;",
     "DROP TABLE public.fixture;",
     "COPY public.fixture FROM stdin;",
+    "  dRoP TABLE public.fixture;",
   ]) {
     assert.throws(() => publicSchemaBaseline(`${schema}\n${statement}`));
   }
