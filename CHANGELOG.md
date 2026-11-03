@@ -4,6 +4,8 @@
 
 ### Added
 
+- Add a shared deployment identity manifest and redacted isolation preflight with actual nonproduction database-marker validation; report existing preview risks before cutover (#515).
+
 - Added transaction-bound analytics events, leased export/replay, private per-stage Basin/R2 archives, UTC account cohorts, per-record quarantine, scoped operational controls, erasure controls and observational commerce reconciliation with explicitly gated analytics migrations and recovery from incomplete saved export credentials, plus read-only CI credential diagnostics with optional token labels, bounded failure reasons and verified migration recovery checks and resilient private test diagnostics (#500).
 
 - Kept strict Kimi completion gates, allowed a bounded higher review budget and per-task headroom for larger PRs, and published findings as PR comments when GitHub rejects inline locations (#503).
