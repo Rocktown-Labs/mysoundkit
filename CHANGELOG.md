@@ -13,6 +13,8 @@
 
 ### Fixed
 
+- Preserve completed/refunded checkouts during stale reconciliation; require confirmed provider expiration and atomically recheck local payment/order state (#514).
+
 - Make analytics migration connections compatible with PlanetScale pooling while retaining bounded client queries, transaction-scoped migration locks and SQL timeouts (#511).
 
 - Keep local analytics labeled as test even with a production profile, and provide bounded review headroom for large analytics releases (#500).
