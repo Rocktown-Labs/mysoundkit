@@ -66,7 +66,15 @@ jobs:
           // Keep the ordinary cap; larger diffs have a bounded higher ceiling.
           // A 35-file review completed 22/27 selected items at 2M;
           // reserve bounded headroom for the remaining groups and retries.
-          const budget = pr.changed_files > 20 ? 3500000 : 700000;
+          // File count alone underestimates cost: a 16-file, ~850-line staging
+          // PR exhausted 700K before dispatching its final groups, so promote
+          // on diff volume as well.
+          let budget = 700000;
+          if (pr.changed_files > 20) {
+            budget = 3500000;
+          } else if (pr.additions + pr.deletions > 500) {
+            budget = 2000000;
+          }
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `number=${pr.number}\nbase=${pr.base.ref}\nhead=${pr.head.sha}\nbase_sha=${pr.base.sha}\nbudget=${budget}\n`);
           JS
 
