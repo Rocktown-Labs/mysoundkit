@@ -66,9 +66,13 @@ jobs:
           // Keep the ordinary cap; larger diffs have a bounded higher ceiling.
           // A 35-file review completed 22/27 selected items at 2M;
           // reserve bounded headroom for the remaining groups and retries.
-          // #523: 11 selected infrastructure files exhausted 700k after 8.
-          const budget = pr.changed_files > 20 ? 3500000
-            : pr.changed_files > 10 ? 2000000 : 700000;
+          // #523: both file count and diff volume can exhaust the small cap.
+          let budget = 700000;
+          if (pr.changed_files > 20) {
+            budget = 3500000;
+          } else if (pr.changed_files > 10 || pr.additions + pr.deletions > 500) {
+            budget = 2000000;
+          }
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `number=${pr.number}\nbase=${pr.base.ref}\nhead=${pr.head.sha}\nbase_sha=${pr.base.sha}\nbudget=${budget}\n`);
           JS
 
