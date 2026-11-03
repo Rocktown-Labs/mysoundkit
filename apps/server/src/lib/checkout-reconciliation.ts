@@ -2,7 +2,7 @@
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { orders } from "@soundkit/db/schema/app";
 import { transactions } from "@soundkit/db/schema/payments";
-import { and, asc, eq, lt } from "drizzle-orm";
+import { and, asc, eq, isNotNull, lt } from "drizzle-orm";
 import { z } from "zod";
 
 import { logInfo, logWarn } from "@/middleware/structured-logging";
@@ -156,6 +156,7 @@ export const runCheckoutReconciliation = async ({
         and(
           eq(orders.status, "checkout_pending"),
           eq(transactions.status, "pending"),
+          isNotNull(transactions.stripeCheckoutSessionId),
           lt(orders.createdAt, cutoff)
         )
       )

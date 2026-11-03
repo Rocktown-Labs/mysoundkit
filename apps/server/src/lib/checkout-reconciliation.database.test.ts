@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { orders } from "@soundkit/db/schema/app";
 import { user } from "@soundkit/db/schema/auth";
 import { transactions } from "@soundkit/db/schema/payments";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
@@ -131,6 +131,56 @@ async function statuses(db: Db, id: string) {
 }
 
 describe.skipIf(!local)("stale checkout reconciliation", () => {
+  it("session-less stale rows cannot consume the verifiable batch", async () => {
+    await fixture(async (db, id) => {
+      const ids = Array.from({ length: 50 }, () => randomUUID());
+      await db
+        .insert(transactions)
+        .values(
+          ids.map((missingId) => ({
+            amountCents: 1000,
+            artistAmountCents: 900,
+            id: missingId,
+            platformFeeCents: 100,
+            status: "pending" as const,
+            transactionType: "product_purchase" as const,
+          }))
+        );
+      await db
+        .insert(orders)
+        .values(
+          ids.map((missingId) => ({
+            buyerUserId: id,
+            createdAt: new Date("2019-01-01T00:00:00Z"),
+            id: missingId,
+            status: "checkout_pending" as const,
+            transactionId: missingId,
+          }))
+        );
+      expect((await runCheckoutReconciliation()).abandoned).toBe(1);
+      expect(await statuses(db, id)).toEqual(["failed", "failed"]);
+      expect(state.request).toHaveBeenCalledTimes(1);
+      const pending = await db
+        .select()
+        .from(transactions)
+        .where(inArray(transactions.id, ids));
+      expect(pending.every((row) => row.status === "pending")).toBe(true);
+    });
+  });
+  it("closes an expired session with an expanded canceled intent in one GET", async () => {
+    await fixture(async (db, id) => {
+      state.request.mockResolvedValue({
+        id: `cs_${id}`,
+        payment_intent: { id: `pi_${id}`, status: "canceled" },
+        payment_status: "unpaid",
+        status: "expired",
+      });
+      expect((await runCheckoutReconciliation()).abandoned).toBe(1);
+      expect(await statuses(db, id)).toEqual(["failed", "failed"]);
+      expect(state.request).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("concurrent sweeps close an expired checkout exactly once", async () => {
     const pool = new Pool({
       application_name: "soundkit/test",
