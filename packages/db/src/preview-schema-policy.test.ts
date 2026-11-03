@@ -63,14 +63,22 @@ describe("deployment safety policy", () => {
     expect(previewJob).toContain("Confirm shared database safety policy");
   });
 
-  it("keeps production schema application before deployment", async () => {
+  it("checks the reviewed schema read-only before production deployment", async () => {
     const workflow = await readFile(deployWorkflowPath, "utf-8"),
       productionJob = workflowJob(workflow, "deploy", "preview"),
-      schemaStep = productionJob.indexOf("Apply production database schema"),
+      schemaStep = productionJob.indexOf(
+        "Check reviewed public schema baseline (read-only)"
+      ),
       deployStep = productionJob.indexOf("Deploy through Alchemy");
 
     expect(schemaStep).toBeGreaterThan(-1);
     expect(deployStep).toBeGreaterThan(schemaStep);
+    expect(productionJob).not.toContain("drizzle-kit push");
+    expect(productionJob).not.toContain("create extension");
+    expect(productionJob).toContain("node scripts/public-schema-contract.mjs");
+    expect(
+      productionJob.indexOf("Read-only post-deploy production checks")
+    ).toBeGreaterThan(deployStep);
   });
 
   it("adds upload intents without changing existing production tables", async () => {
@@ -114,9 +122,7 @@ describe("deployment safety policy", () => {
 
     expect(migration).toContain('CREATE TABLE "video_view_sessions"');
     expect(migration).not.toMatch(/DROP\s+(?:TABLE|COLUMN|TYPE)/iu);
-    expect(capabilities).toContain(
-      "to_regclass('public.video_view_sessions')"
-    );
+    expect(capabilities).toContain("to_regclass('public.video_view_sessions')");
     expect(routes).toContain("capabilities.viewSessions");
   });
 

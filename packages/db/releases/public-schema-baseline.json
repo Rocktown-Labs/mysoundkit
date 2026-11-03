@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "target": "rocktownlabs/soundkit/main",
+  "sourceCommit": "60505c492eb58aeacdd5e9355f8d944a62426acc",
+  "evidence": "Read-only PlanetScale main inventory matched all local schema column types/nullability on 2026-11-03; existing migration journal is not replayed.",
+  "tableCount": 141,
+  "columnCount": 1544,
+  "columnsSha256": "7edd9cd719548f40254ec2912f89871b44d544a03aaf564bfc51eee180196e7f",
+  "files": [
+    {
+      "path": "packages/db/drizzle.config.ts",
+      "sha256": "52cafe8a3bf8b2b6280a5a54d047f7d55e2aa569281911c659ba04b396bfcdfe"
+    },
+    {
+      "path": "packages/db/src/schema/app.ts",
+      "sha256": "01d3b3fa1ee28c68c1e641e44328b367a91ff8666345d1e77b36365a25514e56"
+    },
+    {
+      "path": "packages/db/src/schema/auth.ts",
+      "sha256": "f35d26c23d27e6034b065cc4f53c27e63e1e7ac8f3a9857673e0a7b9046a4c85"
+    },
+    {
+      "path": "packages/db/src/schema/commerce.ts",
+      "sha256": "f7b39fba6bb8ef45368aa14d0ce53e1de69b372cace2ab9215c3222c868b2d08"
+    },
+    {
+      "path": "packages/db/src/schema/communities.ts",
+      "sha256": "5a47272e02fd4f7b151e506b634d59084b1ae0132128bed0b8da4c87b8c640ba"
+    },
+    {
+      "path": "packages/db/src/schema/fulfillment.ts",
+      "sha256": "a51116a52ea6146cc396dd0721ecb4138633f541691b67756871c03b46208fcf"
+    },
+    {
+      "path": "packages/db/src/schema/payments.ts",
+      "sha256": "05dedb00a9d76a95dc6e873acae5af8d080d6f0c08022436f9636b767897697f"
+    },
+    {
+      "path": "packages/db/src/schema/plans.ts",
+      "sha256": "64e5a637886c43e4f0b754be6bb610ca66c7aefc285993769b4217732d82b4fd"
+    },
+    {
+      "path": "packages/db/src/schema/referrals.ts",
+      "sha256": "b8edf8bd74924d869480f15a6bd97de089638b3925c6b977dbd7b58f3298c78b"
+    }
+  ]
+}
