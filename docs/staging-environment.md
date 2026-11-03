@@ -135,3 +135,11 @@ non-fixture genre slug intentionally reuses the shared genre taxonomy. Previews
 are variant_audio with preview metadata linked to their master, never a second
 master candidate. Actual anonymous preview delivery is a separate journey from
 paid-master denial and is not claimed by fixture preparation.
+
+The automated disposable bootstrap/seed test runs when
+`SOUNDKIT_TEST_DATABASE_URL` is set and `SOUNDKIT_DISABLE_DB_TESTS` is not true,
+matching the repository's opt-in database test convention. CI supplies that URL.
+It requires the same PostgreSQL 17+ pgvector local fixture as CI, checks locality
+before connecting, and cleans up only its uniquely named database and role.
+Analytics SQL transaction formatting is part of its reviewed/fingerprinted
+artifact; edits to that wrapper must be reviewed with bootstrap compatibility.

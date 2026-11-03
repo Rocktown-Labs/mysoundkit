@@ -33,156 +33,170 @@ CREATE TABLE public.videos(id text PRIMARY KEY,published_at timestamptz,is_publi
 CREATE TABLE public.projects(id text PRIMARY KEY,status text,is_public boolean);
 `;
 
-test("real bootstrap/seed is atomic, idempotent and runtime permissions preserve fixture ownership", async () => {
-  const url = new URL(
-    process.env.SOUNDKIT_TEST_DATABASE_URL ?? "http://missing"
-  );
-  assert.ok(
-    ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname),
-    "Disposable database test requires explicit local fixture URL"
-  );
-  assert.ok(["postgres:", "postgresql:"].includes(url.protocol));
-  const require = createRequire(
-      new URL("../packages/db/package.json", import.meta.url)
-    ),
-    { Client } = require("pg"),
-    id = randomUUID().replaceAll("-", ""),
-    database = `staging_test_${id}`,
-    role = `staging_role_${id}`,
-    admin = new Client({ connectionString: url.href }),
-    testUrl = new URL(url.href);
-  let client, runtime, contender;
-  const options = {
-    appRole: role,
-    schemaSha256: createHash("sha256")
-      .update(publicSchemaBaseline(schema))
-      .digest("hex"),
-    schemaSql: schema,
-    sourceCommit: "a".repeat(40),
-    target: "rocktownlabs/soundkit/staging",
-  };
-  await admin.connect();
-  try {
-    await admin.query(`CREATE DATABASE "${database}"`);
-    await admin.query(
-      `CREATE ROLE "${role}" INHERIT IN ROLE pg_read_all_data,pg_write_all_data`
+// Match the repository's opt-in database suites; CI always supplies the local URL.
+if (
+  process.env.SOUNDKIT_TEST_DATABASE_URL &&
+  process.env.SOUNDKIT_DISABLE_DB_TESTS !== "true"
+) {
+  test("real bootstrap/seed is atomic, idempotent and runtime permissions preserve fixture ownership", async () => {
+    const url = new URL(
+      process.env.SOUNDKIT_TEST_DATABASE_URL ?? "http://missing"
     );
-    testUrl.pathname = `/${database}`;
-    client = new Client({ connectionString: testUrl.href });
-    contender = new Client({ connectionString: testUrl.href });
-    await client.connect();
-    await contender.connect();
-    await contender.query("BEGIN");
-    await contender.query(
-      "SELECT pg_advisory_xact_lock(hashtextextended('soundkit-staging-bootstrap-v1',0))"
+    assert.ok(
+      ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname),
+      "Disposable database test requires explicit local fixture URL"
     );
-    await assert.rejects(
-      bootstrapStaging({ ...options, client }),
-      /Another staging bootstrap/u
-    );
-    await contender.query("ROLLBACK");
-    await client.query("CREATE TABLE public.unexpected(id text)");
-    await assert.rejects(
-      bootstrapStaging({ ...options, client }),
-      /empty database/u
-    );
-    assert.equal(
-      (
-        await client.query(
-          "SELECT to_regnamespace('soundkit_analytics') AS name"
-        )
-      ).rows[0].name,
-      null
-    );
-    await client.query("DROP TABLE public.unexpected");
-    assert.equal(
-      (await bootstrapStaging({ ...options, client })).alreadyInitialized,
-      false
-    );
-    assert.equal(
-      (await bootstrapStaging({ ...options, client })).alreadyInitialized,
-      true
-    );
-    runtime = new Client({ connectionString: testUrl.href });
-    await runtime.connect();
-    await runtime.query(`SET ROLE "${role}"`);
-    assert.equal(
-      (
-        await runtime.query(
-          "SELECT has_schema_privilege(current_user,'public','CREATE') AS allowed"
-        )
-      ).rows[0].allowed,
-      false
-    );
-    const seed = {
-      client: runtime,
-      mediaBucket: "soundkit-media-staging",
-      passwords: {
-        artist: "a".repeat(40),
-        collaborator: "c".repeat(40),
-        fan: "f".repeat(40),
-      },
-      target: options.target,
+    assert.ok(["postgres:", "postgresql:"].includes(url.protocol));
+    const require = createRequire(
+        new URL("../packages/db/package.json", import.meta.url)
+      ),
+      { Client } = require("pg"),
+      id = randomUUID().replaceAll("-", ""),
+      database = `staging_test_${id}`,
+      role = `staging_role_${id}`,
+      admin = new Client({ connectionString: url.href }),
+      testUrl = new URL(url.href);
+    let client, runtime, contender;
+    const options = {
+      appRole: role,
+      schemaSha256: createHash("sha256")
+        .update(publicSchemaBaseline(schema))
+        .digest("hex"),
+      schemaSql: schema,
+      sourceCommit: "a".repeat(40),
+      target: "rocktownlabs/soundkit/staging",
     };
-    await seedStaging(seed);
-    await runtime.query(
-      "UPDATE public.user_profiles SET display_name='Edited fixture fan' WHERE user_id='staging-fixture-v1-fan'"
-    );
-    // Reproduce the old fixture shape, then verify a rerun repairs only its
-    // workspace and preview fields while retaining credentials/catalog IDs.
-    await runtime.query("UPDATE public.tracks SET organization_id=NULL");
-    await runtime.query(
-      "UPDATE public.track_assets SET asset_kind='master',metadata=NULL,source_asset_id=NULL WHERE purpose='preview'"
-    );
-    await seedStaging(seed);
-    const preserved = await runtime.query(
-      "SELECT display_name FROM public.user_profiles WHERE user_id='staging-fixture-v1-fan'"
-    );
-    assert.equal(preserved.rows[0].display_name, "Edited fixture fan");
-    const rows = await runtime.query(
-      "SELECT t.organization_id,m.organization_id AS membership,a.primary_organization_id FROM public.tracks t JOIN public.member m ON m.user_id=t.owner_user_id JOIN public.artist_profiles a ON a.user_id=t.owner_user_id"
-    );
-    assert.equal(rows.rows.length, 3);
-    assert.ok(
-      rows.rows.every(
-        (row) =>
-          row.organization_id === row.membership &&
-          row.organization_id === row.primary_organization_id
-      )
-    );
-    const assets = await runtime.query(
-      "SELECT * FROM public.track_assets WHERE track_id='staging-fixture-v1-track-paid' ORDER BY purpose"
-    );
-    assert.equal(assets.rows.length, 2);
-    const preview = assets.rows.find((row) => row.purpose === "preview");
-    assert.equal(preview.asset_kind, "variant_audio");
-    assert.equal(preview.metadata.variant, "preview_30s");
-    assert.equal(
-      preview.source_asset_id,
-      "staging-fixture-v1-track-paid-master"
-    );
-    assert.equal(
-      assets.rows.filter((row) => row.asset_kind === "master").length,
-      1
-    );
-    assert.equal(
-      (await runtime.query('SELECT count(*)::int AS count FROM public."user"'))
-        .rows[0].count,
-      3
-    );
-    assert.ok(
-      (
-        await runtime.query(
-          "SELECT count(*)::int AS count FROM soundkit_analytics.events"
+    await admin.connect();
+    try {
+      const version = await admin.query("SHOW server_version_num");
+      assert.ok(
+        Number(version.rows[0].server_version_num) >= 170_000,
+        "Use the CI-compatible PostgreSQL 17+ pgvector fixture"
+      );
+      await admin.query(`CREATE DATABASE "${database}"`);
+      await admin.query(
+        `CREATE ROLE "${role}" INHERIT IN ROLE pg_read_all_data,pg_write_all_data`
+      );
+      testUrl.pathname = `/${database}`;
+      client = new Client({ connectionString: testUrl.href });
+      contender = new Client({ connectionString: testUrl.href });
+      await client.connect();
+      await contender.connect();
+      await contender.query("BEGIN");
+      await contender.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended('soundkit-staging-bootstrap-v1',0))"
+      );
+      await assert.rejects(
+        bootstrapStaging({ ...options, client }),
+        /Another staging bootstrap/u
+      );
+      await contender.query("ROLLBACK");
+      await client.query("CREATE TABLE public.unexpected(id text)");
+      await assert.rejects(
+        bootstrapStaging({ ...options, client }),
+        /empty database/u
+      );
+      assert.equal(
+        (
+          await client.query(
+            "SELECT to_regnamespace('soundkit_analytics') AS name"
+          )
+        ).rows[0].name,
+        null
+      );
+      await client.query("DROP TABLE public.unexpected");
+      assert.equal(
+        (await bootstrapStaging({ ...options, client })).alreadyInitialized,
+        false
+      );
+      assert.equal(
+        (await bootstrapStaging({ ...options, client })).alreadyInitialized,
+        true
+      );
+      runtime = new Client({ connectionString: testUrl.href });
+      await runtime.connect();
+      await runtime.query(`SET ROLE "${role}"`);
+      assert.equal(
+        (
+          await runtime.query(
+            "SELECT has_schema_privilege(current_user,'public','CREATE') AS allowed"
+          )
+        ).rows[0].allowed,
+        false
+      );
+      const seed = {
+        client: runtime,
+        mediaBucket: "soundkit-media-staging",
+        passwords: {
+          artist: "a".repeat(40),
+          collaborator: "c".repeat(40),
+          fan: "f".repeat(40),
+        },
+        target: options.target,
+      };
+      await seedStaging(seed);
+      await runtime.query(
+        "UPDATE public.user_profiles SET display_name='Edited fixture fan' WHERE user_id='staging-fixture-v1-fan'"
+      );
+      // Reproduce the old fixture shape, then verify a rerun repairs only its
+      // workspace and preview fields while retaining credentials/catalog IDs.
+      await runtime.query("UPDATE public.tracks SET organization_id=NULL");
+      await runtime.query(
+        "UPDATE public.track_assets SET asset_kind='master',metadata=NULL,source_asset_id=NULL WHERE purpose='preview'"
+      );
+      await seedStaging(seed);
+      const preserved = await runtime.query(
+        "SELECT display_name FROM public.user_profiles WHERE user_id='staging-fixture-v1-fan'"
+      );
+      assert.equal(preserved.rows[0].display_name, "Edited fixture fan");
+      const ownershipResult = await runtime.query(
+        "SELECT t.organization_id,m.organization_id AS membership,a.primary_organization_id FROM public.tracks t JOIN public.member m ON m.user_id=t.owner_user_id JOIN public.artist_profiles a ON a.user_id=t.owner_user_id"
+      );
+      assert.equal(ownershipResult.rows.length, 3);
+      assert.ok(
+        ownershipResult.rows.every(
+          (row) =>
+            row.organization_id === row.membership &&
+            row.organization_id === row.primary_organization_id
         )
-      ).rows[0].count > 0
-    );
-  } finally {
-    await runtime?.end();
-    await contender?.end();
-    await client?.end();
-    await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);
-    await admin.query(`DROP ROLE IF EXISTS "${role}"`);
-    await admin.end();
-  }
-});
+      );
+      const assets = await runtime.query(
+        "SELECT * FROM public.track_assets WHERE track_id='staging-fixture-v1-track-paid' ORDER BY purpose"
+      );
+      assert.equal(assets.rows.length, 2);
+      const preview = assets.rows.find((row) => row.purpose === "preview");
+      assert.equal(preview.asset_kind, "variant_audio");
+      assert.equal(preview.metadata.variant, "preview_30s");
+      assert.equal(
+        preview.source_asset_id,
+        "staging-fixture-v1-track-paid-master"
+      );
+      assert.equal(
+        assets.rows.filter((row) => row.asset_kind === "master").length,
+        1
+      );
+      assert.equal(
+        (
+          await runtime.query(
+            'SELECT count(*)::int AS count FROM public."user"'
+          )
+        ).rows[0].count,
+        3
+      );
+      assert.ok(
+        (
+          await runtime.query(
+            "SELECT count(*)::int AS count FROM soundkit_analytics.events"
+          )
+        ).rows[0].count > 0
+      );
+    } finally {
+      await runtime?.end();
+      await contender?.end();
+      await client?.end();
+      await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);
+      await admin.query(`DROP ROLE IF EXISTS "${role}"`);
+      await admin.end();
+    }
+  });
+}
