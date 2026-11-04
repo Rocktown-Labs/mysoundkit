@@ -174,6 +174,17 @@ test("isolated routing preserves production and separates staging cookie parents
 });
 
 test("CAPTCHA bypass is available only to opt-in isolated nonproduction", () => {
+  const staging = deploymentEnvironment("staging");
+  assert.equal(
+    deploymentAuthPolicy({ ...staging, isLocalDev: true }, true)
+      .TURNSTILE_DISABLED,
+    "false"
+  );
+  assert.equal(
+    deploymentAuthPolicy({ ...staging, isProduction: true }, true)
+      .TURNSTILE_DISABLED,
+    "false"
+  );
   for (const stage of ["prod", "staging", "pr-529"]) {
     assert.equal(
       deploymentAuthPolicy(deploymentEnvironment(stage), false)

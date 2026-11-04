@@ -63,6 +63,7 @@ export const resolveDownloadAccess = ({
   };
 };
 
+// oxlint-disable-next-line one-var -- Keep this public const-function export separate.
 export const isExclusivityActive = (
   exclusiveUntil: Date | string | null | undefined,
   now = new Date()
@@ -77,6 +78,7 @@ export const isExclusivityActive = (
   return !Number.isNaN(expiresAt.getTime()) && expiresAt > now;
 };
 
+// oxlint-disable-next-line one-var -- Keep this public const-function export separate.
 export const resolveListeningAccess = ({
   hasPurchase,
   isPremium,
@@ -109,4 +111,56 @@ export const resolveListeningAccess = ({
   }
 
   return { canListen: false, isPreview: true, reason: "preview" };
+};
+
+export interface TrackPlaybackPolicy extends ContentListeningPolicy {
+  deletedAt: Date | string | null | undefined;
+  isPublic: boolean;
+}
+export type TrackPlaybackDecision =
+  | {
+      allowed: true;
+      reason: "manager" | "purchased" | "free" | "premium" | "public";
+    }
+  | { allowed: false; reason: "unavailable" | "premium_or_purchase_required" };
+
+/** Purchases survive visibility changes; premium alone never reveals private media. */
+// oxlint-disable-next-line one-var -- Keep this public const-function export separate.
+export const resolveTrackPlaybackAccess = ({
+  hasCollaboration,
+  hasPurchase,
+  isOwner,
+  isPremium,
+  policy,
+}: {
+  hasCollaboration: boolean;
+  hasPurchase: boolean;
+  isOwner: boolean;
+  isPremium: boolean;
+  policy: TrackPlaybackPolicy;
+}): TrackPlaybackDecision => {
+  if (isOwner) {
+    return { allowed: true, reason: "manager" };
+  }
+  if (hasPurchase) {
+    return { allowed: true, reason: "purchased" };
+  }
+  if (policy.deletedAt) {
+    return { allowed: false, reason: "unavailable" };
+  }
+  if (hasCollaboration) {
+    return { allowed: true, reason: "manager" };
+  }
+  if (!policy.isPublic) {
+    return { allowed: false, reason: "unavailable" };
+  }
+  const listening = resolveListeningAccess({
+    hasPurchase: false,
+    isPremium,
+    policy,
+  });
+  if (!listening.canListen || listening.reason === "preview") {
+    return { allowed: false, reason: "premium_or_purchase_required" };
+  }
+  return { allowed: true, reason: listening.reason };
 };
