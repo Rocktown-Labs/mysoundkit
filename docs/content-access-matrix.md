@@ -20,10 +20,20 @@ private/no-store and denies unauthorized callers before reading media bytes.
 Expiration of a track's exclusivity window still follows `resolveListeningAccess`;
 premium is never a substitute for private-content authority.
 
-A retained purchase row is the existing entitlement fact for this increment.
-Partial/full refund revocation policy is being decided separately; this change
-neither issues refunds nor rewrites purchase/payment records. Do not infer a new
-refund policy from the matrix or from an order/transaction status alone.
+A purchase grants paid access unless its associated positive-value transaction
+is refunded and confirmed individual Stripe Refund facts cover the full amount.
+Partial refunds retain access. Multiple partial refunds revoke access once their
+confirmed total reaches the full transaction amount. Every digital item in that
+fully refunded transaction loses its paid grant; a separate valid purchase or
+owner/collaborator authority still grants access.
+
+Purchase/receipt history is preserved; revoked history has no download links.
+Free orders and orders without a payment transaction keep their grants. Ambiguous
+legacy charge totals (ch_ IDs) and a refunded status alone are insufficient to
+revoke access; those require observational reconciliation, not guessed repairs.
+The provider writer records only confirmed individual Refund facts (re_ IDs)
+atomically with the refunded transaction state. No refund is issued or historical
+financial record rewritten by this read-only entitlement policy (#527).
 
 ## Other caller boundaries
 

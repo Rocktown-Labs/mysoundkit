@@ -86,6 +86,7 @@ import {
   profileRegionCondition,
   regionSlugFromUser,
 } from "@/lib/public-explore";
+import { purchaseEntitlementCondition } from "@/lib/purchase-entitlements";
 import { withRetry } from "@/lib/retry";
 import { sampleTracks } from "@/lib/sample-data";
 import {
@@ -317,7 +318,11 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
       .select({ id: purchases.id })
       .from(purchases)
       .where(
-        and(eq(purchases.buyerUserId, userId), eq(purchases.trackId, trackId))
+        and(
+          eq(purchases.buyerUserId, userId),
+          eq(purchases.trackId, trackId),
+          purchaseEntitlementCondition()
+        )
       )
       .limit(1);
 
@@ -335,7 +340,8 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
       .where(
         and(
           eq(purchases.buyerUserId, userId),
-          eq(projectTracks.trackId, trackId)
+          eq(projectTracks.trackId, trackId),
+          purchaseEntitlementCondition()
         )
       )
       .limit(1);
