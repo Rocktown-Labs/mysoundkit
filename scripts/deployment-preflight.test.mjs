@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  deploymentAuthPolicy,
   deploymentEnvironment,
   deploymentRouting,
 } from "../packages/infra/deployment-environment.mjs";
@@ -170,4 +171,45 @@ test("isolated routing preserves production and separates staging cookie parents
   assert.equal(preview.apiHost.endsWith(`.${staging.siteHost}`), false);
   assert.equal(deploymentRouting("pr-520").mediaBucket, "soundkit-media");
   assert.equal(deploymentRouting("prod", true, true).isolated, false);
+});
+
+test("CAPTCHA bypass is available only to opt-in isolated nonproduction", () => {
+  const staging = deploymentEnvironment("staging");
+  assert.equal(
+    deploymentAuthPolicy({ ...staging, isLocalDev: true }, true)
+      .TURNSTILE_DISABLED,
+    "false"
+  );
+  assert.equal(
+    deploymentAuthPolicy({ ...staging, isProduction: true }, true)
+      .TURNSTILE_DISABLED,
+    "false"
+  );
+  for (const stage of ["prod", "staging", "pr-529"]) {
+    assert.equal(
+      deploymentAuthPolicy(deploymentEnvironment(stage), false)
+        .TURNSTILE_DISABLED,
+      "false"
+    );
+  }
+  assert.equal(
+    deploymentAuthPolicy(deploymentEnvironment("prod"), true)
+      .TURNSTILE_DISABLED,
+    "false"
+  );
+  assert.equal(
+    deploymentAuthPolicy(deploymentEnvironment("prod", true), true)
+      .TURNSTILE_DISABLED,
+    "false"
+  );
+  assert.equal(
+    deploymentAuthPolicy(deploymentEnvironment("staging"), true)
+      .TURNSTILE_DISABLED,
+    "true"
+  );
+  assert.equal(
+    deploymentAuthPolicy(deploymentEnvironment("pr-529"), true)
+      .TURNSTILE_DISABLED,
+    "true"
+  );
 });

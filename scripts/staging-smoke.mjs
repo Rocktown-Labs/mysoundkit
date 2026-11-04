@@ -80,6 +80,24 @@ async function login(kind) {
   return cookie;
 }
 
+export async function logoutStaging(cookie, request = probe) {
+  const response = await request("/auth/sign-out", {
+    body: "{}",
+    headers: { "content-type": "application/json", cookie, origin },
+    method: "POST",
+  });
+  await response.body?.cancel();
+  if (!response.ok) {
+    throw new Error("Synthetic logout failed");
+  }
+  const session = await request("/auth/get-session", {
+    headers: { cookie },
+  });
+  if (!session.ok || (await session.json()) !== null) {
+    throw new Error("Synthetic session remained valid after logout");
+  }
+}
+
 export async function smokeStaging() {
   let artist,
     fan,
@@ -132,15 +150,11 @@ export async function smokeStaging() {
   } finally {
     for (const cookie of [artist, fan].filter(Boolean)) {
       try {
-        const response = await probe("/auth/sign-out", {
-          headers: { cookie, origin },
-          method: "POST",
-        });
-        await response.body?.cancel();
-        if (!response.ok) {
-          process.exitCode = 1;
-        }
+        await logoutStaging(cookie);
       } catch {
+        console.error(
+          "Staging logout cleanup failed; session details redacted."
+        );
         process.exitCode = 1;
       }
     }

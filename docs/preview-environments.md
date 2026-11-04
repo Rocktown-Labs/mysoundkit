@@ -119,6 +119,20 @@ login, cookie attributes, HTTP byte ranges, free playback, owner-only private
 playback and denial of paid master playback for an unpaid fan/anonymous caller.
 They do not manufacture a purchase or prove payment-provider integration.
 
+The shared Hyperdrive connection explicitly disables SQL result caching while
+retaining connection pooling. It serves authentication, permissions and purchase
+access as well as public reads; Cloudflare does not invalidate cached SELECTs
+after writes. The real staging smoke checks immediate rejection of the old
+session cookie after logout. Public HTTP response caching remains a separate
+policy. This favors correct authoritative reads over SQL-cache hit rates and can
+increase origin read traffic; monitor database load after rollout.
+Nonproduction Hyperdrive configurations use a soft origin connection limit of
+five; staging PS-DEV has only 25 database slots and also needs administrative
+and fixture connections. This is not a strict global connection guarantee.
+Production's existing connection limit is unchanged.
+
+Reference: [Hyperdrive read-after-write behavior](https://developers.cloudflare.com/hyperdrive/concepts/query-caching/).
+
 Rollback: leave preview cutover disabled, revert the application PR through a
 reviewed PR if necessary, and redeploy the last known staging code. Retain the
 staging database/media; never run production teardown to repair staging.

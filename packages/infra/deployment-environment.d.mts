@@ -46,3 +46,7 @@ export function deploymentRouting(
   bioHost: string;
   mediaBucket: string;
 };
+export function deploymentAuthPolicy(
+  environment: DeploymentEnvironment,
+  isolated: boolean
+): { TURNSTILE_DISABLED: "true" | "false" };

@@ -14,6 +14,7 @@ import * as Redacted from "effect/Redacted";
 import { deploymentPreflight } from "../../scripts/deployment-preflight.mjs";
 import { analyticsPipeline, analyticsStream } from "./analytics-lake";
 import {
+  deploymentAuthPolicy,
   deploymentEnvironment,
   deploymentRouting,
   isolationMode,
@@ -92,6 +93,7 @@ const deployment = Effect.gen(function* () {
 
   return {
     analyticsEnvironment: identity.analyticsEnvironment,
+    authBindings: deploymentAuthPolicy(identity, routing.isolated),
     scheduledJobsEnabled: identity.scheduledJobsEnabled,
     API_HOST,
     API_URL,
@@ -407,6 +409,13 @@ const emailDeliveryDeadLetterQueue = Cloudflare.Queues.Queue(
       const parsed = new URL(rawDatabaseUrl);
 
       return {
+        // This connection also serves sessions, permissions and payment state.
+        // Writes do not invalidate Hyperdrive's query cache; retain pooling,
+        // but require authoritative reads after logout/refunds/access changes.
+        caching: { disabled: true },
+        // The synthetic PS-DEV branch has only 25 database slots. Leave room
+        // for administrative, fixture and migration connections.
+        ...(!d.isProduction ? { originConnectionLimit: 5 } : {}),
         name: d.isProduction
           ? "soundkit-hyperdrive-prod"
           : `soundkit-hyperdrive-${d.stage}`,
@@ -629,6 +638,7 @@ export const server = Cloudflare.Worker(
         BATTLE_DIRECTORY: battleDirectory,
         BETTER_AUTH_SECRET: Config.Redacted("BETTER_AUTH_SECRET"),
         BETTER_AUTH_URL: d.API_URL,
+        ...d.authBindings,
         ...uploadCredentials,
         CLOUDFLARE_ACCOUNT_ID: Config.String("CLOUDFLARE_ACCOUNT_ID"),
         CORS_ORIGIN: d.SITE_URL,
