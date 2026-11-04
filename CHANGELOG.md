@@ -64,6 +64,8 @@
 
 ### Changed
 
+- Replace automatic production public-schema push and implicit extension creation with a reviewed, read-only source/column compatibility gate and post-deploy health checks (#522).
+
 - Matched website sign-in, signup, and password recovery forms to the native dark auth shell, compact fields, rounded card, white primary action, and dark security widget (#469).
 ### Fixed
 

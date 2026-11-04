@@ -5,7 +5,7 @@ SoundKit pull-request Workers use isolated Cloudflare resources where practical,
 ## Safety policy
 
 - Pull-request workflows **must not** run `drizzle-kit push`, execute migrations, or otherwise synchronize a branch-local schema against the shared database.
-- Only the production deployment job applies the reviewed schema, before deploying the matching production Worker.
+- Application deployment jobs never synchronize production schema. The production job checks the reviewed public-schema baseline read-only before deploying the matching Worker; see [database releases](database-releases.md).
 - Database changes must use an expand-and-contract rollout. Add nullable columns, tables, or compatible enum values before code requires them; remove old fields only in a later release after every deployed Worker has stopped using them.
 - A preview must never assume that another open PR's unmerged schema remains installed.
 
@@ -17,7 +17,7 @@ This prevents an older branch from deleting or reverting columns introduced by a
 2. Run the migration and application against a local or isolated test database.
 3. Keep application reads and writes backward-compatible with the currently deployed production schema whenever possible.
 4. Run the normal preview for schema-independent browser coverage.
-5. Merge only after review and verification. The production deployment applies the schema before deploying the new Worker.
+5. Merge only after review and verification. A separately reviewed and explicitly approved migration must already be applied compatibly before the matching application release; the deploy job checks but never applies schema.
 6. For a change that cannot be tested without its new schema, provision an isolated database or database branch and point only that PR's deployment at it. Do not apply the schema to the shared database from the PR workflow.
 
 ## Monitoring

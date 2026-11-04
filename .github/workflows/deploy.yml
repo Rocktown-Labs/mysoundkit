@@ -137,6 +137,7 @@ jobs:
       - browser
     runs-on: ubuntu-latest
     environment: production
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -162,36 +163,8 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      - name: Apply production database schema
-        working-directory: packages/db
-        run: |
-          node --input-type=module --eval '
-          import { Pool } from "pg";
-
-          const databaseUrl = process.env.DATABASE_URL?.replace(
-            "sslmode=verify-full",
-            "sslmode=require"
-          );
-
-          if (!databaseUrl) {
-            throw new Error("DATABASE_URL is required to apply the production database schema.");
-          }
-
-          const pool = new Pool({ connectionString: databaseUrl, max: 1 });
-
-          try {
-            await pool.query("create extension if not exists vector");
-          } finally {
-            await pool.end();
-          }
-          '
-          export DATABASE_URL="${DATABASE_URL/sslmode=verify-full/sslmode=require}"
-          pnpm exec drizzle-kit push --config drizzle.config.ts --force
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
-      - name: Recheck capture after application schema push
-        run: node scripts/analytics-migration.mjs --check
+      - name: Check reviewed public schema baseline (read-only)
+        run: node scripts/public-schema-contract.mjs
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
@@ -289,6 +262,20 @@ jobs:
           KUNAKI_USER_ID: ${{ secrets.KUNAKI_USER_ID }}
           KUNAKI_PASSWORD: ${{ secrets.KUNAKI_PASSWORD }}
           KUNAKI_MODE: ${{ vars.KUNAKI_MODE }}
+
+      - name: Read-only post-deploy production checks
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 2 --retry-delay 3 --retry-max-time 45 --max-time 15 https://api.mysoundkit.com/health | node --input-type=module -e '
+          const health = JSON.parse(await new Response(process.stdin).text());
+          if (!health.ok || health.database !== "connected") process.exit(1);
+          console.log("Production API healthy; database connected.");'
+          curl --fail --silent --show-error --retry 2 --retry-delay 3 --retry-max-time 45 --max-time 15 'https://api.mysoundkit.com/v1/tracks?scope=public&limit=1' | node --input-type=module -e '
+          const rows = JSON.parse(await new Response(process.stdin).text());
+          if (!Array.isArray(rows) || rows.length > 1) process.exit(1);
+          console.log("Production public catalog read passed.");'
+          curl --fail --silent --show-error --retry 2 --retry-delay 3 --retry-max-time 45 --max-time 15 -o /dev/null https://mysoundkit.com
+          curl --fail --silent --show-error --retry 2 --retry-delay 3 --retry-max-time 45 --max-time 15 -o /dev/null https://soundkit.bio
 
   real-e2e:
     name: Real Backend E2E
