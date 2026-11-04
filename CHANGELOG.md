@@ -21,6 +21,8 @@
 
 ### Fixed
 
+- Align guarded track playback with retained direct/project purchases and accepted project collaborators, while blocking ordinary listeners after privacy/deletion changes (#525).
+
 - Preserve completed/refunded checkouts during stale reconciliation; require confirmed provider expiration and atomically recheck local payment/order state (#514).
 
 - Make analytics migration connections compatible with PlanetScale pooling while retaining bounded client queries, transaction-scoped migration locks and SQL timeouts (#511).
