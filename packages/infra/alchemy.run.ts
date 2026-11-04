@@ -409,6 +409,10 @@ const emailDeliveryDeadLetterQueue = Cloudflare.Queues.Queue(
       const parsed = new URL(rawDatabaseUrl);
 
       return {
+        // This connection also serves sessions, permissions and payment state.
+        // Writes do not invalidate Hyperdrive's query cache; retain pooling,
+        // but require authoritative reads after logout/refunds/access changes.
+        caching: { disabled: true },
         name: d.isProduction
           ? "soundkit-hyperdrive-prod"
           : `soundkit-hyperdrive-${d.stage}`,
