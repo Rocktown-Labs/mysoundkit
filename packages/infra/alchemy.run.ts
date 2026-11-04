@@ -413,6 +413,9 @@ const emailDeliveryDeadLetterQueue = Cloudflare.Queues.Queue(
         // Writes do not invalidate Hyperdrive's query cache; retain pooling,
         // but require authoritative reads after logout/refunds/access changes.
         caching: { disabled: true },
+        // The synthetic PS-DEV branch has only 25 database slots. Leave room
+        // for administrative, fixture and migration connections.
+        ...(!d.isProduction ? { originConnectionLimit: 5 } : {}),
         name: d.isProduction
           ? "soundkit-hyperdrive-prod"
           : `soundkit-hyperdrive-${d.stage}`,

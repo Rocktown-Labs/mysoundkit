@@ -126,6 +126,10 @@ after writes. The real staging smoke checks immediate rejection of the old
 session cookie after logout. Public HTTP response caching remains a separate
 policy. This favors correct authoritative reads over SQL-cache hit rates and can
 increase origin read traffic; monitor database load after rollout.
+Nonproduction Hyperdrive configurations use a soft origin connection limit of
+five; staging PS-DEV has only 25 database slots and also needs administrative
+and fixture connections. This is not a strict global connection guarantee.
+Production's existing connection limit is unchanged.
 
 Reference: [Hyperdrive read-after-write behavior](https://developers.cloudflare.com/hyperdrive/concepts/query-caching/).
 
