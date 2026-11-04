@@ -1,4 +1,3 @@
-/* oxlint-disable one-var -- Public policy functions remain independently exported. */
 export type ListeningAccess = "public" | "premium_or_purchased";
 
 export interface ContentListeningPolicy {
@@ -64,6 +63,7 @@ export const resolveDownloadAccess = ({
   };
 };
 
+// oxlint-disable-next-line one-var -- Keep this public const-function export separate.
 export const isExclusivityActive = (
   exclusiveUntil: Date | string | null | undefined,
   now = new Date()
@@ -78,6 +78,7 @@ export const isExclusivityActive = (
   return !Number.isNaN(expiresAt.getTime()) && expiresAt > now;
 };
 
+// oxlint-disable-next-line one-var -- Keep this public const-function export separate.
 export const resolveListeningAccess = ({
   hasPurchase,
   isPremium,
@@ -124,6 +125,7 @@ export type TrackPlaybackDecision =
   | { allowed: false; reason: "unavailable" | "premium_or_purchase_required" };
 
 /** Purchases survive visibility changes; premium alone never reveals private media. */
+// oxlint-disable-next-line one-var -- Keep this public const-function export separate.
 export const resolveTrackPlaybackAccess = ({
   hasCollaboration,
   hasPurchase,

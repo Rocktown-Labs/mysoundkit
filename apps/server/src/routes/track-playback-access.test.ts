@@ -34,7 +34,7 @@ vi.mock("@/middleware/structured-logging", () => ({
 
 interface Facts {
   buyer?: "direct" | "project";
-  collaboration?: "direct" | "project" | "pending";
+  collaboration?: "direct" | "project" | "pending" | "rejected";
   deleted?: boolean;
   forSale?: boolean;
   owner?: boolean;
@@ -129,6 +129,17 @@ describe("guarded track playback caller matrix", () => {
     });
   });
   it.each([
+    {
+      deleted: true,
+      expected: 200,
+      label: "owner on deleted content",
+      owner: true,
+    },
+    {
+      collaboration: "rejected",
+      expected: 403,
+      label: "rejected collaborator",
+    },
     {
       expected: 200,
       label: "premium listener on public paid content",
