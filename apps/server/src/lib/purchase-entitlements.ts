@@ -2,7 +2,10 @@ import { orderItems, orders, purchases } from "@soundkit/db/schema/app";
 import { paymentRefunds, transactions } from "@soundkit/db/schema/payments";
 import { sql } from "drizzle-orm";
 
-/** Read-only: keep history, revoke only a confirmed full transaction refund. */
+/**
+ * Read-only: keep history, revoke only a confirmed full transaction refund.
+ * Correlates with an outer query using the unaliased purchases table.
+ */
 export const purchaseEntitlementCondition =
   () => sql<boolean>`not exists (select 1
   from ${orderItems}
