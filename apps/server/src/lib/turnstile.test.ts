@@ -1,5 +1,8 @@
-import { isTurnstileResponseValid } from "@soundkit/auth/turnstile";
-import { describe, expect, it } from "vitest";
+import {
+  isTurnstileResponseValid,
+  verifyTurnstileRequest,
+} from "@soundkit/auth/turnstile";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 describe("Turnstile response validation", () => {
   const expectedHostnames = new Set(["mysoundkit.com", "www.mysoundkit.com"]);
@@ -39,5 +42,25 @@ describe("Turnstile response validation", () => {
         },
       })
     ).toBe(false);
+  });
+});
+
+describe("explicit synthetic environment CAPTCHA policy", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("fails closed with no credentials unless the explicit bypass is true", async () => {
+    vi.stubEnv("TURNSTILE_SECRET", "");
+    vi.stubEnv("TURNSTILE_HOSTNAMES", "");
+    vi.stubEnv("DESKTOP_AUTH_SECRET", "");
+    const request = new Request(
+      "https://api.staging.soundkit.bio/auth/sign-in/email"
+    );
+    vi.stubEnv("TURNSTILE_DISABLED", "false");
+    expect(await verifyTurnstileRequest({ action: "login", request })).toBe(
+      false
+    );
+    vi.stubEnv("TURNSTILE_DISABLED", "true");
+    expect(await verifyTurnstileRequest({ action: "login", request })).toBe(
+      true
+    );
   });
 });

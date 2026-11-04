@@ -14,6 +14,7 @@ import * as Redacted from "effect/Redacted";
 import { deploymentPreflight } from "../../scripts/deployment-preflight.mjs";
 import { analyticsPipeline, analyticsStream } from "./analytics-lake";
 import {
+  deploymentAuthPolicy,
   deploymentEnvironment,
   deploymentRouting,
   isolationMode,
@@ -92,6 +93,7 @@ const deployment = Effect.gen(function* () {
 
   return {
     analyticsEnvironment: identity.analyticsEnvironment,
+    authBindings: deploymentAuthPolicy(identity, routing.isolated),
     scheduledJobsEnabled: identity.scheduledJobsEnabled,
     API_HOST,
     API_URL,
@@ -629,6 +631,7 @@ export const server = Cloudflare.Worker(
         BATTLE_DIRECTORY: battleDirectory,
         BETTER_AUTH_SECRET: Config.Redacted("BETTER_AUTH_SECRET"),
         BETTER_AUTH_URL: d.API_URL,
+        ...d.authBindings,
         ...uploadCredentials,
         CLOUDFLARE_ACCOUNT_ID: Config.String("CLOUDFLARE_ACCOUNT_ID"),
         CORS_ORIGIN: d.SITE_URL,

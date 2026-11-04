@@ -21,6 +21,8 @@
 
 ### Fixed
 
+- Make synthetic staging CAPTCHA bypass explicit only after isolated deployment identity checks, preserving production/shared-preview fail-closed behavior (#529).
+
 - Preserve completed/refunded checkouts during stale reconciliation; require confirmed provider expiration and atomically recheck local payment/order state (#514).
 
 - Make analytics migration connections compatible with PlanetScale pooling while retaining bounded client queries, transaction-scoped migration locks and SQL timeouts (#511).

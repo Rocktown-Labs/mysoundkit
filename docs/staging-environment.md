@@ -143,3 +143,16 @@ It requires the same PostgreSQL 17+ pgvector local fixture as CI, checks localit
 before connecting, and cleans up only its uniquely named database and role.
 Analytics SQL transaction formatting is part of its reviewed/fingerprinted
 artifact; edits to that wrapper must be reviewed with bootstrap compatibility.
+
+
+Isolated synthetic staging explicitly binds `TURNSTILE_DISABLED=true` only after
+its actual database identity preflight. Production, local production profiles
+and legacy shared previews bind false and remain fail-closed when credentials
+are missing. Staging is a test environment; this bypass is not a production auth
+setting. The real staging login/media smoke gate must pass before preview cutover.
+
+Better Auth integration tests use its official `testUtils()` plugin in a separate
+`.database.test.ts` auth instance built from the real auth options. Signed sessions
+and browser cookies come from `login()`/`getCookies()`. Production does not include
+that plugin. Test-created accounts, sessions and activity events are cleaned up;
+helpers do not replace the deployed credential-login smoke check.

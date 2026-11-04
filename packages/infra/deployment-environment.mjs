@@ -139,3 +139,13 @@ export function deploymentRouting(stage, localDev = false, isolated = false) {
     siteHost: `soundkit-web-${stage}.mysoundkit.com`,
   };
 }
+
+/** CAPTCHA bypass is explicit and unavailable to production/shared previews. */
+export function deploymentAuthPolicy(environment, isolated) {
+  const disabled =
+    isolated &&
+    !environment.isProduction &&
+    !environment.isLocalDev &&
+    ["staging", "preview"].includes(environment.kind);
+  return { TURNSTILE_DISABLED: disabled ? "true" : "false" };
+}
