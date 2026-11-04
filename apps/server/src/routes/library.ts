@@ -10,16 +10,7 @@ import {
   trackAssets,
   tracks,
 } from "@soundkit/db/schema/app";
-import {
-  and,
-  count,
-  desc,
-  eq,
-  gte,
-  inArray,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
@@ -36,6 +27,7 @@ import {
   watchedSourceTypes,
 } from "@/lib/library-mappers";
 import { readableTrack } from "@/lib/library-track-visibility";
+import { purchaseEntitlementCondition } from "@/lib/purchase-entitlements";
 import {
   sampleLibraryOverview,
   samplePurchasedCatalogItems,
@@ -103,6 +95,7 @@ const libraryErrors = {
       query = db
         .select({
           id: purchases.id,
+          isEntitled: purchaseEntitlementCondition(),
           licenseOptionId: orderItems.licenseOptionId,
           orderProjectId: orderItems.projectId,
           priceCents: orderItems.priceSnapshot,
@@ -590,9 +583,10 @@ app.openapi(
     const rows = await getPurchasedCatalogRow({ userId: user.id }),
       items = await Promise.all(
         rows.map(async (row) => {
-          const [download] = await getPurchaseDownloads({
-            trackId: row.trackId,
-          });
+          const [download] =
+            row.isEntitled === true
+              ? await getPurchaseDownloads({ trackId: row.trackId })
+              : [];
 
           return toPurchasedCatalogItem({
             ...row,
@@ -681,9 +675,10 @@ app.openapi(
       );
     }
 
-    const downloads = await getPurchaseDownloads({
-        trackId: row.trackId,
-      }),
+    const downloads =
+        row.isEntitled === true
+          ? await getPurchaseDownloads({ trackId: row.trackId })
+          : [],
       [download] = downloads,
       purchase = toPurchasedCatalogItem({
         ...row,

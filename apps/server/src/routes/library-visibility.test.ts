@@ -9,7 +9,7 @@ it("parenthesizes raw EXISTS subqueries and binds the viewer identity", () => {
   const query = new PgDialect().sqlToQuery(
     sql`select * from ${tracks} where ${readableTrack("viewer-id")}`
   );
-  expect(query.sql.match(/exists \(select/gu)).toHaveLength(4);
+  expect(query.sql.match(/exists \(select/gu)).toHaveLength(6);
   expect(query.sql).not.toContain("exists select");
   expect(query.sql).not.toContain("viewer-id");
   expect(query.params.filter((value) => value === "viewer-id")).toHaveLength(5);

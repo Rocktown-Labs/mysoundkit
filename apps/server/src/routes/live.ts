@@ -125,6 +125,7 @@ import {
 } from "@/lib/live-stream";
 import { notify } from "@/lib/notifications";
 import { profileRegionCondition } from "@/lib/public-explore";
+import { purchaseEntitlementCondition } from "@/lib/purchase-entitlements";
 import { withRetry } from "@/lib/retry";
 import {
   battleBotActionBodySchema,
@@ -1373,7 +1374,12 @@ const badRequest = (message: string) => ({
           db
             .select({ trackId: purchases.trackId })
             .from(purchases)
-            .where(eq(purchases.buyerUserId, user.id)),
+            .where(
+              and(
+                eq(purchases.buyerUserId, user.id),
+                purchaseEntitlementCondition()
+              )
+            ),
           db
             .select({ trackId: projectTracks.trackId })
             .from(purchases)
@@ -1381,7 +1387,12 @@ const badRequest = (message: string) => ({
               projectTracks,
               eq(projectTracks.projectId, purchases.projectId)
             )
-            .where(eq(purchases.buyerUserId, user.id)),
+            .where(
+              and(
+                eq(purchases.buyerUserId, user.id),
+                purchaseEntitlementCondition()
+              )
+            ),
         ]),
       collaboratorTrackIds = collaboratorRows.map((row) => row.trackId),
       purchasedTrackIds = new Set([

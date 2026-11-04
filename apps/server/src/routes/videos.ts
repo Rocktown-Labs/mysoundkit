@@ -41,6 +41,7 @@ import {
   profileRegionCondition,
   regionSlugFromUser,
 } from "@/lib/public-explore";
+import { purchaseEntitlementCondition } from "@/lib/purchase-entitlements";
 import { sampleVideos } from "@/lib/sample-data";
 import {
   createPlaybackSessionBodySchema,
@@ -225,7 +226,11 @@ const hasPurchasedTrack = async ({
       .select({ id: purchases.id })
       .from(purchases)
       .where(
-        and(eq(purchases.buyerUserId, userId), eq(purchases.trackId, trackId))
+        and(
+          eq(purchases.buyerUserId, userId),
+          eq(purchases.trackId, trackId),
+          purchaseEntitlementCondition()
+        )
       )
       .limit(1);
 
@@ -243,7 +248,8 @@ const hasPurchasedTrack = async ({
       .where(
         and(
           eq(purchases.buyerUserId, userId),
-          eq(projectTracks.trackId, trackId)
+          eq(projectTracks.trackId, trackId),
+          purchaseEntitlementCondition()
         )
       )
       .limit(1);
