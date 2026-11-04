@@ -9,14 +9,18 @@ import { afterEach, expect, it, vi } from "vitest";
 // A separate test-only instance preserves the real auth options without adding
 // privileged test helpers to production or widening its public type surface.
 const createTestAuth = () => {
-  const {options} = createAuth();
+  const { options } = createAuth();
   return betterAuth({ ...options, plugins: [...options.plugins, testUtils()] });
 };
 
 const url = process.env.SOUNDKIT_TEST_DATABASE_URL;
 afterEach(() => vi.unstubAllEnvs());
-if (url && process.env.SOUNDKIT_DISABLE_DB_TESTS !== "true") {
-  it("uses real Better Auth test helpers with scoped signed staging cookies", async () => {
+it.runIf(Boolean(url) && process.env.SOUNDKIT_DISABLE_DB_TESTS !== "true")(
+  "uses real Better Auth test helpers with scoped signed staging cookies",
+  async () => {
+    if (!url) {
+      throw new Error("Explicit local auth test database required");
+    }
     expect(["localhost", "127.0.0.1", "[::1]"]).toContain(
       new URL(url).hostname
     );
@@ -84,5 +88,5 @@ if (url && process.env.SOUNDKIT_DISABLE_DB_TESTS !== "true") {
         await context.test.deleteUser(user.id);
       }
     });
-  });
-}
+  }
+);
