@@ -76,6 +76,7 @@ import {
   profileRegionCondition,
   resolveExploreRegion,
 } from "@/lib/public-explore";
+import { purchaseEntitlementCondition } from "@/lib/purchase-entitlements";
 import {
   getProjectReleaseReadiness,
   publishProjectIfMediaReady,
@@ -1650,7 +1651,8 @@ app.openapi(
           .where(
             and(
               eq(purchases.projectId, projectId),
-              eq(purchases.buyerUserId, user.id)
+              eq(purchases.buyerUserId, user.id),
+              purchaseEntitlementCondition()
             )
           )
           .limit(1)
@@ -1792,7 +1794,8 @@ app.openapi(
         .where(
           and(
             eq(purchases.projectId, projectId),
-            eq(purchases.buyerUserId, user.id)
+            eq(purchases.buyerUserId, user.id),
+            purchaseEntitlementCondition()
           )
         )
         .limit(1)

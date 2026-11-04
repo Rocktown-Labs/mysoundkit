@@ -23,6 +23,8 @@
 
 - Make synthetic staging CAPTCHA bypass explicit only after isolated deployment identity checks, preserving production/shared-preview fail-closed behavior (#529).
 - Send JSON during staging logout cleanup and verify that each synthetic session is revoked (#529).
+- Revoke digital purchase grants only after confirmed full transaction refunds, retain partial/free/independent grants, and preserve receipt history without revoked download links (#527).
+
 - Align guarded track playback with retained direct/project purchases and accepted project collaborators, while blocking ordinary listeners after privacy/deletion changes (#525).
 
 - Preserve completed/refunded checkouts during stale reconciliation; require confirmed provider expiration and atomically recheck local payment/order state (#514).

@@ -7,8 +7,23 @@ import {
 } from "@soundkit/db/schema/app";
 import { and, eq, exists, isNull, or, sql } from "drizzle-orm";
 
+import { purchaseEntitlementCondition } from "./purchase-entitlements";
+
 export const readableTrack = (userId?: string) => {
-  const publicTrack = and(eq(tracks.isPublic, true), isNull(tracks.deletedAt));
+  const collaboration = userId
+      ? and(
+          isNull(tracks.deletedAt),
+          or(
+            exists(
+              sql`(select 1 from ${trackCollaborators} where ${trackCollaborators.trackId} = ${tracks.id} and ${trackCollaborators.collaboratorUserId} = ${userId} and ${trackCollaborators.invitationStatus} = 'accepted')`
+            ),
+            exists(
+              sql`(select 1 from ${projectTracks} inner join ${projectCollaborators} on ${projectCollaborators.projectId} = ${projectTracks.projectId} where ${projectTracks.trackId} = ${tracks.id} and ${projectCollaborators.collaboratorUserId} = ${userId} and ${projectCollaborators.invitationStatus} = 'accepted')`
+            )
+          )
+        )
+      : undefined,
+    publicTrack = and(eq(tracks.isPublic, true), isNull(tracks.deletedAt));
   if (!userId) {
     return publicTrack;
   }
@@ -16,21 +31,11 @@ export const readableTrack = (userId?: string) => {
     publicTrack,
     and(eq(tracks.ownerUserId, userId), isNull(tracks.deletedAt)),
     exists(
-      sql`(select 1 from ${purchases} where ${purchases.buyerUserId} = ${userId} and ${purchases.trackId} = ${tracks.id})`
+      sql`(select 1 from ${purchases} where ${purchases.buyerUserId} = ${userId} and ${purchases.trackId} = ${tracks.id} and ${purchaseEntitlementCondition()})`
     ),
     exists(
-      sql`(select 1 from ${purchases} inner join ${projectTracks} on ${projectTracks.projectId} = ${purchases.projectId} where ${purchases.buyerUserId} = ${userId} and ${projectTracks.trackId} = ${tracks.id})`
+      sql`(select 1 from ${purchases} inner join ${projectTracks} on ${projectTracks.projectId} = ${purchases.projectId} where ${purchases.buyerUserId} = ${userId} and ${projectTracks.trackId} = ${tracks.id} and ${purchaseEntitlementCondition()})`
     ),
-    and(
-      isNull(tracks.deletedAt),
-      or(
-        exists(
-          sql`(select 1 from ${trackCollaborators} where ${trackCollaborators.trackId} = ${tracks.id} and ${trackCollaborators.collaboratorUserId} = ${userId} and ${trackCollaborators.invitationStatus} = 'accepted')`
-        ),
-        exists(
-          sql`(select 1 from ${projectTracks} inner join ${projectCollaborators} on ${projectCollaborators.projectId} = ${projectTracks.projectId} where ${projectTracks.trackId} = ${tracks.id} and ${projectCollaborators.collaboratorUserId} = ${userId} and ${projectCollaborators.invitationStatus} = 'accepted')`
-        )
-      )
-    )
+    collaboration
   );
 };
