@@ -54,6 +54,27 @@ const alchemyConfigPath = fileURLToPath(
   };
 
 describe("deployment safety policy", () => {
+  it("runs real backend journeys only in a separate serialized staging lane", async () => {
+    const deploy = await readFile(deployWorkflowPath, "utf-8"),
+      journeys = await readFile(
+        new URL("../../../.github/workflows/real-e2e.yml", import.meta.url),
+        "utf-8"
+      );
+    expect(deploy).not.toContain("ENABLE_REAL_E2E");
+    expect(deploy).not.toContain("tests/e2e/real-backend.spec.ts");
+    expect(journeys).toContain("environment: staging");
+    expect(journeys).not.toContain("environment: production");
+    expect(journeys).not.toContain("mysoundkit.com");
+    expect(journeys).toContain("group: soundkit-staging-real-journeys");
+    expect(journeys).toContain('SOUNDKIT_E2E_EXPECT_CHECKOUT: "false"');
+    expect(journeys).not.toContain("secrets.STRIPE_SECRET_KEY");
+    const preflightIndex = journeys.indexOf("--mode enforce --check-database"),
+      playwrightIndex = journeys.indexOf("pnpm exec playwright test");
+    expect(preflightIndex).toBeGreaterThanOrEqual(0);
+    expect(playwrightIndex).toBeGreaterThanOrEqual(0);
+    expect(preflightIndex).toBeLessThan(playwrightIndex);
+  });
+
   it("keeps schema synchronization out of pull-request previews", async () => {
     const workflow = await readFile(deployWorkflowPath, "utf-8"),
       previewJob = workflowJob(workflow, "preview", "preview-browser");
