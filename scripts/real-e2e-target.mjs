@@ -29,7 +29,8 @@ export function assertRealE2eTarget(env) {
     throw new Error("Synthetic E2E refuses non-test Stripe credentials");
   }
   if (
-    env.SOUNDKIT_E2E_EXPECT_CHECKOUT === "true" &&
+    (env.SOUNDKIT_E2E_EXPECT_CHECKOUT === "true" ||
+      env.SOUNDKIT_E2E_EXPECT_PREMIUM_CHECKOUT === "true") &&
     (!key || env.SOUNDKIT_STRIPE_MODE !== "test")
   ) {
     throw new Error(

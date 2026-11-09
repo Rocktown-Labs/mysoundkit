@@ -35,19 +35,35 @@ test("real journeys require exact isolated resources and synthetic credentials",
   }
 });
 
-test("provider journeys cannot quietly run with missing/live payment keys", () => {
+test("either provider expectation requires explicit test credentials and mode", () => {
+  for (const flag of [
+    "SOUNDKIT_E2E_EXPECT_CHECKOUT",
+    "SOUNDKIT_E2E_EXPECT_PREMIUM_CHECKOUT",
+  ]) {
+    const requested = { ...valid, [flag]: "true" };
+    assert.throws(() => assertRealE2eTarget(requested));
+    assert.throws(() =>
+      assertRealE2eTarget({
+        ...requested,
+        SOUNDKIT_STRIPE_MODE: "test",
+        STRIPE_SECRET_KEY: "sk_live_placeholder",
+      })
+    );
+    assert.throws(() =>
+      assertRealE2eTarget({
+        ...requested,
+        STRIPE_SECRET_KEY: "rk_test_placeholder",
+      })
+    );
+    assert.doesNotThrow(() =>
+      assertRealE2eTarget({
+        ...requested,
+        SOUNDKIT_STRIPE_MODE: "test",
+        STRIPE_SECRET_KEY: "rk_test_placeholder",
+      })
+    );
+  }
   assert.throws(() =>
     assertRealE2eTarget({ ...valid, STRIPE_SECRET_KEY: "sk_live_placeholder" })
-  );
-  assert.throws(() =>
-    assertRealE2eTarget({ ...valid, SOUNDKIT_E2E_EXPECT_CHECKOUT: "true" })
-  );
-  assert.doesNotThrow(() =>
-    assertRealE2eTarget({
-      ...valid,
-      SOUNDKIT_E2E_EXPECT_CHECKOUT: "true",
-      SOUNDKIT_STRIPE_MODE: "test",
-      STRIPE_SECRET_KEY: "rk_test_placeholder",
-    })
   );
 });

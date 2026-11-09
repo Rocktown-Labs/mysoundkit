@@ -68,9 +68,11 @@ describe("deployment safety policy", () => {
     expect(journeys).toContain("group: soundkit-staging-real-journeys");
     expect(journeys).toContain('SOUNDKIT_E2E_EXPECT_CHECKOUT: "false"');
     expect(journeys).not.toContain("secrets.STRIPE_SECRET_KEY");
-    expect(journeys.indexOf("--mode enforce --check-database")).toBeLessThan(
-      journeys.indexOf("pnpm exec playwright test")
-    );
+    const preflightIndex = journeys.indexOf("--mode enforce --check-database"),
+      playwrightIndex = journeys.indexOf("pnpm exec playwright test");
+    expect(preflightIndex).toBeGreaterThanOrEqual(0);
+    expect(playwrightIndex).toBeGreaterThanOrEqual(0);
+    expect(preflightIndex).toBeLessThan(playwrightIndex);
   });
 
   it("keeps schema synchronization out of pull-request previews", async () => {

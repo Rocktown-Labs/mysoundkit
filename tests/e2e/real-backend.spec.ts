@@ -197,7 +197,7 @@ test.describe("real backend artist and fan smoke flow", () => {
     expect(response.ok(), "Synthetic session cleanup failed").toBe(true);
   });
 
-  test("synthetic browser login and Bio access preserve media permissions across account switch", async ({
+  test("synthetic browser login and account switching preserve media access across a Bio profile visit", async ({
     page,
   }) => {
     test.setTimeout(90_000);
@@ -219,6 +219,8 @@ test.describe("real backend artist and fan smoke flow", () => {
     expect(privateBytes.toString("ascii", 0, 4)).toBe("RIFF");
     await page.goto("https://bio.staging.soundkit.bio/staging-fixture-artist");
     await expect(page.locator("body")).toContainText("Fixture artist");
+    // Cookie continuity after a public Bio visit; Bio's localStorage handoff
+    // and logged-in Bio UI are a separate journey, not asserted here.
     const bioSession = await request.get(`${apiBaseUrl}/auth/get-session`);
     const bioSessionData = await bioSession.json();
     expect(bioSessionData.user.id).toBe("staging-fixture-v1-artist");
@@ -457,16 +459,8 @@ test.describe("real backend artist and fan smoke flow", () => {
       request,
     });
 
-    if (process.env.SOUNDKIT_E2E_EXPECT_CHECKOUT === "true") {
-      expectOk(checkout, "checkout");
-      expect(checkout.body.checkoutUrl).toMatch(/^https:\/\/checkout\.stripe/u);
-      expect(checkout.body.transactionId).toBeTruthy();
-      return;
-    }
-
-    expect(
-      [200, 400],
-      `checkout preflight: ${JSON.stringify(checkout.body)}`
-    ).toContain(checkout.status);
+    expectOk(checkout, "checkout");
+    expect(checkout.body.checkoutUrl).toMatch(/^https:\/\/checkout\.stripe/u);
+    expect(checkout.body.transactionId).toBeTruthy();
   });
 });

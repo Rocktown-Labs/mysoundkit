@@ -13,11 +13,11 @@ runtime credentials and reserved synthetic accounts, with no payment, email or
 fulfillment provider keys. It never pushes schema or deploys infrastructure.
 
 The always-on journey uses the real web login forms and API. It checks the
-artist identity and private media access, the Bio profile/shared session, logout,
+artist identity and private media access, a public Bio profile visit with API-cookie continuity, logout,
 and fan account switching with private/paid-media denial and free WAV byte-range
 delivery.
 Sessions are signed out in cleanup. It does not upload media, create purchases,
-or prove playback progress or native/PiP behavior.
+or prove Bio’s localStorage handoff/logged-in UI, playback progress or native/PiP behavior.
 
 The separate legacy commerce/content journey is **explicitly skipped** until
 SoundKit sandbox setup (#528) is verified. A skipped provider case is not payment

@@ -346,7 +346,7 @@ jobs:
             "https://bio.pr-${{ github.event.pull_request.number }}.preview.soundkit.bio"
           do
             curl --fail --silent --show-error --max-time 10 \
-              --retry 12 --retry-all-errors --retry-delay 5 --retry-max-time 90 \
+              --retry 36 --retry-all-errors --retry-delay 5 --retry-max-time 180 \
               --output /dev/null "$url"
           done
 
