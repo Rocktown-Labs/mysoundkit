@@ -14,9 +14,10 @@ fulfillment provider keys. It never pushes schema or deploys infrastructure.
 
 The always-on journey uses the real web login forms and API. It checks the
 artist identity and private media access, the Bio profile/shared session, logout,
-and fan account switching with private/paid-media denial and free WAV playback.
+and fan account switching with private/paid-media denial and free WAV byte-range
+delivery.
 Sessions are signed out in cleanup. It does not upload media, create purchases,
-or prove native playback/PiP.
+or prove playback progress or native/PiP behavior.
 
 The separate legacy commerce/content journey is **explicitly skipped** until
 SoundKit sandbox setup (#528) is verified. A skipped provider case is not payment
