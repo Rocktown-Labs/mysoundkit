@@ -119,6 +119,16 @@ describe("deployment safety policy", () => {
     );
     expect(cleanup).not.toContain("STRIPE_SECRET_KEY");
     expect(cleanup).not.toContain("CLOUDFLARE_ACCESS_KEY_ID");
+    expect(cleanup).toContain("pull-requests: read");
+    expect(cleanup).not.toContain("pull-requests: write");
+    expect(cleanup).toContain('gh pr view "$PR_NUMBER"');
+    expect(cleanup).toContain("MERGED|CLOSED)");
+    expect(
+      cleanup.indexOf("Verify closed PR cleanup authorization")
+    ).toBeLessThan(cleanup.indexOf("Destroy preview through Alchemy"));
+    expect(cleanup).toContain(
+      "always() && steps.eligibility.outcome == 'success'"
+    );
   });
 
   it("checks the reviewed schema read-only before production deployment", async () => {

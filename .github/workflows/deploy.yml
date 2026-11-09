@@ -502,8 +502,10 @@ jobs:
       SOUNDKIT_DATABASE_TARGET: rocktownlabs/soundkit/staging
       SOUNDKIT_MEDIA_BUCKET_NAME: soundkit-media-staging
       SOUNDKIT_EXTERNAL_EFFECTS_MODE: disabled
+      PR_NUMBER: ${{ github.event.pull_request.number }}
     permissions:
       contents: read
+      pull-requests: read
     steps:
       - name: Bootstrap repository
         env:
@@ -522,13 +524,25 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify closed PR cleanup authorization
+        id: eligibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || exit 1
+          state="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json state --jq .state)"
+          case "$state" in
+            MERGED|CLOSED) echo "Confirmed readable closed PR state: $state" ;;
+            *) echo "::error::PR metadata does not permit cleanup."; exit 1 ;;
+          esac
+
       - name: Destroy preview through Alchemy
         working-directory: packages/infra
         run: |
           # --yes: Alchemy v2 asks for plan approval and aborts when it cannot
           # prompt, which is always the case on a runner.
           for attempt in 1 2 3; do
-            pnpm run destroy:stage --stage pr-${{ github.event.pull_request.number }} --yes && exit 0
+            pnpm run destroy:stage --stage "pr-${PR_NUMBER}" --yes && exit 0
             if [ "$attempt" = "3" ]; then
               exit 1
             fi
@@ -548,7 +562,7 @@ jobs:
         # reach them (#360). This sweep deletes soundkit pr-<n> resources
         # whose PRs are already closed. Best-effort hygiene: it must never
         # fail or block the destroy pipeline.
-        if: always()
+        if: ${{ always() && steps.eligibility.outcome == 'success' }}
         continue-on-error: true
         run: node scripts/cleanup-leaked-previews.mjs --apply
         env:

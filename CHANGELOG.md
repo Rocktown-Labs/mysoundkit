@@ -22,6 +22,7 @@
 ### Fixed
 
 - Move real-backend journeys off production into guarded, serialized synthetic staging, add browser/Bio/account-switch media checks, and explicitly gate unconfigured commerce (#538).
+- Grant preview cleanup read-only PR metadata access, verify closed state before cleanup, and refresh retired preview URLs and isolation guidance (#536).
 
 - Make synthetic staging CAPTCHA bypass explicit only after isolated deployment identity checks, preserving production/shared-preview fail-closed behavior (#529).
 - Send JSON during staging logout cleanup and verify that each synthetic session is revoked (#529).
