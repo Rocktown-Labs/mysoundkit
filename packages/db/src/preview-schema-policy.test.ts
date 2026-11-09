@@ -60,7 +60,46 @@ describe("deployment safety policy", () => {
 
     expect(previewJob).not.toContain("drizzle-kit push");
     expect(previewJob).not.toContain("Apply preview database schema");
-    expect(previewJob).toContain("Confirm shared database safety policy");
+    expect(previewJob).toContain("environment: staging");
+    expect(previewJob).toContain("--mode enforce --check-database");
+    expect(previewJob).toContain("SOUNDKIT_ISOLATION_MODE: enforce");
+    expect(previewJob).toContain(
+      "SOUNDKIT_DATABASE_TARGET: rocktownlabs/soundkit/staging"
+    );
+    expect(previewJob).toContain(
+      "SOUNDKIT_MEDIA_BUCKET_NAME: soundkit-media-staging"
+    );
+    expect(previewJob.indexOf("--mode enforce --check-database")).toBeLessThan(
+      previewJob.indexOf("pnpm run deploy:stage")
+    );
+    expect(previewJob).toContain("node scripts/staging-smoke.mjs --stage pr-");
+    expect(previewJob).not.toContain("--adopt");
+    expect(previewJob).not.toContain("seed-v2-r2-secrets");
+    for (const secret of [
+      "STRIPE_SECRET_KEY",
+      "MUX_TOKEN_SECRET",
+      "GOOGLE_GENERATIVE_AI_API_KEY",
+      "OPENAI_API_KEY",
+      "CLOUDFLARE_ACCESS_KEY_ID",
+      "BATTLE_BOT_SECRET",
+    ]) {
+      expect(previewJob).not.toContain(secret);
+    }
+  });
+
+  it("keeps preview cleanup on the same isolated staging configuration", async () => {
+    const workflow = await readFile(deployWorkflowPath, "utf-8"),
+      cleanup = workflow.slice(workflow.indexOf("  cleanup:\n"));
+    expect(cleanup).toContain("environment: staging");
+    expect(cleanup).toContain("SOUNDKIT_ISOLATION_MODE: enforce");
+    expect(cleanup).toContain(
+      "SOUNDKIT_DATABASE_TARGET: rocktownlabs/soundkit/staging"
+    );
+    expect(cleanup).toContain(
+      "SOUNDKIT_MEDIA_BUCKET_NAME: soundkit-media-staging"
+    );
+    expect(cleanup).not.toContain("STRIPE_SECRET_KEY");
+    expect(cleanup).not.toContain("CLOUDFLARE_ACCESS_KEY_ID");
   });
 
   it("checks the reviewed schema read-only before production deployment", async () => {

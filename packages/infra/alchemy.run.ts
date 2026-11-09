@@ -393,46 +393,54 @@ const emailDeliveryDeadLetterQueue = Cloudflare.Queues.Queue(
   // `soundkit-hyperdrive-prod` for production (the `{app}-{id}-{stage}`
   // default). v2 derives names differently, so the production name is
   // pinned explicitly here for adoption.
-  hyperdrive = Cloudflare.Hyperdrive.Connection(
-    "hyperdrive",
-    Effect.gen(function* () {
-      const d = yield* deployment,
-        // Read synchronously (dotenv is loaded above): props Effects must
-        // stay infallible, and a missing DATABASE_URL fails the deploy fast
-        // exactly like v1's requiredSecret.
-        rawDatabaseUrl = process.env.DATABASE_URL;
+  hyperdrive = Effect.gen(function* () {
+    const context = yield* deployment;
+    if (context.isIsolated && context.isPullRequestPreview) {
+      return yield* Cloudflare.Hyperdrive.Connection.ref("hyperdrive", {
+        stage: "staging",
+      });
+    }
+    return yield* Cloudflare.Hyperdrive.Connection(
+      "hyperdrive",
+      Effect.gen(function* () {
+        const d = yield* deployment,
+          // Read synchronously (dotenv is loaded above): props Effects must
+          // stay infallible, and a missing DATABASE_URL fails the deploy fast
+          // exactly like v1's requiredSecret.
+          rawDatabaseUrl = process.env.DATABASE_URL;
 
-      if (!rawDatabaseUrl) {
-        throw new Error("DATABASE_URL is required.");
-      }
+        if (!rawDatabaseUrl) {
+          throw new Error("DATABASE_URL is required.");
+        }
 
-      const parsed = new URL(rawDatabaseUrl);
+        const parsed = new URL(rawDatabaseUrl);
 
-      return {
-        // This connection also serves sessions, permissions and payment state.
-        // Writes do not invalidate Hyperdrive's query cache; retain pooling,
-        // but require authoritative reads after logout/refunds/access changes.
-        caching: { disabled: true },
-        // The synthetic PS-DEV branch has only 25 database slots. Leave room
-        // for administrative, fixture and migration connections.
-        ...(!d.isProduction ? { originConnectionLimit: 5 } : {}),
-        name: d.isProduction
-          ? "soundkit-hyperdrive-prod"
-          : `soundkit-hyperdrive-${d.stage}`,
-        origin: {
-          database: decodeURIComponent(parsed.pathname.replace(/^\//u, "")),
-          host: parsed.hostname,
-          ...(parsed.port ? { port: Number(parsed.port) } : {}),
-          password: Redacted.make(decodeURIComponent(parsed.password)),
-          scheme: parsed.protocol.replace(/:$/u, "") as
-            | "postgres"
-            | "postgresql"
-            | "mysql",
-          user: decodeURIComponent(parsed.username),
-        },
-      };
-    })
-  );
+        return {
+          // This connection also serves sessions, permissions and payment state.
+          // Writes do not invalidate Hyperdrive's query cache; retain pooling,
+          // but require authoritative reads after logout/refunds/access changes.
+          caching: { disabled: true },
+          // The synthetic PS-DEV branch has only 25 database slots. Leave room
+          // for administrative, fixture and migration connections.
+          ...(d.isProduction ? {} : { originConnectionLimit: 5 }),
+          name: d.isProduction
+            ? "soundkit-hyperdrive-prod"
+            : `soundkit-hyperdrive-${d.stage}`,
+          origin: {
+            database: decodeURIComponent(parsed.pathname.replace(/^\//u, "")),
+            host: parsed.hostname,
+            ...(parsed.port ? { port: Number(parsed.port) } : {}),
+            password: Redacted.make(decodeURIComponent(parsed.password)),
+            scheme: parsed.protocol.replace(/:$/u, "") as
+              | "postgres"
+              | "postgresql"
+              | "mysql",
+            user: decodeURIComponent(parsed.username),
+          },
+        };
+      })
+    );
+  });
 
 // NOTE (v2 migration): workflow physical names are derived by v2 as
 // `{script}-{class}-{hash}`, so the first v2 deploy creates new workflow

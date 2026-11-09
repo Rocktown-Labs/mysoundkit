@@ -345,7 +345,14 @@ jobs:
       - verify
     if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository && vars.ENABLE_PREVIEW_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
-    environment: preview
+    environment: staging
+    timeout-minutes: 30
+    env:
+      SOUNDKIT_ISOLATION_MODE: enforce
+      SOUNDKIT_DATABASE_TARGET: rocktownlabs/soundkit/staging
+      SOUNDKIT_MEDIA_BUCKET_NAME: soundkit-media-staging
+      SOUNDKIT_EXTERNAL_EFFECTS_MODE: disabled
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
     permissions:
       contents: read
     outputs:
@@ -373,103 +380,56 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # PR Workers share the production application database. Never synchronize
-      # a branch-local Drizzle schema here: a stale branch can otherwise remove
-      # columns introduced by another PR. Production applies the reviewed schema
-      # before deploying the matching Worker version.
-      - name: Confirm shared database safety policy
-        run: |
-          echo "Preview deploys use the existing shared schema without mutating it."
-          echo "Schema-changing PRs must follow docs/preview-environments.md."
-
-      - name: Seed v2 R2 deploy secrets from v1 Alchemy state (one-time bootstrap)
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          ALCHEMY_STATE_TOKEN: ${{ secrets.ALCHEMY_STATE_TOKEN }}
-          ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
-          SEED_R2_SECRETS: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID != '' && 'false' || 'true' }}
-        run: |
-          set -euo pipefail
-          SEED_DIR="$(mktemp -d)"
-          cp scripts/ci/seed-v2-r2-secrets.mjs "$SEED_DIR/"
-          cd "$SEED_DIR"
-          echo '{"name":"seed","private":true}' > package.json
-          pnpm add alchemy@0.90.1 --ignore-scripts
-          node seed-v2-r2-secrets.mjs "$RUNNER_TEMP/r2-secrets.env"
-
-      - name: Report deployment isolation readiness
-        run: node scripts/deployment-preflight.mjs --stage pr-${{ github.event.pull_request.number }} --mode report
-        env:
-          SOUNDKIT_STRIPE_MODE: ${{ (startsWith(secrets.STRIPE_SECRET_KEY, 'sk_live_') || startsWith(secrets.STRIPE_SECRET_KEY, 'rk_live_')) && 'live' || (startsWith(secrets.STRIPE_SECRET_KEY, 'sk_test_') || startsWith(secrets.STRIPE_SECRET_KEY, 'rk_test_')) && 'test' || 'missing' }}
+      # Use only the synthetic staging schema; never synchronize PR schemas.
+      - name: Enforce isolated preview identity before resource changes
+        run: node scripts/deployment-preflight.mjs --stage pr-${{ github.event.pull_request.number }} --mode enforce --check-database
 
       - name: Deploy preview through Alchemy
         working-directory: packages/infra
         run: |
-          if [ -f "$RUNNER_TEMP/r2-secrets.env" ]; then
-            # Secrets were seeded during this run; the step env context still
-            # holds the pre-seed (empty) values.
-            # shellcheck disable=SC1091
-            . "$RUNNER_TEMP/r2-secrets.env"
-          fi
-          # --yes: Alchemy v2 asks for plan approval and aborts when it cannot
-          # prompt, which is always the case on a runner.
+          # New queue consumers/state Workers can take time to propagate.
           for attempt in 1 2 3; do
-            # --adopt: take over v1-era cloud resources that have no v2 state
-            # yet (no-op once resources exist in the v2 state store).
-            pnpm run deploy:stage --stage pr-${{ github.event.pull_request.number }} --yes --adopt && exit 0
-            if [ "$attempt" = "3" ]; then
-              exit 1
-            fi
-            echo "Preview deploy failed while Alchemy state workers may still be propagating. Retrying in 30 seconds..."
+            pnpm run deploy:stage --stage pr-${{ github.event.pull_request.number }} --yes && exit 0
+            if [ "$attempt" = "3" ]; then exit 1; fi
+            echo "Preview provisioning attempt $attempt failed; retrying in 30 seconds."
             sleep 30
           done
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_STREAM_API_TOKEN: ${{ secrets.CLOUDFLARE_STREAM_API_TOKEN }}
-          CLOUDFLARE_STREAM_CUSTOMER_CODE: ${{ vars.CLOUDFLARE_STREAM_CUSTOMER_CODE }}
-          ADMIN_EMAILS: ${{ vars.ADMIN_EMAILS }}
-          BATTLE_BOT_SECRET: ${{ secrets.BATTLE_BOT_SECRET }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           MEDIA_SIGNING_SECRET: ${{ secrets.MEDIA_SIGNING_SECRET }}
-          CLOUDFLARE_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
-          CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
-          RECORDINGS_ACCESS_KEY_ID: ${{ secrets.RECORDINGS_ACCESS_KEY_ID }}
-          RECORDINGS_SECRET_ACCESS_KEY: ${{ secrets.RECORDINGS_SECRET_ACCESS_KEY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_REALTIMEKIT_APP_ID: ${{ vars.CLOUDFLARE_REALTIMEKIT_APP_ID }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GOOGLE_EMBEDDING_MODEL: ${{ vars.GOOGLE_EMBEDDING_MODEL }}
-          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
-          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
-          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
-          MUX_WEBHOOK_SECRET: ${{ secrets.MUX_WEBHOOK_SECRET }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_DSN: ${{ vars.SENTRY_SERVER_DSN }}
-          STEMSPLIT_API_KEY: ${{ secrets.STEMSPLIT_API_KEY }}
-          STEMSPLIT_WEBHOOK_SECRET: ${{ secrets.STEMSPLIT_WEBHOOK_SECRET }}
-          STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID }}
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          STRIPE_BETTER_AUTH_WEBHOOK_SECRET: ${{ secrets.STRIPE_BETTER_AUTH_WEBHOOK_SECRET }}
-          STRIPE_COMMERCE_WEBHOOK_SECRET: ${{ secrets.STRIPE_COMMERCE_WEBHOOK_SECRET }}
-          STRIPE_CONNECT_WEBHOOK_SECRET: ${{ secrets.STRIPE_CONNECT_WEBHOOK_SECRET }}
-          VITE_GOOGLE_MAPS_API_KEY: ${{ vars.VITE_GOOGLE_MAPS_API_KEY }}
-          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
-          VITE_STRIPE_PUBLISHABLE_KEY: ${{ vars.VITE_STRIPE_PUBLISHABLE_KEY }}
+
+      - name: Wait for isolated preview custom domains
+        run: |
+          for url in \
+            "https://api.pr-${{ github.event.pull_request.number }}.preview.soundkit.bio/health" \
+            "https://pr-${{ github.event.pull_request.number }}.preview.soundkit.bio" \
+            "https://bio.pr-${{ github.event.pull_request.number }}.preview.soundkit.bio"
+          do
+            curl --fail --silent --show-error --max-time 10 \
+              --retry 12 --retry-all-errors --retry-delay 5 --retry-max-time 90 \
+              --output /dev/null "$url"
+          done
+
+      - name: Verify preview sessions and media against synthetic staging
+        run: node scripts/staging-smoke.mjs --stage pr-${{ github.event.pull_request.number }}
+        env:
+          SOUNDKIT_E2E_ARTIST_EMAIL: ${{ secrets.SOUNDKIT_E2E_ARTIST_EMAIL }}
+          SOUNDKIT_E2E_ARTIST_PASSWORD: ${{ secrets.SOUNDKIT_E2E_ARTIST_PASSWORD }}
+          SOUNDKIT_E2E_FAN_EMAIL: ${{ secrets.SOUNDKIT_E2E_FAN_EMAIL }}
+          SOUNDKIT_E2E_FAN_PASSWORD: ${{ secrets.SOUNDKIT_E2E_FAN_PASSWORD }}
 
       - name: Record preview URLs
         id: urls
         run: |
-          WEB_URL="https://soundkit-web-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
-          API_URL="https://api-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
-          BIO_URL="https://bio-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
-          CI_WEB_URL="https://soundkit-web-pr-${{ github.event.pull_request.number }}.rocktown-labs.workers.dev"
-          CI_API_URL="https://soundkit-server-pr-${{ github.event.pull_request.number }}.rocktown-labs.workers.dev"
-          CI_BIO_URL="https://soundkit-bio-pr-${{ github.event.pull_request.number }}.rocktown-labs.workers.dev"
+          WEB_URL="https://pr-${{ github.event.pull_request.number }}.preview.soundkit.bio"
+          API_URL="https://api.pr-${{ github.event.pull_request.number }}.preview.soundkit.bio"
+          BIO_URL="https://bio.pr-${{ github.event.pull_request.number }}.preview.soundkit.bio"
+          # Exercise the custom domains used by auth/SSR, including cookie scope.
+          CI_WEB_URL="$WEB_URL"
+          CI_API_URL="$API_URL"
+          CI_BIO_URL="$BIO_URL"
           echo "web_url=$WEB_URL" >> "$GITHUB_OUTPUT"
           echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
           echo "bio_url=$BIO_URL" >> "$GITHUB_OUTPUT"
@@ -598,7 +558,12 @@ jobs:
     name: Destroy Preview
     if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository && vars.ENABLE_PREVIEW_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
-    environment: preview
+    environment: staging
+    env:
+      SOUNDKIT_ISOLATION_MODE: enforce
+      SOUNDKIT_DATABASE_TARGET: rocktownlabs/soundkit/staging
+      SOUNDKIT_MEDIA_BUCKET_NAME: soundkit-media-staging
+      SOUNDKIT_EXTERNAL_EFFECTS_MODE: disabled
     permissions:
       contents: read
     steps:
@@ -634,29 +599,10 @@ jobs:
           done
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-          CLOUDFLARE_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
-          CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
-          RECORDINGS_ACCESS_KEY_ID: ${{ secrets.RECORDINGS_ACCESS_KEY_ID }}
-          RECORDINGS_SECRET_ACCESS_KEY: ${{ secrets.RECORDINGS_SECRET_ACCESS_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GOOGLE_EMBEDDING_MODEL: ${{ vars.GOOGLE_EMBEDDING_MODEL }}
-          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
-          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
-          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
-          MUX_WEBHOOK_SECRET: ${{ secrets.MUX_WEBHOOK_SECRET }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          STEMSPLIT_API_KEY: ${{ secrets.STEMSPLIT_API_KEY }}
-          STEMSPLIT_WEBHOOK_SECRET: ${{ secrets.STEMSPLIT_WEBHOOK_SECRET }}
-          STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID }}
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          STRIPE_BETTER_AUTH_WEBHOOK_SECRET: ${{ secrets.STRIPE_BETTER_AUTH_WEBHOOK_SECRET }}
-          STRIPE_COMMERCE_WEBHOOK_SECRET: ${{ secrets.STRIPE_COMMERCE_WEBHOOK_SECRET }}
-          STRIPE_CONNECT_WEBHOOK_SECRET: ${{ secrets.STRIPE_CONNECT_WEBHOOK_SECRET }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          MEDIA_SIGNING_SECRET: ${{ secrets.MEDIA_SIGNING_SECRET }}
 
       - name: Sweep leaked preview resources
         # A preview deploy that fails partway leaves cloud resources that
