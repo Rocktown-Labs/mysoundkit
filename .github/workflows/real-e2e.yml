@@ -1,0 +1,64 @@
+name: Real Backend Staging Journeys
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20 6 * * *"
+
+concurrency:
+  group: soundkit-staging-real-journeys
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  journeys:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 15
+    env:
+      SOUNDKIT_ISOLATION_MODE: enforce
+      SOUNDKIT_DATABASE_TARGET: rocktownlabs/soundkit/staging
+      SOUNDKIT_MEDIA_BUCKET_NAME: soundkit-media-staging
+      SOUNDKIT_EXTERNAL_EFFECTS_MODE: disabled
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PLAYWRIGHT_API_URL: https://api.staging.soundkit.bio
+      PLAYWRIGHT_BASE_URL: https://staging.soundkit.bio
+      SOUNDKIT_E2E_ARTIST_EMAIL: ${{ secrets.SOUNDKIT_E2E_ARTIST_EMAIL }}
+      SOUNDKIT_E2E_ARTIST_PASSWORD: ${{ secrets.SOUNDKIT_E2E_ARTIST_PASSWORD }}
+      SOUNDKIT_E2E_FAN_EMAIL: ${{ secrets.SOUNDKIT_E2E_FAN_EMAIL }}
+      SOUNDKIT_E2E_FAN_PASSWORD: ${{ secrets.SOUNDKIT_E2E_FAN_PASSWORD }}
+      SOUNDKIT_REAL_E2E: "true"
+      # No provider keys. Commerce stays explicitly skipped until #528.
+      SOUNDKIT_E2E_EXPECT_CHECKOUT: "false"
+      SOUNDKIT_E2E_EXPECT_PREMIUM_CHECKOUT: "false"
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify actual synthetic staging database identity
+        run: node scripts/deployment-preflight.mjs --stage staging --mode enforce --check-database
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run isolated real browser journeys
+        run: pnpm exec playwright test tests/e2e/real-backend.spec.ts --project=chromium --reporter=list
+
+      - name: Report journey scope
+        if: always()
+        run: |
+          echo "Real browser/session/Bio/media checks target synthetic staging only." >> "$GITHUB_STEP_SUMMARY"
+          echo "Commerce is explicitly skipped until SoundKit sandbox setup in #528." >> "$GITHUB_STEP_SUMMARY"

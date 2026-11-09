@@ -1,5 +1,9 @@
+/* oxlint-disable one-var, sort-vars -- Sequential browser steps keep each assertion beside its dependent request. */
 import { expect, test } from "@playwright/test";
 import type { APIRequestContext, Page } from "@playwright/test";
+
+import { deploymentPreflight } from "../../scripts/deployment-preflight.mjs";
+import { assertRealE2eTarget } from "../../scripts/real-e2e-target.mjs";
 
 interface JsonResponse<T> {
   body: T;
@@ -49,9 +53,7 @@ interface CheckoutResponse {
 }
 
 // ggignore-next-line
-const e2eArtistPassKey = ["SOUNDKIT", "E2E", "ARTIST", "PASSWORD"].join(
-  "_"
-);
+const e2eArtistPassKey = ["SOUNDKIT", "E2E", "ARTIST", "PASSWORD"].join("_");
 // ggignore-next-line
 const e2eFanPassKey = ["SOUNDKIT", "E2E", "FAN", "PASSWORD"].join("_");
 const requiredEnvNames = [
@@ -64,6 +66,9 @@ const requiredEnvNames = [
 ] as const;
 
 const realE2eEnabled = process.env.SOUNDKIT_REAL_E2E === "true";
+if (realE2eEnabled) {
+  assertRealE2eTarget(process.env);
+}
 const missingEnv = requiredEnvNames.filter((name) => !process.env[name]);
 const apiBaseUrl = process.env.PLAYWRIGHT_API_URL?.replace(/\/+$/u, "") ?? "";
 const searchState = process.env.SOUNDKIT_E2E_SEARCH_STATE ?? "AR";
@@ -124,9 +129,9 @@ const login = async ({
   password: string;
 }) => {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: /sign in/iu }).click();
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: /^sign in$/iu }).click();
   await expect(page).toHaveURL(/\/dashboard/u);
 };
 
@@ -170,9 +175,91 @@ test.describe("real backend artist and fan smoke flow", () => {
 
   test.describe.configure({ mode: "serial" });
 
+  test.beforeAll(async () => {
+    const report = await deploymentPreflight({
+      checkDatabase: true,
+      mode: "enforce",
+      stage: "staging",
+    });
+    expect(
+      report.passed,
+      "Actual synthetic staging database identity required"
+    ).toBe(true);
+  });
+
+  test.afterEach(async ({ page }) => {
+    const response = await page
+      .context()
+      .request.post(`${apiBaseUrl}/auth/sign-out`, {
+        data: {},
+        headers: { origin: realE2eEnv.webBaseUrl },
+      });
+    expect(response.ok(), "Synthetic session cleanup failed").toBe(true);
+  });
+
+  test("synthetic browser login and Bio access preserve media permissions across account switch", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const { request } = page.context();
+    await login({
+      email: realE2eEnv.artistEmail,
+      page,
+      password: realE2eEnv.artistPassword,
+    });
+    const artist = await apiJson<MeResponse>({ path: "/v1/me", request });
+    expectOk(artist, "synthetic artist identity");
+    expect(artist.body.user.id).toBe("staging-fixture-v1-artist");
+    const privateMedia = await request.get(
+      `${apiBaseUrl}/v1/tracks/staging-fixture-v1-track-private/playback`,
+      { headers: { range: "bytes=0-43" } }
+    );
+    expect(privateMedia.status()).toBe(206);
+    const privateBytes = await privateMedia.body();
+    expect(privateBytes.toString("ascii", 0, 4)).toBe("RIFF");
+    await page.goto("https://bio.staging.soundkit.bio/staging-fixture-artist");
+    await expect(page.locator("body")).toContainText("Fixture artist");
+    const bioSession = await request.get(`${apiBaseUrl}/auth/get-session`);
+    const bioSessionData = await bioSession.json();
+    expect(bioSessionData.user.id).toBe("staging-fixture-v1-artist");
+    const logout = await request.post(`${apiBaseUrl}/auth/sign-out`, {
+      data: {},
+      headers: { origin: realE2eEnv.webBaseUrl },
+    });
+    expect(logout.ok()).toBe(true);
+    const revokedSession = await request.get(`${apiBaseUrl}/auth/get-session`);
+    expect(await revokedSession.json()).toBeNull();
+    await login({
+      email: realE2eEnv.fanEmail,
+      page,
+      password: realE2eEnv.fanPassword,
+    });
+    const fan = await apiJson<MeResponse>({ path: "/v1/me", request });
+    expectOk(fan, "synthetic fan identity");
+    expect(fan.body.user.id).toBe("staging-fixture-v1-fan");
+    for (const kind of ["private", "paid"]) {
+      const denied = await request.get(
+        `${apiBaseUrl}/v1/tracks/staging-fixture-v1-track-${kind}/playback`,
+        { headers: { range: "bytes=0-43" } }
+      );
+      expect(denied.status()).toBe(403);
+    }
+    const free = await request.get(
+      `${apiBaseUrl}/v1/tracks/staging-fixture-v1-track-free/playback`,
+      { headers: { range: "bytes=0-43" } }
+    );
+    expect(free.status()).toBe(206);
+    const freeBytes = await free.body();
+    expect(freeBytes.length).toBe(44);
+  });
+
   test("artist content can be created, discovered, and added to a fan cart", async ({
     page,
   }) => {
+    test.skip(
+      process.env.SOUNDKIT_E2E_EXPECT_CHECKOUT !== "true",
+      "Commerce journey requires verified SoundKit Stripe sandbox setup (#528)."
+    );
     const { request } = page.context();
     const health = await apiJson<{
       database: string;
@@ -231,20 +318,6 @@ test.describe("real backend artist and fan smoke flow", () => {
       path: "/v1/tracks",
       request,
     });
-
-    expect([201, 403], `track create: ${JSON.stringify(track.body)}`).toContain(
-      track.status
-    );
-
-    if (track.status === 403) {
-      expect(JSON.stringify(track.body)).toContain("Stripe Connect");
-      test.info().annotations.push({
-        description:
-          "Artist account can sign in, but seller onboarding is required before creating for-sale tracks.",
-        type: "payment-setup",
-      });
-      return;
-    }
 
     expectCreated(track, "track create");
     expect(track.body.title).toBe(trackTitle);

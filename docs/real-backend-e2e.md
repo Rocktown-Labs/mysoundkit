@@ -1,54 +1,46 @@
-# Real Backend E2E
+# Real backend browser journeys
 
-Use this suite after creating one artist account and one fan account in the target environment.
+The real suite targets **synthetic staging only**. It is separate from production
+release deployment; production URL fallbacks and production fixture credentials
+are no longer used. Never enable a mutation suite against production.
 
-## Required Setup
+## Workflow
 
-1. Apply migrations against the target database.
+`Real Backend Staging Journeys` runs manually and nightly on one serialized
+staging lane. It checks the actual database identity marker before launching
+Chromium, then repeats that preflight in the suite. The workflow binds staging
+runtime credentials and reserved synthetic accounts, with no payment, email or
+fulfillment provider keys. It never pushes schema or deploys infrastructure.
 
-   ```sh
-   DATABASE_URL="postgresql://..." bun run db:migrate
-   ```
+The always-on journey uses the real web login forms and API. It checks the
+artist identity and private media access, the Bio profile/shared session, logout,
+and fan account switching with private/paid-media denial and free WAV playback.
+Sessions are signed out in cleanup. It does not upload media, create purchases,
+or prove native playback/PiP.
 
-2. Run or deploy the real API and web app.
+The separate legacy commerce/content journey is **explicitly skipped** until
+SoundKit sandbox setup (#528) is verified. A skipped provider case is not payment
+sign-off. Strict commerce runs require test credentials/mode and must fail if
+seller setup prevents track creation; they cannot return green early. Before
+activating that journey in CI, complete its provider setup and bounded cleanup
+for the content/cart records it creates.
 
-   The web app must point at the API through `VITE_SERVER_URL`, and the API must allow the web origin through `CORS_ORIGIN`.
+## Local invocation against staging
 
-3. Finish onboarding for both test users.
-
-   The artist user must have:
-   - `accountType: artist`
-   - completed onboarding
-   - Arkansas or target-state profile data if testing `SOUNDKIT_E2E_SEARCH_STATE=AR`
-
-   The fan user must have:
-   - `accountType: fan`
-   - completed onboarding
-
-4. Optional for strict checkout validation: complete Stripe Connect setup for the artist and set `SOUNDKIT_E2E_EXPECT_CHECKOUT=true`.
-
-## Environment
-
-Copy `tests/e2e/real-backend.env.example` into your shell or env manager and fill it in:
-
-```sh
-export SOUNDKIT_REAL_E2E=true
-export PLAYWRIGHT_BASE_URL="https://your-web-url"
-export PLAYWRIGHT_API_URL="https://your-api-url"
-export SOUNDKIT_E2E_ARTIST_EMAIL="artist@example.com"
-export SOUNDKIT_E2E_ARTIST_PASSWORD="..."
-export SOUNDKIT_E2E_FAN_EMAIL="fan@example.com"
-export SOUNDKIT_E2E_FAN_PASSWORD="..."
-export SOUNDKIT_E2E_SEARCH_STATE="AR"
-export SOUNDKIT_E2E_EXPECT_CHECKOUT=false
-```
-
-## Run
+Use `tests/e2e/real-backend.env.example` through a private environment manager.
+Supply the approved staging `DATABASE_URL` and the existing synthetic artist/fan
+passwords; do not paste secrets into logs or commit filled-in environment files.
 
 ```sh
 bun run test:e2e:real
 ```
 
-The test creates uniquely named public track, open verse, EP project, and listening party records, then signs in as the fan, searches for the track, adds it to cart, and reaches the checkout boundary.
+The guard requires exact staging API/web URLs, staging database/media labels,
+disabled external effects and the seeded `@example.test` identities. Missing
+configuration, production/arbitrary hosts and non-test Stripe keys are rejected
+before any browser requests. There is no generic production or local override.
 
-If `SOUNDKIT_E2E_EXPECT_CHECKOUT=false`, checkout may pass with either a Stripe URL or a seller-setup response. Set it to `true` only when Stripe test-mode checkout is expected to be fully live.
+The ordinary fast browser suite remains mocked and does not require these keys.
+Preview deploys separately run their real cookie/media checks against each PR's
+isolated domains. Schema provisioning follows [staging bootstrap](staging-environment.md)
+and [database release policy](database-releases.md), not ad-hoc schema push.
