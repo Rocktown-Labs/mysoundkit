@@ -21,6 +21,8 @@
 
 ### Fixed
 
+- Assert exact artist and fan landing routes in real staging login journeys, preserving fixture identity and media authorization checks (#540).
+
 - Allow a bounded three-minute wait per new preview domain after observed certificate propagation delays, preserving TLS validation (#538).
 
 - Move real-backend journeys off production into guarded, serialized synthetic staging, add browser/Bio/account-switch media checks, and explicitly gate unconfigured commerce (#538).

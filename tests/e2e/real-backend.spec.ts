@@ -121,10 +121,12 @@ const expectCreated = <T>(response: JsonResponse<T>, label: string) => {
 
 const login = async ({
   email,
+  landingPath,
   page,
   password,
 }: {
   email: string;
+  landingPath: "/dashboard" | "/library/settings";
   page: Page;
   password: string;
 }) => {
@@ -132,7 +134,7 @@ const login = async ({
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: /^sign in$/iu }).click();
-  await expect(page).toHaveURL(/\/dashboard/u);
+  await expect(page).toHaveURL(`${realE2eEnv.webBaseUrl}${landingPath}`);
 };
 
 const expectCheckoutPreflight = (
@@ -204,6 +206,7 @@ test.describe("real backend artist and fan smoke flow", () => {
     const { request } = page.context();
     await login({
       email: realE2eEnv.artistEmail,
+      landingPath: "/dashboard",
       page,
       password: realE2eEnv.artistPassword,
     });
@@ -233,6 +236,7 @@ test.describe("real backend artist and fan smoke flow", () => {
     expect(await revokedSession.json()).toBeNull();
     await login({
       email: realE2eEnv.fanEmail,
+      landingPath: "/library/settings",
       page,
       password: realE2eEnv.fanPassword,
     });
@@ -276,6 +280,7 @@ test.describe("real backend artist and fan smoke flow", () => {
 
     await login({
       email: realE2eEnv.artistEmail,
+      landingPath: "/dashboard",
       page,
       password: realE2eEnv.artistPassword,
     });
@@ -400,6 +405,7 @@ test.describe("real backend artist and fan smoke flow", () => {
 
     await login({
       email: realE2eEnv.fanEmail,
+      landingPath: "/library/settings",
       page,
       password: realE2eEnv.fanPassword,
     });
