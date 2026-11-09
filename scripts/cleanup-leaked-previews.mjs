@@ -29,6 +29,7 @@
 
 import { execFileSync } from "node:child_process";
 
+import { previewHostPr } from "./preview-hosts.mjs";
 import { collectClosedPreviewHyperdrives } from "./preview-hyperdrives.mjs";
 
 const API = "https://api.cloudflare.com/client/v4",
@@ -40,7 +41,6 @@ const API = "https://api.cloudflare.com/client/v4",
   // Everything this script may touch must be a soundkit preview resource:
   // a soundkit-prefixed name ending in the preview stage suffix.
   PREVIEW_NAME_PATTERN = /^soundkit-.*-pr-(\d+)$/,
-  PREVIEW_HOST_PATTERN = /-pr-(\d+)\.(mysoundkit\.com|soundkit\.bio)$/,
   // R2/D1 instances with objects can only be deleted after a bounded purge
   // (the REST API deletes one object per call); refuse to touch anything
   // with more stored objects than this.
@@ -167,10 +167,7 @@ const main = async () => {
     "custom domains",
     await cf(`/workers/domains`),
     (d) => d.hostname,
-    (d) => {
-      const m = PREVIEW_HOST_PATTERN.exec(d.hostname);
-      return m ? Number(m[1]) : null;
-    }
+    (d) => previewHostPr(d.hostname)
   );
 
   // ---- 2. Worker scripts --------------------------------------------------
