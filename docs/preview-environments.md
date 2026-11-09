@@ -22,7 +22,7 @@ This prevents an older branch from deleting or reverting columns introduced by a
 
 ## Monitoring
 
-Sentry events use `production` for the production stage, `development` locally, and the Alchemy stage name such as `pr-83` for pull-request previews. A `soundkit-web-pr-*`, `bio-pr-*`, or `api-pr-*` URL is not a production request even if it uses production-like data.
+Sentry environments use `production` for production and the Alchemy stage name such as `pr-83` for previews when telemetry is configured. Preview web/API/Bio hosts are `pr-N.preview.soundkit.bio`, `api.pr-N.preview.soundkit.bio` and `bio.pr-N.preview.soundkit.bio`. They use synthetic staging data; legacy `*-pr-N.mysoundkit.com` links are retired.
 
 ## Incident recovery
 
@@ -34,20 +34,19 @@ If a stale preview has already changed the shared schema:
 4. Redeploy the affected preview after restoration.
 5. Exercise the failed endpoints directly before resuming feature testing.
 
-## Isolation cutover (#513, #515)
+## Enforced isolation (#513, #515, #534)
 
-The existing shared database/media policy above remains in effect until staging
-is provisioned and cut over. Resource names alone do not establish isolation.
-CI currently runs `scripts/deployment-preflight.mjs` in **report** mode: unsafe
-bindings produce `passed:false` with bounded reason codes, but do not break the
-existing preview while replacement resources are being prepared.
+Ordinary PR previews now use the staging database/media with mandatory
+`scripts/deployment-preflight.mjs --mode enforce --check-database` before
+resource changes. A mismatch blocks deployment. Report mode remains available
+for diagnostics; it is not the preview deployment policy.
 
 The shared environment manifest in `packages/infra/deployment-environment.mjs`
 recognizes prod, staging, pr-N and local development. Local development takes
 precedence over a prod profile for analytics and scheduled jobs. Current remote
 production names and bindings are unchanged.
 
-Before switching to enforce mode:
+When provisioning another isolated environment:
 
 1. Create a nonproduction database from reviewed schema and synthetic fixtures;
    use one persistent staging branch initially and cap temporary PR branches.
@@ -141,6 +140,11 @@ custom-domain API before reporting deployment success. The synthetic artist/fan
 checks enforce the PR cookie prefix/domain, real media ranges, restricted media
 boundaries and immediate logout revocation. The script refuses production,
 local and arbitrary-host targets. Browser checks use these same custom domains.
+
+Cleanup grants its job token only repository contents/PR read permissions. It
+verifies the PR is readable and closed before destruction, and the best-effort
+leak sweep runs only after that eligibility check succeeds. An unreadable PR
+state fails the job instead of silently skipping every candidate.
 
 Closing a PR destroys its owned Workers/queues/recordings and drops its references
 to staging media, upload credentials and Hyperdrive; those backing resources

@@ -25,7 +25,8 @@ pull-request-specific preview domains:
 
 - Production: `https://soundkit.bio`
 - Alias: `https://www.soundkit.bio`
-- Pull requests: `https://bio-pr-<number>.mysoundkit.com`
+- Staging: `https://bio.staging.soundkit.bio`
+- Pull requests: `https://bio.pr-<number>.preview.soundkit.bio`
 
 Alchemy provisions the production domain and alias for the SoundKit Bio platform.
 Set `SOUNDKIT_BIO_URL` only when overriding the generated origin in a local or preview environment.
