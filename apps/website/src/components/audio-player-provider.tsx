@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable one-var, sort-vars, react/set-state-in-effect */
 import {
   createContext,
   useCallback,
@@ -11,27 +12,16 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
-import { isStoredVideoMetadata } from "@/lib/player-media";
-import type { PlayerVideoMetadata } from "@/lib/player-media";
+import {
+  AUDIO_PLAYER_STORAGE_KEY,
+  appendRecentlyPlayed,
+  migrateLegacyPlayerStorage,
+  readStoredPlayerState,
+  sanitizePlayerStateForStorage,
+} from "@/lib/audio-player-storage";
+import type { PlayerRepeatMode, PlayerTrack } from "@/lib/audio-player-storage";
 
-const audioPlayerStorageKey = "soundkit.audio-player.v1",
-  recentlyPlayedLimit = 20;
-
-export interface PlayerTrack {
-  album?: string;
-  artist: string;
-  cover?: string | null;
-  autoplay?: boolean;
-  duration?: number | null;
-  id: string;
-  mediaType?: "audio" | "video";
-  video?: PlayerVideoMetadata;
-  src: string;
-  sourceType?: "battle" | "library" | "listening_party" | "vod";
-  artistHref?: string | null;
-  title: string;
-  trackHref?: string | null;
-}
+export type { PlayerTrack } from "@/lib/audio-player-storage";
 
 interface AudioPlayerContextValue {
   addToQueue: (track: PlayerTrack) => boolean;
@@ -41,92 +31,18 @@ interface AudioPlayerContextValue {
   queue: PlayerTrack[];
   recentlyPlayed: PlayerTrack[];
   registerTogglePlay: (fn: (() => void) | null) => void;
+  repeatMode: PlayerRepeatMode;
   setCurrentTrack: (track: PlayerTrack | null) => void;
-  repeatMode: "off" | "all" | "one";
-  setRepeatMode: (mode: "off" | "all" | "one") => void;
   setIsPlaying: (playing: boolean) => void;
   setQueue: (queue: PlayerTrack[]) => void;
+  setRepeatMode: (mode: PlayerRepeatMode) => void;
   setVisible: (visible: boolean) => void;
   togglePlay: () => void;
   visible: boolean;
 }
 
-const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null),
-  isPlayableSrc = (src: unknown): src is string =>
-    // blob: URLs die with the tab session that created them, so never restore
-    // them from localStorage (they render broken art and reject playback).
-    typeof src === "string" && src.length > 0 && !src.startsWith("blob:"),
-  isPlayerTrack = (value: unknown): value is PlayerTrack => {
-    if (!(value && typeof value === "object")) {
-      return false;
-    }
-
-    const track = value as Partial<PlayerTrack>;
-
-    return (
-      (track.mediaType === undefined ||
-        track.mediaType === "audio" ||
-        (track.mediaType === "video" && isStoredVideoMetadata(track.video))) &&
-      typeof track.artist === "string" &&
-      typeof track.id === "string" &&
-      isPlayableSrc(track.src) &&
-      typeof track.title === "string"
-    );
-  },
-  EMPTY_PLAYER_STATE = {
-    currentTrack: null as PlayerTrack | null,
-    queue: [] as PlayerTrack[],
-    recentlyPlayed: [] as PlayerTrack[],
-    repeatMode: "off" as "off" | "all" | "one",
-    visible: false,
-  },
-  readStoredPlayerState = (storageKey: string): typeof EMPTY_PLAYER_STATE => {
-    if (typeof window === "undefined") {
-      return EMPTY_PLAYER_STATE;
-    }
-
-    try {
-      window.localStorage.removeItem(audioPlayerStorageKey);
-      const raw = window.localStorage.getItem(storageKey);
-
-      if (!raw) {
-        return EMPTY_PLAYER_STATE;
-      }
-
-      const parsed = JSON.parse(raw) as {
-          currentTrack?: unknown;
-          queue?: unknown;
-          recentlyPlayed?: unknown;
-          visible?: unknown;
-          repeatMode?: unknown;
-        },
-        currentTrack = isPlayerTrack(parsed.currentTrack)
-          ? { ...parsed.currentTrack, autoplay: false }
-          : null,
-        queue = Array.isArray(parsed.queue)
-          ? parsed.queue.filter(isPlayerTrack)
-          : [],
-        recentlyPlayed = Array.isArray(parsed.recentlyPlayed)
-          ? parsed.recentlyPlayed
-              .filter(isPlayerTrack)
-              .slice(0, recentlyPlayedLimit)
-          : [];
-
-      return {
-        currentTrack,
-        queue,
-        recentlyPlayed,
-        // Only restore visibility when there is a playable track to show.
-        visible: parsed.visible === true && currentTrack !== null,
-        repeatMode:
-          parsed.repeatMode === "all" || parsed.repeatMode === "one"
-            ? parsed.repeatMode
-            : ("off" as const),
-      };
-    } catch {
-      return EMPTY_PLAYER_STATE;
-    }
-  };
+const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null);
+let hasMigratedLegacyStorage = false;
 
 export function AudioPlayerProvider({
   children,
@@ -135,26 +51,46 @@ export function AudioPlayerProvider({
   // Always initialize empty so the first client render matches the
   // server-rendered HTML; restore persisted state after mount instead,
   // otherwise hydration fails (React error #418) and the app crashes.
-  const storageKey = `${audioPlayerStorageKey}:${storageScope}`,
-    [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null),
-    [isPlaying, setIsPlaying] = useState(false),
-    [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off"),
-    [queue, setQueue] = useState<PlayerTrack[]>([]),
-    [recentlyPlayed, setRecentlyPlayed] = useState<PlayerTrack[]>([]),
-    [visible, setVisible] = useState(false),
-    [hasRestored, setHasRestored] = useState(false),
-    togglePlayRef = useRef<(() => void) | null>(null),
-    registerTogglePlay = useCallback((fn: (() => void) | null) => {
-      togglePlayRef.current = fn;
-    }, []),
-    togglePlay = useCallback(() => {
-      if (togglePlayRef.current) {
-        togglePlayRef.current();
-      }
-    }, []);
+  const storageKey = `${AUDIO_PLAYER_STORAGE_KEY}:${storageScope}`;
+  const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [repeatMode, setRepeatMode] = useState<PlayerRepeatMode>("off");
+  const [queue, setQueue] = useState<PlayerTrack[]>([]);
+  const [recentlyPlayed, setRecentlyPlayed] = useState<PlayerTrack[]>([]);
+  const [visible, setVisible] = useState(false);
+  const [hasRestored, setHasRestored] = useState(false);
+  const currentTrackRef = useRef<PlayerTrack | null>(null);
+  const queueRef = useRef<PlayerTrack[]>([]);
+  const togglePlayRef = useRef<(() => void) | null>(null);
+
+  const registerTogglePlay = useCallback((fn: (() => void) | null) => {
+    togglePlayRef.current = fn;
+  }, []);
+
+  const togglePlay = useCallback(() => {
+    if (togglePlayRef.current) {
+      togglePlayRef.current();
+    }
+  }, []);
+
+  const handleSetQueue = useCallback((nextQueue: PlayerTrack[]) => {
+    queueRef.current = nextQueue;
+    setQueue(nextQueue);
+  }, []);
 
   useEffect(() => {
-    const stored = readStoredPlayerState(storageKey);
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!hasMigratedLegacyStorage) {
+      migrateLegacyPlayerStorage(window.localStorage, storageKey);
+      hasMigratedLegacyStorage = true;
+    }
+
+    const stored = readStoredPlayerState(window.localStorage, storageKey);
+    currentTrackRef.current = stored.currentTrack;
+    queueRef.current = stored.queue;
     setCurrentTrack(stored.currentTrack);
     setQueue(stored.queue);
     setRecentlyPlayed(stored.recentlyPlayed);
@@ -164,21 +100,26 @@ export function AudioPlayerProvider({
   }, [storageKey]);
 
   useEffect(() => {
+    if (!visible) {
+      togglePlayRef.current = null;
+    }
+  }, [visible]);
+
+  useEffect(() => {
     if (!hasRestored || typeof window === "undefined") {
       return;
     }
 
     try {
-      window.localStorage.setItem(
-        storageKey,
-        JSON.stringify({
-          currentTrack,
-          queue,
-          recentlyPlayed,
-          repeatMode,
-          visible,
-        })
-      );
+      const persistable = sanitizePlayerStateForStorage({
+        currentTrack,
+        queue,
+        recentlyPlayed,
+        repeatMode,
+        visible,
+      });
+
+      window.localStorage.setItem(storageKey, JSON.stringify(persistable));
     } catch {
       // Storage quotas and private browsing must not stop active playback.
     }
@@ -192,69 +133,66 @@ export function AudioPlayerProvider({
     visible,
   ]);
 
-  const handleSetCurrentTrack = useCallback(
-      (track: PlayerTrack | null) => {
-        setCurrentTrack(track);
-        if (
-          track?.id !== currentTrack?.id ||
-          track?.src !== currentTrack?.src
-        ) {
-          setIsPlaying(false);
-        }
-        setVisible(Boolean(track));
-      },
-      [currentTrack]
-    ),
-    addToQueue = useCallback(
-      (track: PlayerTrack) => {
-        if (queue.some((item) => item.id === track.id)) {
-          return false;
-        }
-        setQueue((currentQueue) => [...currentQueue, track]);
-        return true;
-      },
-      [queue]
-    ),
-    markRecentlyPlayed = useCallback((track: PlayerTrack) => {
-      setRecentlyPlayed((currentHistory) =>
-        [track, ...currentHistory.filter((item) => item.id !== track.id)].slice(
-          0,
-          recentlyPlayedLimit
-        )
-      );
-    }, []),
-    value = useMemo(
-      () => ({
-        addToQueue,
-        currentTrack,
-        isPlaying,
-        markRecentlyPlayed,
-        queue,
-        recentlyPlayed,
-        registerTogglePlay,
-        repeatMode,
-        setCurrentTrack: handleSetCurrentTrack,
-        setIsPlaying,
-        setQueue,
-        setRepeatMode,
-        setVisible,
-        togglePlay,
-        visible,
-      }),
-      [
-        addToQueue,
-        currentTrack,
-        isPlaying,
-        handleSetCurrentTrack,
-        markRecentlyPlayed,
-        queue,
-        recentlyPlayed,
-        repeatMode,
-        registerTogglePlay,
-        togglePlay,
-        visible,
-      ]
+  const handleSetCurrentTrack = useCallback((track: PlayerTrack | null) => {
+    const previous = currentTrackRef.current;
+    currentTrackRef.current = track;
+    setCurrentTrack(track);
+    if (track?.id !== previous?.id || track?.src !== previous?.src) {
+      setIsPlaying(false);
+    }
+    setVisible(Boolean(track));
+  }, []);
+
+  const addToQueue = useCallback((track: PlayerTrack) => {
+    if (queueRef.current.some((item) => item.id === track.id)) {
+      return false;
+    }
+
+    const nextQueue = [...queueRef.current, track];
+    queueRef.current = nextQueue;
+    setQueue(nextQueue);
+    return true;
+  }, []);
+
+  const markRecentlyPlayed = useCallback((track: PlayerTrack) => {
+    setRecentlyPlayed((currentHistory) =>
+      appendRecentlyPlayed(currentHistory, track)
     );
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      addToQueue,
+      currentTrack,
+      isPlaying,
+      markRecentlyPlayed,
+      queue,
+      recentlyPlayed,
+      registerTogglePlay,
+      repeatMode,
+      setCurrentTrack: handleSetCurrentTrack,
+      setIsPlaying,
+      setQueue: handleSetQueue,
+      setRepeatMode,
+      setVisible,
+      togglePlay,
+      visible,
+    }),
+    [
+      addToQueue,
+      currentTrack,
+      isPlaying,
+      handleSetCurrentTrack,
+      handleSetQueue,
+      markRecentlyPlayed,
+      queue,
+      recentlyPlayed,
+      repeatMode,
+      registerTogglePlay,
+      togglePlay,
+      visible,
+    ]
+  );
 
   return (
     <AudioPlayerContext.Provider value={value}>
