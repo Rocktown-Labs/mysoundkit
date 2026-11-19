@@ -225,14 +225,15 @@ for (const pipKind of ["standard", "webkit"] as const) {
     await player.locator("video").evaluate((video, provider) => {
       video.dataset.queueIdentity = "hosted-original";
       const observedWindow = window as Window & {
-        __queuePipEvents?: number;
+        queuePipEvents?: number;
         traks?: (name: string) => void;
       };
-      observedWindow.__queuePipEvents = 0;
+      observedWindow.queuePipEvents = 0;
       observedWindow.traks = (name) => {
-        if (name === "pip_entered")
-          observedWindow.__queuePipEvents =
-            (observedWindow.__queuePipEvents ?? 0) + 1;
+        if (name === "pip_entered") {
+          observedWindow.queuePipEvents =
+            (observedWindow.queuePipEvents ?? 0) + 1;
+        }
       };
       Object.defineProperty(document, "pictureInPictureEnabled", {
         configurable: true,
@@ -273,8 +274,7 @@ for (const pipKind of ["standard", "webkit"] as const) {
     await expect
       .poll(() =>
         page.evaluate(
-          () =>
-            (window as Window & { __queuePipEvents?: number }).__queuePipEvents
+          () => (window as Window & { queuePipEvents?: number }).queuePipEvents
         )
       )
       .toBe(1);
@@ -288,8 +288,7 @@ for (const pipKind of ["standard", "webkit"] as const) {
       );
       expect(
         await page.evaluate(
-          () =>
-            (window as Window & { __queuePipEvents?: number }).__queuePipEvents
+          () => (window as Window & { queuePipEvents?: number }).queuePipEvents
         )
       ).toBe(1);
     }
@@ -308,6 +307,75 @@ for (const pipKind of ["standard", "webkit"] as const) {
     );
   });
 }
+
+test("legacy playback waits for the resolved authenticated session", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const { promise: sessionGate, resolve: releaseSession } =
+    Promise.withResolvers<undefined>();
+  await page.route("**/auth/get-session**", async (route) => {
+    await sessionGate;
+    await route.fulfill({
+      body: JSON.stringify({
+        session: {
+          expiresAt: "2027-01-01T00:00:00.000Z",
+          id: "session_player",
+          token: "test-token",
+          userId: "player-owner",
+        },
+        user: {
+          createdAt: "2026-01-01T00:00:00.000Z",
+          email: "player@example.com",
+          emailVerified: true,
+          id: "player-owner",
+          name: "Player Owner",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      }),
+      contentType: "application/json",
+    });
+  });
+  await page.addInitScript((item) => {
+    localStorage.setItem(
+      "soundkit.audio-player.v1",
+      JSON.stringify({ currentTrack: item, queue: [item], visible: true })
+    );
+  }, song);
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  try {
+    await expect(page.getByTestId("explore-page")).toHaveAttribute(
+      "data-hydrated",
+      "true",
+      { timeout: 60_000 }
+    );
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem("soundkit.audio-player.v1")
+      )
+    ).not.toBeNull();
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem("soundkit.audio-player.v1:anonymous")
+      )
+    ).toBeNull();
+  } finally {
+    releaseSession();
+  }
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const raw = localStorage.getItem(
+          "soundkit.audio-player.v1:player-owner"
+        );
+        return raw ? JSON.parse(raw).currentTrack?.id : null;
+      })
+    )
+    .toBe(song.id);
+  expect(
+    await page.evaluate(() => localStorage.getItem("soundkit.audio-player.v1"))
+  ).toBeNull();
+});
 
 test("anonymous player never restores another account or legacy private queue", async ({
   page,
@@ -351,8 +419,8 @@ test("unsupported external video offers its original source without a dead trans
     await route.fulfill({
       json: {
         ...video,
-        muxPlaybackId: null,
         externalPlaybackUrl: "https://vimeo.com/example",
+        muxPlaybackId: null,
       },
     });
   });

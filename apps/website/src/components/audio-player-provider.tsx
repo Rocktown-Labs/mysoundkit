@@ -20,6 +20,7 @@ import {
   sanitizePlayerStateForStorage,
 } from "@/lib/audio-player-storage";
 import type { PlayerRepeatMode, PlayerTrack } from "@/lib/audio-player-storage";
+import { reportError } from "@/lib/sentry-client";
 
 export type { PlayerRepeatMode, PlayerTrack } from "@/lib/audio-player-storage";
 
@@ -46,22 +47,28 @@ const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null);
 export function AudioPlayerProvider({
   children,
   storageScope = "anonymous",
-}: Readonly<{ children: ReactNode; storageScope?: string }>) {
+  storageReady = true,
+}: Readonly<{
+  children: ReactNode;
+  storageScope?: string;
+  storageReady?: boolean;
+}>) {
   // Always initialize empty so the first client render matches the
   // server-rendered HTML; restore persisted state after mount instead,
   // otherwise hydration fails (React error #418) and the app crashes.
-  const storageKey = `${AUDIO_PLAYER_STORAGE_KEY}:${storageScope}`,
-    [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null),
+  const storageKey = `${AUDIO_PLAYER_STORAGE_KEY}:${storageScope}`;
+  const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null),
     [isPlaying, setIsPlaying] = useState(false),
     [repeatMode, setRepeatMode] = useState<PlayerRepeatMode>("off"),
     [queue, setQueue] = useState<PlayerTrack[]>([]),
     [recentlyPlayed, setRecentlyPlayed] = useState<PlayerTrack[]>([]),
     [visible, setVisible] = useState(false),
-    [hasRestored, setHasRestored] = useState(false),
-    currentTrackRef = useRef<PlayerTrack | null>(null),
+    [hasRestored, setHasRestored] = useState(false);
+  const currentTrackRef = useRef<PlayerTrack | null>(null),
     queueRef = useRef<PlayerTrack[]>([]),
     togglePlayRef = useRef<(() => void) | null>(null),
-    registerTogglePlay = useCallback((fn: (() => void) | null) => {
+    restoredKeyRef = useRef<string | null>(null);
+  const registerTogglePlay = useCallback((fn: (() => void) | null) => {
       togglePlayRef.current = fn;
     }, []),
     togglePlay = useCallback(() => {
@@ -76,15 +83,17 @@ export function AudioPlayerProvider({
 
   // Post-mount hydration-safe restore from localStorage.
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (
+      !storageReady ||
+      restoredKeyRef.current === storageKey ||
+      typeof window === "undefined"
+    ) {
       return;
     }
 
     try {
       const storage = window.localStorage;
-      migrateLegacyPlayerStorage(storage, storageKey, {
-        removeLegacy: storageScope !== "anonymous",
-      });
+      migrateLegacyPlayerStorage(storage, storageKey);
 
       const stored = readStoredPlayerState(storage, storageKey);
       currentTrackRef.current = stored.currentTrack;
@@ -95,11 +104,14 @@ export function AudioPlayerProvider({
       setRecentlyPlayed(stored.recentlyPlayed);
       setRepeatMode(stored.repeatMode);
       setVisible(stored.visible);
-    } catch {
-      // localStorage may throw SecurityError in sandboxed/private contexts.
+    } catch (error) {
+      // Playback remains available when browser storage is inaccessible.
+      reportError(error);
+      return;
     }
+    restoredKeyRef.current = storageKey;
     setHasRestored(true);
-  }, [storageKey, storageScope]);
+  }, [storageKey, storageReady]);
 
   useEffect(() => {
     if (!hasRestored || typeof window === "undefined") {

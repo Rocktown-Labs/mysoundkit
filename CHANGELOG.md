@@ -21,6 +21,8 @@
 
 ### Fixed
 
+- Wait for authentication before restoring player storage and discard unowned legacy queues for anonymous sessions.
+
 - Reject browser-stripped tab and newline characters in persisted player URLs before validating relative paths.
 
 - Harden `AudioPlayerProvider` storage persistence and playback state: perform one-time legacy storage migration instead of dropping unscoped state on every read, return fresh empty state objects, use ref-backed guards for rapid `addToQueue` and `setCurrentTrack` calls, filter unplayable `blob:` tracks before persisting, and clear `togglePlayRef` when hidden (#547).

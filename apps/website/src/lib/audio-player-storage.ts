@@ -121,14 +121,11 @@ export function sanitizePlayerStateForStorage(
 
 export function migrateLegacyPlayerStorage(
   storage: Pick<Storage, "getItem" | "removeItem" | "setItem">,
-  scopedStorageKey: string,
-  options?: { removeLegacy?: boolean }
+  scopedStorageKey: string
 ): boolean {
   if (scopedStorageKey === AUDIO_PLAYER_STORAGE_KEY) {
     return false;
   }
-
-  const removeLegacy = options?.removeLegacy ?? true;
 
   try {
     const legacyRaw = storage.getItem(AUDIO_PLAYER_STORAGE_KEY);
@@ -136,13 +133,17 @@ export function migrateLegacyPlayerStorage(
       return false;
     }
 
+    // Unscoped history has no owner and must never enter an anonymous queue.
+    if (scopedStorageKey === `${AUDIO_PLAYER_STORAGE_KEY}:anonymous`) {
+      storage.removeItem(AUDIO_PLAYER_STORAGE_KEY);
+      return false;
+    }
+
     if (!storage.getItem(scopedStorageKey)) {
       storage.setItem(scopedStorageKey, legacyRaw);
     }
 
-    if (removeLegacy) {
-      storage.removeItem(AUDIO_PLAYER_STORAGE_KEY);
-    }
+    storage.removeItem(AUDIO_PLAYER_STORAGE_KEY);
     return true;
   } catch {
     return false;

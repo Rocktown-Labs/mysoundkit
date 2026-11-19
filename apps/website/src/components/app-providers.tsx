@@ -32,18 +32,6 @@ const AppDevtools =
           };
         })
       : null,
-  MusicPlayer = lazy(async () => {
-    const { MusicPlayer: Player } =
-      await import("@/components/explore/music-player");
-
-    return { default: Player };
-  }),
-  FloatingChatBar = lazy(async () => {
-    const { FloatingChatBar: ChatBar } =
-      await import("@/components/dashboard/floating-chat-bar");
-
-    return { default: ChatBar };
-  }),
   BattleQueueCta = lazy(async () => {
     const { BattleQueueCta: QueueCta } =
       await import("@/components/live/battle-queue-cta");
@@ -55,6 +43,18 @@ const AppDevtools =
       await import("@/components/live/battle-return-monitor");
 
     return { default: Monitor };
+  }),
+  FloatingChatBar = lazy(async () => {
+    const { FloatingChatBar: ChatBar } =
+      await import("@/components/dashboard/floating-chat-bar");
+
+    return { default: ChatBar };
+  }),
+  MusicPlayer = lazy(async () => {
+    const { MusicPlayer: Player } =
+      await import("@/components/explore/music-player");
+
+    return { default: Player };
   });
 
 function createScopedQueryClient(_scopeKey: string) {
@@ -88,7 +88,7 @@ function ClientDevtools() {
 }
 
 export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
-  const { data: session } = authClient.useSession(),
+  const { data: session, isPending: sessionPending } = authClient.useSession(),
     clientScopeKey = session?.user.id ?? "anonymous",
     queryClient = useMemo(
       () => createScopedQueryClient(clientScopeKey),
@@ -123,6 +123,7 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
                 <AudioPlayerProvider
                   key={clientScopeKey}
                   storageScope={clientScopeKey}
+                  storageReady={!sessionPending}
                 >
                   <CartProvider>{children}</CartProvider>
                   <Suspense fallback={null}>
