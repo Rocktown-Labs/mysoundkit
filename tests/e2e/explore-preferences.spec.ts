@@ -25,6 +25,12 @@ test("saved explore preferences restore after hydration", async ({ page }) => {
       "Viewing music stats focused on Arkansas. Click another region or switch map scope."
     )
   ).toBeVisible();
+  await page
+    .getByRole("button", { exact: true, name: "Reset to Global View" })
+    .click();
+  await expect(
+    page.getByText("Personalize your local scene", { exact: true })
+  ).toBeVisible();
   expect(
     errors.filter((message) => HYDRATION_ERROR_PATTERN.test(message))
   ).toEqual([]);

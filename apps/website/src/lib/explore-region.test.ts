@@ -83,6 +83,11 @@ describe("Explore region state", () => {
 
   it("formats region slugs into readable display labels without altering labels", () => {
     expect(formatExploreRegionDisplayName("new-york")).toBe("New York");
+    expect(formatExploreRegionDisplayName("us-ca", "usa")).toBe("California");
+    expect(formatExploreRegionDisplayName("US-DC", "usa")).toBe(
+      "District of Columbia"
+    );
+    expect(formatExploreRegionDisplayName("AR", "usa")).toBe("Arkansas");
     expect(formatExploreRegionDisplayName("us-california", "usa")).toBe(
       "California"
     );

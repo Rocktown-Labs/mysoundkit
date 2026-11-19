@@ -1,6 +1,7 @@
 /* eslint-disable one-var, sort-vars, no-nested-ternary */
 import { mapScopes } from "./map-scopes";
 import type { MapScope } from "./map-scopes";
+import { US_STATE_NAMES } from "./us-state-names";
 
 export type ExploreRegionType = "global" | "north-america";
 
@@ -66,6 +67,23 @@ export const regionTypeForMapScope = (mapScope: MapScope): ExploreRegionType =>
 export const mapScopeLabel = (mapScope: MapScope): string =>
   mapScopes.find((scope) => scope.id === mapScope)?.label ?? "SoundKit";
 
+const inferExploreRegionType = (
+  region: string | null,
+  scope?: MapScope
+): ExploreRegionType => {
+  if (scope) {
+    return regionTypeForMapScope(scope);
+  }
+  if (
+    region &&
+    exploreRegionSlug(region) !== "all" &&
+    !mapScopeFromValue(region)
+  ) {
+    return "north-america";
+  }
+  return "global";
+};
+
 export const resolveInitialExploreRegion = ({
   savedMapScope,
   savedRegion,
@@ -85,13 +103,7 @@ export const resolveInitialExploreRegion = ({
       (savedRegionType === "global" || savedRegionType === "north-america"
         ? savedRegionType
         : undefined) ??
-      (explicitScope
-        ? regionTypeForMapScope(explicitScope)
-        : region &&
-            exploreRegionSlug(region) !== "all" &&
-            !mapScopeFromValue(region)
-          ? "north-america"
-          : "global"),
+      inferExploreRegionType(region, explicitScope),
     normalizedRegion = region ? exploreRegionSlug(region) : "all",
     inferredScope =
       explicitScope ??
@@ -165,6 +177,14 @@ export const formatExploreRegionDisplayName = (
   const trimmed = normalizeRegionInput(value);
   if (!trimmed) {
     return null;
+  }
+
+  if (scope === "usa") {
+    const postalCode = trimmed.toUpperCase().replace(/^US-/u, "");
+    const stateName = US_STATE_NAMES[postalCode];
+    if (stateName) {
+      return stateName;
+    }
   }
 
   if (!REGION_SLUG_PATTERN.test(trimmed)) {
