@@ -89,6 +89,34 @@ describe("audio-player-storage", () => {
     expect(storage.getItem(AUDIO_PLAYER_STORAGE_KEY)).toBeNull();
   });
 
+  it("retains legacy data across initial anonymous mount until authenticated scope migrates", () => {
+    const anonymousKey = `${AUDIO_PLAYER_STORAGE_KEY}:anonymous`,
+      payload = JSON.stringify({
+        currentTrack: sampleTrack,
+        queue: [sampleTrack],
+        recentlyPlayed: [],
+        repeatMode: "off",
+        visible: true,
+      }),
+      storage = createMemoryStorage({
+        [AUDIO_PLAYER_STORAGE_KEY]: payload,
+      }),
+      userKey = `${AUDIO_PLAYER_STORAGE_KEY}:user-42`;
+
+    expect(
+      migrateLegacyPlayerStorage(storage, anonymousKey, { removeLegacy: false })
+    ).toBe(true);
+    expect(storage.getItem(AUDIO_PLAYER_STORAGE_KEY)).toBe(payload);
+
+    expect(
+      migrateLegacyPlayerStorage(storage, userKey, { removeLegacy: true })
+    ).toBe(true);
+    expect(storage.getItem(AUDIO_PLAYER_STORAGE_KEY)).toBeNull();
+    expect(readStoredPlayerState(storage, userKey).currentTrack?.id).toBe(
+      sampleTrack.id
+    );
+  });
+
   it("strips unplayable blob: tracks before persisting to storage", () => {
     const sanitized = sanitizePlayerStateForStorage({
       currentTrack: blobTrack,

@@ -42,7 +42,7 @@ interface AudioPlayerContextValue {
 }
 
 const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null);
-let hasMigratedLegacyStorage = false;
+const migratedStorageKeys = new Set<string>();
 
 export function AudioPlayerProvider({
   children,
@@ -83,9 +83,11 @@ export function AudioPlayerProvider({
       return;
     }
 
-    if (!hasMigratedLegacyStorage) {
-      migrateLegacyPlayerStorage(window.localStorage, storageKey);
-      hasMigratedLegacyStorage = true;
+    if (!migratedStorageKeys.has(storageKey)) {
+      migrateLegacyPlayerStorage(window.localStorage, storageKey, {
+        removeLegacy: storageScope !== "anonymous",
+      });
+      migratedStorageKeys.add(storageKey);
     }
 
     const stored = readStoredPlayerState(window.localStorage, storageKey);
@@ -97,13 +99,7 @@ export function AudioPlayerProvider({
     setRepeatMode(stored.repeatMode);
     setVisible(stored.visible);
     setHasRestored(true);
-  }, [storageKey]);
-
-  useEffect(() => {
-    if (!visible) {
-      togglePlayRef.current = null;
-    }
-  }, [visible]);
+  }, [storageKey, storageScope]);
 
   useEffect(() => {
     if (!hasRestored || typeof window === "undefined") {

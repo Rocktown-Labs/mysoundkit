@@ -85,8 +85,11 @@ export function sanitizePlayerStateForStorage(
 
 export function migrateLegacyPlayerStorage(
   storage: Pick<Storage, "getItem" | "removeItem" | "setItem">,
-  scopedStorageKey: string
+  scopedStorageKey: string,
+  options?: { removeLegacy?: boolean }
 ): boolean {
+  const removeLegacy = options?.removeLegacy ?? true;
+
   try {
     const legacyRaw = storage.getItem(AUDIO_PLAYER_STORAGE_KEY);
     if (!legacyRaw) {
@@ -97,7 +100,9 @@ export function migrateLegacyPlayerStorage(
       storage.setItem(scopedStorageKey, legacyRaw);
     }
 
-    storage.removeItem(AUDIO_PLAYER_STORAGE_KEY);
+    if (removeLegacy) {
+      storage.removeItem(AUDIO_PLAYER_STORAGE_KEY);
+    }
     return true;
   } catch {
     return false;
