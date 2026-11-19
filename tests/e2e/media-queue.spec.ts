@@ -308,74 +308,95 @@ for (const pipKind of ["standard", "webkit"] as const) {
   });
 }
 
-test("legacy playback waits for the resolved authenticated session", async ({
-  page,
-}) => {
-  test.setTimeout(90_000);
-  const { promise: sessionGate, resolve: releaseSession } =
-    Promise.withResolvers<undefined>();
-  await page.route("**/auth/get-session**", async (route) => {
-    await sessionGate;
-    await route.fulfill({
-      body: JSON.stringify({
-        session: {
-          expiresAt: "2027-01-01T00:00:00.000Z",
-          id: "session_player",
-          token: "test-token",
-          userId: "player-owner",
-        },
-        user: {
-          createdAt: "2026-01-01T00:00:00.000Z",
-          email: "player@example.com",
-          emailVerified: true,
-          id: "player-owner",
-          name: "Player Owner",
-          updatedAt: "2026-01-01T00:00:00.000Z",
-        },
-      }),
-      contentType: "application/json",
+for (const sessionScenario of [
+  "delayed authentication",
+  "a transient session failure",
+]) {
+  test(`legacy playback survives ${sessionScenario}`, async ({ page }) => {
+    test.setTimeout(90_000);
+    const { promise: sessionGate, resolve: releaseSession } =
+      Promise.withResolvers<undefined>();
+    let sessionFailed = false;
+    await page.route("**/auth/get-session**", async (route) => {
+      if (sessionScenario === "a transient session failure" && !sessionFailed) {
+        sessionFailed = true;
+        await route.fulfill({
+          body: JSON.stringify({ message: "Temporarily unavailable" }),
+          contentType: "application/json",
+          status: 503,
+        });
+        return;
+      }
+      await sessionGate;
+      await route.fulfill({
+        body: JSON.stringify({
+          session: {
+            expiresAt: "2027-01-01T00:00:00.000Z",
+            id: "session_player",
+            token: "test-token",
+            userId: "player-owner",
+          },
+          user: {
+            createdAt: "2026-01-01T00:00:00.000Z",
+            email: "player@example.com",
+            emailVerified: true,
+            id: "player-owner",
+            name: "Player Owner",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        }),
+        contentType: "application/json",
+      });
     });
-  });
-  await page.addInitScript((item) => {
-    localStorage.setItem(
-      "soundkit.audio-player.v1",
-      JSON.stringify({ currentTrack: item, queue: [item], visible: true })
-    );
-  }, song);
-  await page.goto("/", { waitUntil: "domcontentloaded" });
-  try {
-    await expect(page.getByTestId("explore-page")).toHaveAttribute(
-      "data-hydrated",
-      "true",
-      { timeout: 60_000 }
-    );
+    await page.addInitScript((item) => {
+      localStorage.setItem(
+        "soundkit.audio-player.v1",
+        JSON.stringify({ currentTrack: item, queue: [item], visible: true })
+      );
+    }, song);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    try {
+      if (sessionScenario === "a transient session failure") {
+        await expect.poll(() => sessionFailed, { timeout: 60_000 }).toBe(true);
+      }
+      await expect(page.getByTestId("explore-page")).toHaveAttribute(
+        "data-hydrated",
+        "true",
+        { timeout: 60_000 }
+      );
+      expect(
+        await page.evaluate(() =>
+          localStorage.getItem("soundkit.audio-player.v1")
+        )
+      ).not.toBeNull();
+      expect(
+        await page.evaluate(() =>
+          localStorage.getItem("soundkit.audio-player.v1:anonymous")
+        )
+      ).toBeNull();
+    } finally {
+      releaseSession();
+    }
+    await expect
+      .poll(async () => {
+        await page.evaluate(() =>
+          document.dispatchEvent(new Event("visibilitychange"))
+        );
+        return page.evaluate(() => {
+          const raw = localStorage.getItem(
+            "soundkit.audio-player.v1:player-owner"
+          );
+          return raw ? JSON.parse(raw).currentTrack?.id : null;
+        });
+      })
+      .toBe(song.id);
     expect(
       await page.evaluate(() =>
         localStorage.getItem("soundkit.audio-player.v1")
       )
-    ).not.toBeNull();
-    expect(
-      await page.evaluate(() =>
-        localStorage.getItem("soundkit.audio-player.v1:anonymous")
-      )
     ).toBeNull();
-  } finally {
-    releaseSession();
-  }
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const raw = localStorage.getItem(
-          "soundkit.audio-player.v1:player-owner"
-        );
-        return raw ? JSON.parse(raw).currentTrack?.id : null;
-      })
-    )
-    .toBe(song.id);
-  expect(
-    await page.evaluate(() => localStorage.getItem("soundkit.audio-player.v1"))
-  ).toBeNull();
-});
+  });
+}
 
 test("anonymous player never restores another account or legacy private queue", async ({
   page,

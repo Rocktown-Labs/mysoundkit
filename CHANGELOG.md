@@ -21,7 +21,7 @@
 
 ### Fixed
 
-- Wait for authentication before restoring player storage and discard unowned legacy queues for anonymous sessions.
+- Wait for successful authentication resolution, preserving legacy queues through transient session errors, before restoring player storage and discard unowned legacy queues for anonymous sessions.
 
 - Reject browser-stripped tab and newline characters in persisted player URLs before validating relative paths.
 

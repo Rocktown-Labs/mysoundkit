@@ -88,7 +88,11 @@ function ClientDevtools() {
 }
 
 export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
-  const { data: session, isPending: sessionPending } = authClient.useSession(),
+  const {
+      data: session,
+      error: sessionError,
+      isPending: sessionPending,
+    } = authClient.useSession(),
     clientScopeKey = session?.user.id ?? "anonymous",
     queryClient = useMemo(
       () => createScopedQueryClient(clientScopeKey),
@@ -123,7 +127,7 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
                 <AudioPlayerProvider
                   key={clientScopeKey}
                   storageScope={clientScopeKey}
-                  storageReady={!sessionPending}
+                  storageReady={!sessionPending && !sessionError}
                 >
                   <CartProvider>{children}</CartProvider>
                   <Suspense fallback={null}>
