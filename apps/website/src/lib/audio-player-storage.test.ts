@@ -131,4 +131,56 @@ describe("audio-player-storage", () => {
     expect(sanitized.queue).toEqual([sampleTrack]);
     expect(sanitized.recentlyPlayed).toEqual([sampleTrack]);
   });
+
+  it("rejects dangerous URL schemes on track src, links, and cover art", () => {
+    const scriptUrl = ["javascript", "alert(1)"].join(":"),
+      storage = createMemoryStorage({
+        [`${AUDIO_PLAYER_STORAGE_KEY}:user-1`]: JSON.stringify({
+          currentTrack: {
+            ...sampleTrack,
+            artistHref: scriptUrl,
+          },
+          queue: [
+            { ...sampleTrack, id: "bad-src", src: scriptUrl },
+            {
+              ...sampleTrack,
+              cover: "data:text/html,<script>",
+              id: "bad-cover",
+            },
+            { ...sampleTrack, id: "bad-href", trackHref: "//evil.com/phish" },
+            {
+              ...sampleTrack,
+              artistHref: "/artist/demo",
+              cover: "/images/cover.jpg",
+              id: "good-relative",
+              trackHref: "/tracks/1",
+            },
+          ],
+          recentlyPlayed: [],
+          repeatMode: "invalid",
+          visible: true,
+        }),
+      });
+
+    expect(
+      readStoredPlayerState(storage, `${AUDIO_PLAYER_STORAGE_KEY}:user-1`)
+    ).toMatchObject({
+      currentTrack: null,
+      queue: [{ id: "good-relative" }],
+      repeatMode: "off",
+      visible: false,
+    });
+  });
+
+  it("no-ops when scopedStorageKey aliases the legacy storage key", () => {
+    const payload = JSON.stringify({ visible: true }),
+      storage = createMemoryStorage({
+        [AUDIO_PLAYER_STORAGE_KEY]: payload,
+      });
+
+    expect(migrateLegacyPlayerStorage(storage, AUDIO_PLAYER_STORAGE_KEY)).toBe(
+      false
+    );
+    expect(storage.getItem(AUDIO_PLAYER_STORAGE_KEY)).toBe(payload);
+  });
 });

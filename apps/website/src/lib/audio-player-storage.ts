@@ -40,10 +40,37 @@ export function createEmptyPlayerState(): StoredPlayerState {
   };
 }
 
+export function isSafeUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0) {
+    return false;
+  }
+
+  // Allow same-origin relative paths while rejecting protocol-relative // and /\
+  if (value.startsWith("/")) {
+    return !value.startsWith("//") && !value.startsWith("/\\");
+  }
+
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function isPlayableSrc(src: unknown): src is string {
-  // blob: URLs die with the tab session that created them, so never persist or
-  // restore them via localStorage (they render broken art and reject playback).
-  return typeof src === "string" && src.length > 0 && !src.startsWith("blob:");
+  // Reject blob: (session-scoped) and non-http(s)/relative schemes.
+  return isSafeUrl(src);
+}
+
+function isOptionalSafeUrl(value: unknown): boolean {
+  return (
+    value === undefined || value === null || value === "" || isSafeUrl(value)
+  );
+}
+
+function normalizeRepeatMode(value: unknown): PlayerRepeatMode {
+  return value === "all" || value === "one" ? value : "off";
 }
 
 export function isPlayerTrack(value: unknown): value is PlayerTrack {
@@ -60,7 +87,10 @@ export function isPlayerTrack(value: unknown): value is PlayerTrack {
     typeof track.artist === "string" &&
     typeof track.id === "string" &&
     isPlayableSrc(track.src) &&
-    typeof track.title === "string"
+    typeof track.title === "string" &&
+    isOptionalSafeUrl(track.artistHref) &&
+    isOptionalSafeUrl(track.trackHref) &&
+    isOptionalSafeUrl(track.cover)
   );
 }
 
@@ -78,7 +108,7 @@ export function sanitizePlayerStateForStorage(
     recentlyPlayed: state.recentlyPlayed
       .filter(isPlayerTrack)
       .slice(0, RECENTLY_PLAYED_LIMIT),
-    repeatMode: state.repeatMode,
+    repeatMode: normalizeRepeatMode(state.repeatMode),
     visible: state.visible && currentTrack !== null,
   };
 }
@@ -88,6 +118,10 @@ export function migrateLegacyPlayerStorage(
   scopedStorageKey: string,
   options?: { removeLegacy?: boolean }
 ): boolean {
+  if (scopedStorageKey === AUDIO_PLAYER_STORAGE_KEY) {
+    return false;
+  }
+
   const removeLegacy = options?.removeLegacy ?? true;
 
   try {
@@ -109,19 +143,19 @@ export function migrateLegacyPlayerStorage(
   }
 }
 
-function parseStoredPlayerJson(raw: string): StoredPlayerState {
-  const parsed = JSON.parse(raw) as {
-    currentTrack?: unknown;
-    queue?: unknown;
-    recentlyPlayed?: unknown;
-    repeatMode?: unknown;
-    visible?: unknown;
-  };
+function buildStoredPlayerState(parsed: {
+  currentTrack?: unknown;
+  queue?: unknown;
+  recentlyPlayed?: unknown;
+  repeatMode?: unknown;
+  visible?: unknown;
+}): StoredPlayerState {
+  const currentTrack = isPlayerTrack(parsed.currentTrack)
+    ? { ...parsed.currentTrack, autoplay: false }
+    : null;
 
   return {
-    currentTrack: isPlayerTrack(parsed.currentTrack)
-      ? { ...parsed.currentTrack, autoplay: false }
-      : null,
+    currentTrack,
     queue: Array.isArray(parsed.queue)
       ? parsed.queue.filter(isPlayerTrack)
       : [],
@@ -130,12 +164,22 @@ function parseStoredPlayerJson(raw: string): StoredPlayerState {
           .filter(isPlayerTrack)
           .slice(0, RECENTLY_PLAYED_LIMIT)
       : [],
-    repeatMode:
-      parsed.repeatMode === "all" || parsed.repeatMode === "one"
-        ? parsed.repeatMode
-        : "off",
-    visible: parsed.visible === true && isPlayerTrack(parsed.currentTrack),
+    repeatMode: normalizeRepeatMode(parsed.repeatMode),
+    // Only restore visibility when there is a playable track to show.
+    visible: parsed.visible === true && currentTrack !== null,
   };
+}
+
+function parseStoredPlayerJson(raw: string): StoredPlayerState {
+  return buildStoredPlayerState(
+    JSON.parse(raw) as {
+      currentTrack?: unknown;
+      queue?: unknown;
+      recentlyPlayed?: unknown;
+      repeatMode?: unknown;
+      visible?: unknown;
+    }
+  );
 }
 
 export function readStoredPlayerState(
