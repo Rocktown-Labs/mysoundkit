@@ -45,6 +45,12 @@ export function isSafeUrl(value: unknown): value is string {
     return false;
   }
 
+  // Browsers remove these characters before resolving URLs. Reject them
+  // before checking relative paths so an embedded separator cannot hide // or /\\.
+  if (["\t", "\n", "\r"].some((character) => value.includes(character))) {
+    return false;
+  }
+
   // Allow same-origin relative paths while rejecting protocol-relative // and /\
   if (value.startsWith("/")) {
     return !value.startsWith("//") && !value.startsWith("/\\");

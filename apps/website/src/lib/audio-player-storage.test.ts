@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   AUDIO_PLAYER_STORAGE_KEY,
   createEmptyPlayerState,
+  isSafeUrl,
   migrateLegacyPlayerStorage,
   readStoredPlayerState,
   sanitizePlayerStateForStorage,
@@ -170,6 +171,25 @@ describe("audio-player-storage", () => {
       repeatMode: "off",
       visible: false,
     });
+  });
+
+  it("rejects browser-stripped URL separators across stored track fields", () => {
+    for (const separator of ["\t", "\n", "\r"]) {
+      const unsafeUrl = `/${separator}/evil.com/phish`;
+      expect(isSafeUrl(unsafeUrl)).toBe(false);
+      for (const field of ["src", "artistHref", "trackHref", "cover"]) {
+        const sanitized = sanitizePlayerStateForStorage({
+          currentTrack: { ...sampleTrack, [field]: unsafeUrl },
+          queue: [{ ...sampleTrack, [field]: unsafeUrl }],
+          recentlyPlayed: [{ ...sampleTrack, [field]: unsafeUrl }],
+          repeatMode: "off",
+          visible: true,
+        });
+        expect(sanitized.currentTrack).toBeNull();
+        expect(sanitized.queue).toEqual([]);
+        expect(sanitized.recentlyPlayed).toEqual([]);
+      }
+    }
   });
 
   it("no-ops when scopedStorageKey aliases the legacy storage key", () => {
