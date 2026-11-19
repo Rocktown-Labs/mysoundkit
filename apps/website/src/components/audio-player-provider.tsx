@@ -67,7 +67,8 @@ export function AudioPlayerProvider({
   const currentTrackRef = useRef<PlayerTrack | null>(null),
     queueRef = useRef<PlayerTrack[]>([]),
     togglePlayRef = useRef<(() => void) | null>(null),
-    restoredKeyRef = useRef<string | null>(null);
+    restoredKeyRef = useRef<string | null>(null),
+    hasUserInteractedRef = useRef(false);
   const registerTogglePlay = useCallback((fn: (() => void) | null) => {
       togglePlayRef.current = fn;
     }, []),
@@ -77,6 +78,7 @@ export function AudioPlayerProvider({
       }
     }, []),
     handleSetQueue = useCallback((nextQueue: PlayerTrack[]) => {
+      hasUserInteractedRef.current = true;
       queueRef.current = nextQueue;
       setQueue(nextQueue);
     }, []);
@@ -94,6 +96,14 @@ export function AudioPlayerProvider({
     try {
       const storage = window.localStorage;
       migrateLegacyPlayerStorage(storage, storageKey);
+
+      // Preserve playback or queue edits made while authentication was pending.
+      if (hasUserInteractedRef.current) {
+        restoredKeyRef.current = storageKey;
+        // eslint-disable-next-line react/set-state-in-effect
+        setHasRestored(true);
+        return;
+      }
 
       const stored = readStoredPlayerState(storage, storageKey);
       currentTrackRef.current = stored.currentTrack;
@@ -146,12 +156,14 @@ export function AudioPlayerProvider({
         return false;
       }
 
+      hasUserInteractedRef.current = true;
       const nextQueue = [...queueRef.current, track];
       queueRef.current = nextQueue;
       setQueue(nextQueue);
       return true;
     }, []),
     handleSetCurrentTrack = useCallback((track: PlayerTrack | null) => {
+      hasUserInteractedRef.current = true;
       const previous = currentTrackRef.current;
       currentTrackRef.current = track;
       setCurrentTrack(track);

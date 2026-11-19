@@ -398,6 +398,46 @@ for (const sessionScenario of [
   });
 }
 
+test("playback started during session loading survives anonymous restoration", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const { promise: sessionGate, resolve: releaseSession } =
+    Promise.withResolvers<undefined>();
+  await page.route("**/auth/get-session**", async (route) => {
+    await sessionGate;
+    await route.fulfill({ body: "null", contentType: "application/json" });
+  });
+  await page.addInitScript((storedTrack) => {
+    localStorage.setItem(
+      "soundkit.audio-player.v1:anonymous",
+      JSON.stringify({
+        currentTrack: storedTrack,
+        queue: [storedTrack],
+        visible: true,
+      })
+    );
+  }, song);
+  await page.goto("/tracks/track_summer_nights", {
+    waitUntil: "domcontentloaded",
+  });
+  try {
+    await page
+      .getByRole("button", { exact: true, name: "Play Summer Nights" })
+      .click({ timeout: 60_000 });
+  } finally {
+    releaseSession();
+  }
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const raw = localStorage.getItem("soundkit.audio-player.v1:anonymous");
+        return raw ? JSON.parse(raw).currentTrack?.id : null;
+      })
+    )
+    .toBe("track_summer_nights");
+});
+
 test("anonymous player never restores another account or legacy private queue", async ({
   page,
 }) => {

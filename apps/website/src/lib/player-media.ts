@@ -1,5 +1,5 @@
 /* eslint-disable one-var, sort-vars */
-import type { PlayerTrack } from "../components/audio-player-provider";
+import type { PlayerTrack } from "./audio-player-storage";
 
 export interface PlayerVideoMetadata {
   externalPlaybackUrl?: string | null;

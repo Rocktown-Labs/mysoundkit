@@ -21,6 +21,8 @@
 
 ### Fixed
 
+- Preserve playback and queue edits made before authentication resolves instead of overwriting them with stored history (#547).
+
 - Wait for successful authentication resolution, preserving legacy queues through transient session errors, before restoring player storage and discard unowned legacy queues for anonymous sessions.
 
 - Reject browser-stripped tab and newline characters in persisted player URLs before validating relative paths.
