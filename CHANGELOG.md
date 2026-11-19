@@ -21,6 +21,8 @@
 
 ### Fixed
 
+- Ignore late geolocation callbacks after leaving the explore page to prevent stale navigation (#545).
+
 - Restore explore preferences once after hydration, validate bounded region labels, preserve legacy regional scope inference, and clarify location prompt states (#545).
 
 - Remove `/?upgraded=false` URL pollution on `/`, move explore `localStorage` reads out of render with validated region state and slug-to-label formatting, add `AbortController`/timeout and distinct error state to reverse geocoding, replace nested `<Link><Button>` header actions with `<Button asChild><Link>`, and hide decorative sidebar brand text from screen readers (#545).

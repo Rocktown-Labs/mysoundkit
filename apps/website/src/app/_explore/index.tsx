@@ -175,6 +175,7 @@ function LocalExplorePage() {
       initialPreferences.userLocation
     ),
     [isLoadingLocation, setIsLoadingLocation] = useState(false),
+    initialSearch = useRef(search),
     pageRef = useRef<HTMLDivElement>(null),
     geocodeAbortRef = useRef<AbortController | null>(null),
     isMountedRef = useRef(true),
@@ -365,11 +366,11 @@ function LocalExplorePage() {
         }),
       });
     },
-    resetToGlobal = (nextPromptState?: "denied" | "error" | "unsupported") => {
-      if (nextPromptState) {
-        setLocationPromptState(nextPromptState);
-        setUserLocation(null);
-      }
+    resetToGlobal = (
+      nextPromptState: "denied" | "error" | "idle" | "unsupported" = "idle"
+    ) => {
+      setLocationPromptState(nextPromptState);
+      setUserLocation(null);
       syncLocation({
         newMapScope: "global",
         newRegion: null,
@@ -390,6 +391,9 @@ function LocalExplorePage() {
         setLocationPromptState("prompting");
         navigator.geolocation.getCurrentPosition(
           async (position) => {
+            if (!isMountedRef.current) {
+              return;
+            }
             const { latitude, longitude } = position.coords,
               controller = new AbortController();
             let didTimeout = false;
@@ -454,11 +458,17 @@ function LocalExplorePage() {
             }
           },
           () => {
+            if (!isMountedRef.current) {
+              return;
+            }
             resetToGlobal("denied");
             setIsLoadingLocation(false);
           }
         );
       } catch {
+        if (!isMountedRef.current) {
+          return;
+        }
         resetToGlobal("error");
         setIsLoadingLocation(false);
       }
@@ -466,7 +476,7 @@ function LocalExplorePage() {
 
   useEffect(() => {
     isMountedRef.current = true;
-    const restored = computeInitialExplorePreferences(search);
+    const restored = computeInitialExplorePreferences(initialSearch.current);
     // Restore browser preferences after hydration so SSR and the first render agree.
     // eslint-disable-next-line react/set-state-in-effect
     setSelectedRegion(restored.selectedRegion);
