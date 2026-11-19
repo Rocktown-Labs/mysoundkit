@@ -18,6 +18,8 @@ import type {
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
+import { merchCategory as categoryOf } from "./merch-catalog-model";
+
 const categories = [
   "All products",
   "Apparel",
@@ -25,19 +27,6 @@ const categories = [
   "Home & living",
 ] as const;
 type Category = (typeof categories)[number];
-const accessoryPattern = /hat|cap|bag|sock|beanie|backpack|tote|visor/iu,
-  apparelPattern =
-    /shirt|hood|sweat|jacket|pants|legging|shorts|dress|tank|tee/iu;
-function categoryOf(product: MerchCatalogProduct): Category {
-  const text = `${product.type ?? ""} ${product.name}`;
-  if (apparelPattern.test(text)) {
-    return "Apparel";
-  }
-  if (accessoryPattern.test(text)) {
-    return "Accessories";
-  }
-  return "Home & living";
-}
 export function merchPrice(cents: number) {
   return formatMerchPrice(cents);
 }
