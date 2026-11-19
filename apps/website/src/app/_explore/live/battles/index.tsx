@@ -19,6 +19,7 @@ function LiveBattlesPage() {
   return (
     <BattleViewAll
       description="Watch battles happening now and see upcoming matchups"
+      headingLevel="h2"
       title="Live Battles"
       type="live"
     />

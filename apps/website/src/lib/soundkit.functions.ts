@@ -5,6 +5,10 @@ import type { InferResponseType } from "hono/client";
 import { z } from "zod";
 
 import {
+  DEFAULT_AUTH_REDIRECT,
+  sanitizeAuthRedirect,
+} from "@/lib/auth-redirect";
+import {
   credentialsRouteForAccount,
   signupRedirectForUser,
 } from "@/lib/onboarding-flow";
@@ -43,30 +47,38 @@ export const getMe = createServerFn({ method: "GET" }).handler(async () => {
   return soundkitServerJson<MeResponse>(await client.v1.me.index.$get());
 });
 
+async function getMeOrRedirectLogin(redirectTo: string) {
+  try {
+    return await getMe();
+  } catch (error) {
+    if (error instanceof SoundKitServerError && error.status === 401) {
+      throw redirect({
+        search: { redirect: sanitizeAuthRedirect(redirectTo) },
+        to: "/login",
+      });
+    }
+
+    throw error;
+  }
+}
+
+export const requireAuthenticatedUser = createServerFn({ method: "GET" })
+  .validator(z.object({ redirectTo: z.string() }))
+  .handler(async ({ data }) => getMeOrRedirectLogin(data.redirectTo));
+
 export const requireDashboardUser = createServerFn({ method: "GET" }).handler(
   async () => {
-    try {
-      const me = await getMe();
+    const me = await getMeOrRedirectLogin(DEFAULT_AUTH_REDIRECT);
 
-      if (!me.user.onboardingCompletedAt) {
-        throw redirect({ to: "/signup" });
-      }
-
-      if (me.user.accountType !== "artist" && me.user.role !== "admin") {
-        throw redirect({ to: "/library/settings" });
-      }
-
-      return me;
-    } catch (error) {
-      if (error instanceof SoundKitServerError && error.status === 401) {
-        throw redirect({
-          search: { redirect: "/dashboard" },
-          to: "/login",
-        });
-      }
-
-      throw error;
+    if (!me.user.onboardingCompletedAt) {
+      throw redirect({ to: "/signup" });
     }
+
+    if (me.user.accountType !== "artist" && me.user.role !== "admin") {
+      throw redirect({ to: "/library/settings" });
+    }
+
+    return me;
   }
 );
 

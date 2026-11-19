@@ -37,6 +37,7 @@ import {
   resolveInitialExploreRegion,
   validateExploreSearch,
 } from "@/lib/explore-region";
+import { SITE_URL } from "@/lib/site";
 import {
   useArtistsQuery,
   useBattlesQuery,
@@ -110,6 +111,9 @@ const GEOCODE_TIMEOUT_MS = 10_000,
 
 export const Route = createFileRoute("/_explore/")({
   component: ExplorePage,
+  head: () => ({
+    links: [{ href: `${SITE_URL}/`, rel: "canonical" }],
+  }),
   validateSearch: validateExploreSearch,
 });
 
