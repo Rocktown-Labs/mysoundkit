@@ -21,6 +21,13 @@
 
 ### Fixed
 
+- Preserve playback and queue edits made before authentication resolves instead of overwriting them with stored history (#547).
+
+- Wait for successful authentication resolution, preserving legacy queues through transient session errors, before restoring player storage and discard unowned legacy queues for anonymous sessions.
+
+- Reject browser-stripped tab and newline characters in persisted player URLs before validating relative paths.
+
+- Harden `AudioPlayerProvider` storage persistence and playback state: perform one-time legacy storage migration instead of dropping unscoped state on every read, return fresh empty state objects, use ref-backed guards for rapid `addToQueue` and `setCurrentTrack` calls, filter unplayable `blob:` tracks before persisting, and clear `togglePlayRef` when hidden (#547).
 - Ignore late geolocation callbacks after leaving the explore page to prevent stale navigation (#545).
 
 - Restore explore preferences once after hydration, validate bounded region labels, preserve legacy regional scope inference, and clarify location prompt states (#545).
