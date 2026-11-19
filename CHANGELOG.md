@@ -26,6 +26,8 @@
 - Reject browser-stripped tab and newline characters in persisted player URLs before validating relative paths.
 
 - Harden `AudioPlayerProvider` storage persistence and playback state: perform one-time legacy storage migration instead of dropping unscoped state on every read, return fresh empty state objects, use ref-backed guards for rapid `addToQueue` and `setCurrentTrack` calls, filter unplayable `blob:` tracks before persisting, and clear `togglePlayRef` when hidden (#547).
+- Restore explore preferences once after hydration, validate bounded region labels, preserve legacy regional scope inference, and clarify location prompt states (#545).
+
 - Remove `/?upgraded=false` URL pollution on `/`, move explore `localStorage` reads out of render with validated region state and slug-to-label formatting, add `AbortController`/timeout and distinct error state to reverse geocoding, replace nested `<Link><Button>` header actions with `<Button asChild><Link>`, and hide decorative sidebar brand text from screen readers (#545).
 - Redirect unauthenticated `/library/playlists` visits to `/login?redirect=%2Flibrary%2Fplaylists`, populate and label `/live/battles` filter comboboxes on initial render, remove duplicate `<h1>` headings and nested interactive hero CTAs across `/live/*`, move the homepage canonical tag out of `__root.tsx` while removing the duplicate viewport meta tag and handling `router.invalidate()` rejections, and harden `/login` redirect sanitization against `/\`, control characters, and `/login` loops (#543).
 

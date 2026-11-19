@@ -17,7 +17,16 @@ export interface ExploreRegionSelection {
   regionType: ExploreRegionType;
 }
 
-const mapScopeIds = new Set<MapScope>(mapScopes.map((scope) => scope.id)),
+const REGION_LABEL_PATTERN = /^[\p{L}\p{N} .,&'’()-]+$/u,
+  MAX_REGION_LABEL_LENGTH = 120,
+  normalizeRegionInput = (value: unknown): string | undefined => {
+    if (typeof value !== "string") {
+      return undefined;
+    }
+    const label = value.trim().slice(0, MAX_REGION_LABEL_LENGTH);
+    return label && REGION_LABEL_PATTERN.test(label) ? label : undefined;
+  },
+  mapScopeIds = new Set<MapScope>(mapScopes.map((scope) => scope.id)),
   legacyMapScopeAliases: Readonly<Record<string, MapScope>> = {
     "north-america": "usa",
   };
@@ -68,7 +77,7 @@ export const resolveInitialExploreRegion = ({
   savedRegionType?: string | null;
   search: ExploreRegionSearch;
 }): ExploreRegionSelection => {
-  const region = search.region ?? savedRegion ?? null,
+  const region = normalizeRegionInput(search.region ?? savedRegion) ?? null,
     explicitScope =
       search.mapScope ?? mapScopeFromValue(savedMapScope) ?? undefined,
     regionType =
@@ -76,7 +85,13 @@ export const resolveInitialExploreRegion = ({
       (savedRegionType === "global" || savedRegionType === "north-america"
         ? savedRegionType
         : undefined) ??
-      (explicitScope ? regionTypeForMapScope(explicitScope) : "global"),
+      (explicitScope
+        ? regionTypeForMapScope(explicitScope)
+        : region &&
+            exploreRegionSlug(region) !== "all" &&
+            !mapScopeFromValue(region)
+          ? "north-america"
+          : "global"),
     normalizedRegion = region ? exploreRegionSlug(region) : "all",
     inferredScope =
       explicitScope ??
@@ -140,13 +155,14 @@ export const mapScopeForDetectedLocation = ({
 const REGION_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
 export const formatExploreRegionDisplayName = (
-  value: string | null | undefined
+  value: string | null | undefined,
+  scope?: MapScope
 ): string | null => {
   if (!value) {
     return null;
   }
 
-  const trimmed = value.trim();
+  const trimmed = normalizeRegionInput(value);
   if (!trimmed) {
     return null;
   }
@@ -155,9 +171,8 @@ export const formatExploreRegionDisplayName = (
     return trimmed;
   }
 
-  const withoutCountryPrefix = trimmed.startsWith("us-")
-    ? trimmed.slice(3)
-    : trimmed;
+  const withoutCountryPrefix =
+    scope === "usa" && trimmed.startsWith("us-") ? trimmed.slice(3) : trimmed;
 
   return withoutCountryPrefix
     .split("-")
@@ -170,7 +185,7 @@ export const validateExploreSearch = (
   search: Record<string, unknown>
 ): ExploreRegionSearch => ({
   mapScope: mapScopeFromValue(search.mapScope),
-  region: typeof search.region === "string" ? search.region : undefined,
+  region: normalizeRegionInput(search.region),
   regionType:
     search.regionType === "global" || search.regionType === "north-america"
       ? search.regionType
@@ -178,3 +193,36 @@ export const validateExploreSearch = (
   upgraded:
     search.upgraded === "1" || search.upgraded === true ? true : undefined,
 });
+
+export const parseExploreGeocodeResponse = (
+  value: unknown
+): {
+  countryCode: string;
+  countryName: string;
+  principalSubdivision?: string;
+} => {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    !("countryCode" in value) ||
+    typeof value.countryCode !== "string" ||
+    !("countryName" in value) ||
+    typeof value.countryName !== "string"
+  ) {
+    throw new Error("Invalid reverse-geocode response shape.");
+  }
+  const principalSubdivision =
+    "principalSubdivision" in value ? value.principalSubdivision : undefined;
+  if (
+    principalSubdivision !== undefined &&
+    typeof principalSubdivision !== "string"
+  ) {
+    throw new Error("Invalid reverse-geocode subdivision.");
+  }
+  return {
+    countryCode: value.countryCode,
+    countryName: value.countryName,
+    principalSubdivision,
+  };
+};
