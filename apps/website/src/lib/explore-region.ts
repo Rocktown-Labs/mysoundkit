@@ -1,6 +1,7 @@
 /* eslint-disable one-var, sort-vars, no-nested-ternary */
 import { mapScopes } from "./map-scopes";
 import type { MapScope } from "./map-scopes";
+import { US_STATE_NAMES } from "./us-state-names";
 
 export type ExploreRegionType = "global" | "north-america";
 
@@ -8,6 +9,7 @@ export interface ExploreRegionSearch {
   mapScope?: MapScope;
   region?: string;
   regionType?: ExploreRegionType;
+  upgraded?: boolean;
 }
 
 export interface ExploreRegionSelection {
@@ -16,7 +18,16 @@ export interface ExploreRegionSelection {
   regionType: ExploreRegionType;
 }
 
-const mapScopeIds = new Set<MapScope>(mapScopes.map((scope) => scope.id)),
+const REGION_LABEL_PATTERN = /^[\p{L}\p{N} .,&'’()-]+$/u,
+  MAX_REGION_LABEL_LENGTH = 120,
+  normalizeRegionInput = (value: unknown): string | undefined => {
+    if (typeof value !== "string") {
+      return undefined;
+    }
+    const label = value.trim().slice(0, MAX_REGION_LABEL_LENGTH);
+    return label && REGION_LABEL_PATTERN.test(label) ? label : undefined;
+  },
+  mapScopeIds = new Set<MapScope>(mapScopes.map((scope) => scope.id)),
   legacyMapScopeAliases: Readonly<Record<string, MapScope>> = {
     "north-america": "usa",
   };
@@ -56,6 +67,23 @@ export const regionTypeForMapScope = (mapScope: MapScope): ExploreRegionType =>
 export const mapScopeLabel = (mapScope: MapScope): string =>
   mapScopes.find((scope) => scope.id === mapScope)?.label ?? "SoundKit";
 
+const inferExploreRegionType = (
+  region: string | null,
+  scope?: MapScope
+): ExploreRegionType => {
+  if (scope) {
+    return regionTypeForMapScope(scope);
+  }
+  if (
+    region &&
+    exploreRegionSlug(region) !== "all" &&
+    !mapScopeFromValue(region)
+  ) {
+    return "north-america";
+  }
+  return "global";
+};
+
 export const resolveInitialExploreRegion = ({
   savedMapScope,
   savedRegion,
@@ -67,7 +95,7 @@ export const resolveInitialExploreRegion = ({
   savedRegionType?: string | null;
   search: ExploreRegionSearch;
 }): ExploreRegionSelection => {
-  const region = search.region ?? savedRegion ?? null,
+  const region = normalizeRegionInput(search.region ?? savedRegion) ?? null,
     explicitScope =
       search.mapScope ?? mapScopeFromValue(savedMapScope) ?? undefined,
     regionType =
@@ -75,7 +103,7 @@ export const resolveInitialExploreRegion = ({
       (savedRegionType === "global" || savedRegionType === "north-america"
         ? savedRegionType
         : undefined) ??
-      (explicitScope ? regionTypeForMapScope(explicitScope) : "global"),
+      inferExploreRegionType(region, explicitScope),
     normalizedRegion = region ? exploreRegionSlug(region) : "all",
     inferredScope =
       explicitScope ??
@@ -134,4 +162,87 @@ export const mapScopeForDetectedLocation = ({
     return "mexico";
   }
   return "global";
+};
+
+const REGION_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+export const formatExploreRegionDisplayName = (
+  value: string | null | undefined,
+  scope?: MapScope
+): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = normalizeRegionInput(value);
+  if (!trimmed) {
+    return null;
+  }
+
+  if (scope === "usa") {
+    const postalCode = trimmed.toUpperCase().replace(/^US-/u, "");
+    const stateName = US_STATE_NAMES[postalCode];
+    if (stateName) {
+      return stateName;
+    }
+  }
+
+  if (!REGION_SLUG_PATTERN.test(trimmed)) {
+    return trimmed;
+  }
+
+  const withoutCountryPrefix =
+    scope === "usa" && trimmed.startsWith("us-") ? trimmed.slice(3) : trimmed;
+
+  return withoutCountryPrefix
+    .split("-")
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+    .join(" ");
+};
+
+export const validateExploreSearch = (
+  search: Record<string, unknown>
+): ExploreRegionSearch => ({
+  mapScope: mapScopeFromValue(search.mapScope),
+  region: normalizeRegionInput(search.region),
+  regionType:
+    search.regionType === "global" || search.regionType === "north-america"
+      ? search.regionType
+      : undefined,
+  upgraded:
+    search.upgraded === "1" || search.upgraded === true ? true : undefined,
+});
+
+export const parseExploreGeocodeResponse = (
+  value: unknown
+): {
+  countryCode: string;
+  countryName: string;
+  principalSubdivision?: string;
+} => {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    !("countryCode" in value) ||
+    typeof value.countryCode !== "string" ||
+    !("countryName" in value) ||
+    typeof value.countryName !== "string"
+  ) {
+    throw new Error("Invalid reverse-geocode response shape.");
+  }
+  const principalSubdivision =
+    "principalSubdivision" in value ? value.principalSubdivision : undefined;
+  if (
+    principalSubdivision !== undefined &&
+    typeof principalSubdivision !== "string"
+  ) {
+    throw new Error("Invalid reverse-geocode subdivision.");
+  }
+  return {
+    countryCode: value.countryCode,
+    countryName: value.countryName,
+    principalSubdivision,
+  };
 };

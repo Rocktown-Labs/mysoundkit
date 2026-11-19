@@ -31,9 +31,12 @@ import { capture } from "@/lib/analytics";
 import {
   exploreLocationPhrase,
   exploreRegionSlug,
+  formatExploreRegionDisplayName,
   mapScopeForDetectedLocation,
-  mapScopeFromValue,
+  parseExploreGeocodeResponse,
   regionTypeForMapScope,
+  resolveInitialExploreRegion,
+  validateExploreSearch,
 } from "@/lib/explore-region";
 import { SITE_URL } from "@/lib/site";
 import {
@@ -52,32 +55,97 @@ import type {
   VideoSummary,
 } from "@/lib/soundkit-api-hooks";
 
-interface ExploreSearch {
-  mapScope?: MapScope;
-  upgraded?: boolean;
-  region?: string;
-  regionType?: "global" | "north-america";
-}
+const LOCATION_PROMPT_TITLES = {
+    denied: "Location access declined — showing Global View",
+    error: "Could not detect your location — showing Global View",
+    granted: "",
+    idle: "Personalize your local scene",
+    prompting: "Requesting location permission...",
+    unsupported: "Location access is unavailable in this browser.",
+  },
+  LOCATION_PROMPT_ACTIONS = {
+    denied: "Enable Location",
+    error: "Try Again",
+    granted: "Use my location",
+    idle: "Use my location",
+    prompting: "Use my location",
+    unsupported: "Use my location",
+  },
+  GEOCODE_TIMEOUT_MS = 10_000,
+  readStoredExplorePreferences = () => {
+    if (typeof window === "undefined") {
+      return {
+        savedMapScope: null,
+        savedRegion: null,
+        savedRegionType: null,
+        savedUserLocation: null,
+      };
+    }
+
+    try {
+      return {
+        savedMapScope: localStorage.getItem("exploreMapScope"),
+        savedRegion: localStorage.getItem("exploreRegion"),
+        savedRegionType: localStorage.getItem("exploreRegionType"),
+        savedUserLocation: localStorage.getItem("soundkit_user_location"),
+      };
+    } catch {
+      return {
+        savedMapScope: null,
+        savedRegion: null,
+        savedRegionType: null,
+        savedUserLocation: null,
+      };
+    }
+  },
+  computeInitialExplorePreferences = (
+    search: {
+      mapScope?: MapScope;
+      region?: string;
+      regionType?: "global" | "north-america";
+    },
+    restoreStorage = true
+  ) => {
+    const stored = restoreStorage
+        ? readStoredExplorePreferences()
+        : {
+            savedMapScope: null,
+            savedRegion: null,
+            savedRegionType: null,
+            savedUserLocation: null,
+          },
+      selection = resolveInitialExploreRegion({
+        savedMapScope: stored.savedMapScope,
+        savedRegion: stored.savedRegion ?? stored.savedUserLocation,
+        savedRegionType: stored.savedRegionType,
+        search,
+      }),
+      displayRegion = formatExploreRegionDisplayName(
+        selection.region,
+        selection.mapScope
+      ),
+      displayUserLocation = formatExploreRegionDisplayName(
+        stored.savedUserLocation ??
+          (selection.regionType === "global" ? null : selection.region),
+        selection.mapScope
+      );
+
+    return {
+      hasStoredLocation: Boolean(
+        stored.savedUserLocation || stored.savedRegion
+      ),
+      mapScope: selection.mapScope,
+      selectedRegion: displayRegion,
+      userLocation: displayUserLocation,
+    };
+  };
 
 export const Route = createFileRoute("/_explore/")({
   component: ExplorePage,
   head: () => ({
-    links: [
-      {
-        href: `${SITE_URL}/`,
-        rel: "canonical",
-      },
-    ],
+    links: [{ href: `${SITE_URL}/`, rel: "canonical" }],
   }),
-  validateSearch: (search: Record<string, unknown>): ExploreSearch => ({
-    mapScope: mapScopeFromValue(search.mapScope),
-    region: typeof search.region === "string" ? search.region : undefined,
-    regionType:
-      search.regionType === "global" || search.regionType === "north-america"
-        ? search.regionType
-        : undefined,
-    upgraded: search.upgraded === "1" || search.upgraded === true,
-  }),
+  validateSearch: validateExploreSearch,
 });
 
 function ExplorePage() {
@@ -94,57 +162,26 @@ function ExplorePage() {
 function LocalExplorePage() {
   const search = Route.useSearch(),
     navigate = Route.useNavigate(),
-    savedRegion =
-      typeof window === "undefined"
-        ? null
-        : localStorage.getItem("exploreRegion"),
-    savedRegionType =
-      typeof window === "undefined"
-        ? null
-        : (localStorage.getItem("exploreRegionType") as
-            | "global"
-            | "north-america"
-            | null),
-    savedMapScope =
-      typeof window === "undefined"
-        ? null
-        : mapScopeFromValue(localStorage.getItem("exploreMapScope")),
-    savedUserLocation =
-      typeof window === "undefined"
-        ? null
-        : localStorage.getItem("soundkit_user_location"),
-    initialRegion =
-      search.region ??
-      (savedRegion && mapScopeFromValue(savedRegion) ? null : savedRegion) ??
-      savedUserLocation ??
-      null,
-    initialRegionType: "global" | "north-america" =
-      search.regionType ??
-      savedRegionType ??
-      (initialRegion && initialRegion !== "all" ? "north-america" : "global"),
-    initialMapScope: MapScope =
-      search.mapScope ??
-      savedMapScope ??
-      (initialRegionType === "global"
-        ? (mapScopeFromValue(initialRegion) ?? "global")
-        : "usa"),
-    [selectedRegion, setSelectedRegion] = useState<string | null>(
-      initialRegion === "all" || initialRegion === initialMapScope
-        ? null
-        : initialRegion
+    // The initial snapshot is immutable; interactive state has its own setters.
+    // eslint-disable-next-line react/hook-use-state
+    [initialPreferences] = useState(() =>
+      computeInitialExplorePreferences(search, false)
     ),
-    [mapScope, setMapScope] = useState<MapScope>(initialMapScope),
+    [selectedRegion, setSelectedRegion] = useState<string | null>(
+      initialPreferences.selectedRegion
+    ),
+    [mapScope, setMapScope] = useState<MapScope>(initialPreferences.mapScope),
     [userLocation, setUserLocation] = useState<string | null>(
-      savedUserLocation ??
-        (initialRegionType === "global" || initialRegion === "all"
-          ? null
-          : initialRegion)
+      initialPreferences.userLocation
     ),
     [isLoadingLocation, setIsLoadingLocation] = useState(false),
+    initialSearch = useRef(search),
     pageRef = useRef<HTMLDivElement>(null),
+    geocodeAbortRef = useRef<AbortController | null>(null),
+    isMountedRef = useRef(true),
     [locationPromptState, setLocationPromptState] = useState<
-      "denied" | "granted" | "idle" | "prompting" | "unsupported"
-    >(savedUserLocation || savedRegion ? "granted" : "idle"),
+      "denied" | "error" | "granted" | "idle" | "prompting" | "unsupported"
+    >(() => (initialPreferences.hasStoredLocation ? "granted" : "idle")),
     activeRegion =
       selectedRegion ??
       (mapScope === "global"
@@ -329,18 +366,24 @@ function LocalExplorePage() {
         }),
       });
     },
+    resetToGlobal = (
+      nextPromptState: "denied" | "error" | "idle" | "unsupported" = "idle"
+    ) => {
+      setLocationPromptState(nextPromptState);
+      setUserLocation(null);
+      syncLocation({
+        newMapScope: "global",
+        newRegion: null,
+        newRegionType: "global",
+      });
+    },
     requestLocation = () => {
+      geocodeAbortRef.current?.abort();
       setIsLoadingLocation(true);
 
       try {
         if (!("geolocation" in navigator)) {
-          setLocationPromptState("unsupported");
-          syncLocation({
-            newMapScope: "global",
-            newRegion: null,
-            newRegionType: "global",
-          });
-          setUserLocation(null);
+          resetToGlobal("unsupported");
           setIsLoadingLocation(false);
           return;
         }
@@ -348,13 +391,31 @@ function LocalExplorePage() {
         setLocationPromptState("prompting");
         navigator.geolocation.getCurrentPosition(
           async (position) => {
-            const { latitude, longitude } = position.coords;
+            if (!isMountedRef.current) {
+              return;
+            }
+            const { latitude, longitude } = position.coords,
+              controller = new AbortController();
+            let didTimeout = false;
+            const timeoutId = window.setTimeout(() => {
+              didTimeout = true;
+              controller.abort();
+            }, GEOCODE_TIMEOUT_MS);
+
+            geocodeAbortRef.current = controller;
 
             try {
               const response = await fetch(
-                  `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-                ),
-                data = await response.json(),
+                `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
+                { signal: controller.signal }
+              );
+              if (!response.ok) {
+                throw new Error(
+                  `Reverse-geocode request failed (${response.status})`
+                );
+              }
+
+              const data = parseExploreGeocodeResponse(await response.json()),
                 detectedMapScope = mapScopeForDetectedLocation({
                   countryCode: data.countryCode,
                 }),
@@ -365,6 +426,9 @@ function LocalExplorePage() {
               if (!detectedRegion) {
                 throw new Error("Location response did not include a region.");
               }
+              if (controller.signal.aborted || !isMountedRef.current) {
+                return;
+              }
               setUserLocation(detectedRegion);
               localStorage.setItem("soundkit_user_location", detectedRegion);
               syncLocation({
@@ -374,67 +438,63 @@ function LocalExplorePage() {
               });
               setLocationPromptState("granted");
             } catch {
-              setLocationPromptState("denied");
+              const isCancelled =
+                !isMountedRef.current ||
+                (controller.signal.aborted && !didTimeout);
+              if (!isCancelled) {
+                resetToGlobal("error");
+              }
+            } finally {
+              window.clearTimeout(timeoutId);
+              if (geocodeAbortRef.current === controller) {
+                geocodeAbortRef.current = null;
+              }
+              const isCancelled =
+                !isMountedRef.current ||
+                (controller.signal.aborted && !didTimeout);
+              if (!isCancelled) {
+                setIsLoadingLocation(false);
+              }
             }
-            setIsLoadingLocation(false);
           },
           () => {
-            setLocationPromptState("denied");
-            setUserLocation(null);
-            syncLocation({
-              newMapScope: "global",
-              newRegion: null,
-              newRegionType: "global",
-            });
+            if (!isMountedRef.current) {
+              return;
+            }
+            resetToGlobal("denied");
             setIsLoadingLocation(false);
           }
         );
       } catch {
-        setLocationPromptState("denied");
-        setUserLocation(null);
-        syncLocation({
-          newMapScope: "global",
-          newRegion: null,
-          newRegionType: "global",
-        });
+        if (!isMountedRef.current) {
+          return;
+        }
+        resetToGlobal("error");
         setIsLoadingLocation(false);
       }
     };
 
   useEffect(() => {
+    isMountedRef.current = true;
+    const restored = computeInitialExplorePreferences(initialSearch.current);
+    // Restore browser preferences after hydration so SSR and the first render agree.
+    // eslint-disable-next-line react/set-state-in-effect
+    setSelectedRegion(restored.selectedRegion);
+    setMapScope(restored.mapScope);
+    setUserLocation(restored.userLocation);
+    setLocationPromptState(restored.hasStoredLocation ? "granted" : "idle");
     if (pageRef.current) {
       pageRef.current.dataset.hydrated = "true";
     }
+
+    return () => {
+      isMountedRef.current = false;
+      geocodeAbortRef.current?.abort();
+    };
   }, []);
 
-  useEffect(() => {
-    if (search.region || search.regionType) {
-      return;
-    }
-    // Check saved user location in localStorage on mount
-    try {
-      const savedLocation = localStorage.getItem("soundkit_user_location");
-      if (savedLocation) {
-        setUserLocation(savedLocation);
-        setSelectedRegion(savedLocation);
-        setMapScope(savedMapScope ?? "global");
-        setLocationPromptState("granted");
-      }
-    } catch {}
-
-    // Deliberately no automatic geolocation request here: prompting for
-    // location on load triggers the browser permission dialog before the user
-    // has asked for anything (and flags Lighthouse's geolocation-on-start
-    // audit). Region detection only happens via the explicit "use my
-    // location" button.
-  }, [search.region, search.regionType]);
-
   const handleResetGlobal = () => {
-    syncLocation({
-      newMapScope: "global",
-      newRegion: null,
-      newRegionType: "global",
-    });
+    resetToGlobal();
   };
 
   return (
@@ -491,16 +551,11 @@ function LocalExplorePage() {
                 <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
                   <div className="space-y-1">
                     <p className="text-sm font-medium">
-                      {locationPromptState === "prompting"
-                        ? "Requesting location permission..."
-                        : locationPromptState === "denied"
-                          ? "Location access declined — showing Global View"
-                          : locationPromptState === "unsupported"
-                            ? "Location access is unavailable in this browser."
-                            : "Personalize your local scene"}
+                      {LOCATION_PROMPT_TITLES[locationPromptState]}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {locationPromptState === "denied"
+                      {locationPromptState === "denied" ||
+                      locationPromptState === "error"
                         ? "You are currently browsing global app-wide totals across Africa, Europe, Asia, and the Americas."
                         : "Enable location to automatically highlight artists, battles, and drops from your state or country."}
                     </p>
@@ -514,9 +569,7 @@ function LocalExplorePage() {
                       disabled={isLoadingLocation}
                     >
                       <LocateFixed className="size-4" />
-                      {locationPromptState === "denied"
-                        ? "Enable Location"
-                        : "Use my location"}
+                      {LOCATION_PROMPT_ACTIONS[locationPromptState]}
                     </Button>
                   )}
                 </CardContent>

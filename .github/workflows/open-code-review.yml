@@ -32,7 +32,9 @@ jobs:
     needs: completion-tests
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    # Leave room for two full task windows plus setup/publication: file reviews
+    # can stall on provider 408s and retry up to the per-task timeout below.
+    timeout-minutes: 120
     # The launcher self-updates in a detached background process on its first
     # invocation. That `npm i -g` briefly relinks the global `ocr` binary
     # while the Configure step is still calling it, which fails the job with
@@ -96,7 +98,9 @@ jobs:
           review_concurrency: '2'
           effort: low
           max_tokens_budget: ${{ steps.target.outputs.budget }}
-          review_task_timeout: '25'
+          # A 25-minute per-task deadline left multi-file website diffs partial
+          # when the provider stalled; keep headroom without relaxing the gate.
+          review_task_timeout: '45'
           upload_artifacts: 'true'
           sticky_summary: 'true'
           checkpoint_range: 'true'

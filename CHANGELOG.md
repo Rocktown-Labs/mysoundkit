@@ -21,6 +21,11 @@
 
 ### Fixed
 
+- Ignore late geolocation callbacks after leaving the explore page to prevent stale navigation (#545).
+
+- Restore explore preferences once after hydration, validate bounded region labels, preserve legacy regional scope inference, and clarify location prompt states (#545).
+
+- Remove `/?upgraded=false` URL pollution on `/`, move explore `localStorage` reads out of render with validated region state and slug-to-label formatting, add `AbortController`/timeout and distinct error state to reverse geocoding, replace nested `<Link><Button>` header actions with `<Button asChild><Link>`, and hide decorative sidebar brand text from screen readers (#545).
 - Redirect unauthenticated `/library/playlists` visits to `/login?redirect=%2Flibrary%2Fplaylists`, populate and label `/live/battles` filter comboboxes on initial render, remove duplicate `<h1>` headings and nested interactive hero CTAs across `/live/*`, move the homepage canonical tag out of `__root.tsx` while removing the duplicate viewport meta tag and handling `router.invalidate()` rejections, and harden `/login` redirect sanitization against `/\`, control characters, and `/login` loops (#543).
 
 - Assert exact artist and fan landing routes in real staging login journeys, preserving fixture identity and media authorization checks (#540).
