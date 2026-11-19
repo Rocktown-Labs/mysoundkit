@@ -82,9 +82,7 @@ export function AudioPlayerProvider({
 
     try {
       const storage = window.localStorage;
-      migrateLegacyPlayerStorage(storage, storageKey, {
-        removeLegacy: storageScope !== "anonymous",
-      });
+      migrateLegacyPlayerStorage(storage, storageKey);
 
       const stored = readStoredPlayerState(storage, storageKey);
       currentTrackRef.current = stored.currentTrack;
@@ -99,7 +97,7 @@ export function AudioPlayerProvider({
       // localStorage may throw SecurityError in sandboxed/private contexts.
     }
     setHasRestored(true);
-  }, [storageKey, storageScope]);
+  }, [storageKey]);
 
   useEffect(() => {
     if (!hasRestored || typeof window === "undefined") {
