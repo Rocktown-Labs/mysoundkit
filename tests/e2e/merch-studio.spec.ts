@@ -229,9 +229,21 @@ test("catalog browsing shows real options and carries the blank into creation", 
     details.getByRole("button", { exact: true, name: "White" })
   ).toHaveAttribute("aria-pressed", "true");
   await page.screenshot({
-    fullPage: true,
+    animations: "disabled",
+    fullPage: false,
     path: testInfo.outputPath("product-details.png"),
   });
+  const bounds = await details.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds?.y).toBeGreaterThanOrEqual(0);
+  expect((bounds?.y ?? 0) + (bounds?.height ?? 0)).toBeLessThanOrEqual(
+    (page.viewportSize()?.height ?? 0) + 1
+  );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth
+    )
+  ).toBe(true);
   await details
     .getByRole("button", { name: "Continue with this product" })
     .click();
