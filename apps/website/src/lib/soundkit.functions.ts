@@ -43,6 +43,23 @@ export const getMe = createServerFn({ method: "GET" }).handler(async () => {
   return soundkitServerJson<MeResponse>(await client.v1.me.index.$get());
 });
 
+export const requireAuthenticatedUser = createServerFn({ method: "GET" })
+  .validator(z.object({ redirectTo: z.string() }))
+  .handler(async ({ data }) => {
+    try {
+      return await getMe();
+    } catch (error) {
+      if (error instanceof SoundKitServerError && error.status === 401) {
+        throw redirect({
+          search: { redirect: data.redirectTo },
+          to: "/login",
+        });
+      }
+
+      throw error;
+    }
+  });
+
 export const requireDashboardUser = createServerFn({ method: "GET" }).handler(
   async () => {
     try {

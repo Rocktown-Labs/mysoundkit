@@ -34,12 +34,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { useDbPlaylistActions, useDbPlaylists } from "@/lib/data-db";
 import { useMeQuery } from "@/lib/soundkit-api-hooks";
+import { requireAuthenticatedUser } from "@/lib/soundkit.functions";
 
 import { createPlaylistColumns } from "./-columns";
 import type { Playlist } from "./-columns";
 import { DataTable } from "./-data-table";
 
 export const Route = createFileRoute("/_explore/library/playlists/")({
+  beforeLoad: () =>
+    requireAuthenticatedUser({ data: { redirectTo: "/library/playlists" } }),
   component: PlaylistsPage,
 });
 

@@ -285,7 +285,7 @@ function LiveHubPage() {
   return (
     <div className="space-y-8 pb-8">
       <section>
-        <h1 className="font-bold text-3xl">Live on SoundKit</h1>
+        <h2 className="font-bold text-3xl">Live on SoundKit</h2>
         <p className="mt-2 max-w-3xl text-muted-foreground">
           Real battles, listening parties, and creator streams from the SoundKit
           community.

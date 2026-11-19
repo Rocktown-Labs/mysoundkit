@@ -35,6 +35,7 @@ import {
   mapScopeFromValue,
   regionTypeForMapScope,
 } from "@/lib/explore-region";
+import { SITE_URL } from "@/lib/site";
 import {
   useArtistsQuery,
   useBattlesQuery,
@@ -60,6 +61,14 @@ interface ExploreSearch {
 
 export const Route = createFileRoute("/_explore/")({
   component: ExplorePage,
+  head: () => ({
+    links: [
+      {
+        href: `${SITE_URL}/`,
+        rel: "canonical",
+      },
+    ],
+  }),
   validateSearch: (search: Record<string, unknown>): ExploreSearch => ({
     mapScope: mapScopeFromValue(search.mapScope),
     region: typeof search.region === "string" ? search.region : undefined,
