@@ -21,6 +21,8 @@
 
 ### Fixed
 
+- Remove `/?upgraded=false` URL pollution on `/`, move explore `localStorage` reads out of render with validated region state and slug-to-label formatting, add `AbortController`/timeout and distinct error state to reverse geocoding, replace nested `<Link><Button>` header actions with `<Button asChild><Link>`, and hide decorative sidebar brand text from screen readers (#545).
+
 - Assert exact artist and fan landing routes in real staging login journeys, preserving fixture identity and media authorization checks (#540).
 
 - Allow a bounded three-minute wait per new preview domain after observed certificate propagation delays, preserving TLS validation (#538).

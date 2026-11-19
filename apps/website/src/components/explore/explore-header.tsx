@@ -356,14 +356,16 @@ export function ExploreHeader() {
           </>
         ) : (
           <>
-            <Link search={{ redirect: locationHref }} to="/login">
-              <Button variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="sm">
+              <Link search={{ redirect: locationHref }} to="/login">
                 Log In
-              </Button>
-            </Link>
-            <Link search={{}} to="/signup">
-              <Button size="sm">Sign Up</Button>
-            </Link>
+              </Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link search={{}} to="/signup">
+                Sign Up
+              </Link>
+            </Button>
           </>
         )}
       </div>

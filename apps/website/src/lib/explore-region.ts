@@ -8,6 +8,7 @@ export interface ExploreRegionSearch {
   mapScope?: MapScope;
   region?: string;
   regionType?: ExploreRegionType;
+  upgraded?: boolean;
 }
 
 export interface ExploreRegionSelection {
@@ -135,3 +136,45 @@ export const mapScopeForDetectedLocation = ({
   }
   return "global";
 };
+
+const REGION_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+export const formatExploreRegionDisplayName = (
+  value: string | null | undefined
+): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (!REGION_SLUG_PATTERN.test(trimmed)) {
+    return trimmed;
+  }
+
+  const withoutCountryPrefix = trimmed.startsWith("us-")
+    ? trimmed.slice(3)
+    : trimmed;
+
+  return withoutCountryPrefix
+    .split("-")
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+    .join(" ");
+};
+
+export const validateExploreSearch = (
+  search: Record<string, unknown>
+): ExploreRegionSearch => ({
+  mapScope: mapScopeFromValue(search.mapScope),
+  region: typeof search.region === "string" ? search.region : undefined,
+  regionType:
+    search.regionType === "global" || search.regionType === "north-america"
+      ? search.regionType
+      : undefined,
+  upgraded:
+    search.upgraded === "1" || search.upgraded === true ? true : undefined,
+});
