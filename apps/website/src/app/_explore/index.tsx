@@ -139,6 +139,7 @@ function LocalExplorePage() {
     [isLoadingLocation, setIsLoadingLocation] = useState(false),
     pageRef = useRef<HTMLDivElement>(null),
     geocodeAbortRef = useRef<AbortController | null>(null),
+    isMountedRef = useRef(true),
     [locationPromptState, setLocationPromptState] = useState<
       "denied" | "error" | "granted" | "idle" | "prompting" | "unsupported"
     >(() =>
@@ -356,11 +357,12 @@ function LocalExplorePage() {
         navigator.geolocation.getCurrentPosition(
           async (position) => {
             const { latitude, longitude } = position.coords,
-              controller = new AbortController(),
-              timeoutId = window.setTimeout(
-                () => controller.abort(),
-                GEOCODE_TIMEOUT_MS
-              );
+              controller = new AbortController();
+            let didTimeout = false;
+            const timeoutId = window.setTimeout(() => {
+              didTimeout = true;
+              controller.abort();
+            }, GEOCODE_TIMEOUT_MS);
 
             geocodeAbortRef.current = controller;
 
@@ -390,7 +392,7 @@ function LocalExplorePage() {
               if (!detectedRegion) {
                 throw new Error("Location response did not include a region.");
               }
-              if (controller.signal.aborted) {
+              if (controller.signal.aborted || !isMountedRef.current) {
                 return;
               }
               setUserLocation(detectedRegion);
@@ -402,7 +404,10 @@ function LocalExplorePage() {
               });
               setLocationPromptState("granted");
             } catch {
-              if (!controller.signal.aborted) {
+              const isCancelled =
+                !isMountedRef.current ||
+                (controller.signal.aborted && !didTimeout);
+              if (!isCancelled) {
                 resetToGlobal("error");
               }
             } finally {
@@ -410,7 +415,10 @@ function LocalExplorePage() {
               if (geocodeAbortRef.current === controller) {
                 geocodeAbortRef.current = null;
               }
-              if (!controller.signal.aborted) {
+              const isCancelled =
+                !isMountedRef.current ||
+                (controller.signal.aborted && !didTimeout);
+              if (!isCancelled) {
                 setIsLoadingLocation(false);
               }
             }
@@ -427,11 +435,13 @@ function LocalExplorePage() {
     };
 
   useEffect(() => {
+    isMountedRef.current = true;
     if (pageRef.current) {
       pageRef.current.dataset.hydrated = "true";
     }
 
     return () => {
+      isMountedRef.current = false;
       geocodeAbortRef.current?.abort();
     };
   }, []);
