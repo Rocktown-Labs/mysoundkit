@@ -98,7 +98,22 @@ export function BattleFilters({
   onSortChange,
   sortOptions,
 }: BattleFiltersProps) {
-  const { data: genres = [] } = useGenresQuery();
+  const { data: genres = [] } = useGenresQuery(),
+    normalizedGenre = normalizeGenreValue(genre),
+    northAmericaLabel =
+      regionType === "north-america"
+        ? northAmericaLocations.find((location) => location.value === region)
+            ?.label
+        : undefined,
+    globalLabel =
+      regionType === "global"
+        ? globalLocations.find((location) => location.value === region)?.label
+        : undefined,
+    genreLabel =
+      normalizedGenre === "all"
+        ? "All Genres"
+        : (genres.find((g) => g.slug === normalizedGenre)?.name ?? genre),
+    sortLabel = sortOptions.find((option) => option.value === sort)?.label;
 
   return (
     <div className="space-y-6 mb-6">
@@ -116,6 +131,7 @@ export function BattleFilters({
             }}
           >
             <SelectTrigger
+              aria-label="North America location"
               id="north-america"
               className={
                 regionType === "north-america"
@@ -123,7 +139,9 @@ export function BattleFilters({
                   : "text-muted-foreground"
               }
             >
-              <SelectValue placeholder="Select location" />
+              <SelectValue placeholder="Select location">
+                {northAmericaLabel}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {northAmericaLocations.map((location) => (
@@ -148,6 +166,7 @@ export function BattleFilters({
             }}
           >
             <SelectTrigger
+              aria-label="Global continent"
               id="global"
               className={
                 regionType === "global"
@@ -155,7 +174,9 @@ export function BattleFilters({
                   : "text-muted-foreground"
               }
             >
-              <SelectValue placeholder="Select continent" />
+              <SelectValue placeholder="Select continent">
+                {globalLabel}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {globalLocations.map((location) => (
@@ -172,12 +193,9 @@ export function BattleFilters({
           <Label htmlFor="genre" className="text-sm font-medium">
             Genre
           </Label>
-          <Select
-            value={normalizeGenreValue(genre)}
-            onValueChange={onGenreChange}
-          >
-            <SelectTrigger id="genre">
-              <SelectValue />
+          <Select value={normalizedGenre} onValueChange={onGenreChange}>
+            <SelectTrigger aria-label="Genre" id="genre">
+              <SelectValue placeholder="All Genres">{genreLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Genres</SelectItem>
@@ -196,8 +214,8 @@ export function BattleFilters({
             Sort By
           </Label>
           <Select value={sort} onValueChange={onSortChange}>
-            <SelectTrigger id="sort">
-              <SelectValue />
+            <SelectTrigger aria-label="Sort by" id="sort">
+              <SelectValue placeholder="Sort by">{sortLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {sortOptions.map((option) => (

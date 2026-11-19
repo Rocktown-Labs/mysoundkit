@@ -96,7 +96,7 @@ function LiveStreamsPage() {
     <div className="space-y-8 pb-8">
       <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="font-bold text-2xl md:text-3xl">Creator Streams</h1>
+          <h2 className="font-bold text-2xl md:text-3xl">Creator Streams</h2>
           <p className="mt-2 max-w-3xl text-muted-foreground">
             Browse featured broadcasts, live OBS rooms, scheduled streams, and
             genre channels.

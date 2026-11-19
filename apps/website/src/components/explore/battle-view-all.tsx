@@ -25,6 +25,7 @@ interface BattleViewAllProps {
   type: BattleType;
   title: string;
   description: string;
+  headingLevel?: "h1" | "h2";
 }
 
 interface BattleFiltersState {
@@ -325,6 +326,7 @@ export function BattleViewAll({
   type,
   title,
   description,
+  headingLevel = "h1",
 }: BattleViewAllProps) {
   const routeSearch = useSearch({ strict: false }),
     isInitialMount = useRef(true),
@@ -530,14 +532,16 @@ export function BattleViewAll({
       }
     };
 
+  const HeadingTag = headingLevel;
+
   return (
     <div className="space-y-8 pb-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="mb-2 flex items-center gap-2 font-bold text-2xl md:text-3xl lg:text-4xl">
+        <HeadingTag className="mb-2 flex items-center gap-2 font-bold text-2xl md:text-3xl lg:text-4xl">
           {getBattleTypeIcon(type)}
           {title}
-        </h1>
+        </HeadingTag>
         <p className="text-muted-foreground text-sm md:text-base">
           {description}
         </p>

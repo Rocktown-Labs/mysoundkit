@@ -69,15 +69,16 @@ export function LiveHero({
                 SoundKit Premium Unlocked
               </Badge>
             ) : (
-              <Link to="/pricing">
-                <Button
-                  size="lg"
-                  className="w-full sm:w-auto text-sm sm:text-base h-10 sm:h-12 md:h-14 hover:text-white"
-                >
+              <Button
+                asChild
+                size="lg"
+                className="w-full sm:w-auto text-sm sm:text-base h-10 sm:h-12 md:h-14 hover:text-white"
+              >
+                <Link to="/pricing">
                   <Sparkles className="size-4 sm:size-5 mr-2 text-yellow-400" />
                   Upgrade to SoundKit Premium ($22.99/mo)
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             )}
           </div>
         </div>

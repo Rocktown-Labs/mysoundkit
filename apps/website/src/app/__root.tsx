@@ -39,7 +39,6 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
-        <meta content="width=device-width, initial-scale=1" name="viewport" />
         <HeadContent />
       </head>
       <body className="font-sans bg-background text-foreground antialiased">
@@ -113,7 +112,7 @@ function GlobalErrorFallback({
             type="button"
             onClick={() => {
               reset();
-              void router.invalidate();
+              router.invalidate().catch(reportError);
             }}
             className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 cursor-pointer"
           >
@@ -141,10 +140,6 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   errorComponent: GlobalErrorFallback,
   head: () => ({
     links: [
-      {
-        href: `${SITE_URL}/`,
-        rel: "canonical",
-      },
       {
         href: "/favicon.ico",
         rel: "icon",
