@@ -7,6 +7,7 @@ import {
   isMapScope,
   mapScopeForDetectedLocation,
   mapScopeFromValue,
+  parseExploreGeocodeResponse,
   resolveInitialExploreRegion,
   validateExploreSearch,
 } from "./explore-region";
@@ -82,11 +83,60 @@ describe("Explore region state", () => {
 
   it("formats region slugs into readable display labels without altering labels", () => {
     expect(formatExploreRegionDisplayName("new-york")).toBe("New York");
-    expect(formatExploreRegionDisplayName("us-california")).toBe("California");
+    expect(formatExploreRegionDisplayName("us-california", "usa")).toBe(
+      "California"
+    );
     expect(formatExploreRegionDisplayName("New York")).toBe("New York");
     expect(formatExploreRegionDisplayName("Washington, D.C.")).toBe(
       "Washington, D.C."
     );
     expect(formatExploreRegionDisplayName("")).toBeNull();
+  });
+  it("bounds region labels and rejects markup without losing geographic display names", () => {
+    expect(validateExploreSearch({ region: "  New York  " }).region).toBe(
+      "New York"
+    );
+    expect(
+      validateExploreSearch({ region: "a".repeat(200) }).region
+    ).toHaveLength(120);
+    expect(
+      validateExploreSearch({ region: "<script>" }).region
+    ).toBeUndefined();
+    expect(formatExploreRegionDisplayName("<script>")).toBeNull();
+    expect(formatExploreRegionDisplayName("us-river")).toBe("Us River");
+    expect(formatExploreRegionDisplayName("us-river", "europe")).toBe(
+      "Us River"
+    );
+  });
+
+  it("infers a regional selection when legacy preferences lack scope metadata", () => {
+    expect(
+      resolveInitialExploreRegion({ savedRegion: "us-arkansas", search: {} })
+    ).toMatchObject({ mapScope: "usa", regionType: "north-america" });
+    expect(
+      resolveInitialExploreRegion({ savedRegion: "europe", search: {} })
+    ).toMatchObject({ mapScope: "europe", region: null, regionType: "global" });
+  });
+  it("validates reverse-geocode payloads before reading region fields", () => {
+    expect(
+      parseExploreGeocodeResponse({
+        countryCode: "US",
+        countryName: "United States",
+        principalSubdivision: "Arkansas",
+      }).principalSubdivision
+    ).toBe("Arkansas");
+    for (const payload of [
+      null,
+      [],
+      "US",
+      { countryCode: 4 },
+      {
+        countryCode: "US",
+        countryName: "United States",
+        principalSubdivision: {},
+      },
+    ]) {
+      expect(() => parseExploreGeocodeResponse(payload)).toThrow();
+    }
   });
 });

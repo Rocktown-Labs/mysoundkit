@@ -33,6 +33,7 @@ import {
   exploreRegionSlug,
   formatExploreRegionDisplayName,
   mapScopeForDetectedLocation,
+  parseExploreGeocodeResponse,
   regionTypeForMapScope,
   resolveInitialExploreRegion,
   validateExploreSearch,
@@ -54,7 +55,23 @@ import type {
   VideoSummary,
 } from "@/lib/soundkit-api-hooks";
 
-const GEOCODE_TIMEOUT_MS = 10_000,
+const LOCATION_PROMPT_TITLES = {
+    denied: "Location access declined — showing Global View",
+    error: "Could not detect your location — showing Global View",
+    granted: "",
+    idle: "Personalize your local scene",
+    prompting: "Requesting location permission...",
+    unsupported: "Location access is unavailable in this browser.",
+  },
+  LOCATION_PROMPT_ACTIONS = {
+    denied: "Enable Location",
+    error: "Try Again",
+    granted: "Use my location",
+    idle: "Use my location",
+    prompting: "Use my location",
+    unsupported: "Use my location",
+  },
+  GEOCODE_TIMEOUT_MS = 10_000,
   readStoredExplorePreferences = () => {
     if (typeof window === "undefined") {
       return {
@@ -81,22 +98,36 @@ const GEOCODE_TIMEOUT_MS = 10_000,
       };
     }
   },
-  computeInitialExplorePreferences = (search: {
-    mapScope?: MapScope;
-    region?: string;
-    regionType?: "global" | "north-america";
-  }) => {
-    const stored = readStoredExplorePreferences(),
+  computeInitialExplorePreferences = (
+    search: {
+      mapScope?: MapScope;
+      region?: string;
+      regionType?: "global" | "north-america";
+    },
+    restoreStorage = true
+  ) => {
+    const stored = restoreStorage
+        ? readStoredExplorePreferences()
+        : {
+            savedMapScope: null,
+            savedRegion: null,
+            savedRegionType: null,
+            savedUserLocation: null,
+          },
       selection = resolveInitialExploreRegion({
         savedMapScope: stored.savedMapScope,
         savedRegion: stored.savedRegion ?? stored.savedUserLocation,
         savedRegionType: stored.savedRegionType,
         search,
       }),
-      displayRegion = formatExploreRegionDisplayName(selection.region),
+      displayRegion = formatExploreRegionDisplayName(
+        selection.region,
+        selection.mapScope
+      ),
       displayUserLocation = formatExploreRegionDisplayName(
         stored.savedUserLocation ??
-          (selection.regionType === "global" ? null : selection.region)
+          (selection.regionType === "global" ? null : selection.region),
+        selection.mapScope
       );
 
     return {
@@ -131,14 +162,17 @@ function ExplorePage() {
 function LocalExplorePage() {
   const search = Route.useSearch(),
     navigate = Route.useNavigate(),
+    // The initial snapshot is immutable; interactive state has its own setters.
+    // eslint-disable-next-line react/hook-use-state
+    [initialPreferences] = useState(() =>
+      computeInitialExplorePreferences(search, false)
+    ),
     [selectedRegion, setSelectedRegion] = useState<string | null>(
-      () => computeInitialExplorePreferences(search).selectedRegion
+      initialPreferences.selectedRegion
     ),
-    [mapScope, setMapScope] = useState<MapScope>(
-      () => computeInitialExplorePreferences(search).mapScope
-    ),
+    [mapScope, setMapScope] = useState<MapScope>(initialPreferences.mapScope),
     [userLocation, setUserLocation] = useState<string | null>(
-      () => computeInitialExplorePreferences(search).userLocation
+      initialPreferences.userLocation
     ),
     [isLoadingLocation, setIsLoadingLocation] = useState(false),
     pageRef = useRef<HTMLDivElement>(null),
@@ -146,11 +180,7 @@ function LocalExplorePage() {
     isMountedRef = useRef(true),
     [locationPromptState, setLocationPromptState] = useState<
       "denied" | "error" | "granted" | "idle" | "prompting" | "unsupported"
-    >(() =>
-      computeInitialExplorePreferences(search).hasStoredLocation
-        ? "granted"
-        : "idle"
-    ),
+    >(() => (initialPreferences.hasStoredLocation ? "granted" : "idle")),
     activeRegion =
       selectedRegion ??
       (mapScope === "global"
@@ -381,11 +411,7 @@ function LocalExplorePage() {
                 );
               }
 
-              const data = (await response.json()) as {
-                  countryCode?: string;
-                  countryName?: string;
-                  principalSubdivision?: string;
-                },
+              const data = parseExploreGeocodeResponse(await response.json()),
                 detectedMapScope = mapScopeForDetectedLocation({
                   countryCode: data.countryCode,
                 }),
@@ -440,6 +466,13 @@ function LocalExplorePage() {
 
   useEffect(() => {
     isMountedRef.current = true;
+    const restored = computeInitialExplorePreferences(search);
+    // Restore browser preferences after hydration so SSR and the first render agree.
+    // eslint-disable-next-line react/set-state-in-effect
+    setSelectedRegion(restored.selectedRegion);
+    setMapScope(restored.mapScope);
+    setUserLocation(restored.userLocation);
+    setLocationPromptState(restored.hasStoredLocation ? "granted" : "idle");
     if (pageRef.current) {
       pageRef.current.dataset.hydrated = "true";
     }
@@ -508,15 +541,7 @@ function LocalExplorePage() {
                 <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
                   <div className="space-y-1">
                     <p className="text-sm font-medium">
-                      {locationPromptState === "prompting"
-                        ? "Requesting location permission..."
-                        : locationPromptState === "denied"
-                          ? "Location access declined — showing Global View"
-                          : locationPromptState === "error"
-                            ? "Could not detect your location — showing Global View"
-                            : locationPromptState === "unsupported"
-                              ? "Location access is unavailable in this browser."
-                              : "Personalize your local scene"}
+                      {LOCATION_PROMPT_TITLES[locationPromptState]}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {locationPromptState === "denied" ||
@@ -534,11 +559,7 @@ function LocalExplorePage() {
                       disabled={isLoadingLocation}
                     >
                       <LocateFixed className="size-4" />
-                      {locationPromptState === "denied"
-                        ? "Enable Location"
-                        : locationPromptState === "error"
-                          ? "Try Again"
-                          : "Use my location"}
+                      {LOCATION_PROMPT_ACTIONS[locationPromptState]}
                     </Button>
                   )}
                 </CardContent>
