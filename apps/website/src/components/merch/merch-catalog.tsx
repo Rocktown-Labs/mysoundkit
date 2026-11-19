@@ -279,13 +279,18 @@ function CatalogDetails({
               {colors.map((variant) => (
                 <Button
                   key={variant.id}
-                  variant="outline"
+                  variant={
+                    selectedVariant?.color === variant.color
+                      ? "secondary"
+                      : "outline"
+                  }
                   size="sm"
                   aria-pressed={selectedVariant?.color === variant.color}
                   onClick={() => setSelectedVariant(variant)}
                   className={cn(
                     "gap-2",
-                    selectedVariant?.color === variant.color && "border-primary"
+                    selectedVariant?.color === variant.color &&
+                      "ring-1 ring-primary"
                   )}
                 >
                   <span
