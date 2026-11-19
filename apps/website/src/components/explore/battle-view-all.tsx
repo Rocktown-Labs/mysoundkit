@@ -532,21 +532,16 @@ export function BattleViewAll({
       }
     };
 
+  const HeadingTag = headingLevel;
+
   return (
     <div className="space-y-8 pb-8">
       {/* Header */}
       <div className="mb-8">
-        {headingLevel === "h2" ? (
-          <h2 className="mb-2 flex items-center gap-2 font-bold text-2xl md:text-3xl lg:text-4xl">
-            {getBattleTypeIcon(type)}
-            {title}
-          </h2>
-        ) : (
-          <h1 className="mb-2 flex items-center gap-2 font-bold text-2xl md:text-3xl lg:text-4xl">
-            {getBattleTypeIcon(type)}
-            {title}
-          </h1>
-        )}
+        <HeadingTag className="mb-2 flex items-center gap-2 font-bold text-2xl md:text-3xl lg:text-4xl">
+          {getBattleTypeIcon(type)}
+          {title}
+        </HeadingTag>
         <p className="text-muted-foreground text-sm md:text-base">
           {description}
         </p>
