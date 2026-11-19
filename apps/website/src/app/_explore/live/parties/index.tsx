@@ -153,7 +153,7 @@ function LivePartiesPage() {
     <div className="space-y-8 pb-8">
       <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="font-bold text-2xl md:text-3xl">Listening Parties</h1>
+          <h2 className="font-bold text-2xl md:text-3xl">Listening Parties</h2>
           <p className="mt-2 max-w-3xl text-muted-foreground">
             Join scheduled release rooms and fan-hosted playlist sessions with
             synchronized playback and chat.

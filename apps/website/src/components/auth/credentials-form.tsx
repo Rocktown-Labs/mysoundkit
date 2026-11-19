@@ -18,13 +18,14 @@ import { Separator } from "@/components/ui/separator";
 import { capture, captureAnalyticsException, identify } from "@/lib/analytics";
 import { API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import { DEFAULT_AUTH_REDIRECT } from "@/lib/auth-redirect";
 import { completeBattleShareReferral } from "@/lib/battle-share";
 
 export function CredentialsForm({
   accountType,
   mode = "signup",
   onSignupSuccess,
-  redirect = "/dashboard",
+  redirect = DEFAULT_AUTH_REDIRECT,
 }: {
   accountType?: "artist" | "fan";
   mode?: "login" | "signup";
