@@ -33,7 +33,9 @@ export function SoundKitBrand({
 
   return (
     <div className={cn("flex w-full items-center justify-center", className)}>
+      <span className="sr-only">SoundKit</span>
       <span
+        aria-hidden="true"
         className={cn(
           "flex h-9 w-full shrink-0 items-center justify-center border border-white/45 px-3 font-notable text-base leading-none text-white uppercase shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] group-data-[collapsible=icon]:hidden",
           wordmarkClassName
@@ -43,7 +45,7 @@ export function SoundKitBrand({
         SoundKit
       </span>
       <span
-        aria-label="SoundKit"
+        aria-hidden="true"
         className={cn(
           "hidden size-7 shrink-0 items-center justify-center border border-white/45 font-notable text-sm leading-none text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] group-data-[collapsible=icon]:flex",
           markClassName

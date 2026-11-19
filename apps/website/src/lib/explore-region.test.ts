@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   exploreLocationPhrase,
   exploreRegionQuery,
+  formatExploreRegionDisplayName,
   isMapScope,
   mapScopeForDetectedLocation,
   mapScopeFromValue,
   resolveInitialExploreRegion,
+  validateExploreSearch,
 } from "./explore-region";
 
 describe("Explore region state", () => {
@@ -62,5 +64,29 @@ describe("Explore region state", () => {
     expect(mapScopeForDetectedLocation({ countryCode: "NG" })).toBe("global");
     expect(mapScopeFromValue("north-america")).toBe("usa");
     expect(mapScopeFromValue("middle-earth")).toBeUndefined();
+  });
+
+  it("omits upgraded from search when absent and preserves upgraded=1", () => {
+    expect(validateExploreSearch({})).toEqual({
+      mapScope: undefined,
+      region: undefined,
+      regionType: undefined,
+      upgraded: undefined,
+    });
+    expect(
+      validateExploreSearch({ upgraded: "false" }).upgraded
+    ).toBeUndefined();
+    expect(validateExploreSearch({ upgraded: "1" }).upgraded).toBe(true);
+    expect(validateExploreSearch({ upgraded: true }).upgraded).toBe(true);
+  });
+
+  it("formats region slugs into readable display labels without altering labels", () => {
+    expect(formatExploreRegionDisplayName("new-york")).toBe("New York");
+    expect(formatExploreRegionDisplayName("us-california")).toBe("California");
+    expect(formatExploreRegionDisplayName("New York")).toBe("New York");
+    expect(formatExploreRegionDisplayName("Washington, D.C.")).toBe(
+      "Washington, D.C."
+    );
+    expect(formatExploreRegionDisplayName("")).toBeNull();
   });
 });
