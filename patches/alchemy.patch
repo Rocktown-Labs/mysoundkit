@@ -40,3 +40,27 @@ index 2fde7599b0dea272c13585984faae3c4b43d0919..0a2fa707ff3dd5a414ff64b48631fc49
        // Sinks have no update API — any change is a replacement.
        const newName = yield* sinkName(id, news.name);
        const oldName = output?.name ?? (yield* sinkName(id, o.name));
+--- a/src/Cloudflare/Queues/Consumer.ts
++++ b/src/Cloudflare/Queues/Consumer.ts
+@@ -591,7 +591,8 @@
+           queueId: output.queueId,
+           consumerId: output.consumerId,
+         })
+-        .pipe(Effect.catchTag("ConsumerNotFound", () => Effect.void));
++        .pipe(Effect.catchTag("ConsumerNotFound", () => Effect.void),
++                Effect.catchTag("QueueNotFound", () => Effect.void));
+ 
+       // Block until Cloudflare's worker subsystem stops claiming
+       // the script as a queue consumer. Without this the
+--- a/lib/Cloudflare/Queues/Consumer.js
++++ b/lib/Cloudflare/Queues/Consumer.js
+@@ -394,7 +394,8 @@
+             queueId: output.queueId,
+             consumerId: output.consumerId,
+         })
+-            .pipe(Effect.catchTag("ConsumerNotFound", () => Effect.void));
++            .pipe(Effect.catchTag("ConsumerNotFound", () => Effect.void),
++                Effect.catchTag("QueueNotFound", () => Effect.void));
+         // Block until Cloudflare's worker subsystem stops claiming
+         // the script as a queue consumer. Without this the
+         // sibling Worker.delete races on `QueueConsumerConflict`
