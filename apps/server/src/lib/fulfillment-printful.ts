@@ -5,13 +5,16 @@ import {
   merchDesigns,
   merchMockups,
 } from "@soundkit/db/schema/fulfillment";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, isNull, lt } from "drizzle-orm";
 
+import { merchProductionPlacement } from "@/lib/merch-production";
 import {
   createPrintfulMockupTask,
   getPrintfulMockupTask,
+  getPrintfulMockupStyles,
   isPrintfulConfigured,
   registerPrintfulFile,
+  getPrintfulMockupStyles,
 } from "@/lib/printful";
 import { logWarn } from "@/middleware/structured-logging";
 
@@ -80,7 +83,10 @@ export const enqueueDesignMockups = async ({
       .from(merchCatalogVariants)
       .where(
         and(
-          eq(merchCatalogVariants.catalogProductId, design.printfulCatalogProductId),
+          eq(
+            merchCatalogVariants.catalogProductId,
+            design.printfulCatalogProductId
+          ),
           eq(merchCatalogVariants.inStock, true)
         )
       ),
@@ -91,15 +97,20 @@ export const enqueueDesignMockups = async ({
   }
 
   const existingMockups = await db
-    .select({
-      catalogVariantId: merchMockups.catalogVariantId,
-    })
-    .from(merchMockups)
-    .where(eq(merchMockups.merchDesignId, merchDesignId)),
+      .select({
+        catalogVariantId: merchMockups.catalogVariantId,
+      })
+      .from(merchMockups)
+      .where(eq(merchMockups.merchDesignId, merchDesignId)),
     existingVariantIds = new Set(
       existingMockups.map((m) => m.catalogVariantId)
     ),
-    newVariants = variants.filter((v) => !existingVariantIds.has(v.id));
+    newVariants = variants.filter(
+      (v) =>
+        !existingVariantIds.has(v.id) &&
+        (!design.designMetadata?.editor ||
+          design.designMetadata.editor.variantIds.includes(v.id))
+    );
 
   for (const variant of newVariants) {
     await db.insert(merchMockups).values({
@@ -143,7 +154,10 @@ export const submitQueuedMockup = async ({
   if (!design?.printfulCatalogProductId || !design.designFileUrl) {
     await db
       .update(merchMockups)
-      .set({ error: "Design has no catalog binding or print file URL.", status: "failed" })
+      .set({
+        error: "Design has no catalog binding or print file URL.",
+        status: "failed",
+      })
       .where(eq(merchMockups.id, mockupId));
     return { submitted: false };
   }
@@ -162,32 +176,39 @@ export const submitQueuedMockup = async ({
     return { submitted: false };
   }
 
-  const placement = (product.placements as Array<Record<string, unknown>>)
-    .find((p) => p.placement === design.placement),
-    mockupStyleIds = product.mockupStyleIds ?? [];
-
-  if (!placement || mockupStyleIds.length === 0) {
-    await db
-      .update(merchMockups)
-      .set({ error: `No mockup styles for placement "${design.placement}".`, status: "failed" })
-      .where(eq(merchMockups.id, mockupId));
-    return { submitted: false };
-  }
-
+  const [claimed] = await db
+    .update(merchMockups)
+    .set({ status: "pending", updatedAt: new Date() })
+    .where(
+      and(eq(merchMockups.id, mockupId), eq(merchMockups.status, "queued"))
+    )
+    .returning();
+  if (!claimed) {return { submitted: false };}
   try {
+    const placement = (product.placements as Record<string, unknown>[]).find(
+      (p) => p.placement === design.placement
+    ),
+     groups = design.designMetadata?.editor
+      ? await getPrintfulMockupStyles(Number(product.id))
+      : [],
+     mockupStyleIds = design.designMetadata?.editor
+      ? (groups
+          .find(
+            (group) =>
+              group.placement === design.placement &&
+              group.technique === design.technique
+          )
+          ?.mockup_styles?.map((style) => style.id) ?? [])
+      : (product.mockupStyleIds ?? []);
+    if (!placement || mockupStyleIds.length === 0)
+      {throw new Error(`No mockup styles for placement "${design.placement}".`);}
     const task = await createPrintfulMockupTask({
       products: [
         {
           catalog_product_id: Number(design.printfulCatalogProductId),
           catalog_variant_ids: [Number(mockup.catalogVariantId)],
           mockup_style_ids: mockupStyleIds,
-          placements: [
-            {
-              layers: [{ type: "file", url: design.designFileUrl }],
-              placement: design.placement,
-              technique: design.technique,
-            },
-          ],
+          placements: [merchProductionPlacement(design)],
           source: "catalog",
         },
       ],
@@ -243,8 +264,8 @@ export const checkPendingMockupTask = async ({
 
   if (task.status === "completed") {
     const variantMockup = task.catalog_variant_mockups.find(
-      (v) => String(v.catalog_variant_id) === mockup.catalogVariantId
-    ),
+        (v) => String(v.catalog_variant_id) === mockup.catalogVariantId
+      ),
       firstUrl = variantMockup?.mockups?.[0]?.url;
 
     if (firstUrl) {
@@ -260,12 +281,20 @@ export const checkPendingMockupTask = async ({
     await db
       .update(merchMockups)
       .set({
-        error: task.failure_reasons.join("; ") || "Printful mockup generation failed.",
+        error:
+          task.failure_reasons.join("; ") ||
+          "Printful mockup generation failed.",
         status: "failed",
       })
       .where(eq(merchMockups.id, mockup.id));
     return { updated: true };
   }
+
+  if (task.status === "pending")
+    {await db
+      .update(merchMockups)
+      .set({ updatedAt: new Date() })
+      .where(eq(merchMockups.id, mockup.id));}
 
   return { updated: false };
 };
@@ -281,12 +310,31 @@ export const runMockupPollSweep = async () => {
     return { polled: 0 };
   }
 
-  const db = createDb(),
-    staleMockups = await db
-      .select({ printfulTaskId: merchMockups.printfulTaskId })
-      .from(merchMockups)
-      .where(eq(merchMockups.status, "pending"))
-      .limit(5);
+  const db = createDb();
+  // Recover a claimed task whose worker exited before persisting its task ID.
+  await db
+    .update(merchMockups)
+    .set({ status: "queued", updatedAt: new Date() })
+    .where(
+      and(
+        eq(merchMockups.status, "pending"),
+        isNull(merchMockups.printfulTaskId),
+        lt(merchMockups.updatedAt, new Date(Date.now() - 10 * 60_000))
+      )
+    );
+  const queued = await db
+    .select({ id: merchMockups.id })
+    .from(merchMockups)
+    .where(eq(merchMockups.status, "queued"))
+    .orderBy(asc(merchMockups.updatedAt))
+    .limit(2);
+  for (const row of queued) {await submitQueuedMockup({ mockupId: row.id });}
+  const staleMockups = await db
+    .select({ printfulTaskId: merchMockups.printfulTaskId })
+    .from(merchMockups)
+    .where(eq(merchMockups.status, "pending"))
+    .orderBy(asc(merchMockups.updatedAt))
+    .limit(5);
 
   let polled = 0;
 

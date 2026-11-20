@@ -50,6 +50,8 @@ export interface Cart {
 }
 
 export interface AddCartItemInput {
+  merchDesignId?: string;
+  printfulVariantId?: string;
   artistName?: string | null;
   coverArtUrl?: string | null;
   licenseName?: string | null;
@@ -186,6 +188,7 @@ const EMPTY_CART: Cart = {
   },
   buildLocalCartItem = (input: AddCartItemInput): CartItem => {
     const productId =
+      input.merchDesignId ??
       input.physicalReleaseId ??
       input.trackId ??
       input.projectId ??
@@ -199,8 +202,10 @@ const EMPTY_CART: Cart = {
       licenseName: input.licenseName,
       licenseOptionId: input.licenseOptionId,
       mediaFormat: input.mediaFormat,
+      merchDesignId: input.merchDesignId,
       physicalReleaseId: input.physicalReleaseId,
       priceCents: input.priceCents,
+      printfulVariantId: input.printfulVariantId,
       productId,
       productType: input.productType,
       projectId: input.projectId,
@@ -232,6 +237,8 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
           body: JSON.stringify({
             items: localCart.items.map((item) => ({
               licenseOptionId: item.licenseOptionId ?? undefined,
+              merchDesignId: item.merchDesignId ?? undefined,
+              printfulVariantId: item.printfulVariantId ?? undefined,
               physicalReleaseId: item.physicalReleaseId ?? undefined,
               productType: item.productType,
               projectId:
@@ -278,7 +285,9 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
             const apiCart = await requestCart("/items", {
               body: JSON.stringify({
                 licenseOptionId: input.licenseOptionId,
+                merchDesignId: input.merchDesignId,
                 physicalReleaseId: input.physicalReleaseId,
+                printfulVariantId: input.printfulVariantId,
                 productType: input.productType,
                 projectId: input.projectId,
                 quantity: input.quantity ?? 1,
@@ -299,7 +308,8 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
               title: input.title,
             });
             return;
-          } catch {
+          } catch (error) {
+            if (input.merchDesignId) throw error;
             setIsApiCartActive(false);
           }
         }
@@ -310,7 +320,9 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
               item.productType === nextItem.productType &&
               item.productId === nextItem.productId &&
               item.licenseOptionId === nextItem.licenseOptionId &&
-              item.physicalReleaseId === nextItem.physicalReleaseId
+              item.physicalReleaseId === nextItem.physicalReleaseId &&
+              item.merchDesignId === nextItem.merchDesignId &&
+              item.printfulVariantId === nextItem.printfulVariantId
           );
 
         if (existingItem) {

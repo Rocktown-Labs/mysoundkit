@@ -355,17 +355,17 @@ export const searchPrintfulCatalogProducts = async (
   query: string,
   maxResults = 10
 ) => {
-  const allProducts = await getPrintfulCatalogProducts({ limit: 100 });
-  const normalized = query.toLowerCase().trim();
-  const matches =
-      normalized.length === 0
-        ? allProducts
-        : allProducts.filter(
-            (product) =>
-              product.name.toLowerCase().includes(normalized) ||
-              product.type?.toLowerCase().includes(normalized) ||
-              product.brand?.toLowerCase().includes(normalized)
-          );
+  const allProducts = await getPrintfulCatalogProducts({ limit: 100 }),
+   normalized = query.toLowerCase().trim(),
+   matches =
+    normalized.length === 0
+      ? allProducts
+      : allProducts.filter(
+          (product) =>
+            product.name.toLowerCase().includes(normalized) ||
+            product.type?.toLowerCase().includes(normalized) ||
+            product.brand?.toLowerCase().includes(normalized)
+        );
 
   return matches.slice(0, maxResults);
 };
@@ -432,6 +432,8 @@ export const getPrintfulProductAvailability = async (productId: number) => {
 // ---------------------------------------------------------------------------
 
 export interface PrintfulFile {
+  width?: number;
+  height?: number;
   created?: string;
   filename?: string;
   hash?: string;
@@ -459,6 +461,11 @@ export const registerPrintfulFile = async ({
 
   return unwrapPrintfulPayload<PrintfulFile | null>(payload);
 };
+
+export const getPrintfulFile = async (id: number) =>
+  unwrapPrintfulPayload<PrintfulFile | null>(
+    await printfulRequest({ path: `/files/${id}` })
+  );
 
 // ---------------------------------------------------------------------------
 // Mockup Generator v2 (async tasks)

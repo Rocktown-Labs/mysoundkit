@@ -369,9 +369,13 @@ app.openapi(
         merchDesignIds.length > 0
           ? await db
               .select({
+                designMetadata: merchDesigns.designMetadata,
                 id: merchDesigns.id,
+                ownerUserId: merchDesigns.ownerUserId,
                 platformFeeBps: merchDesigns.platformFeeBps,
                 printfulCatalogProductId: merchDesigns.printfulCatalogProductId,
+                retailPriceCents: merchDesigns.retailPriceCents,
+                status: merchDesigns.status,
               })
               .from(merchDesigns)
               .where(inArray(merchDesigns.id, merchDesignIds))
@@ -385,7 +389,9 @@ app.openapi(
           ? await db
               .select({
                 basePriceCents: merchCatalogVariants.basePriceCents,
+                catalogProductId: merchCatalogVariants.catalogProductId,
                 id: merchCatalogVariants.id,
+                inStock: merchCatalogVariants.inStock,
               })
               .from(merchCatalogVariants)
               .where(inArray(merchCatalogVariants.id, printfulVariantIds))
@@ -393,6 +399,31 @@ app.openapi(
       variantCostMap = new Map(
         printfulVariantRows.map((v) => [v.id, v.basePriceCents])
       );
+
+    for (const item of items) {
+      if (!item.merchDesignId) {continue;}
+      const design = merchDesignMap.get(item.merchDesignId);
+      const variant = printfulVariantRows.find(
+        (row) => row.id === item.printfulVariantId
+      );
+      if (
+        !design ||
+        design.status !== "published" ||
+        design.ownerUserId !== item.sellerUserId ||
+        !variant?.inStock ||
+        variant.catalogProductId !== design.printfulCatalogProductId ||
+        design.retailPriceCents !== item.priceCentsSnapshot ||
+        (design.designMetadata?.editor &&
+          !design.designMetadata.editor.variantIds.includes(variant.id))
+      )
+        {return c.json(
+          {
+            message:
+              "A merchandise product changed or is unavailable. Refresh your cart before checkout.",
+          },
+          HttpStatusCodes.BAD_REQUEST
+        );}
+    }
 
     let totalAmountCents = 0,
       totalApplicationFeeCents = 0,

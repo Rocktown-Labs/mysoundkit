@@ -11,6 +11,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import type { MerchEditorConfig } from "../merch-design";
 import { orders, projects, tracks } from "./app";
 import { user } from "./auth";
 import { fulfillmentProviderEnum } from "./commerce";
@@ -110,6 +111,7 @@ export const merchDesigns = pgTable(
     designFileObjectKey: text("design_file_object_key").notNull(),
     designFileUrl: text("design_file_url"),
     designMetadata: jsonb("design_metadata").$type<{
+      editor?: MerchEditorConfig;
       dpi?: number;
       format?: string;
       hasAlpha?: boolean;

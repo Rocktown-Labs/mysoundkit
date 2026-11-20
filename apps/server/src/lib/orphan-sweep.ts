@@ -8,6 +8,7 @@ import {
   uploadIntents,
   userProfiles,
 } from "@soundkit/db/schema/app";
+import { merchDesigns } from "@soundkit/db/schema/fulfillment";
 import { and, gt, inArray, lt, or } from "drizzle-orm";
 
 import { isUploadIntentTableUnavailable } from "@/lib/upload-intents";
@@ -66,7 +67,7 @@ const registeredObjectKeys = async (candidateKeys: string[]) => {
       registered = new Set<string>();
 
     for (const batch of chunks(candidateKeys, DB_BATCH_SIZE)) {
-      const [trackRows, projectRows, profileRows, messageRows, adRows] =
+      const [trackRows, projectRows, profileRows, messageRows, adRows, merchRows] =
         await Promise.all([
           db
             .select({ objectKey: trackAssets.objectKey })
@@ -98,8 +99,10 @@ const registeredObjectKeys = async (candidateKeys: string[]) => {
               creativeUrl: adCampaigns.creativeUrl,
             })
             .from(adCampaigns),
+          db.select({ objectKey: merchDesigns.designFileObjectKey }).from(merchDesigns).where(inArray(merchDesigns.designFileObjectKey, batch)),
         ]);
 
+      for (const row of merchRows) registered.add(row.objectKey);
       for (const row of trackRows) {
         if (row.objectKey) {
           registered.add(row.objectKey);

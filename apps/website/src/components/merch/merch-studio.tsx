@@ -64,6 +64,7 @@ import type {
 
 import { MerchCatalog, merchPrice } from "./merch-catalog";
 import { MerchDesigner } from "./merch-designer";
+import { MerchDiscardDialog } from "./merch-discard-dialog";
 
 interface ProductRow {
   id: string;
@@ -78,7 +79,15 @@ export function MerchStudio() {
   const [view, setView] = useState<"products" | "catalog">("products"),
     [chooserOpen, setChooserOpen] = useState(false),
     [designProduct, setDesignProduct] = useState<string | null>(null),
+    [reviewDesign, setReviewDesign] = useState<MerchDesign | undefined>(),
+    [designerDirty, setDesignerDirty] = useState(false),
+    [discardOpen, setDiscardOpen] = useState(false),
     catalog = useMerchCatalogQuery();
+  const closeDesigner = () => {
+    setDesignProduct(null);
+    setReviewDesign(undefined);
+    setDesignerDirty(false);
+  };
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-7 pb-12">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -116,27 +125,19 @@ export function MerchStudio() {
         </Button>
       </div>
       {view === "products" && (
-        <ProductManager onCreate={() => setChooserOpen(true)} />
-      )}
-      {view === "catalog" && catalog.isPending && (
-        <output className="py-16 text-center text-muted-foreground">
-          Loading the catalog…
-        </output>
-      )}
-      {view === "catalog" && catalog.isError && (
-        <LoadError
-          label="The catalog couldn't load."
-          retry={() => {
-            void catalog.refetch();
+        <ProductManager
+          onCreate={() => setChooserOpen(true)}
+          onReview={(design) => {
+            setReviewDesign(design);
+            setDesignProduct(design.printfulCatalogProductId);
           }}
         />
       )}
-      {view === "catalog" && !catalog.isPending && !catalog.isError && (
-        <MerchCatalog
-          products={catalog.data?.products ?? []}
-          variants={catalog.data?.variants ?? []}
-          onBack={() => setView("products")}
+      {view === "catalog" && (
+        <MerchDiscovery
+          catalog={catalog}
           onDesign={setDesignProduct}
+          onBack={() => setView("products")}
         />
       )}
       <Dialog open={chooserOpen} onOpenChange={setChooserOpen}>
@@ -180,22 +181,33 @@ export function MerchStudio() {
           </p>
         </DialogContent>
       </Dialog>
+      <MerchDiscardDialog
+        open={discardOpen}
+        onOpenChange={setDiscardOpen}
+        onDiscard={closeDesigner}
+      />
       <Dialog
         open={designProduct !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setDesignProduct(null);
+            if (designerDirty) {
+              setDiscardOpen(true);
+            } else {
+              closeDesigner();
+            }
           }
         }}
       >
-        <DialogContent className="max-h-[90dvh] max-w-4xl overflow-y-auto">
+        <DialogContent className="max-h-[90dvh] max-w-[calc(100vw-2rem)] overflow-y-auto xl:max-w-7xl">
           <DialogTitle>Make it yours</DialogTitle>
           <DialogDescription>
             Add a print-ready file and your product details.
           </DialogDescription>
           {designProduct && (
             <MerchDesigner
-              key={designProduct}
+              key={reviewDesign?.id ?? designProduct}
+              design={reviewDesign}
+              onDirtyChange={setDesignerDirty}
               initialProductId={designProduct}
               products={(catalog.data?.products ?? []).filter(
                 (product) => !product.isDiscontinued
@@ -203,6 +215,8 @@ export function MerchStudio() {
               variants={catalog.data?.variants ?? []}
               onCreated={() => {
                 setDesignProduct(null);
+                setReviewDesign(undefined);
+                setDesignerDirty(false);
                 setView("products");
               }}
             />
@@ -210,6 +224,42 @@ export function MerchStudio() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function MerchDiscovery({
+  catalog,
+  onDesign,
+  onBack,
+}: {
+  catalog: ReturnType<typeof useMerchCatalogQuery>;
+  onDesign: (id: string) => void;
+  onBack: () => void;
+}) {
+  if (catalog.isPending) {
+    return (
+      <output className="py-16 text-center text-muted-foreground">
+        Loading the catalog…
+      </output>
+    );
+  }
+  if (catalog.isError) {
+    return (
+      <LoadError
+        label="The catalog couldn't load."
+        retry={() => {
+          void catalog.refetch();
+        }}
+      />
+    );
+  }
+  return (
+    <MerchCatalog
+      products={catalog.data?.products ?? []}
+      variants={catalog.data?.variants ?? []}
+      onDesign={onDesign}
+      onBack={onBack}
+    />
   );
 }
 
@@ -252,7 +302,13 @@ function LoadError({ label, retry }: { label: string; retry: () => void }) {
   );
 }
 
-function ProductManager({ onCreate }: { onCreate: () => void }) {
+function ProductManager({
+  onCreate,
+  onReview,
+}: {
+  onCreate: () => void;
+  onReview: (design: MerchDesign) => void;
+}) {
   const designs = useMerchDesignsQuery(),
     physical = usePhysicalReleasesQuery(),
     [search, setSearch] = useState(""),
@@ -376,7 +432,7 @@ function ProductManager({ onCreate }: { onCreate: () => void }) {
           </div>
           <ul className="divide-y">
             {visible.map((row) => (
-              <ProductListRow key={row.id} row={row} />
+              <ProductListRow key={row.id} row={row} onReview={onReview} />
             ))}
           </ul>
         </div>
@@ -452,7 +508,13 @@ function ProductManager({ onCreate }: { onCreate: () => void }) {
   );
 }
 
-function ProductListRow({ row }: { row: ProductRow }) {
+function ProductListRow({
+  row,
+  onReview,
+}: {
+  row: ProductRow;
+  onReview: (design: MerchDesign) => void;
+}) {
   const mockups = useMerchDesignMockupsQuery(row.design?.id ?? null),
     image = mockups.data?.find(
       (mockup) => mockup.status === "completed" && mockup.mockupUrl
@@ -507,7 +569,14 @@ function ProductListRow({ row }: { row: ProductRow }) {
         {merchPrice(row.price)}
       </span>
       {row.design ? (
-        <DesignActions design={row.design} />
+        <DesignActions
+          design={row.design}
+          onReview={() => {
+            if (row.design) {
+              onReview(row.design);
+            }
+          }}
+        />
       ) : (
         <Button asChild size="icon" variant="ghost">
           <Link
@@ -522,7 +591,13 @@ function ProductListRow({ row }: { row: ProductRow }) {
   );
 }
 
-function DesignActions({ design }: { design: MerchDesign }) {
+function DesignActions({
+  design,
+  onReview,
+}: {
+  design: MerchDesign;
+  onReview: () => void;
+}) {
   const [archiveOpen, setArchiveOpen] = useState(false),
     update = useUpdateMerchDesignMutation(),
     archive = useDeleteMerchDesignMutation(),
@@ -550,6 +625,9 @@ function DesignActions({ design }: { design: MerchDesign }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuGroup>
+            <DropdownMenuItem onSelect={onReview}>
+              Review product
+            </DropdownMenuItem>
             <DropdownMenuItem
               disabled={
                 design.status !== "published" && design.readyMockupCount === 0

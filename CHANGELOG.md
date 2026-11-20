@@ -4,6 +4,8 @@
 
 ### Added
 
+- Add an artwork upload and placement editor for supported Printful DTG templates, saved draft configuration, variant selection, generated mockup review and processed-file publishing gates; share positioned layers across previews and fulfillment and connect merch variants through the cart (#554).
+
 - Add a visual Merch Studio catalog with product details, category browsing, and a unified searchable product manager and creation chooser (#551).
 
 - Give medium Kimi reviews bounded headroom after observed partial coverage, preserving strict completion/publication gates (#523).
