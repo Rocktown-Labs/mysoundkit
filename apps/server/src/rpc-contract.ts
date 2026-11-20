@@ -1533,6 +1533,25 @@ export const rpcContract = new Hono()
     ),
     (c) => c.json([] as Record<string, unknown>[])
   )
+  .get(
+    "/v1/merch/public/physical-releases",
+    validator("query", (value) =>
+      z
+        .object({
+          artistUsername: z.string().optional(),
+          limit: z.string().optional(),
+          mediaFormat: z.string().optional(),
+          projectId: z.string().optional(),
+          trackId: z.string().optional(),
+          videoId: z.string().optional(),
+        })
+        .parse(value)
+    ),
+    (c) => c.json([] as Record<string, unknown>[])
+  )
+  .get("/v1/merch/public/physical-releases/:releaseId", (c) =>
+    c.json({} as Record<string, unknown>)
+  )
   .get("/v1/merch/public/:designId", (c) =>
     c.json({} as Record<string, unknown>)
   )

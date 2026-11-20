@@ -1,8 +1,8 @@
 /* eslint-disable unicorn/max-nested-calls, sort-vars, one-var, complexity, require-unicode-regexp, no-nested-ternary */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { physicalReleases } from "@soundkit/db/schema/commerce";
 import { projects as projectsTable } from "@soundkit/db/schema/app";
+import { physicalReleases } from "@soundkit/db/schema/commerce";
 import {
   merchCatalogProducts,
   merchCatalogVariants,
@@ -26,7 +26,10 @@ import {
   isPrintfulConfigured,
   printfulPriceToCents,
 } from "@/lib/printful";
-import { listPublicMerch } from "@/lib/public-merch";
+import {
+  listPublicMerch,
+  listPublicPhysicalReleases,
+} from "@/lib/public-merch";
 import {
   messageResponseSchema,
   shippingQuoteRequestSchema,
@@ -899,6 +902,82 @@ app.openapi(
       });
 
     return c.json(merch, HttpStatusCodes.OK);
+  }
+);
+
+const publicPhysicalReleasesQuerySchema = z.object({
+  artistUsername: z.string().trim().max(120).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(48),
+  mediaFormat: z.enum(["cd", "dvd", "vinyl_12", "vinyl_7"]).optional(),
+  projectId: z.string().trim().optional(),
+  trackId: z.string().trim().optional(),
+  videoId: z.string().trim().optional(),
+});
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/public/physical-releases",
+    request: {
+      query: publicPhysicalReleasesQuerySchema,
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.array(z.record(z.string(), z.unknown())),
+        "Published physical releases (Vinyl, CD, DVD) with artwork and sibling formats"
+      ),
+    },
+    tags: ["Merch"],
+  }),
+  async (c) => {
+    const query = c.req.valid("query"),
+      releases = await listPublicPhysicalReleases({
+        artistUsername: query.artistUsername,
+        limit: query.limit,
+        mediaFormat: query.mediaFormat,
+        projectId: query.projectId,
+        trackId: query.trackId,
+        videoId: query.videoId,
+      });
+
+    return c.json(releases, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/public/physical-releases/{releaseId}",
+    request: {
+      params: z.object({ releaseId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.record(z.string(), z.unknown()),
+        "Single published physical release"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        z.object({ message: z.string() }),
+        "Physical release not found or not published"
+      ),
+    },
+    tags: ["Merch"],
+  }),
+  async (c) => {
+    const { releaseId } = c.req.valid("param"),
+      releases = await listPublicPhysicalReleases({
+        limit: 1,
+        releaseId,
+      });
+
+    if (releases.length === 0) {
+      return c.json(
+        { message: "Physical release not found or not published." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    return c.json(releases[0], HttpStatusCodes.OK);
   }
 );
 

@@ -55,8 +55,10 @@ export interface AddCartItemInput {
   licenseName?: string | null;
   licenseOptionId?: string;
   mediaFormat?: PhysicalMediaFormat;
+  merchDesignId?: string;
   physicalReleaseId?: string;
   priceCents: number;
+  printfulVariantId?: string;
   productType: ProductType;
   projectId?: string;
   purchaseMode: PurchaseMode;
@@ -186,6 +188,7 @@ const EMPTY_CART: Cart = {
   },
   buildLocalCartItem = (input: AddCartItemInput): CartItem => {
     const productId =
+      input.merchDesignId ??
       input.physicalReleaseId ??
       input.trackId ??
       input.projectId ??
@@ -199,8 +202,10 @@ const EMPTY_CART: Cart = {
       licenseName: input.licenseName,
       licenseOptionId: input.licenseOptionId,
       mediaFormat: input.mediaFormat,
+      merchDesignId: input.merchDesignId,
       physicalReleaseId: input.physicalReleaseId,
       priceCents: input.priceCents,
+      printfulVariantId: input.printfulVariantId,
       productId,
       productType: input.productType,
       projectId: input.projectId,
@@ -232,7 +237,9 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
           body: JSON.stringify({
             items: localCart.items.map((item) => ({
               licenseOptionId: item.licenseOptionId ?? undefined,
+              merchDesignId: item.merchDesignId ?? undefined,
               physicalReleaseId: item.physicalReleaseId ?? undefined,
+              printfulVariantId: item.printfulVariantId ?? undefined,
               productType: item.productType,
               projectId:
                 item.projectId ??
@@ -278,7 +285,9 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
             const apiCart = await requestCart("/items", {
               body: JSON.stringify({
                 licenseOptionId: input.licenseOptionId,
+                merchDesignId: input.merchDesignId,
                 physicalReleaseId: input.physicalReleaseId,
+                printfulVariantId: input.printfulVariantId,
                 productType: input.productType,
                 projectId: input.projectId,
                 quantity: input.quantity ?? 1,
@@ -310,7 +319,9 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
               item.productType === nextItem.productType &&
               item.productId === nextItem.productId &&
               item.licenseOptionId === nextItem.licenseOptionId &&
-              item.physicalReleaseId === nextItem.physicalReleaseId
+              item.physicalReleaseId === nextItem.physicalReleaseId &&
+              item.merchDesignId === nextItem.merchDesignId &&
+              item.printfulVariantId === nextItem.printfulVariantId
           );
 
         if (existingItem) {

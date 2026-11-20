@@ -113,6 +113,12 @@ const artistGet = apiClient.v1.artists[":username"].$get,
   analyticsEarningsGet = apiClient.v1.analytics.earnings.$get,
   merchPhysicalReleasesGet = apiClient.v1.merch["physical-releases"].$get,
   merchDesignsGet = apiClient.v1.merch.designs.$get,
+  publicMerchGet = apiClient.v1.merch.public.$get,
+  publicMerchDesignGet = apiClient.v1.merch.public[":designId"].$get,
+  publicPhysicalReleasesGet =
+    apiClient.v1.merch.public["physical-releases"].$get,
+  publicPhysicalReleaseGet =
+    apiClient.v1.merch.public["physical-releases"][":releaseId"].$get,
   conversationsGet = apiClient.v1.messages.conversations.$get,
   conversationMessagesGet =
     apiClient.v1.messages.conversations[":conversationId"].messages.$get,
@@ -900,6 +906,153 @@ export const useMerchDesignsQuery = (enabled = true) =>
     queryFn: async (): Promise<MerchDesign[]> =>
       rpcJson(await merchDesignsGet()),
     queryKey: ["merch", "designs"],
+  });
+
+export type NativeMerchCategory = "Accessories" | "Apparel" | "Home & living";
+
+export interface PublicMerchDesign {
+  artistName: string | null;
+  artistUsername: string | null;
+  brand?: string | null;
+  catalogProductId: string;
+  catalogProductName?: string | null;
+  category?: NativeMerchCategory;
+  description: string | null;
+  id: string;
+  mockups?: {
+    catalogVariantId: string;
+    mockupUrl: string;
+  }[];
+  placement?: string;
+  previewMockupUrl: string | null;
+  productType?: string | null;
+  projectId: string | null;
+  publishedAt?: string | null;
+  retailPriceCents: number;
+  technique?: string;
+  title: string;
+  trackId: string | null;
+  variantDetails: {
+    color: string | null;
+    colorCode: string | null;
+    id: string;
+    inStock: boolean;
+    mockupUrl?: string | null;
+    size: string | null;
+  }[];
+}
+
+export interface PublicPhysicalSiblingFormat {
+  id: string;
+  includesDigitalDownload: boolean;
+  mediaFormat: "cd" | "digital" | "dvd" | "vinyl_12" | "vinyl_7";
+  retailPriceCents: number;
+  title: string;
+}
+
+export interface PublicPhysicalRelease {
+  artistName: string | null;
+  artistUsername: string | null;
+  coverArtUrl: string | null;
+  createdAt: string;
+  currency: string;
+  description: string | null;
+  genreName: string | null;
+  genreSlug: string | null;
+  id: string;
+  includesDigitalDownload: boolean;
+  mediaFormat: "cd" | "dvd" | "vinyl_12" | "vinyl_7";
+  projectId: string | null;
+  projectTitle: string | null;
+  retailPriceCents: number;
+  siblingFormats: PublicPhysicalSiblingFormat[];
+  title: string;
+  trackId: string | null;
+  videoId: string | null;
+}
+
+export const usePublicMerchQuery = (
+  filters?: {
+    artistUsername?: string;
+    limit?: number;
+  },
+  enabled = true
+) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      (await rpcJson(
+        await publicMerchGet({
+          query: {
+            ...(filters?.artistUsername
+              ? { artistUsername: filters.artistUsername }
+              : {}),
+            ...(filters?.limit ? { limit: String(filters.limit) } : {}),
+          },
+        })
+      )) as unknown as PublicMerchDesign[],
+    queryKey: [
+      "public",
+      "merch",
+      filters?.artistUsername ?? "",
+      filters?.limit ?? 48,
+    ],
+  });
+
+export const usePublicMerchDesignQuery = (designId: string, enabled = true) =>
+  useQuery({
+    enabled: enabled && designId.length > 0,
+    queryFn: async () =>
+      (await rpcJson(
+        await publicMerchDesignGet({ param: { designId } })
+      )) as unknown as PublicMerchDesign,
+    queryKey: ["public", "merch", "design", designId],
+  });
+
+export const usePublicPhysicalReleasesQuery = (
+  filters?: {
+    artistUsername?: string;
+    limit?: number;
+    mediaFormat?: "cd" | "dvd" | "vinyl_12" | "vinyl_7";
+  },
+  enabled = true
+) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      (await rpcJson(
+        await publicPhysicalReleasesGet({
+          query: {
+            ...(filters?.artistUsername
+              ? { artistUsername: filters.artistUsername }
+              : {}),
+            ...(filters?.limit ? { limit: String(filters.limit) } : {}),
+            ...(filters?.mediaFormat
+              ? { mediaFormat: filters.mediaFormat }
+              : {}),
+          },
+        })
+      )) as unknown as PublicPhysicalRelease[],
+    queryKey: [
+      "public",
+      "physical-releases",
+      filters?.artistUsername ?? "",
+      filters?.mediaFormat ?? "",
+      filters?.limit ?? 48,
+    ],
+  });
+
+export const usePublicPhysicalReleaseQuery = (
+  releaseId: string,
+  enabled = true
+) =>
+  useQuery({
+    enabled: enabled && releaseId.length > 0,
+    queryFn: async () =>
+      (await rpcJson(
+        await publicPhysicalReleaseGet({ param: { releaseId } })
+      )) as unknown as PublicPhysicalRelease,
+    queryKey: ["public", "physical-releases", "detail", releaseId],
   });
 
 // ---------------------------------------------------------------------------

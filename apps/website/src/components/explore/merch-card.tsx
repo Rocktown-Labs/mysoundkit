@@ -46,16 +46,15 @@ const formatPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`,
 
 export function MerchCard({ merch }: { merch: PublicMerchDesignCard }) {
   const { addItem } = useCart(),
-   colors = uniqueColors(merch.variantDetails),
-   [selectedColorCode, setSelectedColorCode] = useState<string | null>(
-    colors[0]?.colorCode ?? null
-  ),
-   availableSizes = sizesForColor(merch.variantDetails, selectedColorCode),
-   [selectedSize, setSelectedSize] = useState<string | null>(
-    availableSizes[0]?.id ?? null
-  ),
-
-   selectedVariant = availableSizes.find((v) => v.id === selectedSize),
+    colors = uniqueColors(merch.variantDetails),
+    [selectedColorCode, setSelectedColorCode] = useState<string | null>(
+      colors[0]?.colorCode ?? null
+    ),
+    availableSizes = sizesForColor(merch.variantDetails, selectedColorCode),
+    [selectedSize, setSelectedSize] = useState<string | null>(
+      availableSizes[0]?.id ?? null
+    ),
+    selectedVariant = availableSizes.find((v) => v.id === selectedSize),
     handleAddToCart = () => {
       if (!selectedVariant) {
         toast({
@@ -69,7 +68,9 @@ export function MerchCard({ merch }: { merch: PublicMerchDesignCard }) {
       addItem({
         artistName: merch.artistName,
         coverArtUrl: merch.previewMockupUrl,
+        merchDesignId: merch.id,
         priceCents: merch.retailPriceCents,
+        printfulVariantId: selectedVariant.id,
         productType: "physical_merch",
         projectId: undefined,
         purchaseMode: "physical_merch",

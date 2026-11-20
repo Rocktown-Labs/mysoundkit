@@ -15,7 +15,11 @@ export interface CartItem {
   artistName?: string;
   coverArtUrl?: null | string;
   id: string;
+  mediaFormat?: "cd" | "dvd" | "vinyl_12" | "vinyl_7";
+  merchDesignId?: string;
+  physicalReleaseId?: string;
   priceCents: number;
+  printfulVariantId?: string;
   purchaseMode?: "digital_release" | "license" | "physical_merch";
   quantity: number;
   title: string;

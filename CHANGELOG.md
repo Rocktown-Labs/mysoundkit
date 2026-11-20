@@ -4,6 +4,8 @@
 
 ### Added
 
+- Revamp the public `/shop` storefront and add `/shop/$id` product detail pages across web and Expo mobile with Printful POD merch, pure-CSS/native Vinyl, CD, and DVD media showcases, interactive color/size/format variant selectors, cart support for Printful merch variants, and mobile-native viewport/touch polish (#558).
+
 - Add a visual Merch Studio catalog with product details, category browsing, and a unified searchable product manager and creation chooser (#551).
 
 - Give medium Kimi reviews bounded headroom after observed partial coverage, preserving strict completion/publication gates (#523).

@@ -65,8 +65,16 @@ export function CartModal() {
             body: JSON.stringify({
               items: items.map((item) => {
                 if (item.purchaseMode === "physical_merch") {
+                  if (item.merchDesignId) {
+                    return {
+                      merchDesignId: item.merchDesignId,
+                      printfulVariantId: item.printfulVariantId,
+                      productType: "physical_merch" as const,
+                      quantity: item.quantity,
+                    };
+                  }
                   return {
-                    physicalReleaseId: item.id,
+                    physicalReleaseId: item.physicalReleaseId ?? item.id,
                     productType: "physical_merch" as const,
                     quantity: item.quantity,
                   };

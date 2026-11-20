@@ -8,6 +8,10 @@ import {
   tracks,
 } from "@soundkit/db/schema/app";
 import { physicalReleases } from "@soundkit/db/schema/commerce";
+import {
+  merchCatalogVariants,
+  merchDesigns,
+} from "@soundkit/db/schema/fulfillment";
 import { and, eq, isNull } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
@@ -84,7 +88,11 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
       }
 
       const productId =
-          row.physicalReleaseId ?? row.trackId ?? row.projectId ?? row.id,
+          row.merchDesignId ??
+          row.physicalReleaseId ??
+          row.trackId ??
+          row.projectId ??
+          row.id,
         productType: "track" | "project" | "physical_merch" =
           row.productType === "physical_merch"
             ? "physical_merch"
@@ -106,8 +114,10 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
         licenseName,
         licenseOptionId: row.licenseOptionId,
         mediaFormat: mediaFormat ?? null,
+        merchDesignId: row.merchDesignId,
         physicalReleaseId: row.physicalReleaseId,
         priceCents: row.priceCentsSnapshot,
+        printfulVariantId: row.printfulVariantId,
         productId,
         productType,
         projectId: row.projectId,
@@ -248,9 +258,85 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
     }
 
     if (body.productType === "physical_merch") {
+      if (body.merchDesignId) {
+        const [design] = await db
+          .select()
+          .from(merchDesigns)
+          .where(
+            and(
+              eq(merchDesigns.id, body.merchDesignId),
+              eq(merchDesigns.status, "published")
+            )
+          );
+
+        if (!design) {
+          return { error: "Merch design was not found or is not published." };
+        }
+
+        let variantSuffix = "";
+        if (body.printfulVariantId) {
+          const [variant] = await db
+            .select()
+            .from(merchCatalogVariants)
+            .where(eq(merchCatalogVariants.id, body.printfulVariantId));
+
+          if (!variant || !variant.inStock) {
+            return {
+              error: "Selected merch variant is currently unavailable.",
+            };
+          }
+
+          const parts = [variant.color, variant.size].filter(Boolean);
+          if (parts.length > 0) {
+            variantSuffix = ` (${parts.join(" / ")})`;
+          }
+        }
+
+        const titleSnapshot = `${design.title}${variantSuffix}`,
+          [existingItem] = await db
+            .select()
+            .from(cartItems)
+            .where(
+              and(
+                eq(cartItems.cartId, cart.id),
+                eq(cartItems.productType, "physical_merch"),
+                eq(cartItems.merchDesignId, body.merchDesignId),
+                body.printfulVariantId
+                  ? eq(cartItems.printfulVariantId, body.printfulVariantId)
+                  : isNull(cartItems.printfulVariantId)
+              )
+            );
+
+        if (existingItem) {
+          await db
+            .update(cartItems)
+            .set({ quantity: existingItem.quantity + quantity })
+            .where(eq(cartItems.id, existingItem.id));
+          return { error: null };
+        }
+
+        await db.insert(cartItems).values({
+          cartId: cart.id,
+          currency: "USD",
+          id: crypto.randomUUID(),
+          merchDesignId: design.id,
+          priceCentsSnapshot: design.retailPriceCents,
+          printfulVariantId: body.printfulVariantId,
+          productType: "physical_merch",
+          projectId: design.projectId,
+          quantity,
+          sellerUserId: design.ownerUserId,
+          titleSnapshot,
+          trackId: design.trackId,
+        });
+
+        return { error: null };
+      }
+
       if (!body.physicalReleaseId) {
         return {
-          error: "Physical merch cart items require a physicalReleaseId.",
+          error:
+            "Physical merch cart items require a physicalReleaseId or merchDesignId.",
         };
       }
 
