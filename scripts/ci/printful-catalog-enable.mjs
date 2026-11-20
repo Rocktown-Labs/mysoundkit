@@ -1,19 +1,20 @@
 /* oxlint-disable one-var, sort-vars, node/no-top-level-await -- Explicitly dispatched catalog maintenance CLI. */
 import { readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 const normalize = (value) =>
   String(value ?? "")
     .toLowerCase()
-    .replaceAll(/[^a-z0-9]/g, "");
+    .replaceAll(/[^a-z0-9]/gu, "");
 
 export function matchesModel(product, candidate) {
   const brand = normalize(candidate.brand),
     model = normalize(candidate.model);
   const words = String(product.name ?? "")
     .toLowerCase()
-    .split(/[^a-z0-9]+/);
+    .split(/[^a-z0-9]+/u);
   return (
     normalize(product.brand) === brand &&
     (normalize(product.model) === model || words.includes(model))
@@ -37,8 +38,9 @@ export function usdDtgPrice(variant) {
   const price = variant.techniques?.find(
     (technique) => technique.technique_key === "dtg"
   )?.price;
-  if (typeof price !== "string" || !/^\d+(?:\.\d{1,2})?$/.test(price))
-    {return null;}
+  if (typeof price !== "string" || !/^\d+(?:\.\d{1,2})?$/u.test(price)) {
+    return null;
+  }
   const cents = Math.round(Number(price) * 100);
   return Number.isSafeInteger(cents) && cents > 0 ? cents : null;
 }
@@ -66,69 +68,108 @@ export function defaultBounds(baseCents) {
   };
 }
 
+function readPage(body, path, field, offset) {
+  const items = field ? body.data?.[field] : body.data;
+  if (!Array.isArray(items)) {
+    throw new TypeError(`Printful ${path}: invalid list`);
+  }
+  if (field && body.data.currency !== "USD") {
+    throw new Error("Expected USD product prices");
+  }
+  const total = body.paging?.total,
+    limit = body.paging?.limit ?? 100;
+  if (
+    !Number.isInteger(limit) ||
+    limit <= 0 ||
+    (body.paging?.offset !== undefined && body.paging.offset !== offset)
+  ) {
+    throw new Error(`Printful ${path}: invalid paging`);
+  }
+  if (typeof total === "number" && offset + items.length >= total) {
+    return { done: true, items, limit };
+  }
+  if (items.length < limit) {
+    if (typeof total === "number") {
+      throw new TypeError(`Printful ${path}: incomplete list`);
+    }
+    return { done: true, items, limit };
+  }
+  return { done: false, items, limit };
+}
+
 export function printfulReader(secret, fetchImpl = fetch) {
-  if (!secret) {throw new Error("PRINTFUL_API_KEY is not configured");}
+  if (!secret) {
+    throw new Error("PRINTFUL_API_KEY is not configured");
+  }
   async function request(path, params = {}) {
     const url = new URL(`https://api.printful.com/v2${path}`);
-    for (const [key, value] of Object.entries(params))
-      {url.searchParams.set(key, String(value));}
-    for (let attempt = 0; attempt < 4; attempt++) {
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, String(value));
+    }
+    for (let attempt = 0; attempt < 4; attempt += 1) {
       const response = await fetchImpl(url, {
         headers: { Authorization: `Bearer ${secret}` },
         redirect: "error",
         signal: AbortSignal.timeout(30_000),
       });
       if (response.status === 429 || response.status >= 500) {
-        if (attempt === 3)
-          {throw new Error(`Printful ${path}: HTTP ${response.status}`);}
+        if (attempt === 3) {
+          throw new Error(`Printful ${path}: HTTP ${response.status}`);
+        }
         const retry = Number(response.headers.get("retry-after"));
-        await new Promise((resolve) =>
-          setTimeout(
-            resolve,
-            Number.isFinite(retry) && retry > 0
-              ? Math.min(retry * 1000, 60_000)
-              : 1500 * (attempt + 1)
-          )
+        await delay(
+          Number.isFinite(retry) && retry > 0
+            ? Math.min(retry * 1000, 60_000)
+            : 1500 * (attempt + 1)
         );
         continue;
       }
-      if (!response.ok)
-        {throw new Error(`Printful ${path}: HTTP ${response.status}`);}
+      if (!response.ok) {
+        throw new Error(`Printful ${path}: HTTP ${response.status}`);
+      }
       return await response.json();
     }
     throw new Error("Printful retries exhausted");
   }
-  async function list(path) {
+  async function list(path, { field } = {}) {
     const result = [],
-      ids = new Set();
-    for (let offset = 0; offset < 10_000; offset += 100) {
-      const body = await request(path, { limit: 100, offset });
-      if (!Array.isArray(body.data))
-        {throw new Error(`Printful ${path}: invalid list`);}
-      for (const item of body.data) {
+      ids = new Set(),
+      pages = new Set();
+    let offset = 0;
+    while (offset < 10_000) {
+      const body = await request(path, {
+        limit: 100,
+        offset,
+        ...(field ? { currency: "USD" } : {}),
+      });
+      const { items, limit, done } = readPage(body, path, field, offset);
+      const signature = JSON.stringify(items);
+      if (pages.has(signature)) {
+        throw new Error(`Printful ${path}: repeated page`);
+      }
+      pages.add(signature);
+      for (const item of items) {
         const id = item.id ?? item.catalog_variant_id ?? JSON.stringify(item);
-        if (ids.has(id)) {throw new Error(`Printful ${path}: repeated page`);}
+        if (ids.has(id)) {
+          if (path.endsWith("/mockup-styles")) {
+            continue;
+          }
+          throw new Error(`Printful ${path}: duplicate item`);
+        }
         ids.add(id);
         result.push(item);
       }
-      const total = body.paging?.total;
-      if (typeof total === "number" && result.length >= total) {return result;}
-      if (body.data.length < 100) {
-        if (typeof total === "number" && result.length < total)
-          {throw new Error(`Printful ${path}: incomplete list`);}
+      if (done) {
         return result;
       }
+      offset += limit;
     }
     throw new Error(`Printful ${path}: pagination limit exceeded`);
   }
   return { list, request };
 }
 
-export async function auditCatalog({
-  reader,
-  candidates,
-  onResult = () => {},
-}) {
+export async function auditCatalog({ reader, candidates, onResult }) {
   const products = await reader.list("/catalog-products"),
     results = [],
     ready = [];
@@ -141,39 +182,37 @@ export async function auditCatalog({
       model: candidate.model,
       productIds: matches.map((p) => p.id),
     };
-    if (matches.length === 1)
-      {
-      const id = matches[0].id;
+    if (matches.length === 1) {
+      const [{ id }] = matches;
       try {
         const detail = await reader.request(`/catalog-products/${id}`),
           product = detail.data ?? detail;
-        if (product.id !== id || !matchesModel(product, candidate))
+        if (product.id !== id || !matchesModel(product, candidate)) {
           throw new Error("Product identity changed");
-        if (product.is_discontinued) result.status = "discontinued";
-        else {
+        }
+        if (product.is_discontinued) {
+          result.status = "discontinued";
+        } else {
           const groups = await reader.list(
               `/catalog-products/${id}/mockup-styles`
             ),
             areas = supportedAreas(groups);
           result.techniques = [...new Set(groups.map((g) => g.technique))];
           result.areaTypes = [...new Set(groups.map((g) => g.print_area_type))];
-          if (areas.length === 0) result.status = "unsupported-print-area";
-          else {
+          if (areas.length === 0) {
+            result.status = "unsupported-print-area";
+          } else {
             const variants = await reader.list(
               `/catalog-products/${id}/catalog-variants`
             );
             const availability = await reader.list(
               `/catalog-products/${id}/availability`
             );
-            const priceBody = await reader.request(
-                `/catalog-products/${id}/prices`,
-                { currency: "USD" }
-              ),
-              prices = priceBody.data ?? priceBody;
-            if (prices.currency !== "USD")
-              throw new Error("Expected USD product prices");
+            const prices = await reader.list(`/catalog-products/${id}/prices`, {
+              field: "variants",
+            });
             const pricesById = new Map(
-              (prices.variants ?? []).map((v) => [v.id, usdDtgPrice(v)])
+              prices.map((variant) => [variant.id, usdDtgPrice(variant)])
             );
             const stockById = new Map(
               availability.map((entry) => [entry.catalog_variant_id, entry])
@@ -184,20 +223,21 @@ export async function auditCatalog({
             );
             result.variantCount = variants.length;
             result.inStockCount = usable.length;
-            if (usable.length === 0) result.status = "no-priced-us-stock";
-            else {
+            if (usable.length === 0) {
+              result.status = "no-priced-us-stock";
+            } else {
               result.status = "ready";
               result.placements = areas.map((area) => area.placement);
               result.cheapestBaseCents = Math.min(
                 ...usable.map((variant) => pricesById.get(variant.id))
               );
               ready.push({
-                product,
                 groups,
-                variants,
                 pricesById,
-                stockById,
+                product,
                 result,
+                stockById,
+                variants,
               });
             }
           }
@@ -206,10 +246,11 @@ export async function auditCatalog({
         result.status = "provider-error";
         result.error = error.message;
       }
+    } else {
+      result.status = matches.length ? "ambiguous" : "unmatched";
     }
-    else {result.status = matches.length ? "ambiguous" : "unmatched";}
     results.push(result);
-    onResult(result);
+    onResult?.(result);
   }
   return { catalogCount: products.length, ready, results };
 }
@@ -287,23 +328,25 @@ export async function enableProduct(client, entry) {
       WHERE merch_catalog_variants.catalog_product_id=excluded.catalog_product_id RETURNING id`,
       [String(product.id), JSON.stringify(rows)]
     );
-    if (written.rowCount !== rows.length)
-      {throw new Error("Variant identity conflict; rolled back");}
+    if (written.rowCount !== rows.length) {
+      throw new Error("Variant identity conflict; rolled back");
+    }
     const after = await client.query(
       `SELECT p.id,p.is_curated,p.retail_min_cents,p.retail_max_cents,count(v.id) FILTER (WHERE v.in_stock)::int AS in_stock_count
       FROM merch_catalog_products p LEFT JOIN merch_catalog_variants v ON v.catalog_product_id=p.id WHERE p.id=$1 GROUP BY p.id`,
       [String(product.id)]
     );
-    const saved = after.rows[0],
-      previous = before.rows[0];
+    const [saved] = after.rows,
+      [previous] = before.rows;
     if (
       !saved?.is_curated ||
       saved.in_stock_count !== result.inStockCount ||
       (previous &&
         (saved.retail_min_cents !== previous.retail_min_cents ||
           saved.retail_max_cents !== previous.retail_max_cents))
-    )
-      {throw new Error("Catalog verification failed; rolled back");}
+    ) {
+      throw new Error("Catalog verification failed; rolled back");
+    }
     await client.query("COMMIT");
     return { after: saved, before: previous ?? null, id: product.id };
   } catch (error) {
@@ -320,9 +363,31 @@ async function main() {
     )
   );
   const reader = printfulReader(process.env.PRINTFUL_API_KEY);
-  for (const path of ["/catalog-products/586/catalog-variants", "/catalog-products/586/mockup-styles", "/catalog-products/586/availability"]) {
-    const sample = await reader.request(path, {limit: 100,offset: 0});
-    console.info(JSON.stringify({ diagnostic: path, keys: Object.keys(sample), paging: sample.paging, pagination: sample.pagination, count: sample.data?.length, firstKeys: sample.data?.[0] ? Object.keys(sample.data[0]) : [], groupIds: sample.data?.slice(0, 3).map((x)=>({id:x.id, placement:x.placement, technique:x.technique,print_area_type:x.print_area_type})) }));
+  for (const path of [
+    "/catalog-products/586/catalog-variants",
+    "/catalog-products/71/mockup-styles",
+    "/catalog-products/586/prices",
+    "/catalog-products/586/mockup-styles",
+    "/catalog-products/586/availability",
+  ]) {
+    const sample = await reader.request(path, { limit: 100, offset: 0 });
+    console.info(
+      JSON.stringify({
+        count: sample.data?.length ?? sample.data?.variants?.length,
+        dataKeys: sample.data ? Object.keys(sample.data).slice(0, 8) : [],
+        diagnostic: path,
+        firstKeys: sample.data?.[0] ? Object.keys(sample.data[0]) : [],
+        groupIds: sample.data?.slice(0, 3).map((x) => ({
+          id: x.id,
+          placement: x.placement,
+          print_area_type: x.print_area_type,
+          technique: x.technique,
+        })),
+        keys: Object.keys(sample),
+        pagination: sample.pagination,
+        paging: sample.paging,
+      })
+    );
   }
   const report = await auditCatalog({
     candidates,
@@ -345,16 +410,18 @@ async function main() {
     })
   );
   if (process.env.APPLY_PRINTFUL_CATALOG === "true") {
-    if (!process.env.DATABASE_URL)
-      {throw new Error("DATABASE_URL is not configured");}
-    if (report.results.some((result) => result.status === "provider-error"))
-      {throw new Error(
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is not configured");
+    }
+    if (report.results.some((result) => result.status === "provider-error")) {
+      throw new Error(
         "Provider audit is incomplete; no catalog changes applied"
-      );}
+      );
+    }
     const require = createRequire(
-        new URL("../../packages/db/package.json", import.meta.url)
-      ),
-      { Client } = require("pg");
+      new URL("../../packages/db/package.json", import.meta.url)
+    );
+    const { Client } = require("pg");
     const client = new Client({
       application_name: "soundkit/catalog-enable-556",
       connectionString: process.env.DATABASE_URL,

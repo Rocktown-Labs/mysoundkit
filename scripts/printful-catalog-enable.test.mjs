@@ -1,3 +1,4 @@
+/* oxlint-disable one-var -- Keep independent test fixtures local to each assertion group. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -55,7 +56,7 @@ test("stock must explicitly confirm DTG availability in a US selling region", ()
   const entry = {
     techniques: [
       {
-        selling_regions: [{ name: "usa", availability: "in stock" }],
+        selling_regions: [{ availability: "in stock", name: "usa" }],
         technique: "dtg",
       },
     ],
@@ -66,7 +67,7 @@ test("stock must explicitly confirm DTG availability in a US selling region", ()
     inStock({
       techniques: [
         {
-          selling_regions: [{ name: "usa", availability: "in stock" }],
+          selling_regions: [{ availability: "in stock", name: "usa" }],
           technique: "embroidery",
         },
       ],
@@ -76,11 +77,12 @@ test("stock must explicitly confirm DTG availability in a US selling region", ()
 });
 
 test("DTG prices reject missing, zero, negative and malformed values", () => {
-  for (const price of [undefined, "", "0.00", "-1.00", "1.234", "NaN"])
-    {assert.equal(
-      usdDtgPrice({ techniques: [{ technique_key: "dtg", price }] }),
+  for (const price of [undefined, "", "0.00", "-1.00", "1.234", "NaN"]) {
+    assert.equal(
+      usdDtgPrice({ techniques: [{ price, technique_key: "dtg" }] }),
       null
-    );}
+    );
+  }
   assert.equal(
     usdDtgPrice({ techniques: [{ price: "15.45", technique_key: "dtg" }] }),
     1545
@@ -90,7 +92,7 @@ test("DTG prices reject missing, zero, negative and malformed values", () => {
 
 test("catalog pagination reaches matches beyond the first hundred", async () => {
   const offsets = [],
-    reader = printfulReader("test", async (url) => {
+    reader = printfulReader("test", (url) => {
       const offset = Number(url.searchParams.get("offset"));
       offsets.push(offset);
       return Response.json({
@@ -101,32 +103,34 @@ test("catalog pagination reaches matches beyond the first hundred", async () => 
         paging: { total: 101 },
       });
     });
-  assert.equal((await reader.list("/catalog-products")).length, 101);
+  const products = await reader.list("/catalog-products");
+  assert.equal(products.length, 101);
   assert.deepEqual(offsets, [0, 100]);
 });
 
 test("incomplete and repeated pages fail instead of silently skipping products", async () => {
-  const incomplete = printfulReader("test", async () =>
+  const incomplete = printfulReader("test", () =>
     Response.json({ data: [{ id: 1 }], paging: { total: 101 } })
   );
-  await assert.rejects(incomplete.list("/catalog-products"), /incomplete/);
-  const repeated = printfulReader("test", async () =>
+  await assert.rejects(incomplete.list("/catalog-products"), /incomplete/u);
+  const repeated = printfulReader("test", () =>
     Response.json({
       data: Array.from({ length: 100 }, (_, id) => ({ id })),
       paging: { total: 200 },
     })
   );
-  await assert.rejects(repeated.list("/catalog-products"), /repeated/);
+  await assert.rejects(repeated.list("/catalog-products"), /repeated/u);
 });
 
 test("ambiguous products are reported without fetching details or making changes", async () => {
   const report = await auditCatalog({
     candidates: [{ brand: "Test", model: "123" }],
     reader: {
-      list: async () => [
-        { brand: "Test", id: 1, model: "123" },
-        { brand: "Test", id: 2, model: "123" },
-      ],
+      list: () =>
+        Promise.resolve([
+          { brand: "Test", id: 1, model: "123" },
+          { brand: "Test", id: 2, model: "123" },
+        ]),
       request: () => {
         throw new Error("must not fetch ambiguous products");
       },
@@ -134,4 +138,41 @@ test("ambiguous products are reported without fetching details or making changes
   });
   assert.equal(report.results[0].status, "ambiguous");
   assert.equal(report.ready.length, 0);
+});
+
+test("style groups tolerate identical repeated entries without losing pagination", async () => {
+  const group = { placement: "front", technique: "dtg" };
+  const reader = printfulReader("test", () =>
+    Response.json({
+      data: [group, group],
+      paging: { limit: 100, offset: 0, total: 2 },
+    })
+  );
+  assert.deepEqual(await reader.list("/catalog-products/71/mockup-styles"), [
+    group,
+  ]);
+});
+
+test("nested price variants are paginated and must be denominated in USD", async () => {
+  const offsets = [];
+  const reader = printfulReader("test", (url) => {
+    const offset = Number(url.searchParams.get("offset"));
+    offsets.push(offset);
+    return Response.json({
+      data: { currency: "USD", variants: [{ id: offset + 1 }] },
+      paging: { limit: 1, offset, total: 2 },
+    });
+  });
+  assert.deepEqual(
+    await reader.list("/catalog-products/586/prices", { field: "variants" }),
+    [{ id: 1 }, { id: 2 }]
+  );
+  assert.deepEqual(offsets, [0, 1]);
+  const wrongCurrency = printfulReader("test", () =>
+    Response.json({ data: { currency: "EUR", variants: [] } })
+  );
+  await assert.rejects(
+    wrongCurrency.list("/catalog-products/586/prices", { field: "variants" }),
+    /USD/u
+  );
 });
