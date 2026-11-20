@@ -336,7 +336,11 @@ function CatalogDetails({
             No minimum orders
           </p>
           <Button
-            disabled={!available.length || !placements.length}
+            disabled={
+              !available.length ||
+              !placements.length ||
+              !product.printAreas?.length
+            }
             onClick={onDesign}
           >
             Continue with this product
@@ -345,6 +349,11 @@ function CatalogDetails({
           {!available.length && (
             <p className="text-sm text-muted-foreground">
               This product is currently out of stock.
+            </p>
+          )}
+          {!product.printAreas?.length && (
+            <p className="text-sm text-muted-foreground">
+              A supported print template is not available for this product yet.
             </p>
           )}
           {!placements.length && (
