@@ -25,6 +25,8 @@
 
 ### Fixed
 
+- Allow preview queue consumer teardown to complete when its parent queue has already been deleted, while preserving other API errors (#550).
+
 - Preserve playback and queue edits made before authentication resolves instead of overwriting them with stored history (#547).
 
 - Wait for successful authentication resolution, preserving legacy queues through transient session errors, before restoring player storage and discard unowned legacy queues for anonymous sessions.
