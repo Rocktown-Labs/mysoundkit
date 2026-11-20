@@ -291,6 +291,15 @@ test("catalog browsing shows real options and carries the blank into creation", 
   await expect(
     page.getByRole("heading", { name: "Make it yours" })
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Preview White" })
+  ).toHaveAttribute("aria-pressed", "true");
+  const whiteColor = page.getByRole("checkbox", { name: "Include White" });
+  await expect(whiteColor).toBeChecked();
+  await whiteColor.click();
+  await expect(page.getByText("Available variants (1 selected)")).toBeVisible();
+  await whiteColor.click();
+  await expect(page.getByText("Available variants (2 selected)")).toBeVisible();
   await expect(page.getByLabel("Product name", { exact: true })).toBeVisible();
   await page
     .getByLabel("Product name", { exact: true })
@@ -374,10 +383,14 @@ test("catalog browsing shows real options and carries the blank into creation", 
   await expect(
     page.getByText("Your product is live", { exact: true })
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "View shop" })).toHaveAttribute(
-    "href",
-    "/shop"
-  );
+  await expect(page.getByText(/Midnight Tour tee is published/u)).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "View your shop" })
+  ).toHaveAttribute("href", "/shop");
+  await page.getByRole("button", { name: "Back to Merch Studio" }).click();
+  await expect(
+    page.getByRole("heading", { exact: true, name: "Products 3" })
+  ).toBeVisible();
 });
 
 test("product manager filters, paginates and preserves publishing and archive actions", async ({

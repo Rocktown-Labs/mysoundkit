@@ -4,7 +4,7 @@
 
 ### Added
 
-- Add an artwork upload and placement editor for supported Printful DTG templates, saved draft configuration, variant selection, generated mockup review and processed-file publishing gates; share positioned layers across previews and fulfillment and connect merch variants through the cart (#554).
+- Add an artwork upload and placement editor for supported Printful DTG templates, visual color previews, saved draft configuration, variant selection, generated mockup review and processed-file publishing gates; return creators to Merch Studio with a publish confirmation, and share positioned layers across previews and fulfillment and connect merch variants through the cart (#554).
 
 - Add a visual Merch Studio catalog with product details, category browsing, and a unified searchable product manager and creation chooser (#551).
 

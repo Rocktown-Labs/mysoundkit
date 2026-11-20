@@ -28,6 +28,7 @@ export function MerchProductReview({
   product,
   variants,
   onDone,
+  onPublished,
   onEdit,
   onDirtyChange,
 }: {
@@ -35,6 +36,7 @@ export function MerchProductReview({
   product?: MerchCatalogProduct;
   variants: MerchCatalogVariant[];
   onDone: () => void;
+  onPublished?: (design: MerchDesign) => void;
   onEdit?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
@@ -85,23 +87,25 @@ export function MerchProductReview({
     }
     setError("");
     try {
-      await update.mutateAsync({
+      const updated = await update.mutateAsync({
         description,
         id: current.id,
         retailPriceCents: cents,
         title: title.trim(),
         ...(publish ? { status: "published" as const } : {}),
       });
-      setCurrent({
+      const next: MerchDesign = {
         ...current,
         description,
+        publishedAt: publish ? new Date().toISOString() : current.publishedAt,
         retailPriceCents: cents,
+        status: publish ? "published" : current.status,
         title: title.trim(),
-        ...(publish
-          ? { publishedAt: new Date().toISOString(), status: "published" }
-          : {}),
-      });
-      if (!publish) {
+      };
+      setCurrent(next);
+      if (publish) {
+        onPublished?.({ ...next, ...updated });
+      } else {
         onDone();
       }
     } catch (error_) {

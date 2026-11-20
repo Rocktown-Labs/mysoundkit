@@ -48,14 +48,18 @@ export function MerchDesigner({
   products,
   variants,
   initialProductId,
+  initialVariantId,
   onCreated,
+  onPublished,
   design,
   onDirtyChange,
 }: {
   products: MerchCatalogProduct[];
   variants: MerchCatalogVariant[];
   initialProductId: string;
+  initialVariantId?: string;
   onCreated: () => void;
+  onPublished?: (design: MerchDesign) => void;
   design?: MerchDesign;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
@@ -63,6 +67,13 @@ export function MerchDesigner({
   const available = variants.filter(
     (item) => item.catalogProductId === initialProductId && item.inStock
   );
+  const previewColors = [
+    ...new Map(
+      available.map((item) => [item.color ?? "Default", item])
+    ).values(),
+  ];
+  const preferredPreviewVariant =
+    initialVariantId ?? design?.editorConfig?.variantIds[0];
   const areas = product?.printAreas ?? [];
   const [areaKey, setAreaKey] = useState(
     design?.placement ?? areas[0]?.placement ?? ""
@@ -85,7 +96,11 @@ export function MerchDesigner({
     design?.editorConfig?.variantIds ??
       available.slice(0, 250).map((item) => item.id)
   );
-  const [previewVariant, setPreviewVariant] = useState(available[0]?.id ?? "");
+  const [previewVariant, setPreviewVariant] = useState(
+    available.some((item) => item.id === preferredPreviewVariant)
+      ? (preferredPreviewVariant ?? "")
+      : (available[0]?.id ?? "")
+  );
   const [saved, setSaved] = useState<MerchDesign | undefined>(design);
   const [stage, setStage] = useState<"design" | "review">(
     design ? "review" : "design"
@@ -126,6 +141,36 @@ export function MerchDesigner({
   }, [dirty]);
   const setEditedPosition = (value: MerchPosition) => {
     setPosition(value);
+    setDirty(true);
+  };
+  const setColorIncluded = (color: string, included: boolean) => {
+    const group = available.filter(
+        (item) => (item.color ?? "Default") === color
+      ),
+      groupIds = new Set(group.map((item) => item.id));
+    if (included) {
+      const additions = group.filter((item) => !variantIds.includes(item.id));
+      if (variantIds.length + additions.length > 250) {
+        setError(
+          "A design can include up to 250 variants. Remove some sizes before adding this color."
+        );
+        return;
+      }
+      setVariantIds([...variantIds, ...additions.map((item) => item.id)]);
+      const [previewColorVariant] = group;
+      if (previewColorVariant) {
+        setPreviewVariant(previewColorVariant.id);
+      }
+    } else {
+      setVariantIds(variantIds.filter((id) => !groupIds.has(id)));
+      if (groupIds.has(previewVariant)) {
+        const nextPreviewVariant = available.find(
+          (item) => item.id !== previewVariant && variantIds.includes(item.id)
+        );
+        setPreviewVariant(nextPreviewVariant?.id ?? "");
+      }
+    }
+    setError("");
     setDirty(true);
   };
   const pickArtwork = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -268,6 +313,7 @@ export function MerchDesigner({
         product={product}
         variants={available}
         onDone={done}
+        onPublished={onPublished}
         onDirtyChange={onDirtyChange}
         onEdit={
           !locked && saved.editorConfig && area
@@ -412,23 +458,74 @@ export function MerchDesigner({
               Blank reference. Generate mockups to see your finished product.
             </p>
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="merch-preview-variant">Preview blank</Label>
-            <Select value={previewVariant} onValueChange={setPreviewVariant}>
-              <SelectTrigger id="merch-preview-variant">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {available.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
+          {previewColors.length > 0 && (
+            <fieldset className="flex flex-col gap-2">
+              <legend className="text-sm font-medium">Colors to sell</legend>
+              <div className="flex max-h-48 flex-col gap-2 overflow-y-auto">
+                {previewColors.map((item) => {
+                  const color = item.color ?? "Default",
+                    colorVariants = available.filter(
+                      (variant) => (variant.color ?? "Default") === color
+                    ),
+                    selectedCount = colorVariants.filter((variant) =>
+                      variantIds.includes(variant.id)
+                    ).length,
+                    isIncluded = selectedCount === colorVariants.length,
+                    isPartiallyIncluded = selectedCount > 0 && !isIncluded,
+                    isPreviewed = colorVariants.some(
+                      (variant) => variant.id === previewVariant
+                    ),
+                    swatchColor = item.colorCode?.replace(/^#/u, ""),
+                    isHexColor = Boolean(
+                      swatchColor && /^[\da-f]{6}$/iu.test(swatchColor)
+                    );
+                  return (
+                    <div
+                      className={`flex items-center gap-2 rounded-md border p-2 ${isPreviewed ? "border-primary" : "border-border"}`}
+                      key={item.id}
+                    >
+                      <Checkbox
+                        aria-label={`Include ${color}`}
+                        checked={
+                          isPartiallyIncluded ? "indeterminate" : isIncluded
+                        }
+                        disabled={pending}
+                        onCheckedChange={(checked) =>
+                          setColorIncluded(color, checked === true)
+                        }
+                      />
+                      <button
+                        aria-label={`Preview ${color}`}
+                        aria-pressed={isPreviewed}
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring"
+                        onClick={() => setPreviewVariant(item.id)}
+                        title={`Preview ${color}`}
+                        type="button"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="size-6 shrink-0 rounded-full border border-foreground/20 bg-muted"
+                          style={
+                            isHexColor
+                              ? { backgroundColor: `#${swatchColor}` }
+                              : undefined
+                          }
+                        />
+                        <span className="min-w-0 flex-1 truncate">{color}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {selectedCount}/{colorVariants.length}
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Select colors to sell, preview each blank, then adjust sizes
+                below.
+              </p>
+            </fieldset>
+          )}
         </aside>
         <div className="flex min-h-80 items-center justify-center rounded-lg bg-muted/30 p-5">
           {preview && position ? (
