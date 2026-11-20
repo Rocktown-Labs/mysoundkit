@@ -905,14 +905,41 @@ app.openapi(
   }
 );
 
-const publicPhysicalReleasesQuerySchema = z.object({
-  artistUsername: z.string().trim().max(120).optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(48),
-  mediaFormat: z.enum(["cd", "dvd", "vinyl_12", "vinyl_7"]).optional(),
-  projectId: z.string().trim().optional(),
-  trackId: z.string().trim().optional(),
-  videoId: z.string().trim().optional(),
-});
+const publicPhysicalSiblingFormatSchema = z.object({
+    id: z.string(),
+    includesDigitalDownload: z.boolean(),
+    mediaFormat: z.enum(["cd", "digital", "dvd", "vinyl_12", "vinyl_7"]),
+    retailPriceCents: z.number().int(),
+    title: z.string(),
+  }),
+  publicPhysicalReleaseSchema = z.object({
+    artistName: z.string().nullable(),
+    artistUsername: z.string().nullable(),
+    coverArtUrl: z.string().nullable(),
+    createdAt: z.string(),
+    currency: z.string(),
+    description: z.string().nullable(),
+    genreName: z.string().nullable(),
+    genreSlug: z.string().nullable(),
+    id: z.string(),
+    includesDigitalDownload: z.boolean(),
+    mediaFormat: z.enum(["cd", "dvd", "vinyl_12", "vinyl_7"]),
+    projectId: z.string().nullable(),
+    projectTitle: z.string().nullable(),
+    retailPriceCents: z.number().int(),
+    siblingFormats: z.array(publicPhysicalSiblingFormatSchema),
+    title: z.string(),
+    trackId: z.string().nullable(),
+    videoId: z.string().nullable(),
+  }),
+  publicPhysicalReleasesQuerySchema = z.object({
+    artistUsername: z.string().trim().max(120).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(48),
+    mediaFormat: z.enum(["cd", "dvd", "vinyl_12", "vinyl_7"]).optional(),
+    projectId: z.string().trim().optional(),
+    trackId: z.string().trim().optional(),
+    videoId: z.string().trim().optional(),
+  });
 
 app.openapi(
   createRoute({
@@ -923,7 +950,7 @@ app.openapi(
     },
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
-        z.array(z.record(z.string(), z.unknown())),
+        z.array(publicPhysicalReleaseSchema),
         "Published physical releases (Vinyl, CD, DVD) with artwork and sibling formats"
       ),
     },
@@ -953,7 +980,7 @@ app.openapi(
     },
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
-        z.record(z.string(), z.unknown()),
+        publicPhysicalReleaseSchema,
         "Single published physical release"
       ),
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
@@ -970,14 +997,15 @@ app.openapi(
         releaseId,
       });
 
-    if (releases.length === 0) {
+    const release = releases[0];
+    if (!release) {
       return c.json(
         { message: "Physical release not found or not published." },
         HttpStatusCodes.NOT_FOUND
       );
     }
 
-    return c.json(releases[0], HttpStatusCodes.OK);
+    return c.json(release, HttpStatusCodes.OK);
   }
 );
 

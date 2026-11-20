@@ -158,7 +158,9 @@ function MerchDetailView({
     selectedVariant = availableSizes.find((v) => v.id === selectedVariantId),
     galleryUrls = [
       ...(selectedColor?.mockupUrl ? [selectedColor.mockupUrl] : []),
-      ...(merch.mockups ?? []).map((m) => m.mockupUrl),
+      ...(merch.mockups ?? [])
+        .map((m) => m?.mockupUrl)
+        .filter((url): url is string => Boolean(url)),
       ...(merch.previewMockupUrl ? [merch.previewMockupUrl] : []),
     ].filter((url, idx, arr) => Boolean(url) && arr.indexOf(url) === idx),
     primaryImage = galleryUrls[activeImageIndex] ?? galleryUrls[0] ?? null,
@@ -474,7 +476,8 @@ function PhysicalReleaseDetailView({
   const { addItem } = useCart(),
     navigate = useNavigate(),
     [quantity, setQuantity] = useState(1),
-    formatLabel = PHYSICAL_FORMAT_LABELS[release.mediaFormat],
+    formatLabel =
+      PHYSICAL_FORMAT_LABELS[release.mediaFormat] ?? release.mediaFormat,
     handleAddToCart = async () => {
       await addItem({
         artistName: release.artistName,

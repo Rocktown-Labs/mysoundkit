@@ -629,7 +629,7 @@ export const useTipCheckoutMutation = () =>
       }),
     onSuccess: (result) => {
       if (result.checkoutUrl || result.clientSecret)
-        {capture("checkout_started", { kind: "tip" });}
+        capture("checkout_started", { kind: "tip" });
     },
   });
 

@@ -16,7 +16,7 @@ import {
   merchDesigns,
   merchMockups,
 } from "@soundkit/db/schema/fulfillment";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 
 import { publicAssetUrlFromParts } from "@/lib/asset-urls";
 
@@ -393,6 +393,13 @@ export const listPublicPhysicalReleases = async ({
           .filter((id): id is string => Boolean(id))
       ),
     ],
+    videoIds = [
+      ...new Set(
+        rows
+          .map((row) => row.release.videoId)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ],
     genreIds = [
       ...new Set(
         rows
@@ -401,6 +408,17 @@ export const listPublicPhysicalReleases = async ({
           )
           .filter((id): id is string => Boolean(id))
       ),
+    ],
+    siblingConditions = [
+      ...(projectIds.length > 0
+        ? [inArray(physicalReleases.projectId, projectIds)]
+        : []),
+      ...(trackIds.length > 0
+        ? [inArray(physicalReleases.trackId, trackIds)]
+        : []),
+      ...(videoIds.length > 0
+        ? [inArray(physicalReleases.videoId, videoIds)]
+        : []),
     ],
     [projectCoverRows, trackCoverRows, genreRows, siblingRows] =
       await Promise.all([
@@ -444,7 +462,7 @@ export const listPublicPhysicalReleases = async ({
               .from(genres)
               .where(inArray(genres.id, genreIds))
           : Promise.resolve([]),
-        projectIds.length > 0
+        siblingConditions.length > 0
           ? db
               .select({
                 id: physicalReleases.id,
@@ -454,11 +472,13 @@ export const listPublicPhysicalReleases = async ({
                 projectId: physicalReleases.projectId,
                 retailPriceCents: physicalReleases.retailPriceCents,
                 title: physicalReleases.title,
+                trackId: physicalReleases.trackId,
+                videoId: physicalReleases.videoId,
               })
               .from(physicalReleases)
               .where(
                 and(
-                  inArray(physicalReleases.projectId, projectIds),
+                  or(...siblingConditions),
                   eq(physicalReleases.status, "published")
                 )
               )
@@ -503,31 +523,29 @@ export const listPublicPhysicalReleases = async ({
         null,
       genreId = row.projectGenreId ?? row.trackGenreId ?? row.videoGenreId,
       genre = genreId ? (genreMap.get(genreId) ?? null) : null,
-      siblings: PublicPhysicalSiblingFormat[] = [];
+      siblings: PublicPhysicalSiblingFormat[] = [],
+      seenSiblingIds = new Set<string>();
 
-    if (row.release.projectId) {
-      for (const sibling of siblingRows) {
-        if (sibling.projectId === row.release.projectId) {
-          siblings.push({
-            id: sibling.id,
-            includesDigitalDownload: sibling.includesDigitalDownload,
-            mediaFormat: sibling.mediaFormat,
-            retailPriceCents: sibling.retailPriceCents,
-            title: sibling.title,
-          });
-        }
-      }
+    for (const sibling of siblingRows) {
+      const sharesEntity =
+        (row.release.projectId &&
+          sibling.projectId === row.release.projectId) ||
+        (row.release.trackId && sibling.trackId === row.release.trackId) ||
+        (row.release.videoId && sibling.videoId === row.release.videoId);
 
-      if (row.projectIsForSale && typeof row.projectPriceCents === "number") {
+      if (sharesEntity && !seenSiblingIds.has(sibling.id)) {
+        seenSiblingIds.add(sibling.id);
         siblings.push({
-          id: row.release.projectId,
-          includesDigitalDownload: true,
-          mediaFormat: "digital",
-          retailPriceCents: row.projectPriceCents,
-          title: row.projectTitle ?? row.release.title,
+          id: sibling.id,
+          includesDigitalDownload: sibling.includesDigitalDownload,
+          mediaFormat: sibling.mediaFormat,
+          retailPriceCents: sibling.retailPriceCents,
+          title: sibling.title,
         });
       }
-    } else {
+    }
+
+    if (!seenSiblingIds.has(row.release.id)) {
       siblings.push({
         id: row.release.id,
         includesDigitalDownload: row.release.includesDigitalDownload,
@@ -535,20 +553,32 @@ export const listPublicPhysicalReleases = async ({
         retailPriceCents: row.release.retailPriceCents,
         title: row.release.title,
       });
+    }
 
-      if (
-        row.release.trackId &&
-        row.trackIsForSale &&
-        typeof row.trackPriceCents === "number"
-      ) {
-        siblings.push({
-          id: row.release.trackId,
-          includesDigitalDownload: true,
-          mediaFormat: "digital",
-          retailPriceCents: row.trackPriceCents,
-          title: row.trackTitle ?? row.release.title,
-        });
-      }
+    if (
+      row.release.projectId &&
+      row.projectIsForSale &&
+      typeof row.projectPriceCents === "number"
+    ) {
+      siblings.push({
+        id: row.release.projectId,
+        includesDigitalDownload: true,
+        mediaFormat: "digital",
+        retailPriceCents: row.projectPriceCents,
+        title: row.projectTitle ?? row.release.title,
+      });
+    } else if (
+      row.release.trackId &&
+      row.trackIsForSale &&
+      typeof row.trackPriceCents === "number"
+    ) {
+      siblings.push({
+        id: row.release.trackId,
+        includesDigitalDownload: true,
+        mediaFormat: "digital",
+        retailPriceCents: row.trackPriceCents,
+        title: row.trackTitle ?? row.release.title,
+      });
     }
 
     return {

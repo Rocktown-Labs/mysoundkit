@@ -172,6 +172,19 @@ export default function ShopScreen() {
     }, [category, normalizedQuery, tracksQuery.data]),
     totalCount =
       filteredMerch.length + filteredPhysical.length + filteredTracks.length,
+    hasQueryError =
+      merchQuery.isError || physicalQuery.isError || tracksQuery.isError,
+    retryFailedQueries = () => {
+      if (merchQuery.isError) {
+        void merchQuery.refetch();
+      }
+      if (physicalQuery.isError) {
+        void physicalQuery.refetch();
+      }
+      if (tracksQuery.isError) {
+        void tracksQuery.refetch();
+      }
+    },
     showGenreRow =
       category === "all" ||
       category === "digital" ||
@@ -314,6 +327,18 @@ export default function ShopScreen() {
             ))}
           </View>
         </View>
+
+        {/* Error Banner */}
+        {hasQueryError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>
+              Some store items failed to load.
+            </Text>
+            <Pressable onPress={retryFailedQueries} style={styles.resetButton}>
+              <Text style={styles.resetText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* Printful Merch Section */}
         {filteredMerch.length > 0 ? (
@@ -684,6 +709,19 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: { color: "#8F8F8F", fontSize: 13, textAlign: "center" },
   emptyTitle: { color: "#F8F8F8", fontSize: 16, fontWeight: "700" },
+  errorBanner: {
+    alignItems: "center",
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderColor: "rgba(239, 68, 68, 0.35)",
+    borderCurve: "continuous",
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  errorText: { color: "#FCA5A5", flex: 1, fontSize: 12, fontWeight: "600" },
   fill: { height: "100%", width: "100%" },
   filter: {
     backgroundColor: "#0B0B0D",

@@ -259,6 +259,12 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
 
     if (body.productType === "physical_merch") {
       if (body.merchDesignId) {
+        if (!body.printfulVariantId) {
+          return {
+            error: "Merch cart items require a printfulVariantId.",
+          };
+        }
+
         const [design] = await db
           .select()
           .from(merchDesigns)
@@ -269,30 +275,34 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
             )
           );
 
-        if (!design) {
+        if (!design || !design.printfulCatalogProductId) {
           return { error: "Merch design was not found or is not published." };
         }
 
-        let variantSuffix = "";
-        if (body.printfulVariantId) {
-          const [variant] = await db
-            .select()
-            .from(merchCatalogVariants)
-            .where(eq(merchCatalogVariants.id, body.printfulVariantId));
+        const [variant] = await db
+          .select()
+          .from(merchCatalogVariants)
+          .where(
+            and(
+              eq(merchCatalogVariants.id, body.printfulVariantId),
+              eq(
+                merchCatalogVariants.catalogProductId,
+                design.printfulCatalogProductId
+              ),
+              eq(merchCatalogVariants.inStock, true)
+            )
+          );
 
-          if (!variant || !variant.inStock) {
-            return {
-              error: "Selected merch variant is currently unavailable.",
-            };
-          }
-
-          const parts = [variant.color, variant.size].filter(Boolean);
-          if (parts.length > 0) {
-            variantSuffix = ` (${parts.join(" / ")})`;
-          }
+        if (!variant) {
+          return {
+            error:
+              "Selected merch variant is unavailable or does not match this product.",
+          };
         }
 
-        const titleSnapshot = `${design.title}${variantSuffix}`,
+        const parts = [variant.color, variant.size].filter(Boolean),
+          variantSuffix = parts.length > 0 ? ` (${parts.join(" / ")})` : "",
+          titleSnapshot = `${design.title}${variantSuffix}`,
           [existingItem] = await db
             .select()
             .from(cartItems)
@@ -301,9 +311,7 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
                 eq(cartItems.cartId, cart.id),
                 eq(cartItems.productType, "physical_merch"),
                 eq(cartItems.merchDesignId, body.merchDesignId),
-                body.printfulVariantId
-                  ? eq(cartItems.printfulVariantId, body.printfulVariantId)
-                  : isNull(cartItems.printfulVariantId)
+                eq(cartItems.printfulVariantId, body.printfulVariantId)
               )
             );
 
@@ -321,7 +329,7 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
           id: crypto.randomUUID(),
           merchDesignId: design.id,
           priceCentsSnapshot: design.retailPriceCents,
-          printfulVariantId: body.printfulVariantId,
+          printfulVariantId: variant.id,
           productType: "physical_merch",
           projectId: design.projectId,
           quantity,
@@ -343,10 +351,17 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
       const [release] = await db
         .select()
         .from(physicalReleases)
-        .where(eq(physicalReleases.id, body.physicalReleaseId));
+        .where(
+          and(
+            eq(physicalReleases.id, body.physicalReleaseId),
+            eq(physicalReleases.status, "published")
+          )
+        );
 
       if (!release) {
-        return { error: "Physical release was not found." };
+        return {
+          error: "Physical release was not found or is not published.",
+        };
       }
 
       const formatLabels: Record<string, string> = {

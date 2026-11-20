@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
+  AlertCircle,
   Disc3,
   LayoutGrid,
   List,
@@ -30,6 +31,7 @@ import {
   ShopMerchCard,
   ShopPhysicalReleaseCard,
 } from "@/components/shop/shop-product-card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -136,6 +138,19 @@ function ShopPage() {
     rawTracks = tracksQuery.data ?? [],
     isLoading =
       merchQuery.isLoading || physicalQuery.isLoading || tracksQuery.isLoading,
+    hasQueryError =
+      merchQuery.isError || physicalQuery.isError || tracksQuery.isError,
+    retryFailedQueries = () => {
+      if (merchQuery.isError) {
+        void merchQuery.refetch();
+      }
+      if (physicalQuery.isError) {
+        void physicalQuery.refetch();
+      }
+      if (tracksQuery.isError) {
+        void tracksQuery.refetch();
+      }
+    },
     unifiedItems = useMemo(
       () =>
         buildUnifiedShopItems({
@@ -332,6 +347,22 @@ function ShopPage() {
           </div>
         ) : null}
       </div>
+
+      {/* Error Alert if any storefront query failed */}
+      {hasQueryError ? (
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertTitle>Some store items couldn&apos;t load</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>
+              We ran into a temporary issue fetching part of the catalog.
+            </span>
+            <Button onClick={retryFailedQueries} size="sm" variant="outline">
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {/* Curated Showcase Rails (All + Default view) */}
       {showShowcaseRails ? (
