@@ -13,6 +13,7 @@ on:
           - set-r2-secrets
           - stripe-refund-events
           - diagnose-pipelines-auth
+          - printful-catalog
 
       apply_refund_events:
         description: "Apply only missing refund lifecycle subscriptions to existing SoundKit webhooks"
@@ -31,6 +32,32 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  printful-catalog:
+    name: Verify Fourthwall model matches against Printful
+    if: ${{ inputs.task == 'printful-catalog' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Audit live provider catalog
+        env:
+          PRINTFUL_API_KEY: ${{ secrets.PRINTFUL_API_KEY }}
+        run: node scripts/ci/printful-catalog-enable.mjs
+      - name: Record catalog audit
+        if: always()
+        run: |
+          if test -f printful-catalog-report.json; then
+            echo '## Printful catalog audit' >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat printful-catalog-report.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   audit-v1-workflows:
     name: Audit workflow definitions and instance states
     if: ${{ inputs.task == 'audit-v1-workflows' }}
