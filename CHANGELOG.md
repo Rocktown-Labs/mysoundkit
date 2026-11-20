@@ -4,6 +4,8 @@
 
 ### Added
 
+- Add a dry-run-first maintenance task to verify Fourthwall brand/model matches against Printful's complete live catalog and enable only supported, priced, in-stock DTG blanks while preserving existing retail bounds (#556).
+
 - Add a visual Merch Studio catalog with product details, category browsing, and a unified searchable product manager and creation chooser (#551).
 
 - Give medium Kimi reviews bounded headroom after observed partial coverage, preserving strict completion/publication gates (#523).

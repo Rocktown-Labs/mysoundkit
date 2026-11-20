@@ -363,37 +363,6 @@ async function main() {
     )
   );
   const reader = printfulReader(process.env.PRINTFUL_API_KEY);
-  for (const path of [
-    "/catalog-products/586/catalog-variants",
-    "/catalog-products/71/mockup-styles",
-    "/catalog-products/586/prices",
-    "/catalog-products/586/mockup-styles",
-    "/catalog-products/586/availability",
-  ]) {
-    const sample = await reader.request(path, { limit: 100, offset: 0 });
-    console.info(
-      JSON.stringify({
-        count: sample.data?.length ?? sample.data?.variants?.length,
-        dataKeys: sample.data ? Object.keys(sample.data).slice(0, 8) : [],
-        diagnostic: path,
-        firstKeys: sample.data?.[0] ? Object.keys(sample.data[0]) : [],
-        groupIds: (Array.isArray(sample.data)
-          ? sample.data
-          : sample.data?.variants
-        )
-          ?.slice(0, 3)
-          .map((x) => ({
-            id: x.id,
-            placement: x.placement,
-            print_area_type: x.print_area_type,
-            technique: x.technique,
-          })),
-        keys: Object.keys(sample),
-        pagination: sample.pagination,
-        paging: sample.paging,
-      })
-    );
-  }
   const report = await auditCatalog({
     candidates,
     onResult: (result) => console.info(JSON.stringify(result)),

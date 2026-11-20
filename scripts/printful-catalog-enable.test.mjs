@@ -176,3 +176,63 @@ test("nested price variants are paginated and must be denominated in USD", async
     /USD/u
   );
 });
+
+test("audit authorizes only variants with both USD DTG prices and confirmed stock", async () => {
+  const product = { brand: "Test", id: 1, model: "123", name: "Test tee" };
+  const groups = [
+    {
+      dpi: 150,
+      mockup_styles: [{ id: 1 }],
+      placement: "front",
+      print_area_height: 16,
+      print_area_type: "simple",
+      print_area_width: 12,
+      technique: "dtg",
+    },
+  ];
+  const paths = [];
+  const reader = {
+    list(path) {
+      paths.push(path);
+      if (path === "/catalog-products") {
+        return [product];
+      }
+      if (path.endsWith("mockup-styles")) {
+        return groups;
+      }
+      if (path.endsWith("catalog-variants")) {
+        return [{ id: 11 }, { id: 12 }];
+      }
+      if (path.endsWith("availability")) {
+        return [
+          {
+            catalog_variant_id: 11,
+            techniques: [
+              {
+                selling_regions: [{ availability: "in stock", name: "usa" }],
+                technique: "dtg",
+              },
+            ],
+          },
+        ];
+      }
+      if (path.endsWith("prices")) {
+        return [11, 12].map((id) => ({
+          id,
+          techniques: [{ price: "15.45", technique_key: "dtg" }],
+        }));
+      }
+      throw new Error("Unexpected path");
+    },
+    request: () => ({ data: product }),
+  };
+  const report = await auditCatalog({
+    candidates: [{ brand: "Test", model: "123" }],
+    reader,
+  });
+  assert.equal(report.ready.length, 1);
+  assert.equal(report.results[0].variantCount, 2);
+  assert.equal(report.results[0].inStockCount, 1);
+  assert.equal(report.results[0].cheapestBaseCents, 1545);
+  assert.equal(paths.length, 5);
+});
