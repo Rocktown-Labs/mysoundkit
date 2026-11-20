@@ -162,10 +162,11 @@ export function MerchDesigner({
         setPreviewVariant(previewColorVariant.id);
       }
     } else {
-      setVariantIds(variantIds.filter((id) => !groupIds.has(id)));
+      const remainingVariantIds = variantIds.filter((id) => !groupIds.has(id));
+      setVariantIds(remainingVariantIds);
       if (groupIds.has(previewVariant)) {
-        const nextPreviewVariant = available.find(
-          (item) => item.id !== previewVariant && variantIds.includes(item.id)
+        const nextPreviewVariant = available.find((item) =>
+          remainingVariantIds.includes(item.id)
         );
         setPreviewVariant(nextPreviewVariant?.id ?? "");
       }
