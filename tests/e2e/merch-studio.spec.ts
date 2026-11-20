@@ -260,7 +260,7 @@ test("catalog browsing shows real options and carries the blank into creation", 
     .getByRole("textbox", { exact: true, name: "Title" })
     .fill("Midnight Tour tee");
   await page
-    .getByRole("textbox", { name: "Print file URL" })
+    .getByRole("textbox", { name: "Print file object key or public URL" })
     .fill("https://media.mysoundkit.com/merch/tour.png");
   await page.getByLabel(/Retail price/u).fill("25");
   const creation = page.waitForRequest(
@@ -319,6 +319,12 @@ test("product manager filters, paginates and preserves publishing and archive ac
   await expect(
     page.getByText("Product archived", { exact: true })
   ).toBeVisible();
+  await page
+    .getByRole("button", { exact: true, name: "Actions for Tour tee 1" })
+    .click();
+  await expect(
+    page.getByRole("menuitem", { exact: true, name: "Publish" })
+  ).toBeDisabled();
 });
 
 test("catalog search and unavailable products have honest empty and stock states", async ({

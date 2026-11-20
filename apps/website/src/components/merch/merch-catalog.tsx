@@ -28,12 +28,11 @@ const categories = [
 ] as const;
 type Category = (typeof categories)[number];
 export function merchPrice(cents: number) {
-  return formatMerchPrice(cents);
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    style: "currency",
+  }).format(cents / 100);
 }
-const formatMerchPrice = (cents: number) =>
-  new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(
-    cents / 100
-  );
 
 export function MerchCatalog({
   products,

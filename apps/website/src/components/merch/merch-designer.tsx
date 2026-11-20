@@ -24,6 +24,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useCreateMerchDesignMutation } from "@/lib/soundkit-api-hooks";
 import type { MerchCatalogProduct } from "@/lib/soundkit-api-hooks";
 
+import { DEFAULT_MERCH_PLATFORM_FEE_BPS } from "../../../../../packages/db/src/merch-policy";
+
 export function MerchDesigner({
   products,
   variants,
@@ -56,7 +58,7 @@ export function MerchDesigner({
       )
     ),
     [retailPrice, setRetailPrice] = useState(""),
-    [designFileUrl, setDesignFileUrl] = useState(""),
+    [designFileKeyOrUrl, setDesignFileKeyOrUrl] = useState(""),
     [projectId, setProjectId] = useState(""),
     [trackId, setTrackId] = useState(""),
     createDesign = useCreateMerchDesignMutation(),
@@ -72,18 +74,21 @@ export function MerchDesigner({
         )
       : 0,
     retailPriceCents = Math.round(Number(retailPrice) * 100) || 0,
-    platformCut = Math.round(retailPriceCents * 0.12),
+    platformCut = Math.round(
+      (retailPriceCents * DEFAULT_MERCH_PLATFORM_FEE_BPS) / 10_000
+    ),
     artistPayout = retailPriceCents - platformCut - baseCost,
     placements = (selectedProduct?.placements ?? []).flatMap((p) =>
       typeof p.placement === "string" ? [p.placement] : []
     ),
     handleCreate = () => {
       if (
+        !selectedProduct ||
         !title.trim() ||
         !selectedProductId ||
-        !designFileUrl.trim() ||
-        retailPriceCents < (selectedProduct?.retailMinCents ?? 1200) ||
-        retailPriceCents > (selectedProduct?.retailMaxCents ?? 0) ||
+        !designFileKeyOrUrl.trim() ||
+        retailPriceCents < selectedProduct.retailMinCents ||
+        retailPriceCents > selectedProduct.retailMaxCents ||
         !placements.includes(placement)
       ) {
         toast({
@@ -97,7 +102,7 @@ export function MerchDesigner({
 
       createDesign.mutate(
         {
-          designFileObjectKey: designFileUrl.trim(),
+          designFileObjectKey: designFileKeyOrUrl.trim(),
           placement,
           printfulCatalogProductId: selectedProductId,
           retailPriceCents,
@@ -122,7 +127,7 @@ export function MerchDesigner({
             });
             setTitle("");
             setDescription("");
-            setDesignFileUrl("");
+            setDesignFileKeyOrUrl("");
             setRetailPrice("");
             onCreated();
           },
@@ -189,13 +194,19 @@ export function MerchDesigner({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="merch-placement">Placement</Label>
+            {placements.length === 0 && (
+              <p role="alert" className="text-sm text-destructive">
+                This blank has no print placements available. Choose a different
+                product.
+              </p>
+            )}
             <Select onValueChange={setPlacement} value={placement}>
               <SelectTrigger id="merch-placement">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  {(placements.length > 0 ? placements : ["front"]).map((p) => (
+                  {placements.map((p) => (
                     <SelectItem key={p} value={p}>
                       {p}
                     </SelectItem>
@@ -205,15 +216,18 @@ export function MerchDesigner({
             </Select>
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="merch-file">Print file URL</Label>
+            <Label htmlFor="merch-file">
+              Print file object key or public URL
+            </Label>
             <Input
               id="merch-file"
-              onChange={(e) => setDesignFileUrl(e.target.value)}
-              placeholder="https://media.mysoundkit.com/merch/…"
-              value={designFileUrl}
+              onChange={(e) => setDesignFileKeyOrUrl(e.target.value)}
+              placeholder="uploads/your-artwork.png or https://media.mysoundkit.com/…"
+              value={designFileKeyOrUrl}
             />
             <p className="text-muted-foreground text-xs">
-              Transparent PNG recommended, 300 DPI for best quality.
+              An uploaded object key is preferred; a public artwork URL also
+              works. Transparent PNG recommended, 300 DPI for best quality.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -266,7 +280,8 @@ export function MerchDesigner({
               </p>
               <p className="text-muted-foreground text-xs">
                 ${((retailPriceCents - baseCost) / 100).toFixed(2)} after blank
-                cost (${(baseCost / 100).toFixed(2)}) minus 12% platform fee ($
+                cost (${(baseCost / 100).toFixed(2)}) minus{" "}
+                {DEFAULT_MERCH_PLATFORM_FEE_BPS / 100}% platform fee ($
                 {(platformCut / 100).toFixed(2)}). Shipping is pass-through.
                 This estimate uses the lowest in-stock blank cost; costs vary by
                 variant.
@@ -275,7 +290,11 @@ export function MerchDesigner({
           ) : null}
           <Button
             className="w-full"
-            disabled={createDesign.isPending}
+            disabled={
+              createDesign.isPending ||
+              !selectedProduct ||
+              placements.length === 0
+            }
             onClick={handleCreate}
           >
             {createDesign.isPending ? "Creating…" : "Create design"}
