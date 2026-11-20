@@ -27,6 +27,12 @@ on:
         default: false
         type: boolean
 
+      apply_printful_catalog:
+        description: "Enable only verified matching Printful blanks in the production catalog"
+        required: false
+        default: false
+        type: boolean
+
 concurrency:
   group: infra-maintenance
   cancel-in-progress: false
@@ -44,9 +50,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Set up Node and pnpm
+        if: ${{ inputs.apply_printful_catalog }}
+        uses: ./.github/actions/setup-node-pnpm
+      - name: Install catalog database client
+        if: ${{ inputs.apply_printful_catalog }}
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter @soundkit/db
       - name: Audit live provider catalog
         env:
           PRINTFUL_API_KEY: ${{ secrets.PRINTFUL_API_KEY }}
+          DATABASE_URL: ${{ inputs.apply_printful_catalog && secrets.DATABASE_URL || '' }}
+          APPLY_PRINTFUL_CATALOG: ${{ inputs.apply_printful_catalog }}
         run: node scripts/ci/printful-catalog-enable.mjs
       - name: Record catalog audit
         if: always()
