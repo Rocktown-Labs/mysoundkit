@@ -377,12 +377,17 @@ async function main() {
         dataKeys: sample.data ? Object.keys(sample.data).slice(0, 8) : [],
         diagnostic: path,
         firstKeys: sample.data?.[0] ? Object.keys(sample.data[0]) : [],
-        groupIds: sample.data?.slice(0, 3).map((x) => ({
-          id: x.id,
-          placement: x.placement,
-          print_area_type: x.print_area_type,
-          technique: x.technique,
-        })),
+        groupIds: (Array.isArray(sample.data)
+          ? sample.data
+          : sample.data?.variants
+        )
+          ?.slice(0, 3)
+          .map((x) => ({
+            id: x.id,
+            placement: x.placement,
+            print_area_type: x.print_area_type,
+            technique: x.technique,
+          })),
         keys: Object.keys(sample),
         pagination: sample.pagination,
         paging: sample.paging,
