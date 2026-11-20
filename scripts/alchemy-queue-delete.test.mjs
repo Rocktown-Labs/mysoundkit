@@ -69,7 +69,7 @@ for (const [directory, extension] of [
     const deletion = source.slice(deleteIndex, nextHandler);
     assert.match(
       deletion,
-      /queues\.deleteConsumer\([\s\S]*?\.pipe\(tolerateMissingConsumer\)/u
+      /queues\s*\.deleteConsumer\([\s\S]*?\.pipe\(tolerateMissingConsumer\)/u
     );
     assert.equal(
       deletion.indexOf("Effect.fn", "delete: Effect.fn".length),
