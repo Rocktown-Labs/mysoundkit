@@ -296,15 +296,15 @@ describe.runIf(ready)("merch editor API with PostgreSQL", () => {
     expect(published).toBe(200);
     const cartResponse = await app.request("/cart/items", {
       body: JSON.stringify({
-        productType: "physical_merch",
         merchDesignId: saved.id,
         printfulVariantId: config.variantIds[0],
+        productType: "physical_merch",
         quantity: 1,
       }),
       headers: { "content-type": "application/json" },
       method: "POST",
     });
-    expect(cartResponse.status).toBe(200);
+    expect(cartResponse.status).toBe(201);
     const cartData: {
       items: { merchDesignId: string; printfulVariantId: string }[];
     } = await cartResponse.json();

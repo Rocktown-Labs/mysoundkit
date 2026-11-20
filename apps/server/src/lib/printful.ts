@@ -356,16 +356,16 @@ export const searchPrintfulCatalogProducts = async (
   maxResults = 10
 ) => {
   const allProducts = await getPrintfulCatalogProducts({ limit: 100 }),
-   normalized = query.toLowerCase().trim(),
-   matches =
-    normalized.length === 0
-      ? allProducts
-      : allProducts.filter(
-          (product) =>
-            product.name.toLowerCase().includes(normalized) ||
-            product.type?.toLowerCase().includes(normalized) ||
-            product.brand?.toLowerCase().includes(normalized)
-        );
+    normalized = query.toLowerCase().trim(),
+    matches =
+      normalized.length === 0
+        ? allProducts
+        : allProducts.filter(
+            (product) =>
+              product.name.toLowerCase().includes(normalized) ||
+              product.type?.toLowerCase().includes(normalized) ||
+              product.brand?.toLowerCase().includes(normalized)
+          );
 
   return matches.slice(0, maxResults);
 };
@@ -478,13 +478,14 @@ export interface PrintfulMockupTask {
       catalog_variant_id: number;
       display_name?: string;
       id?: string;
+      mockup_url?: string;
       mockup_style_id?: number;
       placement?: string;
       rendering?: string;
       url?: string;
     }[];
   }[];
-  failure_reasons: string[];
+  failure_reasons: (string | { detail?: string })[];
   id: number;
   status: "completed" | "failed" | "pending";
 }
@@ -506,18 +507,28 @@ export const createPrintfulMockupTask = async ({
     body: { format, products },
     method: "POST",
     path: "/mockup-tasks",
-  });
+  }),
 
-  return unwrapPrintfulPayload<PrintfulMockupTask>(payload);
+   tasks = unwrapPrintfulPayload<
+    PrintfulMockupTask | PrintfulMockupTask[] | null
+  >(payload);
+  return Array.isArray(tasks) ? (tasks[0] ?? null) : tasks;
 };
 
 export const getPrintfulMockupTask = async (taskId: number) => {
   const payload = await printfulRequest({
     path: "/mockup-tasks",
     query: { id: taskId },
-  });
+  }),
 
-  return unwrapPrintfulPayload<PrintfulMockupTask | null>(payload);
+   tasks = unwrapPrintfulPayload<
+    PrintfulMockupTask | PrintfulMockupTask[] | null
+  >(payload);
+  return Array.isArray(tasks)
+    ? (tasks.find((task) => task.id === taskId) ?? null)
+    : (tasks?.id === taskId
+      ? tasks
+      : null);
 };
 
 export interface PrintfulShippingRate {

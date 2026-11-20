@@ -1,7 +1,10 @@
 /* eslint-disable unicorn/max-nested-calls, sort-vars, one-var, complexity, require-unicode-regexp, no-nested-ternary */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { uploadIntents,projects as projectsTable } from "@soundkit/db/schema/app";
+import {
+  uploadIntents,
+  projects as projectsTable,
+} from "@soundkit/db/schema/app";
 import { physicalReleases } from "@soundkit/db/schema/commerce";
 import {
   merchCatalogProducts,
@@ -29,11 +32,12 @@ import {
   ownedMerchArtwork,
   selectedMerchMockupsReady,
 } from "@/lib/merch-production";
-import { getPrintfulFile,
+import {
   calculatePrintfulShippingRates,
   getPrintfulFile,
   isPrintfulConfigured,
-  printfulPriceToCents } from "@/lib/printful";
+  printfulPriceToCents,
+} from "@/lib/printful";
 import { listPublicMerch } from "@/lib/public-merch";
 import {
   messageResponseSchema,
@@ -53,11 +57,11 @@ const app = new OpenAPIHono<AppEnv>(),
     placements: z.array(z.record(z.string(), z.unknown())),
     printAreas: z.array(
       z.object({
+        dpi: z.number(),
+        height: z.number(),
         placement: z.string(),
         technique: z.string(),
         width: z.number(),
-        height: z.number(),
-        dpi: z.number(),
       })
     ),
     retailMaxCents: z.number().int(),
@@ -175,11 +179,14 @@ async function validateEditorSave(
     technique: string;
   }
 ) {
-  if (!body.editorConfig) {return;}
-  if (!ownedMerchArtwork(body.designFileObjectKey, userId))
-    {throw new MerchEditorError(
+  if (!body.editorConfig) {
+    return;
+  }
+  if (!ownedMerchArtwork(body.designFileObjectKey, userId)) {
+    throw new MerchEditorError(
       "Upload your artwork before saving this design."
-    );}
+    );
+  }
   const db = createDb();
   const [intent] = await db
     .select()
@@ -195,10 +202,11 @@ async function validateEditorSave(
     !intent ||
     !["image/png", "image/jpeg"].includes(intent.mimeType ?? "") ||
     (intent.sizeBytes ?? Infinity) > 20 * 1024 * 1024
-  )
-    {throw new MerchEditorError(
+  ) {
+    throw new MerchEditorError(
       "Choose a PNG or JPEG upload under 20 MB that belongs to your account."
-    );}
+    );
+  }
   const variants = await db
     .select()
     .from(merchCatalogVariants)
@@ -413,11 +421,12 @@ app.openapi(
       try {
         await validateEditorSave(user.id, product, body);
       } catch (error) {
-        if (error instanceof MerchEditorError)
-          {return c.json(
+        if (error instanceof MerchEditorError) {
+          return c.json(
             { message: error.message },
             HttpStatusCodes.BAD_REQUEST
-          );}
+          );
+        }
         throw error;
       }
     }
@@ -446,8 +455,8 @@ app.openapi(
           designMetadata: body.editorConfig
             ? {
                 editor: body.editorConfig,
-                width: body.editorConfig.artwork.width,
                 height: body.editorConfig.artwork.height,
+                width: body.editorConfig.artwork.width,
               }
             : null,
           id: designId,
@@ -670,14 +679,15 @@ app.openapi(
         !body.placement ||
         !body.technique ||
         body.status === "published")
-    )
-      {return c.json(
+    ) {
+      return c.json(
         {
           message:
             "Save the complete artwork configuration as a draft before publishing.",
         },
         HttpStatusCodes.BAD_REQUEST
-      );}
+      );
+    }
     let updated: typeof merchDesigns.$inferSelect;
     try {
       updated = await db.transaction(async (tx) => {
@@ -689,7 +699,9 @@ app.openapi(
           )
           .limit(1)
           .for("update");
-        if (!existing) {throw new MerchEditorError("Design not found.");}
+        if (!existing) {
+          throw new MerchEditorError("Design not found.");
+        }
         const [product] = existing.printfulCatalogProductId
           ? await tx
               .select()
@@ -704,10 +716,11 @@ app.openapi(
           product &&
           (body.retailPriceCents < product.retailMinCents ||
             body.retailPriceCents > product.retailMaxCents)
-        )
-          {throw new MerchEditorError(
+        ) {
+          throw new MerchEditorError(
             "Set a price within this product's retail range."
-          );}
+          );
+        }
         let artworkValues = {};
         if (
           artworkChange &&
@@ -720,12 +733,14 @@ app.openapi(
             existing.publishedAt ||
             existing.status === "published" ||
             existing.status === "archived"
-          )
-            {throw new MerchEditorError(
+          ) {
+            throw new MerchEditorError(
               "Published artwork is locked to protect existing orders. Create a new design for a new edition."
-            );}
-          if (!product || !product.isCurated || product.isDiscontinued)
-            {throw new MerchEditorError("This product is no longer available.");}
+            );
+          }
+          if (!product || !product.isCurated || product.isDiscontinued) {
+            throw new MerchEditorError("This product is no longer available.");
+          }
           await validateEditorSave(user.id, product, {
             ...body,
             designFileObjectKey: body.designFileObjectKey,
@@ -736,8 +751,9 @@ app.openapi(
             metadata: null,
             objectKey: body.designFileObjectKey,
           });
-          if (!url)
-            {throw new MerchEditorError("Artwork URL could not be resolved.");}
+          if (!url) {
+            throw new MerchEditorError("Artwork URL could not be resolved.");
+          }
           const fileId = await registerDesignFile({
             designFileUrl: url,
             filename: body.designFileObjectKey.split("/").pop() ?? "artwork",
@@ -759,7 +775,10 @@ app.openapi(
             .where(eq(merchMockups.merchDesignId, id));
         }
         if (body.status === "published") {
-          if (existing.status === "archived") throw new MerchEditorError("Restore an archived product before publishing.");
+          if (existing.status === "archived")
+            {throw new MerchEditorError(
+              "Restore an archived product before publishing."
+            );}
           const mockups = await tx
             .select()
             .from(merchMockups)
@@ -770,14 +789,16 @@ app.openapi(
                 existing.designMetadata.editor,
                 mockups
               )
-            )
-              {throw new MerchEditorError(
+            ) {
+              throw new MerchEditorError(
                 "Wait until every selected variant has a completed mockup before publishing."
-              );}
-            if (!existing.printfulFileId || !isPrintfulConfigured())
-              {throw new MerchEditorError(
+              );
+            }
+            if (!existing.printfulFileId || !isPrintfulConfigured()) {
+              throw new MerchEditorError(
                 "Printful must process your artwork before publishing."
-              );}
+              );
+            }
             const file = await getPrintfulFile(Number(existing.printfulFileId));
             if (
               file?.status !== "ok" ||
@@ -785,14 +806,16 @@ app.openapi(
               file.url !== existing.designFileUrl ||
               file.width !== existing.designMetadata.editor.artwork.width ||
               file.height !== existing.designMetadata.editor.artwork.height
-            )
-              {throw new MerchEditorError(
+            ) {
+              throw new MerchEditorError(
                 "Printful has not verified this artwork yet. Check the file and try again shortly."
-              );}
-          } else if (!mockups.some((mockup) => mockup.status === "completed"))
-            {throw new MerchEditorError(
+              );
+            }
+          } else if (!mockups.some((mockup) => mockup.status === "completed")) {
+            throw new MerchEditorError(
               "Wait for a completed mockup before publishing."
-            );}
+            );
+          }
         }
         const [saved] = await tx
           .update(merchDesigns)
@@ -817,15 +840,20 @@ app.openapi(
           })
           .where(eq(merchDesigns.id, id))
           .returning();
-        if (!saved) {throw new MerchEditorError("Unable to save the design.");}
+        if (!saved) {
+          throw new MerchEditorError("Unable to save the design.");
+        }
         return saved;
       });
     } catch (error) {
-      if (error instanceof MerchEditorError)
-        {return c.json({ message: error.message }, HttpStatusCodes.BAD_REQUEST);}
+      if (error instanceof MerchEditorError) {
+        return c.json({ message: error.message }, HttpStatusCodes.BAD_REQUEST);
+      }
       throw error;
     }
-    if (artworkChange) {await enqueueDesignMockups({ merchDesignId: id });}
+    if (artworkChange) {
+      await enqueueDesignMockups({ merchDesignId: id });
+    }
     const mockups = await db
       .select()
       .from(merchMockups)
@@ -1038,7 +1066,9 @@ app.openapi(
   }),
   async (c) => {
     const user = c.get("user");
-    if (!isAuthenticatedUser(user)) {return c.json(unauthorizedMessage, 401);}
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, 401);
+    }
     const db = createDb();
     const { id } = c.req.valid("param");
     const [design] = await db
@@ -1048,10 +1078,23 @@ app.openapi(
         and(eq(merchDesigns.id, id), eq(merchDesigns.ownerUserId, user.id))
       )
       .limit(1);
-    if (!design) {return c.json({ message: "Design not found." }, 404);}
-    if (design.designMetadata?.editor && !design.printfulFileId && design.designFileUrl) {
-      const id = await registerDesignFile({ designFileUrl: design.designFileUrl, filename: design.designFileObjectKey.split("/").pop() ?? "artwork" });
-      if (id) await db.update(merchDesigns).set({ printfulFileId: String(id) }).where(eq(merchDesigns.id, design.id));
+    if (!design) {
+      return c.json({ message: "Design not found." }, 404);
+    }
+    if (
+      design.designMetadata?.editor &&
+      !design.printfulFileId &&
+      design.designFileUrl
+    ) {
+      const id = await registerDesignFile({
+        designFileUrl: design.designFileUrl,
+        filename: design.designFileObjectKey.split("/").pop() ?? "artwork",
+      });
+      if (id)
+        {await db
+          .update(merchDesigns)
+          .set({ printfulFileId: String(id) })
+          .where(eq(merchDesigns.id, design.id));}
     }
     await db
       .update(merchMockups)
