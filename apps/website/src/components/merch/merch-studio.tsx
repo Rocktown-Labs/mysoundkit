@@ -66,6 +66,8 @@ import { MerchCatalog, merchPrice } from "./merch-catalog";
 import { MerchDesigner } from "./merch-designer";
 import { MerchDiscardDialog } from "./merch-discard-dialog";
 
+const MEDIA_FORMAT_LABELS: Record<PhysicalReleaseCard["mediaFormat"], string> = { cd: "Audio CD", dvd: "Video DVD", vinyl_12: '12" Vinyl', vinyl_7: '7" Vinyl' };
+
 interface ProductRow {
   id: string;
   title: string;
@@ -543,7 +545,7 @@ function ProductListRow({
           <p className="break-words font-medium">{row.title}</p>
           <p className="text-xs text-muted-foreground">
             {row.physical
-              ? row.physical.mediaFormat.replaceAll("_", " ").toUpperCase()
+              ? MEDIA_FORMAT_LABELS[row.physical.mediaFormat]
               : "Print on demand"}
             {row.design?.mockupCount
               ? ` · ${row.design.readyMockupCount}/${row.design.mockupCount} mockups ready`
@@ -630,9 +632,9 @@ function DesignActions({
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={
-                design.status !== "published" && design.readyMockupCount === 0
+                design.status === "archived" || (design.status !== "published" && design.readyMockupCount === 0)
               }
-              onSelect={() =>
+              onSelect={() => design.status !== "archived" &&
                 update.mutate(
                   {
                     id: design.id,

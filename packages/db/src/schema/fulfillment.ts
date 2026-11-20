@@ -1,3 +1,5 @@
+/* eslint-disable one-var -- Keep Drizzle tables individually exported. */
+import { DEFAULT_MERCH_PLATFORM_FEE_BPS } from "../merch-policy";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -123,7 +125,7 @@ export const merchDesigns = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     placement: text("placement").notNull(),
-    platformFeeBps: integer("platform_fee_bps").default(1200).notNull(),
+    platformFeeBps: integer("platform_fee_bps").default(DEFAULT_MERCH_PLATFORM_FEE_BPS).notNull(),
     printfulCatalogProductId: text("printful_catalog_product_id").references(
       () => merchCatalogProducts.id,
       { onDelete: "set null" }
