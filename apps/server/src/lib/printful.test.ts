@@ -163,7 +163,7 @@ describe("Printful v2 client", () => {
     };
     globalThis.fetch = vi
       .fn()
-      .mockResolvedValue(jsonResponse({ data: [task] }));
+      .mockImplementation(() => Promise.resolve(jsonResponse({ data: [task] })));
     const created = await createPrintfulMockupTask({
       products: [
         {
