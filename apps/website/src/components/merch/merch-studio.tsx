@@ -66,7 +66,13 @@ import { MerchCatalog, merchPrice } from "./merch-catalog";
 import { MerchDesigner } from "./merch-designer";
 import { MerchDiscardDialog } from "./merch-discard-dialog";
 
-const MEDIA_FORMAT_LABELS: Record<PhysicalReleaseCard["mediaFormat"], string> = { cd: "Audio CD", dvd: "Video DVD", vinyl_12: '12" Vinyl', vinyl_7: '7" Vinyl' };
+const MEDIA_FORMAT_LABELS: Record<PhysicalReleaseCard["mediaFormat"], string> =
+  {
+    cd: "Audio CD",
+    dvd: "Video DVD",
+    vinyl_12: '12" Vinyl',
+    vinyl_7: '7" Vinyl',
+  };
 
 interface ProductRow {
   id: string;
@@ -632,9 +638,11 @@ function DesignActions({
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={
-                design.status === "archived" || (design.status !== "published" && design.readyMockupCount === 0)
+                design.status === "archived" ||
+                (design.status !== "published" && design.readyMockupCount === 0)
               }
-              onSelect={() => design.status !== "archived" &&
+              onSelect={() =>
+                design.status !== "archived" &&
                 update.mutate(
                   {
                     id: design.id,

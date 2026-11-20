@@ -327,6 +327,12 @@ test("catalog browsing shows real options and carries the blank into creation", 
     animations: "disabled",
     path: testInfo.outputPath("editor.png"),
   });
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("alertdialog")).toContainText(
+    "Discard unsaved changes?"
+  );
+  await page.getByRole("button", { exact: true, name: "Keep editing" }).click();
+  await expect(page.getByLabel("Left", { exact: true })).toHaveValue("2.05");
   const creation = page.waitForRequest(
     (request) =>
       request.method() === "POST" && request.url().endsWith("/merch/designs")
