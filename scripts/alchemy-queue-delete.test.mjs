@@ -54,12 +54,27 @@ for (const [directory, extension] of [
       "utf-8"
     );
     assert.match(source, /export const tolerateMissingConsumer/u);
-    const live = source.slice(
-      source.indexOf("export const ConsumerProviderLive")
+    const providerIndex = source.indexOf("export const ConsumerProviderLive");
+    assert.notEqual(
+      providerIndex,
+      -1,
+      `${directory} live provider export exists`
     );
+    const deleteIndex = source.indexOf("delete: Effect.fn", providerIndex);
+    const nextHandler = source.indexOf("read: Effect.fn", deleteIndex);
+    assert.ok(
+      deleteIndex > providerIndex && nextHandler > deleteIndex,
+      `${directory} live delete/read handler boundaries exist`
+    );
+    const deletion = source.slice(deleteIndex, nextHandler);
     assert.match(
-      live,
-      /delete: Effect.fn[\s\S]*?\.pipe\(tolerateMissingConsumer\)/u
+      deletion,
+      /queues\.deleteConsumer\([\s\S]*?\.pipe\(tolerateMissingConsumer\)/u
+    );
+    assert.equal(
+      deletion.indexOf("Effect.fn", "delete: Effect.fn".length),
+      -1,
+      `${directory} assertion stays inside one handler`
     );
   });
 }
