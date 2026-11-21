@@ -50,15 +50,15 @@ export interface Cart {
 }
 
 export interface AddCartItemInput {
-  merchDesignId?: string;
-  printfulVariantId?: string;
   artistName?: string | null;
   coverArtUrl?: string | null;
   licenseName?: string | null;
   licenseOptionId?: string;
   mediaFormat?: PhysicalMediaFormat;
+  merchDesignId?: string;
   physicalReleaseId?: string;
   priceCents: number;
+  printfulVariantId?: string;
   productType: ProductType;
   projectId?: string;
   purchaseMode: PurchaseMode;
@@ -238,8 +238,8 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
             items: localCart.items.map((item) => ({
               licenseOptionId: item.licenseOptionId ?? undefined,
               merchDesignId: item.merchDesignId ?? undefined,
-              printfulVariantId: item.printfulVariantId ?? undefined,
               physicalReleaseId: item.physicalReleaseId ?? undefined,
+              printfulVariantId: item.printfulVariantId ?? undefined,
               productType: item.productType,
               projectId:
                 item.projectId ??

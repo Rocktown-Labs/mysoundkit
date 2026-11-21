@@ -62,6 +62,10 @@ const meGet = apiClient.v1.me.index.$get,
   merchDesignMockupsGet = apiClient.v1.merch.designs[":id"].mockups.$get,
   publicMerchGet = apiClient.v1.merch.public.$get,
   publicMerchDesignGet = apiClient.v1.merch.public[":designId"].$get,
+  publicPhysicalReleasesGet =
+    apiClient.v1.merch.public["physical-releases"].$get,
+  publicPhysicalReleaseGet =
+    apiClient.v1.merch.public["physical-releases"][":releaseId"].$get,
   physicalReleasesGet = apiClient.v1.merch["physical-releases"].$get,
   artistOnboardingPost = apiClient.v1.onboarding.artist.$post,
   artistsGet = apiClient.v1.artists.index.$get,
@@ -1044,15 +1048,28 @@ export const useRetryMerchMockupsMutation = () => {
   });
 };
 
+export type MerchProductCategory = "Accessories" | "Apparel" | "Home & living";
+
 export interface PublicMerchDesign {
   artistName: string | null;
   artistUsername: string | null;
+  brand?: string | null;
   catalogProductId: string;
+  catalogProductName?: string | null;
+  category?: MerchProductCategory;
   description: string | null;
   id: string;
+  mockups?: {
+    catalogVariantId: string;
+    mockupUrl: string;
+  }[];
+  placement?: string;
   previewMockupUrl: string | null;
+  productType?: string | null;
   projectId: string | null;
+  publishedAt?: string | null;
   retailPriceCents: number;
+  technique?: string;
   title: string;
   trackId: string | null;
   variantDetails: {
@@ -1060,14 +1077,45 @@ export interface PublicMerchDesign {
     colorCode: string | null;
     id: string;
     inStock: boolean;
+    mockupUrl?: string | null;
     size: string | null;
   }[];
+}
+
+export interface PublicPhysicalSiblingFormat {
+  id: string;
+  includesDigitalDownload: boolean;
+  mediaFormat: "cd" | "digital" | "dvd" | "vinyl_12" | "vinyl_7";
+  retailPriceCents: number;
+  title: string;
+}
+
+export interface PublicPhysicalRelease {
+  artistName: string | null;
+  artistUsername: string | null;
+  coverArtUrl: string | null;
+  createdAt: string;
+  currency: string;
+  description: string | null;
+  genreName: string | null;
+  genreSlug: string | null;
+  id: string;
+  includesDigitalDownload: boolean;
+  mediaFormat: "cd" | "dvd" | "vinyl_12" | "vinyl_7";
+  projectId: string | null;
+  projectTitle: string | null;
+  retailPriceCents: number;
+  siblingFormats: PublicPhysicalSiblingFormat[];
+  title: string;
+  trackId: string | null;
+  videoId: string | null;
 }
 
 export const usePublicMerchQuery = (
   filters?: {
     artistUsername?: string;
     catalogProductId?: string;
+    limit?: number;
     projectId?: string;
     trackId?: string;
   },
@@ -1085,6 +1133,7 @@ export const usePublicMerchQuery = (
             ...(filters?.catalogProductId
               ? { catalogProductId: filters.catalogProductId }
               : {}),
+            ...(filters?.limit ? { limit: String(filters.limit) } : {}),
             ...(filters?.projectId ? { projectId: filters.projectId } : {}),
             ...(filters?.trackId ? { trackId: filters.trackId } : {}),
           },
@@ -1094,9 +1143,76 @@ export const usePublicMerchQuery = (
       "public",
       "merch",
       filters?.artistUsername ?? "",
+      filters?.catalogProductId ?? "",
+      filters?.limit ?? 24,
       filters?.projectId ?? "",
       filters?.trackId ?? "",
     ],
+  });
+
+export const usePublicMerchDesignQuery = (designId: string, enabled = true) =>
+  useQuery({
+    enabled: enabled && designId.length > 0,
+    queryFn: async () =>
+      (await rpcJson(
+        await publicMerchDesignGet({ param: { designId } })
+      )) as unknown as PublicMerchDesign,
+    queryKey: ["public", "merch", "design", designId],
+  });
+
+export const usePublicPhysicalReleasesQuery = (
+  filters?: {
+    artistUsername?: string;
+    limit?: number;
+    mediaFormat?: "cd" | "dvd" | "vinyl_12" | "vinyl_7";
+    projectId?: string;
+    trackId?: string;
+    videoId?: string;
+  },
+  enabled = true
+) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      (await rpcJson(
+        await publicPhysicalReleasesGet({
+          query: {
+            ...(filters?.artistUsername
+              ? { artistUsername: filters.artistUsername }
+              : {}),
+            ...(filters?.limit ? { limit: String(filters.limit) } : {}),
+            ...(filters?.mediaFormat
+              ? { mediaFormat: filters.mediaFormat }
+              : {}),
+            ...(filters?.projectId ? { projectId: filters.projectId } : {}),
+            ...(filters?.trackId ? { trackId: filters.trackId } : {}),
+            ...(filters?.videoId ? { videoId: filters.videoId } : {}),
+          },
+        })
+      )) as unknown as PublicPhysicalRelease[],
+    queryKey: [
+      "public",
+      "physical-releases",
+      filters?.artistUsername ?? "",
+      filters?.mediaFormat ?? "",
+      filters?.projectId ?? "",
+      filters?.trackId ?? "",
+      filters?.videoId ?? "",
+      filters?.limit ?? 48,
+    ],
+  });
+
+export const usePublicPhysicalReleaseQuery = (
+  releaseId: string,
+  enabled = true
+) =>
+  useQuery({
+    enabled: enabled && releaseId.length > 0,
+    queryFn: async () =>
+      (await rpcJson(
+        await publicPhysicalReleaseGet({ param: { releaseId } })
+      )) as unknown as PublicPhysicalRelease,
+    queryKey: ["public", "physical-releases", "detail", releaseId],
   });
 
 export interface AudioSpikeReport {

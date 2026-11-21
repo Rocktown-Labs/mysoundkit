@@ -355,7 +355,12 @@ app.openapi(
           ? await db
               .select()
               .from(physicalReleases)
-              .where(inArray(physicalReleases.id, physicalReleaseIds))
+              .where(
+                and(
+                  inArray(physicalReleases.id, physicalReleaseIds),
+                  eq(physicalReleases.status, "published")
+                )
+              )
           : [],
       releaseMap = new Map(
         physicalReleaseRows.map((release) => [release.id, release])
@@ -378,7 +383,12 @@ app.openapi(
                 status: merchDesigns.status,
               })
               .from(merchDesigns)
-              .where(inArray(merchDesigns.id, merchDesignIds))
+              .where(
+                and(
+                  inArray(merchDesigns.id, merchDesignIds),
+                  eq(merchDesigns.status, "published")
+                )
+              )
           : [],
       merchDesignMap = new Map(merchDesignRows.map((d) => [d.id, d])),
       printfulVariantIds = items
@@ -396,16 +406,28 @@ app.openapi(
               .from(merchCatalogVariants)
               .where(inArray(merchCatalogVariants.id, printfulVariantIds))
           : [],
-      variantCostMap = new Map(
-        printfulVariantRows.map((v) => [v.id, v.basePriceCents])
-      );
+      variantMap = new Map(printfulVariantRows.map((v) => [v.id, v]));
 
     for (const item of items) {
-      if (!item.merchDesignId) {continue;}
-      const design = merchDesignMap.get(item.merchDesignId);
-      const variant = printfulVariantRows.find(
-        (row) => row.id === item.printfulVariantId
-      );
+      if (item.physicalReleaseId) {
+        const release = releaseMap.get(item.physicalReleaseId);
+        if (!release || release.status !== "published") {
+          return c.json(
+            {
+              message:
+                "A physical release in your cart is unavailable or no longer published. Refresh your cart before checkout.",
+            },
+            HttpStatusCodes.BAD_REQUEST
+          );
+        }
+      }
+      if (!item.merchDesignId) {
+        continue;
+      }
+      const design = merchDesignMap.get(item.merchDesignId),
+        variant = item.printfulVariantId
+          ? variantMap.get(item.printfulVariantId)
+          : undefined;
       if (
         !design ||
         design.status !== "published" ||
@@ -415,14 +437,15 @@ app.openapi(
         design.retailPriceCents !== item.priceCentsSnapshot ||
         (design.designMetadata?.editor &&
           !design.designMetadata.editor.variantIds.includes(variant.id))
-      )
-        {return c.json(
+      ) {
+        return c.json(
           {
             message:
               "A merchandise product changed or is unavailable. Refresh your cart before checkout.",
           },
           HttpStatusCodes.BAD_REQUEST
-        );}
+        );
+      }
     }
 
     let totalAmountCents = 0,
@@ -436,8 +459,13 @@ app.openapi(
         if (item.physicalReleaseId) {
           // Kunaki physical media (CD/Vinyl/DVD) — priced from the
           // format-specific manufacturing rules.
-          const release = releaseMap.get(item.physicalReleaseId),
-            mediaFormat = release?.mediaFormat ?? "cd",
+          const release = releaseMap.get(item.physicalReleaseId);
+          if (!release) {
+            throw new Error(
+              "Cart contains an unavailable or unpublished physical release."
+            );
+          }
+          const mediaFormat = release.mediaFormat,
             pricing = calculatePhysicalPricing({
               mediaFormat,
               quantity: item.quantity,
@@ -463,10 +491,24 @@ app.openapi(
           // Printful merch (apparel/accessories) — priced from the
           // variant's base cost and the design's platform fee bps.
           const design = merchDesignMap.get(item.merchDesignId),
-            baseCostCents = item.printfulVariantId
-              ? (variantCostMap.get(item.printfulVariantId) ?? 0)
-              : 0,
-            feeBps = design?.platformFeeBps ?? 1200,
+            variant = item.printfulVariantId
+              ? variantMap.get(item.printfulVariantId)
+              : undefined;
+
+          if (
+            !design ||
+            !design.printfulCatalogProductId ||
+            !variant ||
+            !variant.inStock ||
+            variant.catalogProductId !== design.printfulCatalogProductId
+          ) {
+            throw new Error(
+              "Cart contains an unavailable merch design or mismatched product variant."
+            );
+          }
+
+          const baseCostCents = variant.basePriceCents,
+            feeBps = design.platformFeeBps ?? 1200,
             platformCut = Math.round((itemTotal * feeBps) / BASIS_POINTS_TOTAL),
             artistPayout = itemTotal - baseCostCents - platformCut,
             applicationFee = baseCostCents + platformCut;

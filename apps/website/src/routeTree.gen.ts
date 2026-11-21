@@ -35,7 +35,6 @@ import { Route as DashboardAdsRouteImport } from './app/dashboard/ads'
 import { Route as DashboardAdminRouteImport } from './app/dashboard/admin'
 import { Route as AuthTurnstileBridgeRouteImport } from './app/auth/turnstile-bridge'
 import { Route as AuthHandoffRouteImport } from './app/auth/handoff'
-import { Route as ExploreShopRouteImport } from './app/_explore/shop'
 import { Route as ExploreNewReleasesRouteImport } from './app/_explore/new-releases'
 import { Route as ExploreLiveRouteImport } from './app/_explore/live'
 import { Route as DashboardVideosIndexRouteImport } from './app/dashboard/videos/index'
@@ -45,6 +44,7 @@ import { Route as DashboardOpenVersesIndexRouteImport } from './app/dashboard/op
 import { Route as DashboardLiveIndexRouteImport } from './app/dashboard/live/index'
 import { Route as ExploreVideosIndexRouteImport } from './app/_explore/videos/index'
 import { Route as ExploreTracksIndexRouteImport } from './app/_explore/tracks/index'
+import { Route as ExploreShopIndexRouteImport } from './app/_explore/shop/index'
 import { Route as ExploreProjectsIndexRouteImport } from './app/_explore/projects/index'
 import { Route as ExploreLiveIndexRouteImport } from './app/_explore/live/index'
 import { Route as ExploreLibraryIndexRouteImport } from './app/_explore/library/index'
@@ -82,6 +82,7 @@ import { Route as DashboardCareerAiStudioRouteImport } from './app/dashboard/car
 import { Route as DashboardCareerAdsRouteImport } from './app/dashboard/career/ads'
 import { Route as ExploreVideosIdRouteImport } from './app/_explore/videos/$id'
 import { Route as ExploreTracksIdRouteImport } from './app/_explore/tracks/$id'
+import { Route as ExploreShopIdRouteImport } from './app/_explore/shop/$id'
 import { Route as ExploreProjectsIdRouteImport } from './app/_explore/projects/$id'
 import { Route as ExplorePeopleUsernameRouteImport } from './app/_explore/people/$username'
 import { Route as ExploreLivePreviewRouteImport } from './app/_explore/live/preview'
@@ -251,11 +252,6 @@ const AuthHandoffRoute = AuthHandoffRouteImport.update({
   path: '/auth/handoff',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ExploreShopRoute = ExploreShopRouteImport.update({
-  id: '/shop',
-  path: '/shop',
-  getParentRoute: () => ExploreRoute,
-} as any)
 const ExploreNewReleasesRoute = ExploreNewReleasesRouteImport.update({
   id: '/new-releases',
   path: '/new-releases',
@@ -300,6 +296,11 @@ const ExploreVideosIndexRoute = ExploreVideosIndexRouteImport.update({
 const ExploreTracksIndexRoute = ExploreTracksIndexRouteImport.update({
   id: '/tracks/',
   path: '/tracks/',
+  getParentRoute: () => ExploreRoute,
+} as any)
+const ExploreShopIndexRoute = ExploreShopIndexRouteImport.update({
+  id: '/shop/',
+  path: '/shop/',
   getParentRoute: () => ExploreRoute,
 } as any)
 const ExploreProjectsIndexRoute = ExploreProjectsIndexRouteImport.update({
@@ -489,6 +490,11 @@ const ExploreVideosIdRoute = ExploreVideosIdRouteImport.update({
 const ExploreTracksIdRoute = ExploreTracksIdRouteImport.update({
   id: '/tracks/$id',
   path: '/tracks/$id',
+  getParentRoute: () => ExploreRoute,
+} as any)
+const ExploreShopIdRoute = ExploreShopIdRouteImport.update({
+  id: '/shop/$id',
+  path: '/shop/$id',
   getParentRoute: () => ExploreRoute,
 } as any)
 const ExploreProjectsIdRoute = ExploreProjectsIdRouteImport.update({
@@ -719,7 +725,6 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/live': typeof ExploreLiveRouteWithChildren
   '/new-releases': typeof ExploreNewReleasesRoute
-  '/shop': typeof ExploreShopRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/turnstile-bridge': typeof AuthTurnstileBridgeRoute
   '/dashboard/admin': typeof DashboardAdminRoute
@@ -746,6 +751,7 @@ export interface FileRoutesByFullPath {
   '/live/preview': typeof ExploreLivePreviewRoute
   '/people/$username': typeof ExplorePeopleUsernameRoute
   '/projects/$id': typeof ExploreProjectsIdRouteWithChildren
+  '/shop/$id': typeof ExploreShopIdRoute
   '/tracks/$id': typeof ExploreTracksIdRoute
   '/videos/$id': typeof ExploreVideosIdRoute
   '/dashboard/career/ads': typeof DashboardCareerAdsRoute
@@ -783,6 +789,7 @@ export interface FileRoutesByFullPath {
   '/library/': typeof ExploreLibraryIndexRoute
   '/live/': typeof ExploreLiveIndexRoute
   '/projects/': typeof ExploreProjectsIndexRoute
+  '/shop/': typeof ExploreShopIndexRoute
   '/tracks/': typeof ExploreTracksIndexRoute
   '/videos/': typeof ExploreVideosIndexRoute
   '/dashboard/live/': typeof DashboardLiveIndexRoute
@@ -829,7 +836,6 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/new-releases': typeof ExploreNewReleasesRoute
-  '/shop': typeof ExploreShopRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/turnstile-bridge': typeof AuthTurnstileBridgeRoute
   '/dashboard/admin': typeof DashboardAdminRoute
@@ -856,6 +862,7 @@ export interface FileRoutesByTo {
   '/library/settings': typeof ExploreLibrarySettingsRoute
   '/live/preview': typeof ExploreLivePreviewRoute
   '/people/$username': typeof ExplorePeopleUsernameRoute
+  '/shop/$id': typeof ExploreShopIdRoute
   '/tracks/$id': typeof ExploreTracksIdRoute
   '/videos/$id': typeof ExploreVideosIdRoute
   '/dashboard/career/ads': typeof DashboardCareerAdsRoute
@@ -892,6 +899,7 @@ export interface FileRoutesByTo {
   '/library': typeof ExploreLibraryIndexRoute
   '/live': typeof ExploreLiveIndexRoute
   '/projects': typeof ExploreProjectsIndexRoute
+  '/shop': typeof ExploreShopIndexRoute
   '/tracks': typeof ExploreTracksIndexRoute
   '/videos': typeof ExploreVideosIndexRoute
   '/dashboard/live': typeof DashboardLiveIndexRoute
@@ -942,7 +950,6 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_explore/live': typeof ExploreLiveRouteWithChildren
   '/_explore/new-releases': typeof ExploreNewReleasesRoute
-  '/_explore/shop': typeof ExploreShopRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/turnstile-bridge': typeof AuthTurnstileBridgeRoute
   '/dashboard/admin': typeof DashboardAdminRoute
@@ -970,6 +977,7 @@ export interface FileRoutesById {
   '/_explore/live/preview': typeof ExploreLivePreviewRoute
   '/_explore/people/$username': typeof ExplorePeopleUsernameRoute
   '/_explore/projects/$id': typeof ExploreProjectsIdRouteWithChildren
+  '/_explore/shop/$id': typeof ExploreShopIdRoute
   '/_explore/tracks/$id': typeof ExploreTracksIdRoute
   '/_explore/videos/$id': typeof ExploreVideosIdRoute
   '/dashboard/career/ads': typeof DashboardCareerAdsRoute
@@ -1007,6 +1015,7 @@ export interface FileRoutesById {
   '/_explore/library/': typeof ExploreLibraryIndexRoute
   '/_explore/live/': typeof ExploreLiveIndexRoute
   '/_explore/projects/': typeof ExploreProjectsIndexRoute
+  '/_explore/shop/': typeof ExploreShopIndexRoute
   '/_explore/tracks/': typeof ExploreTracksIndexRoute
   '/_explore/videos/': typeof ExploreVideosIndexRoute
   '/dashboard/live/': typeof DashboardLiveIndexRoute
@@ -1058,7 +1067,6 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/live'
     | '/new-releases'
-    | '/shop'
     | '/auth/handoff'
     | '/auth/turnstile-bridge'
     | '/dashboard/admin'
@@ -1085,6 +1093,7 @@ export interface FileRouteTypes {
     | '/live/preview'
     | '/people/$username'
     | '/projects/$id'
+    | '/shop/$id'
     | '/tracks/$id'
     | '/videos/$id'
     | '/dashboard/career/ads'
@@ -1122,6 +1131,7 @@ export interface FileRouteTypes {
     | '/library/'
     | '/live/'
     | '/projects/'
+    | '/shop/'
     | '/tracks/'
     | '/videos/'
     | '/dashboard/live/'
@@ -1168,7 +1178,6 @@ export interface FileRouteTypes {
     | '/signup'
     | '/sitemap.xml'
     | '/new-releases'
-    | '/shop'
     | '/auth/handoff'
     | '/auth/turnstile-bridge'
     | '/dashboard/admin'
@@ -1195,6 +1204,7 @@ export interface FileRouteTypes {
     | '/library/settings'
     | '/live/preview'
     | '/people/$username'
+    | '/shop/$id'
     | '/tracks/$id'
     | '/videos/$id'
     | '/dashboard/career/ads'
@@ -1231,6 +1241,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/live'
     | '/projects'
+    | '/shop'
     | '/tracks'
     | '/videos'
     | '/dashboard/live'
@@ -1280,7 +1291,6 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/_explore/live'
     | '/_explore/new-releases'
-    | '/_explore/shop'
     | '/auth/handoff'
     | '/auth/turnstile-bridge'
     | '/dashboard/admin'
@@ -1308,6 +1318,7 @@ export interface FileRouteTypes {
     | '/_explore/live/preview'
     | '/_explore/people/$username'
     | '/_explore/projects/$id'
+    | '/_explore/shop/$id'
     | '/_explore/tracks/$id'
     | '/_explore/videos/$id'
     | '/dashboard/career/ads'
@@ -1345,6 +1356,7 @@ export interface FileRouteTypes {
     | '/_explore/library/'
     | '/_explore/live/'
     | '/_explore/projects/'
+    | '/_explore/shop/'
     | '/_explore/tracks/'
     | '/_explore/videos/'
     | '/dashboard/live/'
@@ -1582,13 +1594,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthHandoffRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_explore/shop': {
-      id: '/_explore/shop'
-      path: '/shop'
-      fullPath: '/shop'
-      preLoaderRoute: typeof ExploreShopRouteImport
-      parentRoute: typeof ExploreRoute
-    }
     '/_explore/new-releases': {
       id: '/_explore/new-releases'
       path: '/new-releases'
@@ -1650,6 +1655,13 @@ declare module '@tanstack/react-router' {
       path: '/tracks'
       fullPath: '/tracks/'
       preLoaderRoute: typeof ExploreTracksIndexRouteImport
+      parentRoute: typeof ExploreRoute
+    }
+    '/_explore/shop/': {
+      id: '/_explore/shop/'
+      path: '/shop'
+      fullPath: '/shop/'
+      preLoaderRoute: typeof ExploreShopIndexRouteImport
       parentRoute: typeof ExploreRoute
     }
     '/_explore/projects/': {
@@ -1909,6 +1921,13 @@ declare module '@tanstack/react-router' {
       path: '/tracks/$id'
       fullPath: '/tracks/$id'
       preLoaderRoute: typeof ExploreTracksIdRouteImport
+      parentRoute: typeof ExploreRoute
+    }
+    '/_explore/shop/$id': {
+      id: '/_explore/shop/$id'
+      path: '/shop/$id'
+      fullPath: '/shop/$id'
+      preLoaderRoute: typeof ExploreShopIdRouteImport
       parentRoute: typeof ExploreRoute
     }
     '/_explore/projects/$id': {
@@ -2233,7 +2252,6 @@ const ExploreProjectsIdRouteWithChildren =
 interface ExploreRouteChildren {
   ExploreLiveRoute: typeof ExploreLiveRouteWithChildren
   ExploreNewReleasesRoute: typeof ExploreNewReleasesRoute
-  ExploreShopRoute: typeof ExploreShopRoute
   ExploreIndexRoute: typeof ExploreIndexRoute
   ExploreArtistUsernameRoute: typeof ExploreArtistUsernameRoute
   ExploreArtistNewRoute: typeof ExploreArtistNewRoute
@@ -2244,6 +2262,7 @@ interface ExploreRouteChildren {
   ExploreLibrarySettingsRoute: typeof ExploreLibrarySettingsRoute
   ExplorePeopleUsernameRoute: typeof ExplorePeopleUsernameRoute
   ExploreProjectsIdRoute: typeof ExploreProjectsIdRouteWithChildren
+  ExploreShopIdRoute: typeof ExploreShopIdRoute
   ExploreTracksIdRoute: typeof ExploreTracksIdRoute
   ExploreVideosIdRoute: typeof ExploreVideosIdRoute
   ExploreArtistIndexRoute: typeof ExploreArtistIndexRoute
@@ -2251,6 +2270,7 @@ interface ExploreRouteChildren {
   ExploreGenresIndexRoute: typeof ExploreGenresIndexRoute
   ExploreLibraryIndexRoute: typeof ExploreLibraryIndexRoute
   ExploreProjectsIndexRoute: typeof ExploreProjectsIndexRoute
+  ExploreShopIndexRoute: typeof ExploreShopIndexRoute
   ExploreTracksIndexRoute: typeof ExploreTracksIndexRoute
   ExploreVideosIndexRoute: typeof ExploreVideosIndexRoute
   ExploreLibraryPurchasedPurchaseIdRoute: typeof ExploreLibraryPurchasedPurchaseIdRoute
@@ -2267,7 +2287,6 @@ interface ExploreRouteChildren {
 const ExploreRouteChildren: ExploreRouteChildren = {
   ExploreLiveRoute: ExploreLiveRouteWithChildren,
   ExploreNewReleasesRoute: ExploreNewReleasesRoute,
-  ExploreShopRoute: ExploreShopRoute,
   ExploreIndexRoute: ExploreIndexRoute,
   ExploreArtistUsernameRoute: ExploreArtistUsernameRoute,
   ExploreArtistNewRoute: ExploreArtistNewRoute,
@@ -2278,6 +2297,7 @@ const ExploreRouteChildren: ExploreRouteChildren = {
   ExploreLibrarySettingsRoute: ExploreLibrarySettingsRoute,
   ExplorePeopleUsernameRoute: ExplorePeopleUsernameRoute,
   ExploreProjectsIdRoute: ExploreProjectsIdRouteWithChildren,
+  ExploreShopIdRoute: ExploreShopIdRoute,
   ExploreTracksIdRoute: ExploreTracksIdRoute,
   ExploreVideosIdRoute: ExploreVideosIdRoute,
   ExploreArtistIndexRoute: ExploreArtistIndexRoute,
@@ -2285,6 +2305,7 @@ const ExploreRouteChildren: ExploreRouteChildren = {
   ExploreGenresIndexRoute: ExploreGenresIndexRoute,
   ExploreLibraryIndexRoute: ExploreLibraryIndexRoute,
   ExploreProjectsIndexRoute: ExploreProjectsIndexRoute,
+  ExploreShopIndexRoute: ExploreShopIndexRoute,
   ExploreTracksIndexRoute: ExploreTracksIndexRoute,
   ExploreVideosIndexRoute: ExploreVideosIndexRoute,
   ExploreLibraryPurchasedPurchaseIdRoute:

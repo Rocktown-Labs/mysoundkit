@@ -173,7 +173,8 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
     meta: [
       { charSet: "utf-8" },
       {
-        content: "width=device-width, initial-scale=1",
+        content:
+          "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content",
         name: "viewport",
       },
       { title: SITE_TITLE },
@@ -182,7 +183,17 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         name: "description",
       },
       { content: SITE_NAME, name: "application-name" },
-      { content: "#000000", name: "theme-color" },
+      { content: "light dark", name: "color-scheme" },
+      {
+        content: "#f7f5f0",
+        media: "(prefers-color-scheme: light)",
+        name: "theme-color",
+      },
+      {
+        content: "#0a0a0a",
+        media: "(prefers-color-scheme: dark)",
+        name: "theme-color",
+      },
       { content: "index,follow", name: "robots" },
       { content: SITE_NAME, property: "og:site_name" },
       { content: "website", property: "og:type" },
