@@ -29,6 +29,8 @@
 
 ### Fixed
 
+- Refresh the reviewed public schema baseline hash for `packages/db/src/schema/fulfillment.ts` after TypeScript-only JSONB type and policy constant updates so production deployments pass the schema contract gate (#560).
+
 - Allow preview queue consumer teardown to complete when its parent queue has already been deleted, while preserving other API errors (#550).
 
 - Preserve playback and queue edits made before authentication resolves instead of overwriting them with stored history (#547).
