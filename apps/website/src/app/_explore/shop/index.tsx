@@ -8,7 +8,6 @@ import {
   Search,
   Shirt,
   ShoppingBag,
-  Sparkles,
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -206,12 +205,6 @@ function ShopPage() {
       {/* Header */}
       <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">
-              <Sparkles className="size-3" data-icon="inline-start" />
-              Official Creator Store
-            </Badge>
-          </div>
           <h1 className="font-bold text-3xl tracking-tight md:text-4xl">
             SoundKit Store
           </h1>
