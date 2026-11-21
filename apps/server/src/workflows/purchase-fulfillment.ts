@@ -19,6 +19,7 @@ import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { notifyPurchaseEmails } from "@/lib/email-events";
 import { createKunakiClient } from "@/lib/kunaki";
+import { merchProductionPlacement } from "@/lib/merch-production";
 import { confirmPrintfulOrder, createPrintfulDraftOrder } from "@/lib/printful";
 import { logError, logInfo, logWarn } from "@/middleware/structured-logging";
 
@@ -352,6 +353,7 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
           designRows = await db
             .select({
               designFileUrl: merchDesigns.designFileUrl,
+              designMetadata: merchDesigns.designMetadata,
               id: merchDesigns.id,
               placement: merchDesigns.placement,
               technique: merchDesigns.technique,
@@ -378,21 +380,18 @@ export class PurchaseFulfillmentWorkflow extends WorkflowEntrypoint<
             .map((item) => {
               const design = designMap.get(item.merchDesignId as string);
 
+              if (!design?.designFileUrl || (design.designMetadata?.editor && !design.designMetadata.editor.variantIds.includes(item.printfulVariantId ?? ""))) throw new Error("The ordered merchandise configuration is unavailable.");
               return {
                 catalog_variant_id: Number(item.printfulVariantId),
                 external_id: item.id,
                 name: item.titleSnapshot,
                 placements: [
-                  {
-                    layers: [
-                      {
-                        type: "file",
-                        url: design?.designFileUrl ?? "",
-                      },
-                    ],
+                  merchProductionPlacement({
+                    designFileUrl: design?.designFileUrl ?? null,
+                    designMetadata: design?.designMetadata,
                     placement: design?.placement ?? "front",
                     technique: design?.technique ?? "dtg",
-                  },
+                  }),
                 ],
                 quantity: item.quantity,
                 retail_price: String(item.priceSnapshot),

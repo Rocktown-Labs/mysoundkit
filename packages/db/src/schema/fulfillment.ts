@@ -11,6 +11,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import type { MerchEditorConfig } from "../merch-design";
 /* eslint-disable one-var -- Keep Drizzle tables individually exported. */
 import { DEFAULT_MERCH_PLATFORM_FEE_BPS } from "../merch-policy";
 import { orders, projects, tracks } from "./app";
@@ -112,6 +113,7 @@ export const merchDesigns = pgTable(
     designFileObjectKey: text("design_file_object_key").notNull(),
     designFileUrl: text("design_file_url"),
     designMetadata: jsonb("design_metadata").$type<{
+      editor?: MerchEditorConfig;
       dpi?: number;
       format?: string;
       hasAlpha?: boolean;

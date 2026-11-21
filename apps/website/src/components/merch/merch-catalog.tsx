@@ -42,7 +42,7 @@ export function MerchCatalog({
 }: {
   products: MerchCatalogProduct[];
   variants: MerchCatalogVariant[];
-  onDesign: (id: string) => void;
+  onDesign: (id: string, previewVariantId?: string) => void;
   onBack: () => void;
 }) {
   const [category, setCategory] = useState<Category>("All products"),
@@ -201,8 +201,8 @@ export function MerchCatalog({
               variants={variants.filter(
                 (variant) => variant.catalogProductId === selected.id
               )}
-              onDesign={() => {
-                onDesign(selected.id);
+              onDesign={(previewVariantId) => {
+                onDesign(selected.id, previewVariantId);
                 setSelected(null);
               }}
             />
@@ -220,7 +220,7 @@ function CatalogDetails({
 }: {
   product: MerchCatalogProduct;
   variants: MerchCatalogVariant[];
-  onDesign: () => void;
+  onDesign: (previewVariantId?: string) => void;
 }) {
   const available = variants.filter((variant) => variant.inStock),
     [selectedVariant, setSelectedVariant] = useState(available[0]),
@@ -336,8 +336,12 @@ function CatalogDetails({
             No minimum orders
           </p>
           <Button
-            disabled={!available.length || !placements.length}
-            onClick={onDesign}
+            disabled={
+              !available.length ||
+              !placements.length ||
+              !product.printAreas?.length
+            }
+            onClick={() => onDesign(selectedVariant?.id)}
           >
             Continue with this product
             <ArrowRight className="ml-2 size-4" />
@@ -345,6 +349,11 @@ function CatalogDetails({
           {!available.length && (
             <p className="text-sm text-muted-foreground">
               This product is currently out of stock.
+            </p>
+          )}
+          {!product.printAreas?.length && (
+            <p className="text-sm text-muted-foreground">
+              A supported print template is not available for this product yet.
             </p>
           )}
           {!placements.length && (

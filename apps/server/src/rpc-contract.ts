@@ -1515,6 +1515,7 @@ export const rpcContract = new Hono()
     c.json({} as Record<string, unknown>)
   )
   .delete("/v1/merch/designs/:id", (c) => c.json({} as Record<string, unknown>))
+  .post("/v1/merch/designs/:id/retry-mockups", (c) => c.json({ success: true }))
   .get("/v1/merch/designs/:id/mockups", (c) =>
     c.json([] as Record<string, unknown>[])
   )

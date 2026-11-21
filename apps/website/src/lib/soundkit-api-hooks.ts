@@ -8,6 +8,10 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { useEffect } from "react";
 
+import type {
+  MerchEditorConfig,
+  MerchPrintArea,
+} from "../../../../packages/db/src/merch-design";
 import { capture } from "./analytics";
 import { API_V1_URL, SoundKitApiError, apiClient, rpcJson } from "./api";
 import { authClient } from "./auth-client";
@@ -625,7 +629,7 @@ export const useTipCheckoutMutation = () =>
       }),
     onSuccess: (result) => {
       if (result.checkoutUrl || result.clientSecret)
-        capture("checkout_started", { kind: "tip" });
+        {capture("checkout_started", { kind: "tip" });}
     },
   });
 
@@ -836,6 +840,7 @@ export const useRefreshMerchProductMutation = () => {
 };
 
 export interface MerchCatalogProduct {
+  printAreas?: MerchPrintArea[];
   brand: string | null;
   id: string;
   image: string | null;
@@ -860,6 +865,7 @@ export interface MerchCatalogVariant {
 }
 
 export interface MerchDesign {
+  editorConfig?: MerchEditorConfig | null;
   createdAt: string;
   description: string | null;
   designFileObjectKey: string;
@@ -936,6 +942,7 @@ export const usePhysicalReleasesQuery = (enabled = true) =>
   });
 
 export interface CreateMerchDesignBody {
+  editorConfig?: MerchEditorConfig;
   designFileObjectKey: string;
   description?: string;
   placement: string;
@@ -970,6 +977,10 @@ export const useUpdateMerchDesignMutation = () => {
       id,
       ...body
     }: {
+      editorConfig?: MerchEditorConfig;
+      designFileObjectKey?: string;
+      placement?: string;
+      technique?: string;
       description?: string;
       id: string;
       retailPriceCents?: number;
@@ -1009,7 +1020,29 @@ export const useMerchDesignMockupsQuery = (
         await merchDesignMockupsGet({ param: { id: designId ?? "" } })
       )) as unknown as MerchMockup[],
     queryKey: ["merch", "designs", designId, "mockups"],
+    refetchInterval: (query) =>
+      query.state.data?.some(
+        (mockup) => mockup.status === "queued" || mockup.status === "pending"
+      )
+        ? 3000
+        : false,
   });
+
+export const useRetryMerchMockupsMutation = () => {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      rpcJson(
+        await apiClient.v1.merch.designs[":id"]["retry-mockups"].$post({
+          param: { id },
+        })
+      ),
+    onSuccess: (_data, id) =>
+      client.invalidateQueries({
+        queryKey: ["merch", "designs", id, "mockups"],
+      }),
+  });
+};
 
 export interface PublicMerchDesign {
   artistName: string | null;
@@ -1326,7 +1359,7 @@ export const useBillingCheckoutMutation = () => {
       rpcJson(await billingCheckoutPost({ json: body })),
     onSuccess: (result) => {
       if (result.checkoutUrl)
-        capture("checkout_started", { kind: "subscription" });
+        {capture("checkout_started", { kind: "subscription" });}
       return queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.meEntitlements,
       });

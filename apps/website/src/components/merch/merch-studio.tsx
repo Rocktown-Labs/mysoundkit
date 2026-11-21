@@ -2,6 +2,7 @@
 import { Link } from "@tanstack/react-router";
 import {
   ArrowRight,
+  BadgeCheck,
   ChevronLeft,
   ChevronRight,
   Disc3,
@@ -48,6 +49,7 @@ import {
   SelectValue,
   SelectGroup,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
   useDeleteMerchDesignMutation,
@@ -64,6 +66,7 @@ import type {
 
 import { MerchCatalog, merchPrice } from "./merch-catalog";
 import { MerchDesigner } from "./merch-designer";
+import { MerchDiscardDialog } from "./merch-discard-dialog";
 
 const MEDIA_FORMAT_LABELS: Record<PhysicalReleaseCard["mediaFormat"], string> =
   {
@@ -86,7 +89,22 @@ export function MerchStudio() {
   const [view, setView] = useState<"products" | "catalog">("products"),
     [chooserOpen, setChooserOpen] = useState(false),
     [designProduct, setDesignProduct] = useState<string | null>(null),
+    [designPreviewVariant, setDesignPreviewVariant] = useState<string | null>(
+      null
+    ),
+    [publishedProduct, setPublishedProduct] = useState<MerchDesign | null>(
+      null
+    ),
+    [reviewDesign, setReviewDesign] = useState<MerchDesign | undefined>(),
+    [designerDirty, setDesignerDirty] = useState(false),
+    [discardOpen, setDiscardOpen] = useState(false),
     catalog = useMerchCatalogQuery();
+  const closeDesigner = () => {
+    setDesignProduct(null);
+    setDesignPreviewVariant(null);
+    setReviewDesign(undefined);
+    setDesignerDirty(false);
+  };
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-7 pb-12">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -124,27 +142,23 @@ export function MerchStudio() {
         </Button>
       </div>
       {view === "products" && (
-        <ProductManager onCreate={() => setChooserOpen(true)} />
-      )}
-      {view === "catalog" && catalog.isPending && (
-        <output className="py-16 text-center text-muted-foreground">
-          Loading the catalog…
-        </output>
-      )}
-      {view === "catalog" && catalog.isError && (
-        <LoadError
-          label="The catalog couldn't load."
-          retry={() => {
-            void catalog.refetch();
+        <ProductManager
+          onCreate={() => setChooserOpen(true)}
+          onReview={(design) => {
+            setReviewDesign(design);
+            setDesignPreviewVariant(null);
+            setDesignProduct(design.printfulCatalogProductId);
           }}
         />
       )}
-      {view === "catalog" && !catalog.isPending && !catalog.isError && (
-        <MerchCatalog
-          products={catalog.data?.products ?? []}
-          variants={catalog.data?.variants ?? []}
+      {view === "catalog" && (
+        <MerchDiscovery
+          catalog={catalog}
+          onDesign={(productId, previewVariantId) => {
+            setDesignPreviewVariant(previewVariantId ?? null);
+            setDesignProduct(productId);
+          }}
           onBack={() => setView("products")}
-          onDesign={setDesignProduct}
         />
       )}
       <Dialog open={chooserOpen} onOpenChange={setChooserOpen}>
@@ -189,21 +203,73 @@ export function MerchStudio() {
         </DialogContent>
       </Dialog>
       <Dialog
-        open={designProduct !== null}
+        open={publishedProduct !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setDesignProduct(null);
+            setPublishedProduct(null);
           }
         }}
       >
-        <DialogContent className="max-h-[90dvh] max-w-4xl overflow-y-auto">
+        <DialogContent className="max-w-md">
+          <div className="flex flex-col items-center gap-4 py-3 text-center">
+            <span className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <BadgeCheck className="size-8" aria-hidden="true" />
+            </span>
+            <div className="flex flex-col gap-2">
+              <DialogTitle className="text-2xl">
+                Your product is live
+              </DialogTitle>
+              <DialogDescription>
+                {publishedProduct?.title} is published. It is now listed with
+                your products in Merch Studio.
+              </DialogDescription>
+            </div>
+            <div className="flex w-full flex-col gap-2 sm:flex-row">
+              <Button asChild className="flex-1">
+                <Link to="/shop">
+                  View your shop
+                  <ArrowRight data-icon="inline-end" />
+                </Link>
+              </Button>
+              <Button
+                className="flex-1"
+                variant="outline"
+                onClick={() => setPublishedProduct(null)}
+              >
+                Back to Merch Studio
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <MerchDiscardDialog
+        open={discardOpen}
+        onOpenChange={setDiscardOpen}
+        onDiscard={closeDesigner}
+      />
+      <Dialog
+        open={designProduct !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (designerDirty) {
+              setDiscardOpen(true);
+            } else {
+              closeDesigner();
+            }
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90dvh] max-w-[calc(100vw-2rem)] overflow-y-auto xl:max-w-7xl">
           <DialogTitle>Make it yours</DialogTitle>
           <DialogDescription>
             Add a print-ready file and your product details.
           </DialogDescription>
           {designProduct && (
             <MerchDesigner
-              key={designProduct}
+              key={`${reviewDesign?.id ?? designProduct}-${designPreviewVariant ?? ""}`}
+              design={reviewDesign}
+              initialVariantId={designPreviewVariant ?? undefined}
+              onDirtyChange={setDesignerDirty}
               initialProductId={designProduct}
               products={(catalog.data?.products ?? []).filter(
                 (product) => !product.isDiscontinued
@@ -211,13 +277,78 @@ export function MerchStudio() {
               variants={catalog.data?.variants ?? []}
               onCreated={() => {
                 setDesignProduct(null);
+                setDesignPreviewVariant(null);
+                setReviewDesign(undefined);
+                setDesignerDirty(false);
                 setView("products");
+              }}
+              onPublished={(design) => {
+                setDesignProduct(null);
+                setDesignPreviewVariant(null);
+                setReviewDesign(undefined);
+                setDesignerDirty(false);
+                setView("products");
+                setPublishedProduct(design);
               }}
             />
           )}
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function MerchDiscovery({
+  catalog,
+  onDesign,
+  onBack,
+}: {
+  catalog: ReturnType<typeof useMerchCatalogQuery>;
+  onDesign: (id: string, previewVariantId?: string) => void;
+  onBack: () => void;
+}) {
+  if (catalog.isPending) {
+    return (
+      <section
+        aria-label="Loading merch catalog"
+        className="flex flex-col gap-6"
+      >
+        <output className="sr-only">Loading the merch catalog</output>
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: 4 }, (_, index) => (
+            <Skeleton className="h-10 w-28" key={index} />
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }, (_, index) => (
+            <div className="flex flex-col gap-3" key={index}>
+              <Skeleton className="aspect-[3/4] w-full" />
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+  if (catalog.isError) {
+    return (
+      <LoadError
+        label="The catalog couldn't load."
+        retry={() => {
+          void catalog.refetch();
+        }}
+      />
+    );
+  }
+  return (
+    <MerchCatalog
+      products={catalog.data?.products ?? []}
+      variants={catalog.data?.variants ?? []}
+      onDesign={onDesign}
+      onBack={onBack}
+    />
   );
 }
 
@@ -260,7 +391,13 @@ function LoadError({ label, retry }: { label: string; retry: () => void }) {
   );
 }
 
-function ProductManager({ onCreate }: { onCreate: () => void }) {
+function ProductManager({
+  onCreate,
+  onReview,
+}: {
+  onCreate: () => void;
+  onReview: (design: MerchDesign) => void;
+}) {
   const designs = useMerchDesignsQuery(),
     physical = usePhysicalReleasesQuery(),
     [search, setSearch] = useState(""),
@@ -370,9 +507,26 @@ function ProductManager({ onCreate }: { onCreate: () => void }) {
         />
       )}
       {(designs.isPending || physical.isPending) && (
-        <output className="py-16 text-center text-muted-foreground">
-          Loading your products…
-        </output>
+        <section
+          aria-label="Loading products"
+          className="overflow-hidden rounded-lg border"
+        >
+          <output className="sr-only">Loading your products</output>
+          {Array.from({ length: 5 }, (_, index) => (
+            <div
+              className="flex items-center gap-4 border-b p-4 last:border-b-0 sm:px-5"
+              key={index}
+            >
+              <Skeleton className="size-16 shrink-0 rounded-md" />
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <Skeleton className="h-4 w-2/5" />
+                <Skeleton className="h-3 w-1/4" />
+              </div>
+              <Skeleton className="hidden h-6 w-20 sm:block" />
+              <Skeleton className="hidden h-6 w-16 sm:block" />
+            </div>
+          ))}
+        </section>
       )}
       {!designs.isPending && !physical.isPending && filtered.length > 0 && (
         <div className="overflow-hidden rounded-lg border">
@@ -384,7 +538,7 @@ function ProductManager({ onCreate }: { onCreate: () => void }) {
           </div>
           <ul className="divide-y">
             {visible.map((row) => (
-              <ProductListRow key={row.id} row={row} />
+              <ProductListRow key={row.id} row={row} onReview={onReview} />
             ))}
           </ul>
         </div>
@@ -460,7 +614,13 @@ function ProductManager({ onCreate }: { onCreate: () => void }) {
   );
 }
 
-function ProductListRow({ row }: { row: ProductRow }) {
+function ProductListRow({
+  row,
+  onReview,
+}: {
+  row: ProductRow;
+  onReview: (design: MerchDesign) => void;
+}) {
   const mockups = useMerchDesignMockupsQuery(row.design?.id ?? null),
     image = mockups.data?.find(
       (mockup) => mockup.status === "completed" && mockup.mockupUrl
@@ -515,7 +675,14 @@ function ProductListRow({ row }: { row: ProductRow }) {
         {merchPrice(row.price)}
       </span>
       {row.design ? (
-        <DesignActions design={row.design} />
+        <DesignActions
+          design={row.design}
+          onReview={() => {
+            if (row.design) {
+              onReview(row.design);
+            }
+          }}
+        />
       ) : (
         <Button asChild size="icon" variant="ghost">
           <Link
@@ -530,7 +697,13 @@ function ProductListRow({ row }: { row: ProductRow }) {
   );
 }
 
-function DesignActions({ design }: { design: MerchDesign }) {
+function DesignActions({
+  design,
+  onReview,
+}: {
+  design: MerchDesign;
+  onReview: () => void;
+}) {
   const [archiveOpen, setArchiveOpen] = useState(false),
     update = useUpdateMerchDesignMutation(),
     archive = useDeleteMerchDesignMutation(),
@@ -558,6 +731,9 @@ function DesignActions({ design }: { design: MerchDesign }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuGroup>
+            <DropdownMenuItem onSelect={onReview}>
+              Review product
+            </DropdownMenuItem>
             <DropdownMenuItem
               disabled={
                 design.status === "archived" ||

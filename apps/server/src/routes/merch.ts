@@ -1,8 +1,11 @@
 /* eslint-disable unicorn/max-nested-calls, sort-vars, one-var, complexity, require-unicode-regexp, no-nested-ternary */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
+import {
+  uploadIntents,
+  projects as projectsTable,
+} from "@soundkit/db/schema/app";
 import { physicalReleases } from "@soundkit/db/schema/commerce";
-import { projects as projectsTable } from "@soundkit/db/schema/app";
 import {
   merchCatalogProducts,
   merchCatalogVariants,
@@ -22,7 +25,16 @@ import {
 } from "@/lib/fulfillment-printful";
 import { createKunakiClient } from "@/lib/kunaki";
 import {
+  MerchEditorError,
+  merchEditorSchema,
+  merchPrintAreas,
+  validateMerchEditor,
+  ownedMerchArtwork,
+  selectedMerchMockupsReady,
+} from "@/lib/merch-production";
+import {
   calculatePrintfulShippingRates,
+  getPrintfulFile,
   isPrintfulConfigured,
   printfulPriceToCents,
 } from "@/lib/printful";
@@ -43,6 +55,15 @@ const app = new OpenAPIHono<AppEnv>(),
     isDiscontinued: z.boolean(),
     name: z.string(),
     placements: z.array(z.record(z.string(), z.unknown())),
+    printAreas: z.array(
+      z.object({
+        dpi: z.number(),
+        height: z.number(),
+        placement: z.string(),
+        technique: z.string(),
+        width: z.number(),
+      })
+    ),
     retailMaxCents: z.number().int(),
     retailMinCents: z.number().int(),
     type: z.string().nullable(),
@@ -63,6 +84,7 @@ const app = new OpenAPIHono<AppEnv>(),
     description: z.string().nullable(),
     designFileObjectKey: z.string(),
     designFileUrl: z.string().nullable(),
+    editorConfig: merchEditorSchema.nullable(),
     id: z.string(),
     mockupCount: z.number().int(),
     ownerUserId: z.string(),
@@ -100,6 +122,7 @@ const app = new OpenAPIHono<AppEnv>(),
   createDesignBodySchema = z.object({
     description: z.string().max(2000).optional(),
     designFileObjectKey: z.string().min(1),
+    editorConfig: merchEditorSchema.optional(),
     placement: z.string().min(1),
     printfulCatalogProductId: z.string().min(1),
     printfulFileId: z.string().optional(),
@@ -111,8 +134,12 @@ const app = new OpenAPIHono<AppEnv>(),
   }),
   updateDesignBodySchema = z.object({
     description: z.string().max(2000).optional(),
+    designFileObjectKey: z.string().min(1).optional(),
+    editorConfig: merchEditorSchema.optional(),
+    placement: z.string().min(1).optional(),
     retailPriceCents: z.number().int().min(1200).optional(),
     status: z.enum(["archived", "draft", "published", "ready"]).optional(),
+    technique: z.string().optional(),
     title: z.string().min(1).max(200).optional(),
   }),
   serializeDesign = (
@@ -124,6 +151,7 @@ const app = new OpenAPIHono<AppEnv>(),
     description: row.description,
     designFileObjectKey: row.designFileObjectKey,
     designFileUrl: row.designFileUrl,
+    editorConfig: row.designMetadata?.editor ?? null,
     id: row.id,
     mockupCount,
     ownerUserId: row.ownerUserId,
@@ -140,6 +168,57 @@ const app = new OpenAPIHono<AppEnv>(),
     title: row.title,
     trackId: row.trackId,
   });
+
+async function validateEditorSave(
+  userId: string,
+  product: typeof merchCatalogProducts.$inferSelect,
+  body: {
+    editorConfig?: z.infer<typeof merchEditorSchema>;
+    designFileObjectKey: string;
+    placement: string;
+    technique: string;
+  }
+) {
+  if (!body.editorConfig) {
+    return;
+  }
+  if (!ownedMerchArtwork(body.designFileObjectKey, userId)) {
+    throw new MerchEditorError(
+      "Upload your artwork before saving this design."
+    );
+  }
+  const db = createDb();
+  const [intent] = await db
+    .select()
+    .from(uploadIntents)
+    .where(
+      and(
+        eq(uploadIntents.objectKey, body.designFileObjectKey),
+        eq(uploadIntents.userId, userId)
+      )
+    )
+    .limit(1);
+  if (
+    !intent ||
+    !["image/png", "image/jpeg"].includes(intent.mimeType ?? "") ||
+    (intent.sizeBytes ?? Infinity) > 20 * 1024 * 1024
+  ) {
+    throw new MerchEditorError(
+      "Choose a PNG or JPEG upload under 20 MB that belongs to your account."
+    );
+  }
+  const variants = await db
+    .select()
+    .from(merchCatalogVariants)
+    .where(eq(merchCatalogVariants.catalogProductId, product.id));
+  validateMerchEditor({
+    areas: merchPrintAreas(product.printFileRules),
+    config: body.editorConfig,
+    placement: body.placement,
+    technique: body.technique,
+    variants,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Printful merch design CRUD (artist-facing, behind canSellProducts in M4)
@@ -194,6 +273,7 @@ app.openapi(
           isDiscontinued: p.isDiscontinued,
           name: p.name,
           placements: p.placements as Record<string, unknown>[],
+          printAreas: merchPrintAreas(p.printFileRules),
           retailMaxCents: p.retailMaxCents,
           retailMinCents: p.retailMinCents,
           type: p.type,
@@ -318,7 +398,7 @@ app.openapi(
         .where(eq(merchCatalogProducts.id, body.printfulCatalogProductId))
         .limit(1);
 
-    if (!product || !product.isCurated) {
+    if (!product || !product.isCurated || product.isDiscontinued) {
       return c.json(
         { message: "The selected blank is not available in the catalog." },
         HttpStatusCodes.BAD_REQUEST
@@ -337,6 +417,20 @@ app.openapi(
       );
     }
 
+    if (body.editorConfig) {
+      try {
+        await validateEditorSave(user.id, product, body);
+      } catch (error) {
+        if (error instanceof MerchEditorError) {
+          return c.json(
+            { message: error.message },
+            HttpStatusCodes.BAD_REQUEST
+          );
+        }
+        throw error;
+      }
+    }
+
     const designFileUrl = body.designFileObjectKey.startsWith("http")
         ? body.designFileObjectKey
         : (publicAssetUrlFromParts({
@@ -344,7 +438,7 @@ app.openapi(
             objectKey: body.designFileObjectKey,
           }) ?? null),
       printfulFileId =
-        body.printfulFileId ??
+        (body.editorConfig ? undefined : body.printfulFileId) ??
         (designFileUrl
           ? await registerDesignFile({
               designFileUrl,
@@ -358,6 +452,13 @@ app.openapi(
           description: body.description ?? null,
           designFileObjectKey: body.designFileObjectKey,
           designFileUrl,
+          designMetadata: body.editorConfig
+            ? {
+                editor: body.editorConfig,
+                height: body.editorConfig.artwork.height,
+                width: body.editorConfig.artwork.width,
+              }
+            : null,
           id: designId,
           ownerUserId: user.id,
           placement: body.placement,
@@ -563,120 +664,205 @@ app.openapi(
       );
     }
 
-    const db = createDb(),
-      body = c.req.valid("json"),
-      { id } = c.req.valid("param"),
-      [existing] = await db
-        .select()
-        .from(merchDesigns)
-        .where(
-          and(eq(merchDesigns.id, id), eq(merchDesigns.ownerUserId, user.id))
-        )
-        .limit(1);
-
-    if (!existing) {
-      return c.json(
-        { message: "Design not found." },
-        HttpStatusCodes.NOT_FOUND
-      );
-    }
-
-    if (body.status === "published") {
-      const [readyCount] = await db
-        .select({ count: merchMockups.id })
-        .from(merchMockups)
-        .where(
-          and(
-            eq(merchMockups.merchDesignId, id),
-            eq(merchMockups.status, "completed")
-          )
-        )
-        .limit(1);
-
-      if (!readyCount?.count) {
-        return c.json(
-          {
-            message:
-              "Design needs at least one completed mockup before publishing. Wait for the mockups to finish generating.",
-          },
-          HttpStatusCodes.BAD_REQUEST
-        );
-      }
-    }
-
+    const db = createDb();
+    const body = c.req.valid("json");
+    const { id } = c.req.valid("param");
+    const artworkChange =
+      body.editorConfig !== undefined ||
+      body.designFileObjectKey !== undefined ||
+      body.placement !== undefined ||
+      body.technique !== undefined;
     if (
-      body.retailPriceCents !== undefined &&
-      existing.printfulCatalogProductId
+      artworkChange &&
+      (!body.editorConfig ||
+        !body.designFileObjectKey ||
+        !body.placement ||
+        !body.technique ||
+        body.status === "published")
     ) {
-      const [product] = await db
-        .select()
-        .from(merchCatalogProducts)
-        .where(eq(merchCatalogProducts.id, existing.printfulCatalogProductId))
-        .limit(1);
-
-      if (
-        product &&
-        (body.retailPriceCents < product.retailMinCents ||
-          body.retailPriceCents > product.retailMaxCents)
-      ) {
-        return c.json(
-          {
-            message: `Retail price must be between $${(product.retailMinCents / 100).toFixed(2)} and $${(product.retailMaxCents / 100).toFixed(2)}.`,
-          },
-          HttpStatusCodes.BAD_REQUEST
-        );
-      }
-    }
-
-    const [updated] = await db
-      .update(merchDesigns)
-      .set({
-        ...(body.description === undefined
-          ? {}
-          : { description: body.description }),
-        ...(body.retailPriceCents === undefined
-          ? {}
-          : { retailPriceCents: body.retailPriceCents }),
-        ...(body.status === undefined
-          ? {}
-          : {
-              publishedAt:
-                body.status === "published" ? new Date() : existing.publishedAt,
-              status: body.status,
-            }),
-        ...(body.title === undefined ? {} : { title: body.title }),
-      })
-      .where(eq(merchDesigns.id, id))
-      .returning();
-
-    if (!updated) {
       return c.json(
-        { message: "Unable to update the design." },
+        {
+          message:
+            "Save the complete artwork configuration as a draft before publishing.",
+        },
         HttpStatusCodes.BAD_REQUEST
       );
     }
-
-    const [mockupCount] = await db
-        .select({ count: merchMockups.id })
-        .from(merchMockups)
-        .where(eq(merchMockups.merchDesignId, id))
-        .limit(1),
-      [readyCount] = await db
-        .select({ count: merchMockups.id })
-        .from(merchMockups)
-        .where(
-          and(
-            eq(merchMockups.merchDesignId, id),
-            eq(merchMockups.status, "completed")
+    let updated: typeof merchDesigns.$inferSelect;
+    try {
+      updated = await db.transaction(async (tx) => {
+        const [existing] = await tx
+          .select()
+          .from(merchDesigns)
+          .where(
+            and(eq(merchDesigns.id, id), eq(merchDesigns.ownerUserId, user.id))
           )
-        )
-        .limit(1);
-
+          .limit(1)
+          .for("update");
+        if (!existing) {
+          throw new MerchEditorError("Design not found.");
+        }
+        const [product] = existing.printfulCatalogProductId
+          ? await tx
+              .select()
+              .from(merchCatalogProducts)
+              .where(
+                eq(merchCatalogProducts.id, existing.printfulCatalogProductId)
+              )
+              .limit(1)
+          : [];
+        if (
+          body.retailPriceCents !== undefined &&
+          product &&
+          (body.retailPriceCents < product.retailMinCents ||
+            body.retailPriceCents > product.retailMaxCents)
+        ) {
+          throw new MerchEditorError(
+            "Set a price within this product's retail range."
+          );
+        }
+        let artworkValues = {};
+        if (
+          artworkChange &&
+          body.editorConfig &&
+          body.designFileObjectKey &&
+          body.placement &&
+          body.technique
+        ) {
+          if (
+            existing.publishedAt ||
+            existing.status === "published" ||
+            existing.status === "archived"
+          ) {
+            throw new MerchEditorError(
+              "Published artwork is locked to protect existing orders. Create a new design for a new edition."
+            );
+          }
+          if (!product || !product.isCurated || product.isDiscontinued) {
+            throw new MerchEditorError("This product is no longer available.");
+          }
+          await validateEditorSave(user.id, product, {
+            ...body,
+            designFileObjectKey: body.designFileObjectKey,
+            placement: body.placement,
+            technique: body.technique,
+          });
+          const url = publicAssetUrlFromParts({
+            metadata: null,
+            objectKey: body.designFileObjectKey,
+          });
+          if (!url) {
+            throw new MerchEditorError("Artwork URL could not be resolved.");
+          }
+          const fileId = await registerDesignFile({
+            designFileUrl: url,
+            filename: body.designFileObjectKey.split("/").pop() ?? "artwork",
+          });
+          artworkValues = {
+            designFileObjectKey: body.designFileObjectKey,
+            designFileUrl: url,
+            designMetadata: {
+              ...existing.designMetadata,
+              editor: body.editorConfig,
+            },
+            placement: body.placement,
+            printfulFileId: fileId ? String(fileId) : null,
+            status: "draft" as const,
+            technique: body.technique,
+          };
+          await tx
+            .delete(merchMockups)
+            .where(eq(merchMockups.merchDesignId, id));
+        }
+        if (body.status === "published") {
+          if (existing.status === "archived")
+            {throw new MerchEditorError(
+              "Restore an archived product before publishing."
+            );}
+          const mockups = await tx
+            .select()
+            .from(merchMockups)
+            .where(eq(merchMockups.merchDesignId, id));
+          if (existing.designMetadata?.editor) {
+            if (
+              !selectedMerchMockupsReady(
+                existing.designMetadata.editor,
+                mockups
+              )
+            ) {
+              throw new MerchEditorError(
+                "Wait until every selected variant has a completed mockup before publishing."
+              );
+            }
+            if (!existing.printfulFileId || !isPrintfulConfigured()) {
+              throw new MerchEditorError(
+                "Printful must process your artwork before publishing."
+              );
+            }
+            const file = await getPrintfulFile(Number(existing.printfulFileId));
+            if (
+              file?.status !== "ok" ||
+              !["image/png", "image/jpeg"].includes(file.mime_type ?? "") ||
+              file.url !== existing.designFileUrl ||
+              file.width !== existing.designMetadata.editor.artwork.width ||
+              file.height !== existing.designMetadata.editor.artwork.height
+            ) {
+              throw new MerchEditorError(
+                "Printful has not verified this artwork yet. Check the file and try again shortly."
+              );
+            }
+          } else if (!mockups.some((mockup) => mockup.status === "completed")) {
+            throw new MerchEditorError(
+              "Wait for a completed mockup before publishing."
+            );
+          }
+        }
+        const [saved] = await tx
+          .update(merchDesigns)
+          .set({
+            ...(body.title === undefined ? {} : { title: body.title }),
+            ...(body.description === undefined
+              ? {}
+              : { description: body.description }),
+            ...(body.retailPriceCents === undefined
+              ? {}
+              : { retailPriceCents: body.retailPriceCents }),
+            ...(body.status === undefined
+              ? {}
+              : {
+                  publishedAt:
+                    body.status === "published"
+                      ? new Date()
+                      : existing.publishedAt,
+                  status: body.status,
+                }),
+            ...artworkValues,
+          })
+          .where(eq(merchDesigns.id, id))
+          .returning();
+        if (!saved) {
+          throw new MerchEditorError("Unable to save the design.");
+        }
+        return saved;
+      });
+    } catch (error) {
+      if (error instanceof MerchEditorError) {
+        return c.json({ message: error.message }, HttpStatusCodes.BAD_REQUEST);
+      }
+      throw error;
+    }
+    if (artworkChange) {
+      await enqueueDesignMockups({ merchDesignId: id });
+    }
+    const mockups = await db
+      .select()
+      .from(merchMockups)
+      .where(eq(merchMockups.merchDesignId, id));
     return c.json(
       serializeDesign(
         updated,
-        Number(mockupCount?.count ?? 0),
-        Number(readyCount?.count ?? 0)
+        mockups.length,
+        mockups.filter((mockup) => mockup.status === "completed").length
       ),
       HttpStatusCodes.OK
     );
@@ -862,6 +1048,68 @@ app.openapi(
 );
 
 // ---------------------------------------------------------------------------
+// Retry mockups for an owned design, without resetting completed/pending tasks.
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/designs/{id}/retry-mockups",
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      200: jsonContent(
+        z.object({ success: z.boolean() }),
+        "Mockup retry queued"
+      ),
+      401: jsonContent(messageResponseSchema, "Authentication required"),
+      404: jsonContent(messageResponseSchema, "Design not found"),
+    },
+    tags: ["Merch"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, 401);
+    }
+    const db = createDb();
+    const { id } = c.req.valid("param");
+    const [design] = await db
+      .select()
+      .from(merchDesigns)
+      .where(
+        and(eq(merchDesigns.id, id), eq(merchDesigns.ownerUserId, user.id))
+      )
+      .limit(1);
+    if (!design) {
+      return c.json({ message: "Design not found." }, 404);
+    }
+    if (
+      design.designMetadata?.editor &&
+      !design.printfulFileId &&
+      design.designFileUrl
+    ) {
+      const id = await registerDesignFile({
+        designFileUrl: design.designFileUrl,
+        filename: design.designFileObjectKey.split("/").pop() ?? "artwork",
+      });
+      if (id)
+        {await db
+          .update(merchDesigns)
+          .set({ printfulFileId: String(id) })
+          .where(eq(merchDesigns.id, design.id));}
+    }
+    await db
+      .update(merchMockups)
+      .set({ error: null, printfulTaskId: null, status: "queued" })
+      .where(
+        and(
+          eq(merchMockups.merchDesignId, id),
+          eq(merchMockups.status, "failed")
+        )
+      );
+    await enqueueDesignMockups({ merchDesignId: id });
+    return c.json({ success: true }, 200);
+  }
+);
+
 // Public merch storefront (fan-facing, no auth required)
 // ---------------------------------------------------------------------------
 

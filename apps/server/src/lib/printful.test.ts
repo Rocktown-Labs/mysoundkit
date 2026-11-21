@@ -4,6 +4,8 @@ import {
   PrintfulNotConfiguredError,
   PrintfulRequestError,
   getPrintfulCatalogProduct,
+  createPrintfulMockupTask,
+  getPrintfulMockupTask,
   isPrintfulConfigured,
   printfulPriceToCents,
   printfulRequest,
@@ -145,5 +147,39 @@ describe("Printful v2 client", () => {
     expect(unwrapPrintfulPayload({ data: { id: 294 } })).toEqual({ id: 294 });
     expect(unwrapPrintfulList({ data: [1, 2] })).toEqual([1, 2]);
     expect(unwrapPrintfulList([3, 4])).toEqual([3, 4]);
+  });
+
+  it("reads documented mockup task arrays and image URLs", async () => {
+    const task = {
+      catalog_variant_mockups: [
+        {
+          catalog_variant_id: 4011,
+          mockups: [{ mockup_url: "https://media.example.test/mockup.png" }],
+        },
+      ],
+      failure_reasons: [{ detail: "Test detail" }],
+      id: 999,
+      status: "completed",
+    };
+    globalThis.fetch = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(jsonResponse({ data: [task] })));
+    const created = await createPrintfulMockupTask({
+      products: [
+        {
+          catalog_product_id: 71,
+          catalog_variant_ids: [4011, 4012],
+          mockup_style_ids: [1],
+          placements: [],
+          source: "catalog",
+        },
+      ],
+    });
+    expect(created?.id).toBe(999);
+    const loaded = await getPrintfulMockupTask(999);
+    expect(loaded?.catalog_variant_mockups[0]?.mockups[0]?.mockup_url).toBe(
+      "https://media.example.test/mockup.png"
+    );
+    expect(await getPrintfulMockupTask(1000)).toBeNull();
   });
 });
