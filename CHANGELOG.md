@@ -6,6 +6,10 @@
 
 - Revamp the public `/shop` storefront and add `/shop/$id` product detail pages across web and Expo mobile with Printful POD merch, pure-CSS/native Vinyl, CD, and DVD media showcases, interactive color/size/format variant selectors, cart support for Printful merch variants, and mobile-native viewport/touch polish (#558).
 
+- Add an artwork upload and placement editor for supported Printful DTG templates, visual color previews, saved draft configuration, variant selection, generated mockup review and processed-file publishing gates; return creators to Merch Studio with a publish confirmation, and share positioned layers across previews and fulfillment and connect merch variants through the cart (#554).
+
+- Add a dry-run-first maintenance task to verify Fourthwall brand/model matches against Printful's complete live catalog and enable only supported, priced, in-stock DTG blanks while preserving existing retail bounds (#556).
+
 - Add a visual Merch Studio catalog with product details, category browsing, and a unified searchable product manager and creation chooser (#551).
 
 - Give medium Kimi reviews bounded headroom after observed partial coverage, preserving strict completion/publication gates (#523).

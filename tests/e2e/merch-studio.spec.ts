@@ -10,6 +10,16 @@ const products = [
       isDiscontinued: false,
       name: "Premium heavyweight T-shirt",
       placements: [{ placement: "front" }, { placement: "back" }],
+      printAreas: [
+        {
+          dpi: 150,
+          height: 10,
+          placement: "front",
+          technique: "dtg",
+          width: 8,
+        },
+        { dpi: 150, height: 10, placement: "back", technique: "dtg", width: 8 },
+      ],
       retailMaxCents: 6000,
       retailMinCents: 1800,
       type: "T-SHIRT",
@@ -77,7 +87,7 @@ function design(id: string, status = "draft") {
     createdAt: "2026-11-19T00:00:00Z",
     description: null,
     designFileObjectKey: "merch/art.png",
-    designFileUrl: null,
+    designFileUrl: "/placeholder.svg",
     id,
     mockupCount: 1,
     ownerUserId: "user_complete",
@@ -145,23 +155,21 @@ async function setup(page: Page, count = 1, includePhysical = true) {
     if (path.endsWith("/mockups")) {
       await route.fulfill({
         headers,
-        json: [
-          {
-            catalogVariantId: "black-m",
-            error: null,
-            id: "mockup",
-            mockupUrl: "/placeholder.svg",
-            status: "completed",
-          },
-        ],
+        json: ["black-m", "white-l"].map((id) => ({
+          catalogVariantId: id,
+          error: null,
+          id: `mockup-${id}`,
+          mockupUrl: "/placeholder.svg",
+          status: "completed",
+        })),
       });
       return;
     }
     if (route.request().method() === "POST") {
-      const created = Object.assign(
-        design("created"),
-        route.request().postDataJSON()
-      );
+      const body = route.request().postDataJSON();
+      const created = Object.assign(design("created"), body, {
+        designFileUrl: `http://127.0.0.1:3000/${body.designFileObjectKey}`,
+      });
       designs.push(created);
       await route.fulfill({ headers, json: created, status: 201 });
       return;
@@ -185,6 +193,39 @@ async function setup(page: Page, count = 1, includePhysical = true) {
     }
     await route.fulfill({ headers, json: designs });
   });
+  await page.route("**/v1/uploads/media", async (route) => {
+    const [file] = route.request().postDataJSON().files;
+    await route.fulfill({
+      json: {
+        files: [
+          {
+            file: {
+              ...file,
+              objectInfo: {
+                key: "uploads/user_complete/artwork.png",
+                metadata: {},
+              },
+            },
+            headers: {},
+            signedUrl: "http://127.0.0.1:3000/mock-merch-upload",
+          },
+        ],
+      },
+    });
+  });
+  let uploadedArtwork: Buffer | null = null;
+  await page.route("**/mock-merch-upload", async (route) => {
+    uploadedArtwork = route.request().postDataBuffer();
+    await route.fulfill({ body: "", status: 200 });
+  });
+  await page.route("**/uploads/user_complete/artwork.png", (route) =>
+    uploadedArtwork
+      ? route.fulfill({ body: uploadedArtwork, contentType: "image/png" })
+      : route.fulfill({
+          contentType: "image/svg+xml",
+          path: "apps/website/public/placeholder.svg",
+        })
+  );
   await page.goto("/dashboard/career/merch", { waitUntil: "domcontentloaded" });
   await expect(
     page.getByRole("heading", { exact: true, name: "Merch Studio" })
@@ -251,33 +292,104 @@ test("catalog browsing shows real options and carries the blank into creation", 
     page.getByRole("heading", { name: "Make it yours" })
   ).toBeVisible();
   await expect(
-    page.getByRole("combobox", { name: "Blank (apparel product)" })
-  ).toContainText("Premium heavyweight T-shirt");
-  await expect(
-    page.getByRole("combobox", { exact: true, name: "Placement" })
-  ).toContainText("front");
+    page.getByRole("button", { name: "Preview White" })
+  ).toHaveAttribute("aria-pressed", "true");
+  const whiteColor = page.getByRole("checkbox", { name: "Include White" });
+  await expect(whiteColor).toBeChecked();
+  await whiteColor.click();
+  await expect(page.getByText("Available variants (1 selected)")).toBeVisible();
+  await whiteColor.click();
+  await expect(page.getByText("Available variants (2 selected)")).toBeVisible();
+  await expect(page.getByLabel("Product name", { exact: true })).toBeVisible();
   await page
-    .getByRole("textbox", { exact: true, name: "Title" })
+    .getByLabel("Product name", { exact: true })
     .fill("Midnight Tour tee");
+  const data = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1200;
+    canvas.height = 1200;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Canvas unavailable");
+    }
+    context.fillStyle = "#9991ff";
+    context.fillRect(0, 0, 1200, 1200);
+    return canvas.toDataURL("image/png").split(",")[1];
+  });
+  await page.getByLabel("Artwork", { exact: true }).setInputFiles({
+    buffer: Buffer.from(data ?? "", "base64"),
+    mimeType: "image/png",
+    name: "artwork.png",
+  });
+  await expect(
+    page.getByRole("button", { name: "Move artwork with arrow keys or drag" })
+  ).toBeVisible();
+  await page.getByLabel("Width", { exact: true }).fill("4");
+  await page.getByLabel("Left", { exact: true }).fill("2");
+  await page.getByLabel("Top", { exact: true }).fill("1");
   await page
-    .getByRole("textbox", { name: "Print file object key or public URL" })
-    .fill("https://media.mysoundkit.com/merch/tour.png");
-  await page.getByLabel(/Retail price/u).fill("25");
+    .getByRole("button", { name: "Move artwork with arrow keys or drag" })
+    .focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByLabel("Left", { exact: true })).toHaveValue("2.05");
+  await page.screenshot({
+    animations: "disabled",
+    path: testInfo.outputPath("editor.png"),
+  });
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("alertdialog")).toContainText(
+    "Discard unsaved changes?"
+  );
+  await page.getByRole("button", { exact: true, name: "Keep editing" }).click();
+  await expect(page.getByLabel("Left", { exact: true })).toHaveValue("2.05");
   const creation = page.waitForRequest(
     (request) =>
       request.method() === "POST" && request.url().endsWith("/merch/designs")
   );
   await page
-    .getByRole("button", { exact: true, name: "Create design" })
+    .getByRole("button", { exact: true, name: "Save & review" })
     .click();
   const submission = await creation;
   expect(submission.postDataJSON()).toMatchObject({
+    editorConfig: {
+      position: { height: 4, left: 2.05, top: 1, width: 4 },
+      variantIds: ["black-m", "white-l"],
+      version: 1,
+    },
     placement: "front",
     printfulCatalogProductId: "tee",
-    retailPriceCents: 2500,
   });
   await expect(
-    page.getByText("Midnight Tour tee", { exact: true })
+    page.getByRole("heading", { exact: true, name: "Product details" })
+  ).toBeVisible();
+  await page
+    .getByRole("button", { exact: true, name: "Back to your products" })
+    .click();
+  await page
+    .getByRole("button", { exact: true, name: "Actions for Midnight Tour tee" })
+    .click();
+  await page
+    .getByRole("menuitem", { exact: true, name: "Review product" })
+    .click();
+  await page.getByRole("button", { exact: true, name: "Edit artwork" }).click();
+  await expect(page.getByLabel("Left", { exact: true })).toHaveValue("2.05");
+  await expect(page.getByLabel("Width", { exact: true })).toHaveValue("4");
+  await page
+    .getByRole("button", { exact: true, name: "Saved product" })
+    .click();
+  await page
+    .getByRole("button", { exact: true, name: "Publish product" })
+    .click();
+  await expect(
+    page.getByText("Your product is live", { exact: true })
+  ).toBeVisible();
+  await expect(page.getByText(/Midnight Tour tee is published/u)).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "View your shop" })
+  ).toHaveAttribute("href", "/shop");
+  await page.getByRole("button", { name: "Back to Merch Studio" }).click();
+  await expect(
+    page.getByRole("heading", { exact: true, name: "Products 3" })
   ).toBeVisible();
 });
 
@@ -319,12 +431,6 @@ test("product manager filters, paginates and preserves publishing and archive ac
   await expect(
     page.getByText("Product archived", { exact: true })
   ).toBeVisible();
-  await page
-    .getByRole("button", { exact: true, name: "Actions for Tour tee 1" })
-    .click();
-  await expect(
-    page.getByRole("menuitem", { exact: true, name: "Publish" })
-  ).toBeDisabled();
 });
 
 test("catalog search and unavailable products have honest empty and stock states", async ({

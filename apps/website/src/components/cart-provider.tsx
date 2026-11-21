@@ -308,7 +308,8 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
               title: input.title,
             });
             return;
-          } catch {
+          } catch (error) {
+            if (input.merchDesignId) throw error;
             setIsApiCartActive(false);
           }
         }

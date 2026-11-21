@@ -2,6 +2,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import type { Href } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -366,17 +367,22 @@ function NativePhysicalReleaseDetail({
                       }
                       if (option.mediaFormat === "digital") {
                         if (release.projectId) {
-                          router.push(
-                            `/projects/${release.projectId}` as never
-                          );
+                          router.push({
+                            params: { id: release.projectId },
+                            pathname: "/projects/[id]",
+                          } as Href);
                         } else if (release.trackId) {
-                          router.push(`/tracks/${release.trackId}` as never);
+                          router.push({
+                            params: { id: release.trackId },
+                            pathname: "/tracks/[id]",
+                          } as Href);
                         }
                         return;
                       }
-                      router.replace(
-                        `/shop/${option.id}?type=release` as never
-                      );
+                      router.replace({
+                        params: { id: option.id, type: "release" },
+                        pathname: "/shop/[id]",
+                      } as Href);
                     }}
                     style={[
                       styles.formatOption,

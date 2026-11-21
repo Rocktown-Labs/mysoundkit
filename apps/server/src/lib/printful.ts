@@ -355,9 +355,9 @@ export const searchPrintfulCatalogProducts = async (
   query: string,
   maxResults = 10
 ) => {
-  const allProducts = await getPrintfulCatalogProducts({ limit: 100 });
-  const normalized = query.toLowerCase().trim();
-  const matches =
+  const allProducts = await getPrintfulCatalogProducts({ limit: 100 }),
+    normalized = query.toLowerCase().trim(),
+    matches =
       normalized.length === 0
         ? allProducts
         : allProducts.filter(
@@ -432,6 +432,8 @@ export const getPrintfulProductAvailability = async (productId: number) => {
 // ---------------------------------------------------------------------------
 
 export interface PrintfulFile {
+  width?: number;
+  height?: number;
   created?: string;
   filename?: string;
   hash?: string;
@@ -460,6 +462,11 @@ export const registerPrintfulFile = async ({
   return unwrapPrintfulPayload<PrintfulFile | null>(payload);
 };
 
+export const getPrintfulFile = async (id: number) =>
+  unwrapPrintfulPayload<PrintfulFile | null>(
+    await printfulRequest({ path: `/files/${id}` })
+  );
+
 // ---------------------------------------------------------------------------
 // Mockup Generator v2 (async tasks)
 // ---------------------------------------------------------------------------
@@ -471,13 +478,14 @@ export interface PrintfulMockupTask {
       catalog_variant_id: number;
       display_name?: string;
       id?: string;
+      mockup_url?: string;
       mockup_style_id?: number;
       placement?: string;
       rendering?: string;
       url?: string;
     }[];
   }[];
-  failure_reasons: string[];
+  failure_reasons: (string | { detail?: string })[];
   id: number;
   status: "completed" | "failed" | "pending";
 }
@@ -499,18 +507,28 @@ export const createPrintfulMockupTask = async ({
     body: { format, products },
     method: "POST",
     path: "/mockup-tasks",
-  });
+  }),
 
-  return unwrapPrintfulPayload<PrintfulMockupTask>(payload);
+   tasks = unwrapPrintfulPayload<
+    PrintfulMockupTask | PrintfulMockupTask[] | null
+  >(payload);
+  return Array.isArray(tasks) ? (tasks[0] ?? null) : tasks;
 };
 
 export const getPrintfulMockupTask = async (taskId: number) => {
   const payload = await printfulRequest({
     path: "/mockup-tasks",
     query: { id: taskId },
-  });
+  }),
 
-  return unwrapPrintfulPayload<PrintfulMockupTask | null>(payload);
+   tasks = unwrapPrintfulPayload<
+    PrintfulMockupTask | PrintfulMockupTask[] | null
+  >(payload);
+  return Array.isArray(tasks)
+    ? (tasks.find((task) => task.id === taskId) ?? null)
+    : (tasks?.id === taskId
+      ? tasks
+      : null);
 };
 
 export interface PrintfulShippingRate {

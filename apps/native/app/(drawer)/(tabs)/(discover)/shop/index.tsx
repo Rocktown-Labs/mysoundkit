@@ -1,6 +1,7 @@
 /* eslint-disable sort-vars */
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import type { Href } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   Pressable,
@@ -429,7 +430,10 @@ function NativeMerchCard({
       ).values(),
     ].slice(0, 5),
     openDetail = () => {
-      router.push(`/shop/${merch.id}?type=merch` as never);
+      router.push({
+        params: { id: merch.id, type: "merch" },
+        pathname: "/shop/[id]",
+      } as Href);
     };
 
   if (mode === "list") {
@@ -525,7 +529,10 @@ function NativePhysicalReleaseCard({
   const router = useRouter(),
     formatLabel = FORMAT_LABELS[release.mediaFormat],
     openDetail = () => {
-      router.push(`/shop/${release.id}?type=release` as never);
+      router.push({
+        params: { id: release.id, type: "release" },
+        pathname: "/shop/[id]",
+      } as Href);
     };
 
   if (mode === "list") {
@@ -606,7 +613,10 @@ function NativeTrackShopCard({
 }) {
   const router = useRouter(),
     openTrack = () => {
-      router.push(`/tracks/${track.id}` as never);
+      router.push({
+        params: { id: track.id },
+        pathname: "/tracks/[id]",
+      } as Href);
     };
 
   if (mode === "list") {

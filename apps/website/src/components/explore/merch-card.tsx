@@ -55,7 +55,7 @@ export function MerchCard({ merch }: { merch: PublicMerchDesignCard }) {
       availableSizes[0]?.id ?? null
     ),
     selectedVariant = availableSizes.find((v) => v.id === selectedSize),
-    handleAddToCart = () => {
+    handleAddToCart = async () => {
       if (!selectedVariant) {
         toast({
           description: "This design has no available variants right now.",
@@ -65,7 +65,8 @@ export function MerchCard({ merch }: { merch: PublicMerchDesignCard }) {
         return;
       }
 
-      addItem({
+      try {
+      await addItem({
         artistName: merch.artistName,
         coverArtUrl: merch.previewMockupUrl,
         merchDesignId: merch.id,
@@ -82,6 +83,7 @@ export function MerchCard({ merch }: { merch: PublicMerchDesignCard }) {
         description: `"${merch.title}" added to your cart.`,
         title: "Added to Cart",
       });
+      } catch (error) { toast({ title: "Could not add product", description: error instanceof Error ? error.message : "Try again shortly.", variant: "destructive" }); }
     };
 
   return (

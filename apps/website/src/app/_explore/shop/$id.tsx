@@ -178,17 +178,28 @@ function MerchDetailView({
         .filter(Boolean)
         .join(" / ");
 
-      await addItem({
-        artistName: merch.artistName,
-        coverArtUrl: primaryImage,
-        merchDesignId: merch.id,
-        priceCents: merch.retailPriceCents,
-        printfulVariantId: selectedVariant.id,
-        productType: "physical_merch",
-        purchaseMode: "physical_merch",
-        quantity,
-        title: variantLabel ? `${merch.title} (${variantLabel})` : merch.title,
-      });
+      try {
+        await addItem({
+          artistName: merch.artistName,
+          coverArtUrl: primaryImage,
+          merchDesignId: merch.id,
+          priceCents: merch.retailPriceCents,
+          printfulVariantId: selectedVariant.id,
+          productType: "physical_merch",
+          purchaseMode: "physical_merch",
+          quantity,
+          title: variantLabel ? `${merch.title} (${variantLabel})` : merch.title,
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Please sign in or try again shortly.",
+          title: "Could not add to cart",
+          variant: "destructive",
+        });
+      }
     };
 
   return (

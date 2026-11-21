@@ -374,9 +374,13 @@ app.openapi(
         merchDesignIds.length > 0
           ? await db
               .select({
+                designMetadata: merchDesigns.designMetadata,
                 id: merchDesigns.id,
+                ownerUserId: merchDesigns.ownerUserId,
                 platformFeeBps: merchDesigns.platformFeeBps,
                 printfulCatalogProductId: merchDesigns.printfulCatalogProductId,
+                retailPriceCents: merchDesigns.retailPriceCents,
+                status: merchDesigns.status,
               })
               .from(merchDesigns)
               .where(
@@ -403,6 +407,46 @@ app.openapi(
               .where(inArray(merchCatalogVariants.id, printfulVariantIds))
           : [],
       variantMap = new Map(printfulVariantRows.map((v) => [v.id, v]));
+
+    for (const item of items) {
+      if (item.physicalReleaseId) {
+        const release = releaseMap.get(item.physicalReleaseId);
+        if (!release || release.status !== "published") {
+          return c.json(
+            {
+              message:
+                "A physical release in your cart is unavailable or no longer published. Refresh your cart before checkout.",
+            },
+            HttpStatusCodes.BAD_REQUEST
+          );
+        }
+      }
+      if (!item.merchDesignId) {
+        continue;
+      }
+      const design = merchDesignMap.get(item.merchDesignId),
+        variant = item.printfulVariantId
+          ? variantMap.get(item.printfulVariantId)
+          : undefined;
+      if (
+        !design ||
+        design.status !== "published" ||
+        design.ownerUserId !== item.sellerUserId ||
+        !variant?.inStock ||
+        variant.catalogProductId !== design.printfulCatalogProductId ||
+        design.retailPriceCents !== item.priceCentsSnapshot ||
+        (design.designMetadata?.editor &&
+          !design.designMetadata.editor.variantIds.includes(variant.id))
+      ) {
+        return c.json(
+          {
+            message:
+              "A merchandise product changed or is unavailable. Refresh your cart before checkout.",
+          },
+          HttpStatusCodes.BAD_REQUEST
+        );
+      }
+    }
 
     let totalAmountCents = 0,
       totalApplicationFeeCents = 0,

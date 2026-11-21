@@ -11,6 +11,7 @@ import { eq } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
+import { checkPendingMockupTask } from "@/lib/fulfillment-printful";
 import type { AppEnv } from "@/lib/types";
 import { logWarn } from "@/middleware/structured-logging";
 
@@ -222,6 +223,11 @@ const processPrintfulEvent = async ({
     shipmentData = (data.shipment ?? {}) as Record<string, unknown>,
     externalId =
       typeof orderData.external_id === "string" ? orderData.external_id : null;
+
+  if (event.type === "mockup_task_finished" && typeof data.id === "number") {
+    await checkPendingMockupTask({ printfulTaskId: String(data.id) });
+    return;
+  }
 
   if (!externalId) {
     return;
