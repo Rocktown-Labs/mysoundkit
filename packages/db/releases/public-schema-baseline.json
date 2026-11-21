@@ -1,8 +1,8 @@
 {
   "version": 1,
   "target": "rocktownlabs/soundkit/main",
-  "sourceCommit": "60505c492eb58aeacdd5e9355f8d944a62426acc",
-  "evidence": "Read-only PlanetScale main inventory matched all local schema column types/nullability on 2026-11-03; existing migration journal is not replayed.",
+  "sourceCommit": "834c587770ec4620667d21f944ecbb1984452eef",
+  "evidence": "Read-only PlanetScale main inventory matched all local schema column types/nullability; fulfillment.ts TypeScript-only JSONB typing and constant extraction reviewed on 2026-11-21 (#560).",
   "tableCount": 141,
   "columnCount": 1544,
   "columnsSha256": "7edd9cd719548f40254ec2912f89871b44d544a03aaf564bfc51eee180196e7f",
@@ -29,7 +29,7 @@
     },
     {
       "path": "packages/db/src/schema/fulfillment.ts",
-      "sha256": "a51116a52ea6146cc396dd0721ecb4138633f541691b67756871c03b46208fcf"
+      "sha256": "cfe7326d0a2cb5c0102dd701aa64c50f79433802dedb9f08f92ea44c2158751a"
     },
     {
       "path": "packages/db/src/schema/payments.ts",
